@@ -87,7 +87,7 @@ export default function ApiKeysPage() {
 
       <Modal opened={modalOpen} onClose={() => setModalOpen(false)} title="Nova API Key" centered>
         <form onSubmit={handleSubmit((data) => criar.mutate(data as any))}>
-          <Controller name="nome" control={control} render={({ field }) => <TextInput label="Nome *" error={errors.nome?.message} mb="md" {...field} />} />
+          <Controller name="nome" control={control} render={({ field }) => <TextInput label="Nome *" error={errors.nome?.message as string} mb="md" {...field} />} />
           <Group justify="flex-end"><Button variant="default" onClick={() => setModalOpen(false)}>Cancelar</Button><Button type="submit" loading={criar.isPending}>Criar</Button></Group>
         </form>
       </Modal>
