@@ -94,8 +94,8 @@ export default function WebhooksPage() {
       {/* Modal Criar */}
       <Modal opened={modalOpen} onClose={() => setModalOpen(false)} title="Novo Webhook" centered>
         <form onSubmit={handleSubmit((data) => criar.mutate(data))}>
-          <Controller name="url" control={control} render={({ field }) => <TextInput label="URL *" placeholder="https://..." error={errors.url?.message} mb="sm" {...field} />} />
-          <Controller name="eventos" control={control} render={({ field }) => <MultiSelect label="Eventos *" data={EVENTOS} error={errors.eventos?.message} mb="md" value={field.value} onChange={field.onChange} />} />
+          <Controller name="url" control={control} render={({ field }) => <TextInput label="URL *" placeholder="https://..." error={errors.url?.message as string} mb="sm" {...field} />} />
+          <Controller name="eventos" control={control} render={({ field }) => <MultiSelect label="Eventos *" data={EVENTOS} error={errors.eventos?.message as string} mb="md" value={field.value} onChange={field.onChange} />} />
           <Group justify="flex-end"><Button variant="default" onClick={() => setModalOpen(false)}>Cancelar</Button><Button type="submit" loading={criar.isPending}>Criar</Button></Group>
         </form>
       </Modal>
