@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import {
   Card, Group, Text, Table, Badge, Button, Progress, Stack,
   SimpleGrid, LoadingOverlay, TextInput, Box,
@@ -15,7 +15,13 @@ import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { useRouter, useSearchParams } from 'next/navigation'
 
+import { Box } from '@mantine/core'
+
 export default function MonitorEmbalagemPage() {
+  return <Suspense fallback={<Box p="md">Carregando...</Box>}><MonitorEmbalagemContent /></Suspense>
+}
+
+function MonitorEmbalagemContent() {
   useModuloGuard('WMS')
   const router = useRouter()
   const searchParams = useSearchParams()

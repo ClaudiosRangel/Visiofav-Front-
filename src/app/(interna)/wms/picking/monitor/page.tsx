@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import {
   Card, Group, Text, Table, Badge, Button, Progress, Stack,
   SimpleGrid, LoadingOverlay, TextInput, Box,
@@ -22,6 +22,10 @@ const statusColors: Record<string, string> = {
 }
 
 export default function MonitorSeparacaoPage() {
+  return <Suspense fallback={<Box p="md"><Text>Carregando...</Text></Box>}><MonitorSeparacaoContent /></Suspense>
+}
+
+function MonitorSeparacaoContent() {
   useModuloGuard('WMS')
   const router = useRouter()
   const searchParams = useSearchParams()
