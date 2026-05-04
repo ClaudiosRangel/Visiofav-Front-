@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg-default: #f8f9fa;
+  --color-bg-paper: #ffffff;
+  --sidebar-width: 70px;
+  --sidebar-expanded-width: 240px;
+}
+
+body {
+  background-color: var(--color-bg-default);
+  margin: 0;
+}
