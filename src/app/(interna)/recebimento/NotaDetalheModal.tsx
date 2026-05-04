@@ -62,7 +62,7 @@ export default function NotaDetalheModal({ notaId, onClose }: Props) {
                         <Badge color={conf.status === 'CONCLUIDA' ? 'green' : 'blue'} variant="light">{conf.status}</Badge>
                         <Text size="xs" c="dimmed">Conferente: {conf.conferente?.nome}</Text>
                       </Group>
-                      <Table size="sm">
+                      <Table>
                         <Table.Thead><Table.Tr><Table.Th>Item</Table.Th><Table.Th>Produto</Table.Th><Table.Th>Qtd</Table.Th><Table.Th>Divergência</Table.Th></Table.Tr></Table.Thead>
                         <Table.Tbody>
                           {(conf.itens || []).map((item: any) => (

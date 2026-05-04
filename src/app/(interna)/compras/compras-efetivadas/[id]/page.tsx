@@ -116,7 +116,7 @@ export default function CompraEfetivadaDetalhePage() {
                       <Text size="sm">Data: {new Date(dev.dataDevolucao).toLocaleDateString('pt-BR')}</Text>
                       <Text fw={600} c="red">{Number(dev.valorTotal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</Text>
                     </Group>
-                    <Table size="sm" striped>
+                    <Table striped>
                       <Table.Thead><Table.Tr><Table.Th>Produto</Table.Th><Table.Th>Qtd</Table.Th><Table.Th>Valor</Table.Th></Table.Tr></Table.Thead>
                       <Table.Tbody>
                         {dev.itens.map((item: any) => (
