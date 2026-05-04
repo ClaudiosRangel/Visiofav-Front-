@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Card, Group, Text, Table, Badge, Button, Progress, Stack,
   SimpleGrid, LoadingOverlay, TextInput, Box,
@@ -13,30 +13,21 @@ import { notifications } from '@mantine/notifications'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
-import { useRouter, useSearchParams } from 'next/navigation'
-
-import { Box } from '@mantine/core'
+import { useRouter } from 'next/navigation'
 
 export default function MonitorEmbalagemPage() {
-  return <Suspense fallback={<Box p="md">Carregando...</Box>}><MonitorEmbalagemContent /></Suspense>
-}
-
-function MonitorEmbalagemContent() {
   useModuloGuard('WMS')
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const ondaIdParam = searchParams.get('ondaId')
 
   const [ondaIdInput, setOndaIdInput] = useState('')
-  const [ondaId, setOndaId] = useState(ondaIdParam || '')
+  const [ondaId, setOndaId] = useState('')
 
   useEffect(() => {
     document.title = 'VisioFab - Monitor Embalagem'
+    const params = new URLSearchParams(window.location.search)
+    const id = params.get('ondaId')
+    if (id) setOndaId(id)
   }, [])
-
-  useEffect(() => {
-    if (ondaIdParam) setOndaId(ondaIdParam)
-  }, [ondaIdParam])
 
   const { data, isLoading } = useQuery<any>({
     queryKey: ['monitor-embalagem', ondaId],

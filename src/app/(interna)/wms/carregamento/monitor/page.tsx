@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Card, Group, Text, Table, Badge, Button, Progress, Stack,
   SimpleGrid, LoadingOverlay, TextInput, Box,
@@ -13,7 +13,7 @@ import { notifications } from '@mantine/notifications'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 
 const statusColors: Record<string, string> = {
   Pendente: 'orange',
@@ -23,25 +23,19 @@ const statusColors: Record<string, string> = {
 }
 
 export default function MonitorCarregamentoPage() {
-  return <Suspense fallback={<Box p="md"><Text>Carregando...</Text></Box>}><MonitorCarregamentoContent /></Suspense>
-}
-
-function MonitorCarregamentoContent() {
   useModuloGuard('WMS')
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const carregamentoIdParam = searchParams.get('carregamentoId')
 
   const [carregamentoIdInput, setCarregamentoIdInput] = useState('')
-  const [carregamentoId, setCarregamentoId] = useState(carregamentoIdParam || '')
+  const [carregamentoId, setCarregamentoId] = useState('')
 
   useEffect(() => {
     document.title = 'VisioFab - Monitor Carregamento'
+    // Read from URL params on client side
+    const params = new URLSearchParams(window.location.search)
+    const id = params.get('carregamentoId')
+    if (id) setCarregamentoId(id)
   }, [])
-
-  useEffect(() => {
-    if (carregamentoIdParam) setCarregamentoId(carregamentoIdParam)
-  }, [carregamentoIdParam])
 
   const { data, isLoading } = useQuery<any>({
     queryKey: ['monitor-carregamento', carregamentoId],

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Card, Group, Text, Table, Badge, Button, Progress, Stack,
   SimpleGrid, LoadingOverlay, TextInput, Box,
@@ -13,7 +13,7 @@ import { notifications } from '@mantine/notifications'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 
 const statusColors: Record<string, string> = {
   Pendente: 'orange',
@@ -22,25 +22,18 @@ const statusColors: Record<string, string> = {
 }
 
 export default function MonitorSeparacaoPage() {
-  return <Suspense fallback={<Box p="md"><Text>Carregando...</Text></Box>}><MonitorSeparacaoContent /></Suspense>
-}
-
-function MonitorSeparacaoContent() {
   useModuloGuard('WMS')
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const ondaIdParam = searchParams.get('ondaId')
 
   const [ondaIdInput, setOndaIdInput] = useState('')
-  const [ondaId, setOndaId] = useState(ondaIdParam || '')
+  const [ondaId, setOndaId] = useState('')
 
   useEffect(() => {
     document.title = 'VisioFab - Monitor Separação'
+    const params = new URLSearchParams(window.location.search)
+    const id = params.get('ondaId')
+    if (id) setOndaId(id)
   }, [])
-
-  useEffect(() => {
-    if (ondaIdParam) setOndaId(ondaIdParam)
-  }, [ondaIdParam])
 
   const { data, isLoading } = useQuery<any>({
     queryKey: ['monitor-separacao', ondaId],
