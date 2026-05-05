@@ -32,7 +32,7 @@ export default function DepositoModal({ opened, onClose, editData }: Props) {
   const { data: cdsResponse } = useCentrosDistribuicao({ limit: 100 })
   const isEditing = !!editData
 
-  const cdOptions = (cdsResponse?.data || []).map((cd: any) => ({ value: cd.id, label: cd.descricao }))
+  const cdOptions = (cdsResponse?.data || []).map((cd: any) => ({ value: cd.id, label: cd.nome || cd.descricao || cd.codigo || '—' }))
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema) })
 

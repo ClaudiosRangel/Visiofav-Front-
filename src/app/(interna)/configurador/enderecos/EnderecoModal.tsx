@@ -29,8 +29,8 @@ export default function EnderecoModal({ opened, onClose, editData }: Props) {
   const { data: cdsResp } = useCentrosDistribuicao({ limit: 100 })
   const { data: depsResp } = useDepositos({ limit: 100 })
 
-  const cdOptions = (cdsResp?.data || []).map((c: any) => ({ value: c.id, label: c.descricao }))
-  const depOptions = (depsResp?.data || []).map((d: any) => ({ value: d.id, label: d.descricao }))
+  const cdOptions = (cdsResp?.data || []).map((c: any) => ({ value: c.id, label: c.nome || c.descricao || c.codigo || '—' }))
+  const depOptions = (depsResp?.data || []).map((d: any) => ({ value: d.id, label: d.descricao || '—' }))
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema) })
 

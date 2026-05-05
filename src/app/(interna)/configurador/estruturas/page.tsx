@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, Card, Group, Text, TextInput, Table, Badge, ActionIcon, Tooltip, Modal, Select, LoadingOverlay } from '@mantine/core'
+import { Button, Card, Group, Text, TextInput, Table, Badge, ActionIcon, Tooltip, Modal, Select, NumberInput, LoadingOverlay } from '@mantine/core'
 import { IconPlus, IconSearch, IconEdit, IconTrash, IconRefresh } from '@tabler/icons-react'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
@@ -9,7 +9,14 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { notifications } from '@mantine/notifications'
 import { estruturasCrud } from '@/data/hooks/useCrudGenerico'
 
-const schema = z.object({ descricao: z.string().min(1, 'Descrição é obrigatória'), tipo: z.string().min(1, 'Tipo é obrigatório') })
+const schema = z.object({
+  descricao: z.string().min(1, 'Descrição é obrigatória'),
+  tipo: z.string().min(1, 'Tipo é obrigatório'),
+  capacidade: z.number().optional().nullable(),
+  largura: z.number().optional().nullable(),
+  altura: z.number().optional().nullable(),
+  comprimento: z.number().optional().nullable(),
+})
 type FormValues = z.infer<typeof schema>
 
 const TIPOS = [
@@ -28,13 +35,38 @@ export default function EstruturasPage() {
   const criar = estruturasCrud.useCriar()
   const atualizar = estruturasCrud.useAtualizar()
   const excluir = estruturasCrud.useExcluir()
-  const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema) })
+  const { control, handleSubmit, reset, watch, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
-  function handleNew() { setEditItem(null); reset({ descricao: '', tipo: '' }); setModalOpen(true) }
-  function handleEdit(item: any) { setEditItem(item); reset({ descricao: item.descricao, tipo: item.tipo }); setModalOpen(true) }
+  const largura = watch('largura')
+  const altura = watch('altura')
+  const comprimento = watch('comprimento')
+  const cubagem = (largura && altura && comprimento) ? Number((largura * altura * comprimento).toFixed(6)) : null
+
+  function handleNew() {
+    setEditItem(null)
+    reset({ descricao: '', tipo: '', capacidade: null, largura: null, altura: null, comprimento: null })
+    setModalOpen(true)
+  }
+  function handleEdit(item: any) {
+    setEditItem(item)
+    reset({
+      descricao: item.descricao,
+      tipo: item.tipo,
+      capacidade: item.capacidade ? Number(item.capacidade) : null,
+      largura: item.largura ? Number(item.largura) : null,
+      altura: item.altura ? Number(item.altura) : null,
+      comprimento: item.comprimento ? Number(item.comprimento) : null,
+    })
+    setModalOpen(true)
+  }
   async function onSubmit(data: FormValues) {
     try {
-      if (editItem) { await atualizar.mutateAsync({ id: editItem.id, ...data }) } else { await criar.mutateAsync(data as any) }
+      const payload: any = { ...data }
+      // Include cubagem auto-calculated from dimensions
+      if (data.largura && data.altura && data.comprimento) {
+        payload.cubagem = data.largura * data.altura * data.comprimento
+      }
+      if (editItem) { await atualizar.mutateAsync({ id: editItem.id, ...payload }) } else { await criar.mutateAsync(payload as any) }
       notifications.show({ title: 'Sucesso', message: editItem ? 'Atualizado' : 'Criado', color: 'green' }); setModalOpen(false)
     } catch { notifications.show({ title: 'Erro', message: 'Falha ao salvar', color: 'red' }) }
   }
@@ -67,11 +99,28 @@ export default function EstruturasPage() {
           </Table.Tbody>
         </Table>
       </Card>
-      <Modal opened={modalOpen} onClose={() => setModalOpen(false)} title={editItem ? 'Editar Estrutura' : 'Nova Estrutura'} centered closeOnClickOutside={false}>
+      <Modal opened={modalOpen} onClose={() => setModalOpen(false)} title={editItem ? 'Editar Estrutura' : 'Nova Estrutura'} centered closeOnClickOutside={false} size="lg">
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="flex flex-col gap-4">
             <Controller name="descricao" control={control} render={({ field }) => (<TextInput label={<>Descrição <span style={{ color: 'red' }}>*</span></>} error={errors.descricao?.message} {...field} />)} />
             <Controller name="tipo" control={control} render={({ field }) => (<Select label={<>Tipo <span style={{ color: 'red' }}>*</span></>} data={TIPOS} error={errors.tipo?.message} {...field} />)} />
+            <Text size="sm" fw={600} mt="xs">Capacidade</Text>
+            <Controller name="capacidade" control={control} render={({ field }) => (
+              <NumberInput label="Capacidade (kg)" decimalScale={3} min={0} {...field} value={field.value ?? ''} onChange={(v) => field.onChange(v === '' ? null : v)} />
+            )} />
+            <Text size="sm" fw={600} mt="xs">Dimensões</Text>
+            <div className="flex gap-4 w-full">
+              <Controller name="largura" control={control} render={({ field }) => (
+                <NumberInput label="Largura (m)" className="w-4/12" decimalScale={3} min={0} {...field} value={field.value ?? ''} onChange={(v) => field.onChange(v === '' ? null : v)} />
+              )} />
+              <Controller name="altura" control={control} render={({ field }) => (
+                <NumberInput label="Altura (m)" className="w-4/12" decimalScale={3} min={0} {...field} value={field.value ?? ''} onChange={(v) => field.onChange(v === '' ? null : v)} />
+              )} />
+              <Controller name="comprimento" control={control} render={({ field }) => (
+                <NumberInput label="Comprimento (m)" className="w-4/12" decimalScale={3} min={0} {...field} value={field.value ?? ''} onChange={(v) => field.onChange(v === '' ? null : v)} />
+              )} />
+            </div>
+            <NumberInput label="Cubagem (m³)" decimalScale={6} readOnly value={cubagem ?? ''} variant="filled" description="Calculado automaticamente (largura × altura × comprimento)" />
           </div>
           <Group justify="flex-end" mt="md"><Button variant="default" onClick={() => setModalOpen(false)}>Cancelar</Button><Button type="submit" loading={criar.isPending || atualizar.isPending}>Salvar</Button></Group>
         </form>

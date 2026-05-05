@@ -29,8 +29,8 @@ export default function DocasPage() {
   const excluir = useExcluirDoca()
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
-  const cdOptions = (cdsResp?.data || []).map((c: any) => ({ value: c.id, label: c.descricao }))
-  const depOptions = (depsResp?.data || []).map((d: any) => ({ value: d.id, label: d.descricao }))
+  const cdOptions = (cdsResp?.data || []).map((c: any) => ({ value: c.id, label: c.nome || c.descricao || c.codigo || '—' }))
+  const depOptions = (depsResp?.data || []).map((d: any) => ({ value: d.id, label: d.descricao || '—' }))
 
   function handleNew() { setEditItem(null); reset({ descricao: '', centroDistribuicaoId: cdOptions[0]?.value || '', depositoId: '', tipo: '' }); setModalOpen(true) }
   function handleEdit(item: any) { setEditItem(item); reset({ descricao: item.descricao, centroDistribuicaoId: item.centroDistribuicaoId, depositoId: item.depositoId, tipo: item.tipo, comprimentoMax: item.comprimentoMax || 0 }); setModalOpen(true) }
