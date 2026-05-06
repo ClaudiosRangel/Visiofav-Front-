@@ -127,6 +127,16 @@ export default function EtiquetasPage() {
                   loading={gerarEtiquetas.isPending}>
                   Gerar ({selectedEnderecos.size})
                 </Button>
+                <Button variant="light" color="teal" leftSection={<IconPrinter size={16} />} disabled={selectedEnderecos.size === 0}
+                  onClick={async () => {
+                    try {
+                      const { data: html } = await api.post('/etiquetas/enderecos-html', { ids: Array.from(selectedEnderecos), quantidade: copias }, { responseType: 'text' })
+                      const w = window.open('', '_blank')
+                      if (w) { w.document.write(html); w.document.close() }
+                    } catch (err: any) { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' }) }
+                  }}>
+                  Imprimir (Fonte 20)
+                </Button>
               </Group>
             </Group>
             <LoadingOverlay visible={loadEnd} />
