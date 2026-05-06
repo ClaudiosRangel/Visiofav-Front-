@@ -2,9 +2,10 @@
 
 import { useState } from 'react'
 import { Button, Card, Group, Text, TextInput, Table, Badge, ActionIcon, Tooltip, LoadingOverlay } from '@mantine/core'
-import { IconPlus, IconSearch, IconEdit, IconTrash, IconRefresh, IconAutomation } from '@tabler/icons-react'
+import { IconPlus, IconSearch, IconEdit, IconTrash, IconRefresh, IconAutomation, IconPrinter } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { useEnderecos, useExcluirEndereco } from '@/data/hooks/useEndereco'
+import { api } from '@/lib/api'
 import EnderecoModal from './EnderecoModal'
 import EnderecoAutoModal from './EnderecoAutoModal'
 
@@ -42,6 +43,17 @@ export default function EnderecosPage() {
           <TextInput placeholder="Pesquisar endereço..." leftSection={<IconSearch size={16} />} value={search} onChange={(e) => setSearch(e.currentTarget.value)} className="w-72" />
           <Group>
             <Button variant="default" leftSection={<IconRefresh size={16} />} onClick={() => refetch()}>Atualizar</Button>
+            <Button variant="light" color="teal" leftSection={<IconPrinter size={16} />} disabled={items.length === 0}
+              onClick={async () => {
+                try {
+                  const ids = items.map((i: any) => i.id)
+                  const { data: html } = await api.post('/etiquetas/enderecos-html', { ids, quantidade: 1 }, { responseType: 'text' })
+                  const w = window.open('', '_blank')
+                  if (w) { w.document.write(html); w.document.close() }
+                } catch (err: any) { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao gerar etiquetas', color: 'red' }) }
+              }}>
+              Imprimir Etiquetas
+            </Button>
             <Button variant="light" leftSection={<IconAutomation size={16} />} onClick={() => setAutoModalOpen(true)}>Gerar Automático</Button>
             <Button leftSection={<IconPlus size={16} />} onClick={handleNew}>Novo</Button>
           </Group>
