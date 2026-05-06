@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Card, Text, SimpleGrid, UnstyledButton, Group, Divider } from '@mantine/core'
 import {
   IconAdjustments,
@@ -17,6 +17,7 @@ import {
   IconMap,
 } from '@tabler/icons-react'
 import Link from 'next/link'
+import { getUserPerfil } from '@/hooks/usePerfilGuard'
 
 const atalhos = [
   { icon: IconAdjustments, label: 'Fluxo de processos', href: '/configurador/fluxo' },
@@ -54,6 +55,12 @@ const cadastros = [
 
 export default function ConfiguradorPage() {
   useEffect(() => { document.title = 'VisioFab - Configurador' }, [])
+
+  const filteredCadastros = useMemo(() => {
+    const perfil = getUserPerfil()
+    if (perfil === 'ADMIN') return cadastros
+    return cadastros.filter((item) => item.href !== '/configurador/usuarios')
+  }, [])
   return (
     <div>
       <Text size="xs" c="dimmed" mb={4}>
@@ -82,7 +89,7 @@ export default function ConfiguradorPage() {
       {/* Lista de cadastros - inspirado na imagem */}
       <Card>
         <Text fw={600} mb={4}>
-          Cadastros ({cadastros.length})
+          Cadastros ({filteredCadastros.length})
         </Text>
         <Text size="xs" c="dimmed" mb="md">
           Selecione a rotina de Cadastros na lista abaixo:
@@ -90,7 +97,7 @@ export default function ConfiguradorPage() {
         <Divider mb="md" />
 
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
-          {cadastros.map((item) => (
+          {filteredCadastros.map((item) => (
             <UnstyledButton
               key={item.href}
               component={Link}
