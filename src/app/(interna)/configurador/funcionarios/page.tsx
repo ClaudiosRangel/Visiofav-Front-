@@ -10,7 +10,7 @@ import { notifications } from '@mantine/notifications'
 import { useFuncionarios, useCriarFuncionario, useAtualizarFuncionario, useExcluirFuncionario } from '@/data/hooks/useFuncionario'
 import { useCentrosDistribuicao } from '@/data/hooks/useCentroDistribuicao'
 
-const schema = z.object({ nome: z.string().min(1, 'Nome é obrigatório'), matricula: z.string().optional(), tipo: z.string().min(1, 'Tipo é obrigatório'), centroDistribuicaoId: z.string().min(1, 'CD é obrigatório'), email: z.string().email('Email inválido').optional().or(z.literal('')), senha: z.string().min(6, 'Mínimo 6 caracteres').optional().or(z.literal('')) })
+const schema = z.object({ nome: z.string().min(1, 'Nome é obrigatório'), matricula: z.string().optional(), tipo: z.string().min(1, 'Tipo é obrigatório'), centroDistribuicaoId: z.string().min(1, 'CD é obrigatório') })
 type FormValues = z.infer<typeof schema>
 
 const TIPOS = [{ value: 'OPERADOR', label: 'Operador' }, { value: 'CONFERENTE', label: 'Conferente' }, { value: 'LIDER', label: 'Líder' }, { value: 'SUPERVISOR', label: 'Supervisor' }]
@@ -29,8 +29,8 @@ export default function FuncionariosPage() {
 
   const cdOptions = (cdsResp?.data || []).map((c: any) => ({ value: c.id, label: c.nome || c.descricao || c.codigo || '' }))
 
-  function handleNew() { setEditItem(null); reset({ nome: '', matricula: '', tipo: '', centroDistribuicaoId: cdOptions[0]?.value || '', email: '', senha: '' }); setModalOpen(true) }
-  function handleEdit(item: any) { setEditItem(item); reset({ nome: item.nome, matricula: item.matricula || '', tipo: item.tipo, centroDistribuicaoId: item.centroDistribuicaoId, email: item.email || '', senha: '' }); setModalOpen(true) }
+  function handleNew() { setEditItem(null); reset({ nome: '', matricula: '', tipo: '', centroDistribuicaoId: cdOptions[0]?.value || '' }); setModalOpen(true) }
+  function handleEdit(item: any) { setEditItem(item); reset({ nome: item.nome, matricula: item.matricula || '', tipo: item.tipo, centroDistribuicaoId: item.centroDistribuicaoId }); setModalOpen(true) }
   async function onSubmit(data: FormValues) {
     try {
       if (editItem) { await atualizar.mutateAsync({ id: editItem.id, ...data }) } else { await criar.mutateAsync(data) }
@@ -74,11 +74,6 @@ export default function FuncionariosPage() {
             <div className="flex gap-4 w-full">
               <Controller name="matricula" control={control} render={({ field }) => (<TextInput label="Matrícula" className="w-6/12" {...field} />)} />
               <Controller name="tipo" control={control} render={({ field }) => (<Select label={<>Tipo <span style={{ color: 'red' }}>*</span></>} data={TIPOS} error={errors.tipo?.message} className="w-6/12" {...field} />)} />
-            </div>
-            <Text size="sm" fw={600} mt="xs">Acesso ao App (Coletor)</Text>
-            <div className="flex gap-4 w-full">
-              <Controller name="email" control={control} render={({ field }) => (<TextInput label="Email" placeholder="operador@empresa.com" className="w-6/12" error={errors.email?.message} {...field} />)} />
-              <Controller name="senha" control={control} render={({ field }) => (<TextInput label={editItem ? 'Nova Senha (deixe vazio para manter)' : 'Senha'} type="password" placeholder="••••••" className="w-6/12" error={errors.senha?.message} {...field} />)} />
             </div>
           </div>
           <Group justify="flex-end" mt="md"><Button variant="default" onClick={() => setModalOpen(false)}>Cancelar</Button><Button type="submit" loading={criar.isPending || atualizar.isPending}>Salvar</Button></Group>
