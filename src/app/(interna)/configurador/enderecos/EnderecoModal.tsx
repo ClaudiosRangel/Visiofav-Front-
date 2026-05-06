@@ -35,7 +35,21 @@ export default function EnderecoModal({ opened, onClose, editData }: Props) {
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
   useEffect(() => {
-    if (!editData) reset({ codigoDeposito: '001', codigoZona: '001', codigoRua: '', codigoPredio: '', codigoNivel: '', codigoApto: '', tipo: 'ARMAZENAGEM' })
+    if (editData) {
+      reset({
+        centroDistribuicaoId: editData.centroDistribuicaoId || '',
+        depositoId: editData.depositoId || '',
+        codigoDeposito: editData.codigoDeposito || '001',
+        codigoZona: editData.codigoZona || '001',
+        codigoRua: editData.codigoRua || '',
+        codigoPredio: editData.codigoPredio || '',
+        codigoNivel: editData.codigoNivel || '',
+        codigoApto: editData.codigoApto || '',
+        tipo: editData.tipo || 'ARMAZENAGEM',
+      })
+    } else {
+      reset({ centroDistribuicaoId: '', depositoId: '', codigoDeposito: '001', codigoZona: '001', codigoRua: '', codigoPredio: '', codigoNivel: '', codigoApto: '', tipo: 'ARMAZENAGEM' })
+    }
   }, [editData, reset, opened])
 
   async function onSubmit(data: FormValues) {

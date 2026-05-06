@@ -8,10 +8,12 @@ import { notifications } from '@mantine/notifications'
 import { useGerarEnderecos } from '@/data/hooks/useEndereco'
 import { useDepositos } from '@/data/hooks/useDeposito'
 import { useCentrosDistribuicao } from '@/data/hooks/useCentroDistribuicao'
+import { estruturasCrud } from '@/data/hooks/useCrudGenerico'
 
 const schema = z.object({
   centroDistribuicaoId: z.string().min(1, 'CD é obrigatório'),
   depositoId: z.string().min(1, 'Depósito é obrigatório'),
+  estruturaId: z.string().optional(),
   codigoDeposito: z.string().min(1), codigoZona: z.string().min(1),
   ruaInicio: z.number().min(1), ruaFim: z.number().min(1),
   predioInicio: z.number().min(1), predioFim: z.number().min(1),
@@ -27,9 +29,11 @@ export default function EnderecoAutoModal({ opened, onClose }: Props) {
   const gerar = useGerarEnderecos()
   const { data: cdsResp } = useCentrosDistribuicao({ limit: 100 })
   const { data: depsResp } = useDepositos({ limit: 100 })
+  const { data: estruturasResp } = estruturasCrud.useListar({ limit: 100 })
 
   const cdOptions = (cdsResp?.data || []).map((c: any) => ({ value: c.id, label: c.nome || c.descricao || c.codigo || '—' }))
   const depOptions = (depsResp?.data || []).map((d: any) => ({ value: d.id, label: d.descricao || '—' }))
+  const estruturaOptions = (estruturasResp?.data || []).map((e: any) => ({ value: e.id, label: e.descricao || '—' }))
 
   const { control, handleSubmit, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -54,6 +58,9 @@ export default function EnderecoAutoModal({ opened, onClose }: Props) {
           <div className="flex gap-4 w-full">
             <Controller name="centroDistribuicaoId" control={control} render={({ field }) => (<Select label={<>CD <span style={{ color: 'red' }}>*</span></>} data={cdOptions} error={errors.centroDistribuicaoId?.message} className="w-6/12" searchable {...field} />)} />
             <Controller name="depositoId" control={control} render={({ field }) => (<Select label={<>Depósito <span style={{ color: 'red' }}>*</span></>} data={depOptions} error={errors.depositoId?.message} className="w-6/12" searchable {...field} />)} />
+          </div>
+          <div className="flex gap-4 w-full">
+            <Controller name="estruturaId" control={control} render={({ field }) => (<Select label="Estrutura" data={estruturaOptions} className="w-full" searchable clearable placeholder="Selecione uma estrutura (opcional)" {...field} value={field.value || null} />)} />
           </div>
           <div className="flex gap-4 w-full">
             <Controller name="codigoDeposito" control={control} render={({ field }) => (<TextInput label="Cód. Depósito" className="w-4/12" {...field} />)} />
