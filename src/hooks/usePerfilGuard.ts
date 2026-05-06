@@ -21,7 +21,10 @@ export function usePerfilGuard(perfil: string) {
 
   useEffect(() => {
     const decoded = decodeToken()
-    if (decoded && decoded.perfil !== perfil) {
+    if (!decoded) return
+    // SUPER_ADMIN has access to everything
+    if (decoded.perfil === 'SUPER_ADMIN') return
+    if (decoded.perfil !== perfil) {
       notifications.show({
         title: 'Acesso negado',
         message: 'Acesso não autorizado',
