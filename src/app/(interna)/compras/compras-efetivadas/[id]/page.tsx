@@ -89,7 +89,7 @@ export default function CompraEfetivadaDetalhePage() {
             <Table striped withTableBorder>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Código</Table.Th><Table.Th>Produto</Table.Th><Table.Th>Qtd</Table.Th>
+                  <Table.Th>Código</Table.Th><Table.Th>Produto</Table.Th><Table.Th>Unidade</Table.Th><Table.Th>Qtd</Table.Th>
                   <Table.Th>Preço Unit.</Table.Th><Table.Th>Total</Table.Th>
                 </Table.Tr>
               </Table.Thead>
@@ -98,6 +98,7 @@ export default function CompraEfetivadaDetalhePage() {
                   <Table.Tr key={item.id}>
                     <Table.Td className="font-mono">{item.produto?.codigo}</Table.Td>
                     <Table.Td fw={500}>{item.produto?.nome}</Table.Td>
+                    <Table.Td>{item.produto?.unidade || '—'}</Table.Td>
                     <Table.Td>{Number(item.quantidade)}</Table.Td>
                     <Table.Td>{Number(item.precoUnitario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</Table.Td>
                     <Table.Td fw={500}>{Number(item.valorTotal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</Table.Td>
