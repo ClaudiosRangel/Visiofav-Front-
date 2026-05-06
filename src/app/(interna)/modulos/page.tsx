@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
-import { Card, SimpleGrid, Text, Title, ThemeIcon, UnstyledButton, Center, Stack } from '@mantine/core'
+import { useEffect, useState } from 'react'
+import { Card, SimpleGrid, Text, Title, ThemeIcon, UnstyledButton, Center, Stack, Button, Modal, PasswordInput, Loader } from '@mantine/core'
 import {
   IconShoppingCart,
   IconReceipt,
@@ -9,9 +9,12 @@ import {
   IconBuildingWarehouse,
   IconTruck,
   IconSettings,
+  IconTrash,
 } from '@tabler/icons-react'
 import { useRouter } from 'next/navigation'
 import { useEmpresa } from '@/providers/EmpresaProvider'
+import { notifications } from '@mantine/notifications'
+import { api } from '@/lib/api'
 
 const MODULOS_CONFIG = [
   { modulo: 'COMPRAS', label: 'Compras', icon: IconShoppingCart, href: '/compras/pedidos', color: 'blue' },
@@ -27,7 +30,41 @@ export default function ModulosPage() {
   const router = useRouter()
   const { modulos, empresa } = useEmpresa()
 
+  const [cleanupOpen, setCleanupOpen] = useState(false)
+  const [senha, setSenha] = useState('')
+  const [loading, setLoading] = useState(false)
+
   const modulosVisiveis = MODULOS_CONFIG.filter((m) => modulos.includes(m.modulo))
+
+  async function handleCleanup() {
+    if (!senha) return
+    setLoading(true)
+    try {
+      const { data } = await api.post('/admin/cleanup', { senha })
+      if (data.done) {
+        notifications.show({
+          title: 'Limpeza concluída',
+          message: 'Todos os dados operacionais foram removidos com sucesso.',
+          color: 'green',
+          position: 'top-right',
+          autoClose: 5000,
+        })
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || 'Erro ao executar limpeza'
+      notifications.show({
+        title: 'Erro',
+        message: msg,
+        color: 'red',
+        position: 'top-right',
+        autoClose: 5000,
+      })
+    } finally {
+      setLoading(false)
+      setCleanupOpen(false)
+      setSenha('')
+    }
+  }
 
   if (modulosVisiveis.length === 0) {
     return (
@@ -61,6 +98,52 @@ export default function ModulosPage() {
           </UnstyledButton>
         ))}
       </SimpleGrid>
+
+      {/* Botão de Limpeza de Dados */}
+      <Button
+        variant="light"
+        color="red"
+        leftSection={<IconTrash size={18} />}
+        onClick={() => setCleanupOpen(true)}
+        mt="xl"
+        w="fit-content"
+      >
+        Limpar Dados
+      </Button>
+
+      {/* Modal de confirmação com senha */}
+      <Modal
+        opened={cleanupOpen}
+        onClose={() => { setCleanupOpen(false); setSenha('') }}
+        title="Limpeza de Dados"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Esta ação irá remover todos os dados operacionais (pedidos, estoque, notas, funcionários, etc.).
+            Serão mantidos: empresa, CD, depósitos, zonas, estruturas, docas, produtos, SKUs, parâmetros e o usuário admin.
+          </Text>
+          <Text size="sm" c="red" fw={600}>
+            Esta ação é irreversível!
+          </Text>
+          <PasswordInput
+            label="Senha de confirmação"
+            placeholder="Digite a senha para confirmar"
+            value={senha}
+            onChange={(e) => setSenha(e.currentTarget.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleCleanup() }}
+          />
+          <Button
+            color="red"
+            onClick={handleCleanup}
+            loading={loading}
+            disabled={!senha}
+            fullWidth
+          >
+            Confirmar Limpeza
+          </Button>
+        </Stack>
+      </Modal>
     </Stack>
   )
 }
