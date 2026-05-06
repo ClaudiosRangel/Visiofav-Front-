@@ -15,6 +15,7 @@ import { useRouter } from 'next/navigation'
 import { useEmpresa } from '@/providers/EmpresaProvider'
 import { notifications } from '@mantine/notifications'
 import { api } from '@/lib/api'
+import { getUserPerfil } from '@/hooks/usePerfilGuard'
 
 const MODULOS_CONFIG = [
   { modulo: 'COMPRAS', label: 'Compras', icon: IconShoppingCart, href: '/compras/pedidos', color: 'blue' },
@@ -35,6 +36,8 @@ export default function ModulosPage() {
   const [loading, setLoading] = useState(false)
 
   const modulosVisiveis = MODULOS_CONFIG.filter((m) => modulos.includes(m.modulo))
+  const perfil = getUserPerfil()
+  const isAdmin = perfil === 'SUPER_ADMIN'
 
   async function handleCleanup() {
     if (!senha) return
@@ -99,51 +102,55 @@ export default function ModulosPage() {
         ))}
       </SimpleGrid>
 
-      {/* Botão de Limpeza de Dados */}
-      <Button
-        variant="light"
-        color="red"
-        leftSection={<IconTrash size={18} />}
-        onClick={() => setCleanupOpen(true)}
-        mt="xl"
-        w="fit-content"
-      >
-        Limpar Dados
-      </Button>
+      {/* Botão de Limpeza de Dados - apenas para SUPER_ADMIN */}
+      {isAdmin && (
+        <Button
+          variant="light"
+          color="red"
+          leftSection={<IconTrash size={18} />}
+          onClick={() => setCleanupOpen(true)}
+          mt="xl"
+          w="fit-content"
+        >
+          Limpar Dados
+        </Button>
+      )}
 
       {/* Modal de confirmação com senha */}
-      <Modal
-        opened={cleanupOpen}
-        onClose={() => { setCleanupOpen(false); setSenha('') }}
-        title="Limpeza de Dados"
-        centered
-      >
-        <Stack gap="md">
-          <Text size="sm" c="dimmed">
-            Esta ação irá remover todos os dados operacionais (pedidos, estoque, notas, funcionários, etc.).
-            Serão mantidos: empresa, CD, depósitos, zonas, estruturas, docas, produtos, SKUs, parâmetros e o usuário admin.
-          </Text>
-          <Text size="sm" c="red" fw={600}>
-            Esta ação é irreversível!
-          </Text>
-          <PasswordInput
-            label="Senha de confirmação"
-            placeholder="Digite a senha para confirmar"
-            value={senha}
-            onChange={(e) => setSenha(e.currentTarget.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleCleanup() }}
-          />
-          <Button
-            color="red"
-            onClick={handleCleanup}
-            loading={loading}
-            disabled={!senha}
-            fullWidth
-          >
-            Confirmar Limpeza
-          </Button>
-        </Stack>
-      </Modal>
+      {isAdmin && (
+        <Modal
+          opened={cleanupOpen}
+          onClose={() => { setCleanupOpen(false); setSenha('') }}
+          title="Limpeza de Dados"
+          centered
+        >
+          <Stack gap="md">
+            <Text size="sm" c="dimmed">
+              Esta ação irá remover todos os dados operacionais (pedidos, estoque, notas, funcionários, etc.).
+              Serão mantidos: empresa, CD, depósitos, zonas, estruturas, docas, produtos, SKUs, parâmetros e o usuário admin.
+            </Text>
+            <Text size="sm" c="red" fw={600}>
+              Esta ação é irreversível!
+            </Text>
+            <PasswordInput
+              label="Senha de confirmação"
+              placeholder="Digite a senha para confirmar"
+              value={senha}
+              onChange={(e) => setSenha(e.currentTarget.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCleanup() }}
+            />
+            <Button
+              color="red"
+              onClick={handleCleanup}
+              loading={loading}
+              disabled={!senha}
+              fullWidth
+            >
+              Confirmar Limpeza
+            </Button>
+          </Stack>
+        </Modal>
+      )}
     </Stack>
   )
 }

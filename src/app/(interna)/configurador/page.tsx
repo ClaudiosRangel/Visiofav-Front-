@@ -58,7 +58,7 @@ export default function ConfiguradorPage() {
 
   const filteredCadastros = useMemo(() => {
     const perfil = getUserPerfil()
-    if (perfil === 'ADMIN') return cadastros
+    if (perfil === 'ADMIN' || perfil === 'SUPER_ADMIN') return cadastros
     return cadastros.filter((item) => item.href !== '/configurador/usuarios')
   }, [])
   return (
