@@ -190,7 +190,21 @@ export default function MapaArmazemPage() {
                           className={`w-full h-8 rounded border cursor-pointer flex items-center justify-center text-xs font-mono transition-all hover:scale-105 ${ocupacaoBg[pos.ocupacao] || 'bg-white border-gray-200'}`}
                           onClick={() => setSelectedEnd(pos)}
                         >
-                          {pos.nivel}-{pos.apto}
+                          {pos.ocupacao === 'CHEIO' || pos.ocupacao === 'PARCIAL' ? (
+                            <span title={`${pos.nivel}-${pos.apto}`}>
+                              <svg width="20" height="18" viewBox="0 0 24 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="2" y="10" width="20" height="2" rx="1" fill="#555"/>
+                                <rect x="3" y="4" width="7" height="6" rx="1" fill="#FF9F43" stroke="#E08A30" strokeWidth="0.5"/>
+                                <rect x="11" y="2" width="7" height="8" rx="1" fill="#28C76F" stroke="#1FA85C" strokeWidth="0.5"/>
+                                <rect x="4" y="12" width="2" height="6" rx="0.5" fill="#888"/>
+                                <rect x="18" y="12" width="2" height="6" rx="0.5" fill="#888"/>
+                                <rect x="1" y="17" width="8" height="2" rx="1" fill="#666"/>
+                                <rect x="15" y="17" width="8" height="2" rx="1" fill="#666"/>
+                              </svg>
+                            </span>
+                          ) : (
+                            <span>{pos.nivel}-{pos.apto}</span>
+                          )}
                         </div>
                       </Tooltip>
                     ))}
