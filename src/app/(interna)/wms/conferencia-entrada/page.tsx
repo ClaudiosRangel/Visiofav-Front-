@@ -122,10 +122,10 @@ export default function ConferenciaEntradaPage() {
     queryFn: async () => { const { data } = await api.get('/conferencia-entrada/notas-pendentes'); return data },
   })
 
-  // Notas conferidas
+  // Notas conferidas + endereçadas (para aba Conferidas)
   const { data: conferidasResp } = useQuery<any>({
     queryKey: ['conferencia-notas-conferidas'],
-    queryFn: async () => { const { data } = await api.get('/conferencia-entrada/notas-conferidas'); return data },
+    queryFn: async () => { const { data } = await api.get('/conferencia-entrada/notas-conferidas-todas'); return data },
   })
 
   // Endereços livres

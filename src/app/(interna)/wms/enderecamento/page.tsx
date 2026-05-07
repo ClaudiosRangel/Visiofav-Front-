@@ -27,21 +27,13 @@ export default function EnderecamentoPage() {
   const { data: enderecadasResp, isLoading: loadEnd, refetch: refetchEnd } = useQuery<any>({
     queryKey: ['enderecamento-enderecadas'],
     queryFn: async () => {
-      const { data } = await api.get('/conferencia-entrada/notas-pendentes')
-      // Filtrar apenas as ENDERECADAS (buscar via endpoint de notas)
+      const { data } = await api.get('/conferencia-entrada/notas-enderecadas')
       return data
     },
   })
 
-  // Buscar notas endereçadas separadamente
-  const { data: notasEnderecadasResp } = useQuery<any>({
-    queryKey: ['notas-enderecadas'],
-    queryFn: async () => {
-      // Buscar notas com status ENDERECADA
-      const { data } = await api.get('/notas-entrada', { params: { status: 'ENDERECADA', limit: 50 } }).catch(() => ({ data: { data: [] } }))
-      return data
-    },
-  })
+  // Usar o mesmo endpoint para a lista de endereçadas
+  const notasEnderecadasResp = enderecadasResp
 
   // Endereçamento automático
   const enderecarAuto = useMutation({
