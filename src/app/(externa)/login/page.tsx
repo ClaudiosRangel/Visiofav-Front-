@@ -45,7 +45,7 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit(onSubmit)}>
           <Stack gap="md">
             <Controller name="email" control={control} render={({ field }) => (
-              <TextInput label="Email" placeholder="admin@visiofab.com" error={errors.email?.message} {...field} />
+              <TextInput label="Email" placeholder="seu@email.com" error={errors.email?.message} {...field} />
             )} />
             <Controller name="senha" control={control} render={({ field }) => (
               <PasswordInput label="Senha" placeholder="Sua senha" error={errors.senha?.message} {...field} />
@@ -53,10 +53,6 @@ export default function LoginPage() {
             <Button type="submit" fullWidth loading={isSubmitting} mt="sm">Entrar</Button>
           </Stack>
         </form>
-
-        <Text size="xs" c="dimmed" ta="center" mt="lg">
-          Login padrão: admin@visiofab.com / 123456
-        </Text>
       </Card>
     </div>
   )
