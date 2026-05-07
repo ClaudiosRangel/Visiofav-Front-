@@ -20,6 +20,7 @@ const formSchema = z.object({
     produtoId: z.string().min(1, 'Produto é obrigatório'),
     quantidade: z.number().positive('Quantidade > 0'),
     unidade: z.string().optional(),
+    precoUnitario: z.number().min(0).optional(),
     desconto: z.number().min(0).max(100).optional(),
   })).min(1, 'Pelo menos um item'),
 })
@@ -32,7 +33,7 @@ export default function NovoPedidoVendaPage() {
 
   const { control, handleSubmit, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { clienteId: '', vendedorId: '', tabelaPrecoId: '', condicaoPagId: '', itens: [{ produtoId: '', quantidade: 1, unidade: '', desconto: 0 }] },
+    defaultValues: { clienteId: '', vendedorId: '', tabelaPrecoId: '', condicaoPagId: '', itens: [{ produtoId: '', quantidade: 1, unidade: '', precoUnitario: 0, desconto: 0 }] },
   })
 
   const { fields, append, remove } = useFieldArray({ control, name: 'itens' })
@@ -101,7 +102,7 @@ export default function NovoPedidoVendaPage() {
         <Card mb="md">
           <Group justify="space-between" mb="sm">
             <Text fw={500}>Itens</Text>
-            <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => append({ produtoId: '', quantidade: 1, unidade: '', desconto: 0 })}>Adicionar</Button>
+            <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => append({ produtoId: '', quantidade: 1, unidade: '', precoUnitario: 0, desconto: 0 })}>Adicionar</Button>
           </Group>
 
           <Table striped>
@@ -121,18 +122,15 @@ export default function NovoPedidoVendaPage() {
                 const produtoId = watch(`itens.${idx}.produtoId`)
                 const qtd = watch(`itens.${idx}.quantidade`) || 0
                 const desc = watch(`itens.${idx}.desconto`) || 0
+                const precoUnit = watch(`itens.${idx}.precoUnitario`) || 0
                 const produtoSel = (produtosData?.data || []).find((p: any) => p.id === produtoId)
-                const precoBase = produtoSel ? Number(produtoSel.precoBase) : 0
-                const condicaoItem = tabelaSelecionada?.condicoes?.find((c: any) => c.id === watch('condicaoPagId')) || tabelaSelecionada?.condicoes?.[0]
-                const precoComCondicao = precoBase * (1 + (condicaoItem ? Number(condicaoItem.percentual) : 0) / 100)
-                const precoFinal = precoComCondicao * (1 - desc / 100)
-                const valorTotal = qtd * precoFinal
+                const valorTotal = qtd * precoUnit * (1 - desc / 100)
 
                 return (
                   <Table.Tr key={field.id}>
                     <Table.Td>
                       <Controller name={`itens.${idx}.produtoId`} control={control} render={({ field: f }) => (
-                        <Select data={produtoOptions} searchable error={errors.itens?.[idx]?.produtoId?.message} value={f.value} onChange={(v) => { f.onChange(v || ''); const prod = (produtosData?.data || []).find((p: any) => p.id === v); if (prod) { const methods = control._formValues; methods.itens[idx].unidade = prod.unidade || 'UN' } }} size="xs" />
+                        <Select data={produtoOptions} searchable error={errors.itens?.[idx]?.produtoId?.message} value={f.value} onChange={(v) => { f.onChange(v || ''); const prod = (produtosData?.data || []).find((p: any) => p.id === v); if (prod) { control._formValues.itens[idx].unidade = prod.unidade || 'UN'; control._formValues.itens[idx].precoUnitario = Number(prod.precoBase) || 0 } }} size="xs" />
                       )} />
                     </Table.Td>
                     <Table.Td>
@@ -146,7 +144,9 @@ export default function NovoPedidoVendaPage() {
                       )} />
                     </Table.Td>
                     <Table.Td>
-                      <Text size="xs" c="dimmed">{precoFinal.toFixed(2)}</Text>
+                      <Controller name={`itens.${idx}.precoUnitario`} control={control} render={({ field: f }) => (
+                        <NumberInput min={0} decimalScale={4} prefix="R$ " value={f.value || 0} onChange={(v) => f.onChange(typeof v === 'number' ? v : 0)} size="xs" />
+                      )} />
                     </Table.Td>
                     <Table.Td>
                       <Controller name={`itens.${idx}.desconto`} control={control} render={({ field: f }) => (
