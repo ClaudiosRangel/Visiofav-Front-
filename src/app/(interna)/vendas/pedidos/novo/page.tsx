@@ -19,6 +19,8 @@ const formSchema = z.object({
   itens: z.array(z.object({
     produtoId: z.string().min(1, 'Produto é obrigatório'),
     quantidade: z.number().positive('Quantidade > 0'),
+    unidade: z.string().optional(),
+    desconto: z.number().min(0).max(100).optional(),
   })).min(1, 'Pelo menos um item'),
 })
 
@@ -30,7 +32,7 @@ export default function NovoPedidoVendaPage() {
 
   const { control, handleSubmit, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { clienteId: '', vendedorId: '', tabelaPrecoId: '', condicaoPagId: '', itens: [{ produtoId: '', quantidade: 1 }] },
+    defaultValues: { clienteId: '', vendedorId: '', tabelaPrecoId: '', condicaoPagId: '', itens: [{ produtoId: '', quantidade: 1, unidade: '', desconto: 0 }] },
   })
 
   const { fields, append, remove } = useFieldArray({ control, name: 'itens' })
@@ -99,38 +101,70 @@ export default function NovoPedidoVendaPage() {
         <Card mb="md">
           <Group justify="space-between" mb="sm">
             <Text fw={500}>Itens</Text>
-            <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => append({ produtoId: '', quantidade: 1 })}>Adicionar</Button>
+            <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => append({ produtoId: '', quantidade: 1, unidade: '', desconto: 0 })}>Adicionar</Button>
           </Group>
 
           <Table striped>
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Produto</Table.Th>
-                <Table.Th className="w-40">Quantidade</Table.Th>
+                <Table.Th className="w-24">Unidade</Table.Th>
+                <Table.Th className="w-32">Quantidade</Table.Th>
+                <Table.Th className="w-32">Preço Unit.</Table.Th>
+                <Table.Th className="w-28">Desc. %</Table.Th>
+                <Table.Th className="w-32">Valor Total</Table.Th>
                 <Table.Th className="w-16"></Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {fields.map((field, idx) => (
-                <Table.Tr key={field.id}>
-                  <Table.Td>
-                    <Controller name={`itens.${idx}.produtoId`} control={control} render={({ field: f }) => (
-                      <Select data={produtoOptions} searchable error={errors.itens?.[idx]?.produtoId?.message} value={f.value} onChange={(v) => f.onChange(v || '')} size="xs" />
-                    )} />
-                  </Table.Td>
-                  <Table.Td>
-                    <Controller name={`itens.${idx}.quantidade`} control={control} render={({ field: f }) => (
-                      <NumberInput min={0.0001} decimalScale={4} error={errors.itens?.[idx]?.quantidade?.message} value={f.value} onChange={(v) => f.onChange(typeof v === 'number' ? v : 0)} size="xs" />
-                    )} />
-                  </Table.Td>
-                  <Table.Td>
-                    {fields.length > 1 && <Tooltip label="Remover"><ActionIcon variant="subtle" color="red" size="sm" onClick={() => remove(idx)}><IconTrash size={14} /></ActionIcon></Tooltip>}
-                  </Table.Td>
-                </Table.Tr>
-              ))}
+              {fields.map((field, idx) => {
+                const produtoId = watch(`itens.${idx}.produtoId`)
+                const qtd = watch(`itens.${idx}.quantidade`) || 0
+                const desc = watch(`itens.${idx}.desconto`) || 0
+                const produtoSel = (produtosData?.data || []).find((p: any) => p.id === produtoId)
+                const precoBase = produtoSel ? Number(produtoSel.precoBase) : 0
+                const precoComCondicao = precoBase * (1 + (condicao ? Number(condicao.percentual) : 0) / 100)
+                const precoFinal = precoComCondicao * (1 - desc / 100)
+                const valorTotal = qtd * precoFinal
+                const condicao = tabelaSelecionada?.condicoes?.find((c: any) => c.id === watch('condicaoPagId')) || tabelaSelecionada?.condicoes?.[0]
+
+                return (
+                  <Table.Tr key={field.id}>
+                    <Table.Td>
+                      <Controller name={`itens.${idx}.produtoId`} control={control} render={({ field: f }) => (
+                        <Select data={produtoOptions} searchable error={errors.itens?.[idx]?.produtoId?.message} value={f.value} onChange={(v) => { f.onChange(v || ''); const prod = (produtosData?.data || []).find((p: any) => p.id === v); if (prod) { const methods = control._formValues; methods.itens[idx].unidade = prod.unidade || 'UN' } }} size="xs" />
+                      )} />
+                    </Table.Td>
+                    <Table.Td>
+                      <Controller name={`itens.${idx}.unidade`} control={control} render={({ field: f }) => (
+                        <Select data={['UN', 'KG', 'CX', 'PC', 'MT', 'LT', 'FD', 'SC'].map(u => ({ value: u, label: u }))} value={f.value || produtoSel?.unidade || 'UN'} onChange={(v) => f.onChange(v || 'UN')} size="xs" />
+                      )} />
+                    </Table.Td>
+                    <Table.Td>
+                      <Controller name={`itens.${idx}.quantidade`} control={control} render={({ field: f }) => (
+                        <NumberInput min={0.0001} decimalScale={4} error={errors.itens?.[idx]?.quantidade?.message} value={f.value} onChange={(v) => f.onChange(typeof v === 'number' ? v : 0)} size="xs" />
+                      )} />
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs" c="dimmed">{precoFinal.toFixed(2)}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Controller name={`itens.${idx}.desconto`} control={control} render={({ field: f }) => (
+                        <NumberInput min={0} max={100} decimalScale={2} suffix="%" value={f.value || 0} onChange={(v) => f.onChange(typeof v === 'number' ? v : 0)} size="xs" />
+                      )} />
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs" fw={600}>{valorTotal.toFixed(2)}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      {fields.length > 1 && <Tooltip label="Remover"><ActionIcon variant="subtle" color="red" size="sm" onClick={() => remove(idx)}><IconTrash size={14} /></ActionIcon></Tooltip>}
+                    </Table.Td>
+                  </Table.Tr>
+                )
+              })}
             </Table.Tbody>
           </Table>
-          <Text size="sm" c="dimmed" mt="sm">Os preços serão calculados automaticamente com base na tabela de preço e condição selecionadas.</Text>
+          <Text size="sm" c="dimmed" mt="sm">Os preços são calculados com base na tabela de preço, condição e desconto informado.</Text>
         </Card>
 
         <Group justify="flex-end">
