@@ -138,7 +138,7 @@ export default function ImportarXmlPage() {
             <Table striped>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Código</Table.Th><Table.Th>Descrição</Table.Th><Table.Th>NCM</Table.Th>
+                  <Table.Th>Código</Table.Th><Table.Th>Descrição</Table.Th><Table.Th>Unidade</Table.Th><Table.Th>NCM</Table.Th>
                   <Table.Th>Qtd</Table.Th><Table.Th>Preço Unit.</Table.Th><Table.Th>Total</Table.Th><Table.Th>Status</Table.Th>
                 </Table.Tr>
               </Table.Thead>
@@ -147,6 +147,7 @@ export default function ImportarXmlPage() {
                   <Table.Tr key={idx}>
                     <Table.Td className="font-mono">{item.cProd}</Table.Td>
                     <Table.Td>{item.xProd}</Table.Td>
+                    <Table.Td>{item.uCom || '—'}</Table.Td>
                     <Table.Td className="font-mono text-sm">{item.ncm || '—'}</Table.Td>
                     <Table.Td>{item.qCom}</Table.Td>
                     <Table.Td>{item.vUnCom.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</Table.Td>
