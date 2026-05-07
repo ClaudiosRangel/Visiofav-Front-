@@ -123,10 +123,10 @@ export default function NovoPedidoVendaPage() {
                 const desc = watch(`itens.${idx}.desconto`) || 0
                 const produtoSel = (produtosData?.data || []).find((p: any) => p.id === produtoId)
                 const precoBase = produtoSel ? Number(produtoSel.precoBase) : 0
-                const precoComCondicao = precoBase * (1 + (condicao ? Number(condicao.percentual) : 0) / 100)
+                const condicaoItem = tabelaSelecionada?.condicoes?.find((c: any) => c.id === watch('condicaoPagId')) || tabelaSelecionada?.condicoes?.[0]
+                const precoComCondicao = precoBase * (1 + (condicaoItem ? Number(condicaoItem.percentual) : 0) / 100)
                 const precoFinal = precoComCondicao * (1 - desc / 100)
                 const valorTotal = qtd * precoFinal
-                const condicao = tabelaSelecionada?.condicoes?.find((c: any) => c.id === watch('condicaoPagId')) || tabelaSelecionada?.condicoes?.[0]
 
                 return (
                   <Table.Tr key={field.id}>
