@@ -128,6 +128,14 @@ export default function ConferenciaEntradaPage() {
     queryFn: async () => { const { data } = await api.get('/conferencia-entrada/notas-conferidas-todas'); return data },
   })
 
+  // OS de endereçamento em execução (para desabilitar botão quando coletor está endereçando)
+  const { data: osEndExecResp } = useQuery<any>({
+    queryKey: ['os-end-executando'],
+    queryFn: async () => { const { data } = await api.get('/os-wms', { params: { operacao: 'ENDERECAMENTO', status: 'EXECUTANDO', limit: 50 } }); return data },
+    refetchInterval: 10000, // poll every 10s
+  })
+  const osEndExecutando = new Set((osEndExecResp?.data || []).map((os: any) => os.notaEntradaId))
+
   // Endereços livres
   const { data: enderecosResp } = useQuery<any>({
     queryKey: ['enderecos-livres'],
@@ -1159,12 +1167,18 @@ export default function ConferenciaEntradaPage() {
                         <Table.Td fw={500}>{nota.numero}</Table.Td>
                         <Table.Td>{nota.fornecedor || '—'}</Table.Td>
                         <Table.Td>{nota.itens?.length || 0}</Table.Td>
-                        <Table.Td><Badge color="green">CONFERIDA</Badge></Table.Td>
+                        <Table.Td><Badge color={statusColors[nota.status] || 'green'} variant="light">{nota.status}</Badge></Table.Td>
                         <Table.Td>
-                          <Button size="xs" color="teal" leftSection={<IconMapPin size={14} />}
-                            onClick={() => handleAbrirEnderecamento(nota)}>
-                            Endereçar
-                          </Button>
+                          {nota.status === 'ENDERECADA' ? (
+                            <Badge color="teal" variant="light">ENDEREÇADA</Badge>
+                          ) : osEndExecutando.has(nota.id) ? (
+                            <Badge color="orange" variant="light">Em andamento (coletor)</Badge>
+                          ) : (
+                            <Button size="xs" color="teal" leftSection={<IconMapPin size={14} />}
+                              onClick={() => handleAbrirEnderecamento(nota)}>
+                              Endereçar
+                            </Button>
+                          )}
                         </Table.Td>
                       </Table.Tr>
                     ))}
