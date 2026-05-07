@@ -826,8 +826,8 @@ export default function ConferenciaEntradaPage() {
             <Tabs.Tab value="conferencia" leftSection={<IconClipboardCheck size={16} />}>
               Conferência ({notas.length})
             </Tabs.Tab>
-            <Tabs.Tab value="enderecamento" leftSection={<IconMapPin size={16} />}>
-              Endereçamento ({conferidas.length})
+            <Tabs.Tab value="conferidas" leftSection={<IconCheck size={16} />}>
+              Conferidas ({conferidas.length})
             </Tabs.Tab>
           </Tabs.List>
 
@@ -1140,7 +1140,7 @@ export default function ConferenciaEntradaPage() {
           </Tabs.Panel>
 
           {/* ===== ABA ENDEREÇAMENTO ===== */}
-          <Tabs.Panel value="enderecamento">
+          <Tabs.Panel value="conferidas">
 
             {/* Lista de notas conferidas (quando nenhuma nota selecionada) */}
             {!endNotaSelecionada && (

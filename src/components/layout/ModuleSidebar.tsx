@@ -105,7 +105,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconTruckDelivery, label: 'Portaria', href: '/wms/portaria' },
           { icon: IconTruckDelivery, label: 'Notas de Entrada', href: '/recebimento' },
           { icon: IconClipboardCheck, label: 'Conferência de Entrada', href: '/wms/conferencia-entrada' },
-          { icon: IconBuildingWarehouse, label: 'Endereçamento', href: '/wms/mapa' },
+          { icon: IconBuildingWarehouse, label: 'Endereçamento', href: '/wms/enderecamento' },
         ],
       },
 
