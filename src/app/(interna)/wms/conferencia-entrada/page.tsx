@@ -1398,30 +1398,7 @@ export default function ConferenciaEntradaPage() {
               </>
             )}
 
-            {/* Endereços livres (always visible at bottom when no nota selected) */}
-            {!endNotaSelecionada && enderecos.length > 0 && (
-              <>
-                <Text fw={500} mt="xl" mb="sm">
-                  Endereços ({enderecos.filter((e: any) => !e.ocupado).length} livres de {enderecos.length})
-                </Text>
-                <div className="max-h-60 overflow-y-auto">
-                  <Table striped>
-                    <Table.Thead>
-                      <Table.Tr><Table.Th>Endereço</Table.Th><Table.Th>Rua</Table.Th><Table.Th>Prédio</Table.Th><Table.Th>Nível</Table.Th><Table.Th>Status</Table.Th></Table.Tr>
-                    </Table.Thead>
-                    <Table.Tbody>
-                      {enderecos.slice(0, 20).map((e: any) => (
-                        <Table.Tr key={e.id}>
-                          <Table.Td className="font-mono text-sm">{e.enderecoCompleto}</Table.Td>
-                          <Table.Td>{e.rua}</Table.Td><Table.Td>{e.predio}</Table.Td><Table.Td>{e.nivel}</Table.Td>
-                          <Table.Td><Badge color={e.ocupado ? 'blue' : 'green'} variant="light" size="sm">{e.ocupado ? 'Ocupado' : 'Livre'}</Badge></Table.Td>
-                        </Table.Tr>
-                      ))}
-                    </Table.Tbody>
-                  </Table>
-                </div>
-              </>
-            )}
+            {/* Endereços livres removidos — agora gerenciado na página de Endereçamento */}
           </Tabs.Panel>
         </Tabs>
       </Card>
