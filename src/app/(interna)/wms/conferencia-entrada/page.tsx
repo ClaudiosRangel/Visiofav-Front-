@@ -15,6 +15,7 @@ import { notifications } from '@mantine/notifications'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
+import PendenciasLogisticasButton from '@/components/wms/PendenciasLogisticasButton'
 import {
   useSugerirLote,
   useConfirmarLote,
@@ -827,6 +828,7 @@ export default function ConferenciaEntradaPage() {
     <div>
       <Text size="xs" c="dimmed" mb={4}>WMS / Conferência de Entrada</Text>
       <Text size="xl" fw={600} mb="lg">Conferência de Entrada</Text>
+      <PendenciasLogisticasButton />
 
       <Card>
         <Tabs defaultValue="conferencia">

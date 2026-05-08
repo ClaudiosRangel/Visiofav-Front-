@@ -14,6 +14,7 @@ import { notifications } from '@mantine/notifications'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
+import PendenciasLogisticasButton from '@/components/wms/PendenciasLogisticasButton'
 
 const statusColors: Record<string, string> = {
   AGENDADO: 'blue', ESPERA: 'orange', CONFIRMADO: 'cyan',
@@ -204,6 +205,7 @@ export default function PortariaPage() {
 
   return (
     <div>
+      <PendenciasLogisticasButton />
       <Text size="xs" c="dimmed" mb={4}>WMS / Portaria</Text>
       <Text size="xl" fw={600} mb="lg">Controle de Portaria</Text>
 
