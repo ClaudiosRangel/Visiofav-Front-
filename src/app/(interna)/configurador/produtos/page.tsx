@@ -53,16 +53,16 @@ export default function ProdutosPage() {
             {items.map((item: any) => (
               <Table.Tr key={item.id}>
                 <Table.Td>{item.codigo}</Table.Td>
-                <Table.Td>{item.descricao}</Table.Td>
-                <Table.Td>{item.codigoBarra && <Group gap={4}><IconBarcode size={14} className="text-zinc-400" /><Text size="sm" ff="monospace">{item.codigoBarra}</Text></Group>}</Table.Td>
+                <Table.Td>{item.nome}</Table.Td>
+                <Table.Td>{item.cEAN && <Group gap={4}><IconBarcode size={14} className="text-zinc-400" /><Text size="sm" ff="monospace">{item.cEAN}</Text></Group>}</Table.Td>
                 <Table.Td>{item.unidade}</Table.Td>
                 <Table.Td>{item.curvaAbc && <Badge color={abcColor[item.curvaAbc] || 'gray'} variant="light">{item.curvaAbc}</Badge>}</Table.Td>
                 <Table.Td><Badge color={item.status ? 'green' : 'gray'}>{item.status ? 'Ativo' : 'Inativo'}</Badge></Table.Td>
                 <Table.Td>
                   <Group gap={4}>
-                    <Tooltip label="SKUs / Embalagens"><ActionIcon variant="subtle" color="blue" onClick={() => setSkuDrawer({ id: item.id, nome: item.descricao || item.codigo })}><IconPackage size={18} /></ActionIcon></Tooltip>
+                    <Tooltip label="SKUs / Embalagens"><ActionIcon variant="subtle" color="blue" onClick={() => setSkuDrawer({ id: item.id, nome: item.nome || item.codigo })}><IconPackage size={18} /></ActionIcon></Tooltip>
                     <Tooltip label="Editar"><ActionIcon variant="subtle" color="gray" onClick={() => handleEdit(item)}><IconEdit size={18} /></ActionIcon></Tooltip>
-                    <Tooltip label="Excluir"><ActionIcon variant="subtle" color="red" onClick={() => handleDelete(item.id, item.descricao)}><IconTrash size={18} /></ActionIcon></Tooltip>
+                    <Tooltip label="Excluir"><ActionIcon variant="subtle" color="red" onClick={() => handleDelete(item.id, item.nome)}><IconTrash size={18} /></ActionIcon></Tooltip>
                   </Group>
                 </Table.Td>
               </Table.Tr>
