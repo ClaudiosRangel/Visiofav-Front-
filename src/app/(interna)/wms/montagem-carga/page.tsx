@@ -224,6 +224,11 @@ function TabMontagem() {
       return
     }
     try {
+      // Auto-marcar NFs selecionadas antes de gerar (se houver seleção)
+      if (selectedNfs.size > 0) {
+        await api.post('/mapas-carregamento/nfs/marcar', { nfeIds: Array.from(selectedNfs) })
+      }
+
       await gerarMapa.mutateAsync({
         veiculoPlaca: placa,
         motorista: motorista || undefined,
