@@ -181,7 +181,7 @@ function TabMontagem() {
     if (selectedNfs.size === nfs.length) {
       setSelectedNfs(new Set())
     } else {
-      setSelectedNfs(new Set(nfs.map((n: any) => n.id)))
+      setSelectedNfs(new Set(nfs.map((n: any) => n.nfeId || n.id)))
     }
   }
 
@@ -392,11 +392,11 @@ function TabMontagem() {
           </Table.Thead>
           <Table.Tbody>
             {(Array.isArray(nfs) ? nfs : []).map((nf: any) => (
-              <Table.Tr key={nf.id}>
+              <Table.Tr key={nf.nfeId || nf.id}>
                 <Table.Td>
                   <Checkbox
-                    checked={selectedNfs.has(nf.id)}
-                    onChange={() => toggleNf(nf.id)}
+                    checked={selectedNfs.has(nf.nfeId || nf.id)}
+                    onChange={() => toggleNf(nf.nfeId || nf.id)}
                   />
                 </Table.Td>
                 <Table.Td>{nf.numero || nf.nNF}</Table.Td>
