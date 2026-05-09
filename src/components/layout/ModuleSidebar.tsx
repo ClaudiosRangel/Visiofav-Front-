@@ -115,6 +115,8 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconBarcode, label: 'Picking / Separação', href: '/picking' },
           { icon: IconClipboardCheck, label: 'Conferência de Saída', href: '/wms/conferencia-saida' },
           { icon: IconPackage, label: 'Embalagem e Carga', href: '/expedicao' },
+          { icon: IconTruckDelivery, label: 'Montagem de Carga', href: '/wms/montagem-carga' },
+          { icon: IconTruck, label: 'Mapas de Carregamento', href: '/wms/mapas-carregamento' },
         ],
       },
 
@@ -152,6 +154,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconPackage, label: 'Produtos', href: '/wms/consulta/produtos' },
           { icon: IconBarcode, label: 'SKU / Embalagens', href: '/wms/sku' },
           { icon: IconDatabase, label: 'Dados Logísticos', href: '/wms/dados-logisticos' },
+          { icon: IconTruckDelivery, label: 'Rotas', href: '/configurador/rotas' },
           { icon: IconBuildingStore, label: 'Fornecedores', href: '/wms/consulta/fornecedores' },
           { icon: IconTruck, label: 'Transportadoras', href: '/wms/consulta/transportadoras' },
           { icon: IconUserCircle, label: 'Clientes', href: '/wms/consulta/clientes' },
@@ -211,6 +214,7 @@ function detectModule(pathname: string): string | null {
   if (pathname.startsWith('/configurador/funcionarios')) return 'wms'
   if (pathname.startsWith('/configurador/funcoes')) return 'wms'
   if (pathname.startsWith('/configurador/parametros')) return 'wms'
+  if (pathname.startsWith('/configurador/rotas')) return 'wms'
   if (pathname.startsWith('/configurador/tipo-carga')) return 'wms'
   if (pathname.startsWith('/configurador/tipo-carroceria')) return 'wms'
   if (pathname.startsWith('/configurador/veiculos')) return 'wms'
