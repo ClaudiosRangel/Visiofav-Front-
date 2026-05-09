@@ -109,12 +109,12 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
         ],
       },
 
-      // ── SAÍDA (Outbound) ──
+      // ── SAÍDA (Outbound) — Fluxo sequencial ──
       {
         label: 'Expedição', icon: IconPackage, items: [
-          { icon: IconBarcode, label: 'Picking / Separação', href: '/picking' },
+          { icon: IconBarcode, label: 'Separação (Picking)', href: '/picking' },
           { icon: IconClipboardCheck, label: 'Conferência de Saída', href: '/wms/conferencia-saida' },
-          { icon: IconPackage, label: 'Embalagem e Carga', href: '/expedicao' },
+          { icon: IconPackage, label: 'Embalagem', href: '/expedicao' },
           { icon: IconTruckDelivery, label: 'Montagem de Carga', href: '/wms/montagem-carga' },
           { icon: IconTruck, label: 'Mapas de Carregamento', href: '/wms/mapas-carregamento' },
         ],
@@ -143,7 +143,8 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       // ── RELATÓRIOS E GESTÃO ──
       {
         label: 'Gestão', icon: IconChartBar, items: [
-          { icon: IconChartBar, label: 'Relatórios', href: '/wms/relatorios' },
+          { icon: IconChartBar, label: 'Relatórios WMS', href: '/wms/relatorios' },
+          { icon: IconTruckDelivery, label: 'Relatórios Expedição', href: '/wms/relatorios-expedicao' },
           { icon: IconEye, label: 'Auditoria', href: '/wms/auditoria' },
         ],
       },
