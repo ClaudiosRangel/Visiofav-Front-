@@ -96,6 +96,13 @@ export default function NfePage() {
                     {item.status === 'PENDENTE' && (
                       <Tooltip label="Gerar XML"><ActionIcon variant="subtle" color="blue" onClick={() => gerarXml.mutate(item.id)} loading={gerarXml.isPending}><IconFileText size={18} /></ActionIcon></Tooltip>
                     )}
+                    <Tooltip label="Ver DANFE"><ActionIcon variant="subtle" color="teal" onClick={async () => {
+                      try {
+                        const { data } = await api.get(`/nfe/${item.id}/danfe`, { responseType: 'text' })
+                        const w = window.open('', '_blank')
+                        if (w) { w.document.write(data); w.document.close() }
+                      } catch { notifications.show({ title: 'Erro', message: 'Falha ao carregar DANFE', color: 'red' }) }
+                    }}><IconFileText size={18} /></ActionIcon></Tooltip>
                     <Tooltip label="Ver XML"><ActionIcon variant="subtle" color="gray" onClick={() => verXml(item.id)}><IconEye size={18} /></ActionIcon></Tooltip>
                     {item.status === 'AUTORIZADA' && <Tooltip label="Cancelar"><ActionIcon variant="subtle" color="red" onClick={() => cancelar.mutate(item.id)}><IconX size={18} /></ActionIcon></Tooltip>}
                   </Group>
