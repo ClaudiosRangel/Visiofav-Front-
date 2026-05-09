@@ -49,6 +49,8 @@ export default function ConferenciaEntradaPage() {
   // Conferência state
   const [conferencia, setConferencia] = useState<any>(null)
   const [itensConferidos, setItensConferidos] = useState<Record<string, number>>({})
+  const [itensLotes, setItensLotes] = useState<Record<string, string>>({})
+  const [itensValidades, setItensValidades] = useState<Record<string, string>>({})
   const [resultado, setResultado] = useState<any>(null)
   const [etapa, setEtapa] = useState<'lista' | 'contagem' | 'resultado'>('lista')
   const [obsModal, setObsModal] = useState(false)
@@ -273,6 +275,8 @@ export default function ConferenciaEntradaPage() {
         : conferencia.itens.map((item: any) => ({
             itemNotaEntradaId: item.id,
             quantidadeConferida: itensConferidos[item.id] ?? 0,
+            lote: itensLotes[item.id] || undefined,
+            validade: itensValidades[item.id] || undefined,
           }))
       const { data } = await api.post(`/conferencia-entrada/conferir-todos/${conferencia.nota.id}`, { itens: itensSource })
       return data
@@ -983,6 +987,8 @@ export default function ConferenciaEntradaPage() {
                       <Table.Th>Produto</Table.Th>
                       <Table.Th>Unidade</Table.Th>
                       <Table.Th>Quantidade Contada</Table.Th>
+                      <Table.Th>Lote</Table.Th>
+                      <Table.Th>Validade</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
@@ -1001,10 +1007,28 @@ export default function ConferenciaEntradaPage() {
                             className="w-36"
                           />
                         </Table.Td>
+                        <Table.Td>
+                          <TextInput
+                            size="sm"
+                            value={itensLotes[item.id] || ''}
+                            placeholder="Lote"
+                            onChange={(e) => setItensLotes({ ...itensLotes, [item.id]: e.currentTarget.value })}
+                            className="w-28"
+                          />
+                        </Table.Td>
+                        <Table.Td>
+                          <TextInput
+                            size="sm"
+                            value={itensValidades[item.id] || ''}
+                            placeholder="AAAA-MM-DD"
+                            onChange={(e) => setItensValidades({ ...itensValidades, [item.id]: e.currentTarget.value })}
+                            className="w-32"
+                          />
+                        </Table.Td>
                       </Table.Tr>
                     )) : (
                       <Table.Tr>
-                        <Table.Td colSpan={5} className="text-center py-8 text-zinc-500">
+                        <Table.Td colSpan={7} className="text-center py-8 text-zinc-500">
                           Nenhum item encontrado nesta nota. Verifique se a nota foi importada com itens.
                         </Table.Td>
                       </Table.Tr>
