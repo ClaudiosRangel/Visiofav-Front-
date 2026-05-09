@@ -22,7 +22,7 @@ const MODULOS_CONFIG = [
   { modulo: 'VENDAS', label: 'Vendas', icon: IconReceipt, href: '/vendas/pedidos', color: 'green' },
   { modulo: 'FINANCEIRO', label: 'Financeiro', icon: IconCash, href: '/financeiro/contas-pagar', color: 'yellow' },
   { modulo: 'WMS', label: 'WMS', icon: IconBuildingWarehouse, href: '/recebimento', color: 'primary' },
-  { modulo: 'CTE', label: 'CT-e', icon: IconTruck, href: '/fiscal/cte', color: 'orange' },
+  { modulo: 'CTE', label: 'Fiscal', icon: IconTruck, href: '/fiscal/nfe', color: 'orange' },
   { modulo: 'PCP', label: 'Configurador', icon: IconSettings, href: '/configurador', color: 'grape' },
 ] as const
 
