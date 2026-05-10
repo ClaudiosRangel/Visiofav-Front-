@@ -862,7 +862,7 @@ function TabMapas() {
                 {(detalheModal.nfs || []).map((nf: any, idx: number) => (
                   <Table.Tr key={idx}>
                     <Table.Td>{nf.nfe?.numero || nf.nfe?.nNF || '-'}</Table.Td>
-                    <Table.Td>{nf.nfe?.cliente?.razaoSocial || '-'}</Table.Td>
+                    <Table.Td>{nf.nfe?.vendaEfetivada?.pedidoVenda?.cliente?.razaoSocial || '-'}</Table.Td>
                     <Table.Td>
                       {nf.statusEntrega ? (
                         <Badge
