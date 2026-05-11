@@ -58,15 +58,15 @@ export default function SkuPanel({ produtoId, produtoNome }: SkuPanelProps) {
       codigoBarra: sku.codigoBarra || '',
       unidade: sku.unidade,
       qtdEmbalagem: sku.qtdEmbalagem,
-      largura: sku.largura ?? undefined,
-      altura: sku.altura ?? undefined,
-      comprimento: sku.comprimento ?? undefined,
-      volume: sku.volume ?? undefined,
-      pesoLiquido: sku.pesoLiquido ?? undefined,
-      pesoBruto: sku.pesoBruto ?? undefined,
-      pesoPalete: sku.pesoPalete ?? undefined,
-      lastro: sku.lastro ?? undefined,
-      camada: sku.camada ?? undefined,
+      largura: sku.largura != null ? Number(sku.largura) : undefined,
+      altura: sku.altura != null ? Number(sku.altura) : undefined,
+      comprimento: sku.comprimento != null ? Number(sku.comprimento) : undefined,
+      volume: sku.volume != null ? Number(sku.volume) : undefined,
+      pesoLiquido: sku.pesoLiquido != null ? Number(sku.pesoLiquido) : undefined,
+      pesoBruto: sku.pesoBruto != null ? Number(sku.pesoBruto) : undefined,
+      pesoPalete: sku.pesoPalete != null ? Number(sku.pesoPalete) : undefined,
+      lastro: sku.lastro != null ? Number(sku.lastro) : undefined,
+      camada: sku.camada != null ? Number(sku.camada) : undefined,
       tipoPalete: sku.tipoPalete || '',
     })
     setModalOpen(true)
@@ -77,14 +77,25 @@ export default function SkuPanel({ produtoId, produtoNome }: SkuPanelProps) {
       const payload: any = {
         ...form,
         produtoId,
+        sequencia: Number(form.sequencia),
+        qtdEmbalagem: Number(form.qtdEmbalagem),
+        largura: form.largura != null ? Number(form.largura) : undefined,
+        altura: form.altura != null ? Number(form.altura) : undefined,
+        comprimento: form.comprimento != null ? Number(form.comprimento) : undefined,
+        volume: form.volume != null ? Number(form.volume) : undefined,
+        pesoLiquido: form.pesoLiquido != null ? Number(form.pesoLiquido) : undefined,
+        pesoBruto: form.pesoBruto != null ? Number(form.pesoBruto) : undefined,
+        pesoPalete: form.pesoPalete != null ? Number(form.pesoPalete) : undefined,
+        lastro: form.lastro != null ? Number(form.lastro) : undefined,
+        camada: form.camada != null ? Number(form.camada) : undefined,
         descricao: form.descricao || undefined,
         codigoBarra: form.codigoBarra || undefined,
         tipoPalete: form.tipoPalete || undefined,
       }
 
       // Calcular volume automaticamente se dimensões preenchidas
-      if (form.largura && form.altura && form.comprimento && !form.volume) {
-        payload.volume = (form.largura * form.altura * form.comprimento) / 1000000
+      if (payload.largura && payload.altura && payload.comprimento && !payload.volume) {
+        payload.volume = (payload.largura * payload.altura * payload.comprimento) / 1000000
       }
 
       if (editingId) {
