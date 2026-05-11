@@ -2,12 +2,13 @@
 
 import { useState } from 'react'
 import { Button, Card, Group, Text, TextInput, Table, Badge, ActionIcon, Tooltip, Modal, Select, NumberInput, LoadingOverlay } from '@mantine/core'
-import { IconPlus, IconSearch, IconEdit, IconTrash, IconRefresh } from '@tabler/icons-react'
+import { IconPlus, IconSearch, IconEdit, IconTrash, IconRefresh, IconStack2 } from '@tabler/icons-react'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { notifications } from '@mantine/notifications'
 import { estruturasCrud } from '@/data/hooks/useCrudGenerico'
+import CapacidadeNivelPanel from './CapacidadeNivelPanel'
 
 const schema = z.object({
   descricao: z.string().min(1, 'Descrição é obrigatória'),
@@ -30,6 +31,7 @@ export default function EstruturasPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editItem, setEditItem] = useState<any>(null)
   const [search, setSearch] = useState('')
+  const [capacidadeItem, setCapacidadeItem] = useState<{ id: string; descricao: string } | null>(null)
 
   const { data: response, isLoading, refetch } = estruturasCrud.useListar({ search: search || undefined })
   const criar = estruturasCrud.useCriar()
@@ -88,17 +90,27 @@ export default function EstruturasPage() {
           <Group><Button variant="default" leftSection={<IconRefresh size={16} />} onClick={() => refetch()}>Atualizar</Button><Button leftSection={<IconPlus size={16} />} onClick={handleNew}>Novo</Button></Group>
         </Group>
         <Table striped highlightOnHover>
-          <Table.Thead><Table.Tr><Table.Th>Código</Table.Th><Table.Th>Descrição</Table.Th><Table.Th>Tipo</Table.Th><Table.Th>Status</Table.Th><Table.Th className="w-24">Ações</Table.Th></Table.Tr></Table.Thead>
+          <Table.Thead><Table.Tr><Table.Th>Código</Table.Th><Table.Th>Descrição</Table.Th><Table.Th>Tipo</Table.Th><Table.Th>Status</Table.Th><Table.Th className="w-32">Ações</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>{items.map((item: any) => (
             <Table.Tr key={item.id}><Table.Td>{item.codigo}</Table.Td><Table.Td>{item.descricao}</Table.Td>
               <Table.Td><Badge color="primary" variant="light">{getTipoLabel(item.tipo)}</Badge></Table.Td>
               <Table.Td><Badge color={item.status ? 'green' : 'gray'}>{item.status ? 'Ativo' : 'Inativo'}</Badge></Table.Td>
-              <Table.Td><Group gap={4}><Tooltip label="Editar"><ActionIcon variant="subtle" color="gray" onClick={() => handleEdit(item)}><IconEdit size={18} /></ActionIcon></Tooltip><Tooltip label="Excluir"><ActionIcon variant="subtle" color="red" onClick={() => handleDelete(item.id, item.descricao)}><IconTrash size={18} /></ActionIcon></Tooltip></Group></Table.Td>
+              <Table.Td><Group gap={4}><Tooltip label="Capacidade por Nível"><ActionIcon variant="subtle" color="blue" onClick={() => setCapacidadeItem({ id: item.id, descricao: item.descricao })}><IconStack2 size={18} /></ActionIcon></Tooltip><Tooltip label="Editar"><ActionIcon variant="subtle" color="gray" onClick={() => handleEdit(item)}><IconEdit size={18} /></ActionIcon></Tooltip><Tooltip label="Excluir"><ActionIcon variant="subtle" color="red" onClick={() => handleDelete(item.id, item.descricao)}><IconTrash size={18} /></ActionIcon></Tooltip></Group></Table.Td>
             </Table.Tr>))}
             {!isLoading && items.length === 0 && <Table.Tr><Table.Td colSpan={5} className="text-center py-8 text-zinc-500">Nenhum registro</Table.Td></Table.Tr>}
           </Table.Tbody>
         </Table>
       </Card>
+
+      {capacidadeItem && (
+        <div className="mt-4">
+          <CapacidadeNivelPanel
+            estruturaId={capacidadeItem.id}
+            estruturaDescricao={capacidadeItem.descricao}
+            onClose={() => setCapacidadeItem(null)}
+          />
+        </div>
+      )}
       <Modal opened={modalOpen} onClose={() => setModalOpen(false)} title={editItem ? 'Editar Estrutura' : 'Nova Estrutura'} centered closeOnClickOutside={false} size="lg">
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="flex flex-col gap-4">

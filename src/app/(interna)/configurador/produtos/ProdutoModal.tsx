@@ -1,13 +1,13 @@
 'use client'
 
-import { Modal, TextInput, Button, Group, Select, NumberInput, Tabs, Text, Divider, Image, FileButton, ActionIcon, Stack } from '@mantine/core'
+import { Modal, TextInput, Button, Group, Select, NumberInput, Tabs, Text, Divider, Image, FileButton, ActionIcon, Stack, Tooltip } from '@mantine/core'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useState } from 'react'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { IconPhoto, IconTrash, IconUpload } from '@tabler/icons-react'
+import { IconPhoto, IconTrash, IconUpload, IconInfoCircle } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 
 const UNIDADES = [
@@ -38,6 +38,7 @@ const produtoSchema = z.object({
   unidade: z.string().min(1, 'Unidade é obrigatória'),
   precoBase: z.number().min(0).optional(),
   status: z.boolean().default(true),
+  shelfLifeMinimo: z.number().int().positive().nullable().optional(),
   // Código de barras
   cEAN: z.string().max(14).optional(),
   // Fiscal
@@ -77,7 +78,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<ProdutoForm>({
     resolver: zodResolver(produtoSchema),
-    defaultValues: { codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 },
+    defaultValues: { codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 },
   })
 
   useEffect(() => {
@@ -89,6 +90,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
         unidade: editData.unidade || 'UN',
         precoBase: Number(editData.precoBase) || 0,
         status: editData.status ?? true,
+        shelfLifeMinimo: editData.shelfLifeMinimo ?? null,
         cEAN: editData.cEAN || editData.codigoBarra || '',
         ncm: editData.ncm || '',
         cfopEstadual: editData.cfopEstadual || '',
@@ -105,7 +107,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
       })
       setImagemUrl(editData.imagemUrl || null)
     } else {
-      reset({ codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 })
+      reset({ codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 })
       setImagemUrl(null)
     }
   }, [editData, reset, opened])
@@ -245,6 +247,21 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
                 )} />
                 <Controller name="status" control={control} render={({ field }) => (
                   <Select label="Status" data={[{ value: 'true', label: 'Ativo' }, { value: 'false', label: 'Inativo' }]} value={String(field.value)} onChange={(v) => field.onChange(v === 'true')} />
+                )} />
+              </div>
+
+              <div className="grid grid-cols-4 gap-4">
+                <Controller name="shelfLifeMinimo" control={control} render={({ field }) => (
+                  <Tooltip label="Quantidade mínima de dias de validade restante para aceitar o produto no recebimento" multiline w={300}>
+                    <NumberInput
+                      label={<Group gap={4}><Text size="sm">Shelf Life Mínimo (dias)</Text><IconInfoCircle size={14} className="text-zinc-400" /></Group>}
+                      placeholder="Ex: 30"
+                      min={1}
+                      allowDecimal={false}
+                      value={field.value ?? ''}
+                      onChange={(v) => field.onChange(v === '' ? null : typeof v === 'number' ? v : null)}
+                    />
+                  </Tooltip>
                 )} />
               </div>
             </div>
