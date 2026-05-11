@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { Card, Group, Text, SimpleGrid, ThemeIcon, Badge, Table, Button, LoadingOverlay, ActionIcon, Tooltip } from '@mantine/core'
-import { IconFileInvoice, IconClipboardCheck, IconMapPin, IconTruckDelivery, IconPlus, IconEye, IconTrash, IconUpload } from '@tabler/icons-react'
+import { IconFileInvoice, IconClipboardCheck, IconMapPin, IconTruckDelivery, IconPlus, IconEye, IconTrash, IconUpload, IconLink } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
+import { useRouter } from 'next/navigation'
 import { useNotasEntrada, useCriarNotaEntrada, useAlterarStatusNota, useExcluirNotaEntrada } from '@/data/hooks/useNotaEntrada'
 import { useCentrosDistribuicao } from '@/data/hooks/useCentroDistribuicao'
 import { api } from '@/lib/api'
@@ -14,6 +15,7 @@ const statusColor: Record<string, string> = { PENDENTE: 'orange', CONFERIDA: 'bl
 
 export default function RecebimentoPage() {
   useEffect(() => { document.title = 'VisioFab - WMS - Recebimento' }, [])
+  const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
   const [detalheId, setDetalheId] = useState<string | null>(null)
   const [importedData, setImportedData] = useState<any>(null)
@@ -115,6 +117,7 @@ export default function RecebimentoPage() {
           <Text fw={600}>Notas Fiscais de Entrada</Text>
           <Group>
             <Button variant="light" color="blue" leftSection={<IconUpload size={16} />} onClick={handleImportXml}>Importar XML</Button>
+            <Button variant="light" color="grape" leftSection={<IconLink size={16} />} onClick={() => router.push('/recebimento/importar-xml-depara')}>Importar XML (De-Para)</Button>
             <Button leftSection={<IconPlus size={16} />} onClick={handleNew}>Nova Nota</Button>
           </Group>
         </Group>
