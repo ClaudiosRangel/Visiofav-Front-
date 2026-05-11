@@ -371,7 +371,7 @@ export default function PortariaPage() {
                           <Table.Td className="font-mono">{item.produto?.codigo}</Table.Td>
                           <Table.Td>{item.produto?.nome}</Table.Td>
                           <Table.Td fw={500}>{Number(item.quantidade)}</Table.Td>
-                          <Table.Td>{item.produto?.unidade}</Table.Td>
+                          <Table.Td>{item.unidade || item.produto?.unidade}</Table.Td>
                         </Table.Tr>
                       ))}
                     </Table.Tbody>
