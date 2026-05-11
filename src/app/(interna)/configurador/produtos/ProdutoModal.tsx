@@ -1,6 +1,6 @@
 'use client'
 
-import { Modal, TextInput, Button, Group, Select, NumberInput, Tabs, Text, Divider, Image, FileButton, ActionIcon, Stack, Tooltip } from '@mantine/core'
+import { Modal, TextInput, Button, Group, Select, NumberInput, Tabs, Text, Divider, Image, FileButton, ActionIcon, Stack, Tooltip, Badge } from '@mantine/core'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -263,6 +263,19 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
                     />
                   </Tooltip>
                 )} />
+                {isEditing && editData?.curvaAbc && (
+                  <div className="flex flex-col justify-end">
+                    <Text size="sm" fw={500} mb={4}>Curva ABC</Text>
+                    <Badge
+                      color={editData.curvaAbc === 'A' ? 'green' : editData.curvaAbc === 'B' ? 'yellow' : 'red'}
+                      variant="light"
+                      size="lg"
+                    >
+                      Curva {editData.curvaAbc}
+                    </Badge>
+                    <Text size="xs" c="dimmed" mt={2}>Calculado automaticamente</Text>
+                  </div>
+                )}
               </div>
             </div>
           </Tabs.Panel>

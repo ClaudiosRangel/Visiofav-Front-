@@ -2,9 +2,10 @@
 
 import { useState } from 'react'
 import { Button, Card, Group, Text, TextInput, Table, Badge, ActionIcon, Tooltip, LoadingOverlay, Drawer } from '@mantine/core'
-import { IconPlus, IconSearch, IconEdit, IconTrash, IconRefresh, IconBarcode, IconPackage } from '@tabler/icons-react'
+import { IconPlus, IconSearch, IconEdit, IconTrash, IconRefresh, IconBarcode, IconPackage, IconChartBar } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { useProdutos, useExcluirProduto } from '@/data/hooks/useProduto'
+import { api } from '@/lib/api'
 import ProdutoModal from './ProdutoModal'
 import SkuPanel from './SkuPanel'
 
@@ -15,6 +16,7 @@ export default function ProdutosPage() {
   const [editItem, setEditItem] = useState<Record<string, any> | null>(null)
   const [search, setSearch] = useState('')
   const [skuDrawer, setSkuDrawer] = useState<{ id: string; nome: string } | null>(null)
+  const [recalculando, setRecalculando] = useState(false)
 
   const { data: response, isLoading, refetch } = useProdutos({ search: search || undefined })
   const excluir = useExcluirProduto()
@@ -28,6 +30,23 @@ export default function ProdutosPage() {
     catch { notifications.show({ title: 'Erro', message: 'Falha ao excluir', color: 'red' }) }
   }
 
+  async function handleRecalcularCurvaAbc() {
+    setRecalculando(true)
+    try {
+      const { data } = await api.post('/produtos/recalcular-curva-abc')
+      notifications.show({
+        title: 'Curva ABC recalculada',
+        message: `Total: ${data.total} produtos — A: ${data.classificacao.A}, B: ${data.classificacao.B}, C: ${data.classificacao.C}`,
+        color: 'green',
+      })
+      refetch()
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao recalcular curva ABC', color: 'red' })
+    } finally {
+      setRecalculando(false)
+    }
+  }
+
   const items = response?.data || []
 
   return (
@@ -39,6 +58,7 @@ export default function ProdutosPage() {
         <Group justify="space-between" mb="md">
           <TextInput placeholder="Pesquisar por descrição ou código de barras..." leftSection={<IconSearch size={16} />} value={search} onChange={(e) => setSearch(e.currentTarget.value)} className="w-96" />
           <Group>
+            <Button variant="default" leftSection={<IconChartBar size={16} />} onClick={handleRecalcularCurvaAbc} loading={recalculando}>Recalcular Curva ABC</Button>
             <Button variant="default" leftSection={<IconRefresh size={16} />} onClick={() => refetch()}>Atualizar</Button>
             <Button leftSection={<IconPlus size={16} />} onClick={handleNew}>Novo</Button>
           </Group>
