@@ -2,7 +2,8 @@
 
 import { useEffect } from 'react'
 import { Card, Group, Text, Table, Badge, Button, Tabs, LoadingOverlay } from '@mantine/core'
-import { IconMapPin, IconCheck, IconRefresh, IconArrowRight } from '@tabler/icons-react'
+import { IconMapPin, IconCheck, IconRefresh, IconArrowRight, IconMap2 } from '@tabler/icons-react'
+import Link from 'next/link'
 import { notifications } from '@mantine/notifications'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -52,7 +53,14 @@ export default function EnderecamentoPage() {
   return (
     <div>
       <Text size="xs" c="dimmed" mb={4}>WMS / Endereçamento</Text>
-      <Text size="xl" fw={600} mb="lg">Endereçamento</Text>
+      <Group justify="space-between" mb="lg">
+        <Text size="xl" fw={600}>Endereçamento</Text>
+        <Link href="/wms/mapa-armazem">
+          <Button variant="light" color="grape" leftSection={<IconMap2 size={16} />}>
+            Mapa do Armazém
+          </Button>
+        </Link>
+      </Group>
 
       <Card>
         <Tabs defaultValue="enderecar">
