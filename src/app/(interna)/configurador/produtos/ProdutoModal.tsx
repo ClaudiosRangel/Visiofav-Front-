@@ -1,12 +1,13 @@
 'use client'
 
-import { Modal, TextInput, Button, Group, Select, NumberInput, Tabs, Text, Divider } from '@mantine/core'
+import { Modal, TextInput, Button, Group, Select, NumberInput, Tabs, Text, Divider, Image, FileButton, ActionIcon, Stack } from '@mantine/core'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { IconPhoto, IconTrash, IconUpload } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 
 const UNIDADES = [
@@ -61,6 +62,8 @@ interface Props { opened: boolean; onClose: () => void; editData?: Record<string
 export default function ProdutoModal({ opened, onClose, editData }: Props) {
   const queryClient = useQueryClient()
   const isEditing = !!editData
+  const [imagemUrl, setImagemUrl] = useState<string | null>(null)
+  const [uploadingImg, setUploadingImg] = useState(false)
 
   const criar = useMutation({
     mutationFn: async (body: any) => { const { data } = await api.post('/produtos', body); return data },
@@ -100,8 +103,10 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
         aliqCOFINS: Number(editData.aliqCOFINS) || 0,
         origemProd: editData.origemProd ?? 0,
       })
+      setImagemUrl(editData.imagemUrl || null)
     } else {
       reset({ codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 })
+      setImagemUrl(null)
     }
   }, [editData, reset, opened])
 
@@ -119,6 +124,37 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
     }
   }
 
+  async function handleUploadImagem(file: File | null) {
+    if (!file || !editData?.id) return
+    setUploadingImg(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const { data } = await api.post(`/produtos/${editData.id}/imagem`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      setImagemUrl(data.imagemUrl)
+      queryClient.invalidateQueries({ queryKey: ['produtos'] })
+      notifications.show({ title: 'Sucesso', message: 'Imagem enviada', color: 'green' })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao enviar imagem', color: 'red' })
+    } finally {
+      setUploadingImg(false)
+    }
+  }
+
+  async function handleRemoverImagem() {
+    if (!editData?.id) return
+    try {
+      await api.delete(`/produtos/${editData.id}/imagem`)
+      setImagemUrl(null)
+      queryClient.invalidateQueries({ queryKey: ['produtos'] })
+      notifications.show({ title: 'Sucesso', message: 'Imagem removida', color: 'green' })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: 'Falha ao remover imagem', color: 'red' })
+    }
+  }
+
   return (
     <Modal opened={opened} onClose={onClose} title={isEditing ? 'Editar Produto' : 'Novo Produto'} size="xl" centered closeOnClickOutside={false}>
       <form onSubmit={handleSubmit(onSubmit)}>
@@ -131,20 +167,71 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
           {/* ABA GERAL */}
           <Tabs.Panel value="geral">
             <div className="flex flex-col gap-4">
-              <div className="grid grid-cols-3 gap-4">
-                <Controller name="codigo" control={control} render={({ field }) => (
-                  <TextInput label={<>Código <span style={{ color: 'red' }}>*</span></>} placeholder="PROD001" error={errors.codigo?.message} {...field} />
-                )} />
-                <div className="col-span-2">
-                  <Controller name="nome" control={control} render={({ field }) => (
-                    <TextInput label={<>Nome <span style={{ color: 'red' }}>*</span></>} placeholder="Nome do produto" error={errors.nome?.message} {...field} />
-                  )} />
+              {/* Imagem do Produto */}
+              {isEditing && (
+                <div className="flex items-start gap-4 p-3 border border-gray-200 rounded-md">
+                  <div className="flex flex-col items-center gap-2">
+                    {imagemUrl ? (
+                      <Image src={imagemUrl} alt="Imagem do produto" w={120} h={120} fit="contain" radius="md" style={{ border: '1px solid #e0e0e0' }} />
+                    ) : (
+                      <div className="w-[120px] h-[120px] bg-gray-100 rounded-md flex items-center justify-center border border-dashed border-gray-300">
+                        <IconPhoto size={40} className="text-gray-300" />
+                      </div>
+                    )}
+                    <Group gap={4}>
+                      <FileButton onChange={handleUploadImagem} accept="image/png,image/jpeg,image/webp,image/gif">
+                        {(props) => (
+                          <Button size="xs" variant="light" leftSection={<IconUpload size={14} />} loading={uploadingImg} {...props}>
+                            {imagemUrl ? 'Trocar' : 'Enviar'}
+                          </Button>
+                        )}
+                      </FileButton>
+                      {imagemUrl && (
+                        <ActionIcon size="sm" variant="light" color="red" onClick={handleRemoverImagem}>
+                          <IconTrash size={14} />
+                        </ActionIcon>
+                      )}
+                    </Group>
+                    <Text size="xs" c="dimmed">Máx. 2MB (JPEG, PNG, WebP)</Text>
+                  </div>
+                  <div className="flex-1">
+                    <div className="grid grid-cols-3 gap-4">
+                      <Controller name="codigo" control={control} render={({ field }) => (
+                        <TextInput label={<>Código <span style={{ color: 'red' }}>*</span></>} placeholder="PROD001" error={errors.codigo?.message} {...field} />
+                      )} />
+                      <div className="col-span-2">
+                        <Controller name="nome" control={control} render={({ field }) => (
+                          <TextInput label={<>Nome <span style={{ color: 'red' }}>*</span></>} placeholder="Nome do produto" error={errors.nome?.message} {...field} />
+                        )} />
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <Controller name="descricao" control={control} render={({ field }) => (
+                        <TextInput label="Descrição detalhada" placeholder="Descrição completa do produto" {...field} />
+                      )} />
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <Controller name="descricao" control={control} render={({ field }) => (
-                <TextInput label="Descrição detalhada" placeholder="Descrição completa do produto" {...field} />
-              )} />
+              {!isEditing && (
+                <>
+                  <div className="grid grid-cols-3 gap-4">
+                    <Controller name="codigo" control={control} render={({ field }) => (
+                      <TextInput label={<>Código <span style={{ color: 'red' }}>*</span></>} placeholder="PROD001" error={errors.codigo?.message} {...field} />
+                    )} />
+                    <div className="col-span-2">
+                      <Controller name="nome" control={control} render={({ field }) => (
+                        <TextInput label={<>Nome <span style={{ color: 'red' }}>*</span></>} placeholder="Nome do produto" error={errors.nome?.message} {...field} />
+                      )} />
+                    </div>
+                  </div>
+
+                  <Controller name="descricao" control={control} render={({ field }) => (
+                    <TextInput label="Descrição detalhada" placeholder="Descrição completa do produto" {...field} />
+                  )} />
+                </>
+              )}
 
               <div className="grid grid-cols-4 gap-4">
                 <Controller name="unidade" control={control} render={({ field }) => (
