@@ -11,6 +11,7 @@ export interface OcupacaoEndereco {
   nivel: string
   apartamento: string
   status: 'VAZIO' | 'PARCIAL' | 'CHEIO' | 'BLOQUEADO'
+  areaArmazenagem?: 'PICKING' | 'PULMAO'
   percentualOcupacao: number
   capacidadePalete: number
   saldoAtual: number

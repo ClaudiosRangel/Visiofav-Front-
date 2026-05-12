@@ -244,6 +244,7 @@ export default function MapaArmazemPage() {
                 <Table.Th>Prédio</Table.Th>
                 <Table.Th>Nível</Table.Th>
                 <Table.Th>Apto</Table.Th>
+                <Table.Th>Área</Table.Th>
                 <Table.Th>Quantidade</Table.Th>
               </Table.Tr>
             </Table.Thead>
@@ -255,6 +256,15 @@ export default function MapaArmazemPage() {
                   <Table.Td>{a.predio}</Table.Td>
                   <Table.Td>{a.nivel}</Table.Td>
                   <Table.Td>{a.apartamento}</Table.Td>
+                  <Table.Td>
+                    <Badge
+                      color={(a as any).areaArmazenagem === 'PICKING' ? 'orange' : 'blue'}
+                      variant="light"
+                      size="sm"
+                    >
+                      {(a as any).areaArmazenagem === 'PICKING' ? 'Picking' : 'Pulmão'}
+                    </Badge>
+                  </Table.Td>
                   <Table.Td>
                     <Badge color="grape" variant="light">{a.quantidadeAlocada}</Badge>
                   </Table.Td>
@@ -316,7 +326,7 @@ export default function MapaArmazemPage() {
           />
           <TextInput
             label="Validade"
-            placeholder="YYYY-MM-DD (opcional)"
+            placeholder="DD/MM/AAAA (opcional)"
             value={validade}
             onChange={(e) => setValidade(e.currentTarget.value)}
           />
@@ -375,6 +385,16 @@ export default function MapaArmazemPage() {
                 size="lg"
               >
                 {enderecoDetalhe.status}
+              </Badge>
+            </div>
+            <div>
+              <Text size="sm" c="dimmed">Área</Text>
+              <Badge
+                color={enderecoDetalhe.areaArmazenagem === 'PICKING' ? 'orange' : 'blue'}
+                variant="light"
+                size="lg"
+              >
+                {enderecoDetalhe.areaArmazenagem === 'PICKING' ? 'Picking' : 'Pulmão'}
               </Badge>
             </div>
             <div>

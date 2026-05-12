@@ -38,6 +38,16 @@ const STATUS_LABELS: Record<string, string> = {
   SUGERIDO: 'Sugerido',
 }
 
+const AREA_COLORS: Record<string, string> = {
+  PICKING: '#FF6B35',
+  PULMAO: '#1976D2',
+}
+
+const AREA_LABELS: Record<string, string> = {
+  PICKING: 'Picking',
+  PULMAO: 'Pulmão',
+}
+
 // ===== Helper: filter addresses =====
 
 export function filtrarEnderecos(
@@ -192,6 +202,21 @@ export function MapaArmazem({
             <Text size="sm">{STATUS_LABELS[key]}</Text>
           </Group>
         ))}
+        <Text size="sm" fw={500} ml="md">Área:</Text>
+        {Object.entries(AREA_COLORS).map(([key, color]) => (
+          <Group key={key} gap={4}>
+            <Box
+              style={{
+                width: 16,
+                height: 16,
+                borderRadius: 4,
+                border: `3px solid ${color}`,
+                backgroundColor: 'transparent',
+              }}
+            />
+            <Text size="sm">{AREA_LABELS[key]}</Text>
+          </Group>
+        ))}
       </Group>
 
       {/* Map Grid */}
@@ -278,6 +303,7 @@ export function MapaArmazem({
                                 <div>
                                   <Text size="xs" fw={600}>{endereco.enderecoCompleto}</Text>
                                   <Text size="xs">Status: {statusLabel}</Text>
+                                  <Text size="xs">Área: {AREA_LABELS[endereco.areaArmazenagem || 'PULMAO'] || 'Pulmão'}</Text>
                                   <Text size="xs">Ocupação: {endereco.percentualOcupacao}%</Text>
                                   {endereco.produto && (
                                     <>
@@ -301,7 +327,7 @@ export function MapaArmazem({
                                   height: 40,
                                   borderRadius: 4,
                                   backgroundColor: color,
-                                  border: `2px solid ${color}`,
+                                  border: `3px solid ${AREA_COLORS[endereco.areaArmazenagem || 'PULMAO'] || AREA_COLORS.PULMAO}`,
                                   cursor: onEnderecoClick ? 'pointer' : 'default',
                                   display: 'flex',
                                   flexDirection: 'column',
@@ -315,6 +341,11 @@ export function MapaArmazem({
                                 <Text size="xs" c="white" fw={600} style={{ fontSize: 9, lineHeight: 1.2 }}>
                                   {endereco.apartamento}
                                 </Text>
+                                {endereco.areaArmazenagem === 'PICKING' && (
+                                  <Text size="xs" c="white" fw={700} style={{ fontSize: 7, lineHeight: 1, opacity: 0.9 }}>
+                                    PK
+                                  </Text>
+                                )}
                                 {sugestaoQtd != null && (
                                   <Badge
                                     size="xs"
