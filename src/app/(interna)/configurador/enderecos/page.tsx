@@ -75,7 +75,7 @@ export default function EnderecosPage() {
               <Table.Tr key={item.id}>
                 <Table.Td><Text fw={500} size="sm" ff="monospace">{item.enderecoCompleto}</Text></Table.Td>
                 <Table.Td>{item.deposito?.descricao}</Table.Td>
-                <Table.Td>{item.zona?.descricao}</Table.Td>
+                <Table.Td>{item.zona?.descricao || item.codigoZona || '—'}</Table.Td>
                 <Table.Td className="text-sm text-zinc-500">{item.estrutura?.descricao}</Table.Td>
                 <Table.Td><Badge color={tipoColor[item.tipo] || 'gray'} variant="light">{item.tipo}</Badge></Table.Td>
                 <Table.Td><Badge color={estadoColor[item.estado] || 'gray'} variant="light">{item.estado}</Badge></Table.Td>
