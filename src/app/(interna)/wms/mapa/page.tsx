@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Card, Group, Text, SimpleGrid, ThemeIcon, Select, LoadingOverlay, Tooltip, Badge, Modal, Table, Progress } from '@mantine/core'
-import { IconBuildingWarehouse, IconCheck, IconX, IconLock } from '@tabler/icons-react'
-import { useQuery } from '@tanstack/react-query'
+import { Card, Group, Text, SimpleGrid, ThemeIcon, Select, LoadingOverlay, Tooltip, Badge, Modal, Table, Progress, NumberInput, TextInput, Button, Stack, Alert } from '@mantine/core'
+import { IconBuildingWarehouse, IconCheck, IconX, IconLock, IconPackage, IconAlertTriangle } from '@tabler/icons-react'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { notifications } from '@mantine/notifications'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 
@@ -28,6 +29,65 @@ export default function MapaArmazemPage() {
   const [depositoFiltro, setDepositoFiltro] = useState<string | null>(null)
   const [zonaFiltro, setZonaFiltro] = useState<string | null>(null)
   const [searchProd, setSearchProd] = useState('')
+
+  // Distribuição inteligente
+  const [distribuirOpen, setDistribuirOpen] = useState(false)
+  const [distProdutoId, setDistProdutoId] = useState<string | null>(null)
+  const [distQuantidade, setDistQuantidade] = useState<number | ''>('')
+  const [distLote, setDistLote] = useState('')
+  const [distValidade, setDistValidade] = useState('')
+  const [distResultado, setDistResultado] = useState<any>(null)
+
+  const distribuirMutation = useMutation({
+    mutationFn: async (body: any) => {
+      const { data } = await api.post('/enderecamento-inteligente/distribuir', body)
+      return data
+    },
+  })
+
+  const confirmarMutation = useMutation({
+    mutationFn: async (body: any) => {
+      const { data } = await api.post('/enderecamento-inteligente/confirmar', body)
+      return data
+    },
+  })
+
+  function handleDistribuir() {
+    if (!distProdutoId || !distQuantidade) return
+    distribuirMutation.mutate(
+      { produtoId: distProdutoId, quantidade: Number(distQuantidade), lote: distLote || undefined, validade: distValidade || undefined },
+      {
+        onSuccess: (result) => {
+          setDistResultado(result)
+          setDistribuirOpen(false)
+          notifications.show({
+            title: result.completa ? '✅ Distribuição calculada' : '⚠️ Distribuição parcial',
+            message: `${result.alocacoes.length} posições — ${result.quantidadeAlocada} un alocadas${!result.completa ? ` (${result.quantidadeRestante} un sem endereço)` : ''}`,
+            color: result.completa ? 'green' : 'yellow',
+          })
+        },
+        onError: (err: any) => {
+          notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao calcular', color: 'red' })
+        },
+      },
+    )
+  }
+
+  function handleConfirmar() {
+    if (!distResultado || !distProdutoId) return
+    confirmarMutation.mutate(
+      { produtoId: distProdutoId, alocacoes: distResultado.alocacoes.map((a: any) => ({ enderecoId: a.enderecoId, enderecoCompleto: a.enderecoCompleto, quantidadeAlocada: a.quantidadeAlocada })), lote: distLote || undefined, validade: distValidade || undefined },
+      {
+        onSuccess: () => {
+          notifications.show({ title: '✅ Confirmado', message: 'Endereçamento confirmado com sucesso', color: 'green' })
+          setDistResultado(null)
+        },
+        onError: (err: any) => {
+          notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao confirmar', color: 'red' })
+        },
+      },
+    )
+  }
 
   const { data: mapaData, isLoading } = useQuery<any>({
     queryKey: ['posicionamento-mapa', produtoFiltro, depositoFiltro, zonaFiltro],
@@ -70,7 +130,52 @@ export default function MapaArmazemPage() {
   return (
     <div>
       <Text size="xs" c="dimmed" mb={4}>WMS / Mapa do Armazém</Text>
-      <Text size="xl" fw={600} mb="lg">Posicionamento de Estoque</Text>
+      <Group justify="space-between" mb="lg">
+        <Text size="xl" fw={600}>Posicionamento de Estoque</Text>
+        <Group>
+          {distResultado && (
+            <Button color="green" leftSection={<IconCheck size={16} />} onClick={handleConfirmar} loading={confirmarMutation.isPending}>
+              Confirmar Endereçamento ({distResultado.alocacoes.length} posições)
+            </Button>
+          )}
+          <Button leftSection={<IconPackage size={16} />} onClick={() => setDistribuirOpen(true)}>
+            Distribuir
+          </Button>
+        </Group>
+      </Group>
+
+      {/* Resultado da distribuição */}
+      {distResultado && (
+        <Alert
+          icon={distResultado.completa ? <IconCheck size={16} /> : <IconAlertTriangle size={16} />}
+          color={distResultado.completa ? 'green' : 'yellow'}
+          mb="md"
+          title={`Distribuição: ${distResultado.alocacoes.length} posições — ${distResultado.quantidadeAlocada} un`}
+        >
+          <Table striped size="sm" mt="xs">
+            <Table.Thead><Table.Tr><Table.Th>Endereço</Table.Th><Table.Th>Quantidade</Table.Th></Table.Tr></Table.Thead>
+            <Table.Tbody>
+              {distResultado.alocacoes.map((a: any, i: number) => (
+                <Table.Tr key={i}><Table.Td>{a.enderecoCompleto}</Table.Td><Table.Td><Badge color="grape">{a.quantidadeAlocada}</Badge></Table.Td></Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+          {!distResultado.completa && <Text size="sm" c="red" mt="xs">⚠️ {distResultado.quantidadeRestante} un sem endereço disponível</Text>}
+        </Alert>
+      )}
+
+      {/* Modal Distribuir */}
+      <Modal opened={distribuirOpen} onClose={() => setDistribuirOpen(false)} title="Distribuição Inteligente" centered>
+        <Stack gap="md">
+          <Select label="Produto" placeholder="Selecione" data={produtoOptions} value={distProdutoId} onChange={setDistProdutoId} searchable onSearchChange={setSearchProd} />
+          <NumberInput label="Quantidade" placeholder="Ex: 100" value={distQuantidade} onChange={(v) => setDistQuantidade(typeof v === 'number' ? v : '')} min={1} />
+          <TextInput label="Lote (opcional)" value={distLote} onChange={(e) => setDistLote(e.currentTarget.value)} />
+          <TextInput label="Validade (opcional)" placeholder="AAAA-MM-DD" value={distValidade} onChange={(e) => setDistValidade(e.currentTarget.value)} />
+          <Button fullWidth onClick={handleDistribuir} loading={distribuirMutation.isPending} disabled={!distProdutoId || !distQuantidade}>
+            Calcular Distribuição
+          </Button>
+        </Stack>
+      </Modal>
 
       {/* Estatísticas */}
       <SimpleGrid cols={{ base: 2, sm: 4 }} mb="xl">
