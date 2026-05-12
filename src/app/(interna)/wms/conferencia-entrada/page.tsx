@@ -1271,7 +1271,18 @@ export default function ConferenciaEntradaPage() {
                                 <Table.Td>{s.lote || '—'}</Table.Td>
                                 <Table.Td>{s.validade ? new Date(s.validade).toLocaleDateString('pt-BR') : '—'}</Table.Td>
                                 <Table.Td>
-                                  {s.sugestao ? (
+                                  {s.distribuicao && s.distribuicao.alocacoes.length > 0 ? (
+                                    <Stack gap={2}>
+                                      {s.distribuicao.alocacoes.map((a: any, i: number) => (
+                                        <Badge key={i} color={a.areaArmazenagem === 'PICKING' ? 'orange' : 'teal'} variant="light" size="sm">
+                                          {a.enderecoCompleto} ({a.quantidadeAlocada} un) {a.areaArmazenagem === 'PICKING' ? '🅿' : ''}
+                                        </Badge>
+                                      ))}
+                                      {!s.distribuicao.completa && (
+                                        <Text size="xs" c="red">{s.distribuicao.quantidadeRestante} un sem endereço</Text>
+                                      )}
+                                    </Stack>
+                                  ) : s.sugestao ? (
                                     <Badge color="teal" variant="light" size="sm">
                                       {s.sugestao.enderecoCompleto}
                                     </Badge>
@@ -1280,24 +1291,24 @@ export default function ConferenciaEntradaPage() {
                                   )}
                                 </Table.Td>
                                 <Table.Td>
-                                  <TextInput
+                                  <Select
                                     size="xs"
-                                    placeholder="Endereço destino"
-                                    value={
-                                      endDestinos[s.itemId]
-                                        ? (s.sugestao?.enderecoId === endDestinos[s.itemId]
-                                            ? s.sugestao.enderecoCompleto
-                                            : endDestinos[s.itemId])
-                                        : ''
+                                    placeholder="Selecionar endereço"
+                                    searchable
+                                    clearable
+                                    value={endDestinos[s.itemId] || null}
+                                    onChange={(val) => setEndDestinos({ ...endDestinos, [s.itemId]: val || '' })}
+                                    data={
+                                      s.distribuicao && s.distribuicao.alocacoes.length > 0
+                                        ? s.distribuicao.alocacoes.map((a: any) => ({
+                                            value: a.enderecoId,
+                                            label: `${a.enderecoCompleto} (${a.quantidadeAlocada} un)${a.areaArmazenagem === 'PICKING' ? ' 🅿' : ''}`,
+                                          }))
+                                        : s.sugestao
+                                          ? [{ value: s.sugestao.enderecoId, label: s.sugestao.enderecoCompleto }]
+                                          : []
                                     }
-                                    onChange={(e) => setEndDestinos({ ...endDestinos, [s.itemId]: e.currentTarget.value })}
-                                    onBlur={() => {
-                                      // If user typed a value that matches a suggestion, use the enderecoId
-                                      if (s.sugestao && endDestinos[s.itemId] === s.sugestao.enderecoCompleto) {
-                                        setEndDestinos({ ...endDestinos, [s.itemId]: s.sugestao.enderecoId })
-                                      }
-                                    }}
-                                    className="w-40"
+                                    className="w-56"
                                     styles={!endDestinos[s.itemId] && !s.sugestao ? { input: { borderColor: 'var(--mantine-color-orange-5)' } } : undefined}
                                   />
                                 </Table.Td>
