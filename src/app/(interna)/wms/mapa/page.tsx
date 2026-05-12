@@ -283,6 +283,7 @@ export default function MapaArmazemPage() {
                           <div>
                             <Text size="xs" fw={600}>{pos.enderecoCompleto}</Text>
                             <Text size="xs">{pos.ocupacao}</Text>
+                            <Text size="xs">Área: {pos.areaArmazenagem === 'PICKING' ? 'Picking' : 'Pulmão'}</Text>
                             {pos.produtos.map((p: any) => (
                               <Text key={p.id} size="xs">{p.descricao}: {p.quantidade}</Text>
                             ))}
