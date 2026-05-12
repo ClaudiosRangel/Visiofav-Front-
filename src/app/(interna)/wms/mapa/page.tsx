@@ -170,7 +170,7 @@ export default function MapaArmazemPage() {
           <Select label="Produto" placeholder="Selecione" data={produtoOptions} value={distProdutoId} onChange={setDistProdutoId} searchable onSearchChange={setSearchProd} />
           <NumberInput label="Quantidade" placeholder="Ex: 100" value={distQuantidade} onChange={(v) => setDistQuantidade(typeof v === 'number' ? v : '')} min={1} />
           <TextInput label="Lote (opcional)" value={distLote} onChange={(e) => setDistLote(e.currentTarget.value)} />
-          <TextInput label="Validade (opcional)" placeholder="AAAA-MM-DD" value={distValidade} onChange={(e) => setDistValidade(e.currentTarget.value)} />
+          <TextInput label="Validade (opcional)" placeholder="DD/MM/AAAA" value={distValidade} onChange={(e) => setDistValidade(e.currentTarget.value)} />
           <Button fullWidth onClick={handleDistribuir} loading={distribuirMutation.isPending} disabled={!distProdutoId || !distQuantidade}>
             Calcular Distribuição
           </Button>

@@ -1020,7 +1020,7 @@ export default function ConferenciaEntradaPage() {
                           <TextInput
                             size="sm"
                             value={itensValidades[item.id] || ''}
-                            placeholder="AAAA-MM-DD"
+                            placeholder="DD/MM/AAAA"
                             onChange={(e) => setItensValidades({ ...itensValidades, [item.id]: e.currentTarget.value })}
                             className="w-32"
                           />
