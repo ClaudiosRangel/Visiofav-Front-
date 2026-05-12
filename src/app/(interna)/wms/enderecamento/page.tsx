@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
-import { Card, Group, Text, Table, Badge, Button, Tabs, LoadingOverlay } from '@mantine/core'
+import { useEffect, useState } from 'react'
+import { Card, Group, Text, Table, Badge, Button, Tabs, LoadingOverlay, Modal } from '@mantine/core'
 import { IconMapPin, IconCheck, IconRefresh, IconArrowRight, IconMap2 } from '@tabler/icons-react'
 import Link from 'next/link'
 import { notifications } from '@mantine/notifications'
@@ -36,15 +36,29 @@ export default function EnderecamentoPage() {
   // Usar o mesmo endpoint para a lista de endereçadas
   const notasEnderecadasResp = enderecadasResp
 
-  // Endereçamento automático
-  const enderecarAuto = useMutation({
-    mutationFn: async (notaId: string) => { const { data } = await api.post(`/conferencia-entrada/enderecamento-automatico/${notaId}`); return data },
+  // Endereçamento automático — 2 etapas: simular → confirmar
+  const [simulacaoData, setSimulacaoData] = useState<any>(null)
+  const [simulacaoNotaId, setSimulacaoNotaId] = useState<string | null>(null)
+
+  const simularEnderecamento = useMutation({
+    mutationFn: async (notaId: string) => { const { data } = await api.post(`/conferencia-entrada/enderecamento-automatico/${notaId}`, { confirmar: false }); return data },
+    onSuccess: (data, notaId) => {
+      setSimulacaoData(data)
+      setSimulacaoNotaId(notaId)
+    },
+    onError: (err: any) => { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao simular', color: 'red' }) },
+  })
+
+  const confirmarEnderecamento = useMutation({
+    mutationFn: async (notaId: string) => { const { data } = await api.post(`/conferencia-entrada/enderecamento-automatico/${notaId}`, { confirmar: true }); return data },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['enderecamento-conferidas'] })
       queryClient.invalidateQueries({ queryKey: ['notas-enderecadas'] })
-      notifications.show({ title: '✅ Endereçamento concluído', message: `${data.itens?.length || 0} itens endereçados`, color: 'green' })
+      notifications.show({ title: '✅ Endereçamento concluído', message: `${data.itens?.length || 0} posições endereçadas`, color: 'green' })
+      setSimulacaoData(null)
+      setSimulacaoNotaId(null)
     },
-    onError: (err: any) => { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' }) },
+    onError: (err: any) => { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao confirmar', color: 'red' }) },
   })
 
   const conferidas = conferidasResp?.data || []
@@ -95,7 +109,7 @@ export default function EnderecamentoPage() {
                     <Table.Td><Badge color="green" variant="light">CONFERIDA</Badge></Table.Td>
                     <Table.Td>
                       <Button size="xs" variant="light" color="teal" leftSection={<IconArrowRight size={14} />}
-                        onClick={() => enderecarAuto.mutate(nota.id)} loading={enderecarAuto.isPending}>
+                        onClick={() => simularEnderecamento.mutate(nota.id)} loading={simularEnderecamento.isPending}>
                         Endereçar Automático
                       </Button>
                     </Table.Td>
@@ -138,6 +152,64 @@ export default function EnderecamentoPage() {
           </Tabs.Panel>
         </Tabs>
       </Card>
+
+      {/* Modal de Confirmação de Endereçamento */}
+      <Modal
+        opened={!!simulacaoData}
+        onClose={() => { setSimulacaoData(null); setSimulacaoNotaId(null) }}
+        title="Confirmar Endereçamento Automático"
+        size="lg"
+        centered
+      >
+        {simulacaoData && (
+          <div>
+            <Text size="sm" c="dimmed" mb="md">
+              Revise a distribuição proposta e confirme para gravar no estoque:
+            </Text>
+
+            {(simulacaoData.distribuicoes || []).map((dist: any, idx: number) => (
+              <Card key={idx} withBorder mb="sm" padding="sm">
+                <Text fw={500} size="sm" mb="xs">{dist.produto}</Text>
+                <Table striped size="sm">
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Endereço</Table.Th>
+                      <Table.Th style={{ textAlign: 'right' }}>Quantidade</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {(dist.alocacoes || []).map((a: any, i: number) => (
+                      <Table.Tr key={i}>
+                        <Table.Td>{a.enderecoCompleto}</Table.Td>
+                        <Table.Td style={{ textAlign: 'right' }}>
+                          <Badge color="teal" variant="light">{a.quantidadeAlocada}</Badge>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+                {dist.quantidadeRestante > 0 && (
+                  <Text size="sm" c="red" mt="xs">⚠️ {dist.quantidadeRestante} un sem endereço disponível</Text>
+                )}
+              </Card>
+            ))}
+
+            <Group justify="flex-end" mt="md">
+              <Button variant="default" onClick={() => { setSimulacaoData(null); setSimulacaoNotaId(null) }}>
+                Cancelar
+              </Button>
+              <Button
+                color="teal"
+                leftSection={<IconCheck size={16} />}
+                onClick={() => simulacaoNotaId && confirmarEnderecamento.mutate(simulacaoNotaId)}
+                loading={confirmarEnderecamento.isPending}
+              >
+                Confirmar Endereçamento
+              </Button>
+            </Group>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
