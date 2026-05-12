@@ -20,6 +20,7 @@ const schema = z.object({
   nivelInicio: z.number().min(1), nivelFim: z.number().min(1),
   aptoInicio: z.number().min(1), aptoFim: z.number().min(1),
   tipo: z.string().min(1),
+  nivelPicking: z.number().min(0).optional(),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -37,7 +38,7 @@ export default function EnderecoAutoModal({ opened, onClose }: Props) {
 
   const { control, handleSubmit, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { codigoDeposito: '001', codigoZona: '001', ruaInicio: 1, ruaFim: 1, predioInicio: 1, predioFim: 1, nivelInicio: 1, nivelFim: 1, aptoInicio: 1, aptoFim: 1, tipo: 'ARMAZENAGEM' },
+    defaultValues: { codigoDeposito: '001', codigoZona: '001', ruaInicio: 1, ruaFim: 1, predioInicio: 1, predioFim: 1, nivelInicio: 1, nivelFim: 1, aptoInicio: 1, aptoFim: 1, tipo: 'ARMAZENAGEM', nivelPicking: 1 },
   })
 
   const v = watch()
@@ -63,9 +64,20 @@ export default function EnderecoAutoModal({ opened, onClose }: Props) {
             <Controller name="estruturaId" control={control} render={({ field }) => (<Select label="Estrutura" data={estruturaOptions} className="w-full" searchable clearable placeholder="Selecione uma estrutura (opcional)" {...field} value={field.value || null} />)} />
           </div>
           <div className="flex gap-4 w-full">
-            <Controller name="codigoDeposito" control={control} render={({ field }) => (<TextInput label="Cód. Depósito" className="w-4/12" {...field} />)} />
-            <Controller name="codigoZona" control={control} render={({ field }) => (<TextInput label="Cód. Zona" className="w-4/12" {...field} />)} />
-            <Controller name="tipo" control={control} render={({ field }) => (<Select label="Tipo" data={[{ value: 'ARMAZENAGEM', label: 'Armazenagem' }, { value: 'PICKING', label: 'Picking' }]} className="w-4/12" {...field} />)} />
+            <Controller name="codigoDeposito" control={control} render={({ field }) => (<TextInput label="Cód. Depósito" className="w-3/12" {...field} />)} />
+            <Controller name="codigoZona" control={control} render={({ field }) => (<TextInput label="Cód. Zona" className="w-3/12" {...field} />)} />
+            <Controller name="tipo" control={control} render={({ field }) => (<Select label="Tipo" data={[{ value: 'ARMAZENAGEM', label: 'Armazenagem' }, { value: 'PICKING', label: 'Picking' }]} className="w-3/12" {...field} />)} />
+            <Controller name="nivelPicking" control={control} render={({ field }) => (
+              <NumberInput
+                label="Nível Picking (até)"
+                description="Níveis ≤ este valor = Picking"
+                className="w-3/12"
+                min={0}
+                max={v.nivelFim || 99}
+                disabled={v.tipo === 'PICKING'}
+                {...field}
+              />
+            )} />
           </div>
           <Text size="sm" fw={600}>Faixas de Endereço</Text>
           <div className="flex gap-4 w-full">
