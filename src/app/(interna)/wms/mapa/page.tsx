@@ -133,7 +133,7 @@ export default function MapaArmazemPage() {
       <Group justify="space-between" mb="lg">
         <Text size="xl" fw={600}>Posicionamento de Estoque</Text>
         <Group>
-          {distResultado && (
+          {distResultado && distResultado.alocacoes.length > 0 && (
             <Button color="green" leftSection={<IconCheck size={16} />} onClick={handleConfirmar} loading={confirmarMutation.isPending}>
               Confirmar Endereçamento ({distResultado.alocacoes.length} posições)
             </Button>
