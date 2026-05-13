@@ -57,14 +57,18 @@ export default function EnderecoAutoModal({ opened, onClose }: Props) {
       return { rua: true, predio: true, nivel: true, apto: true }
     }
     const mapa = { rua: false, predio: false, nivel: false, apto: false }
-    for (const comp of formatoResolvido.componentes) {
-      if (!comp.ativo) continue
-      switch (comp.tipo) {
-        case 'RUA': mapa.rua = true; break
-        case 'PREDIO': mapa.predio = true; break
-        case 'NIVEL': mapa.nivel = true; break
-        case 'APARTAMENTO': mapa.apto = true; break
-      }
+    // Backend retorna 'segmentos' com 'campoFisico'
+    const segmentos = (formatoResolvido as any).segmentos || formatoResolvido.componentes || []
+    for (const seg of segmentos) {
+      const campo = seg.campoFisico || ''
+      if (campo === 'codigoRua') mapa.rua = true
+      else if (campo === 'codigoPredio') mapa.predio = true
+      else if (campo === 'codigoNivel') mapa.nivel = true
+      else if (campo === 'codigoApto') mapa.apto = true
+    }
+    // Se nenhum campo foi mapeado (formato vazio ou incompatível), fallback para todos
+    if (!mapa.rua && !mapa.predio && !mapa.nivel && !mapa.apto) {
+      return { rua: true, predio: true, nivel: true, apto: true }
     }
     return mapa
   }, [formatoResolvido, formatoError])
