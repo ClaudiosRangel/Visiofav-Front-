@@ -57,7 +57,7 @@ const segmentoSchema = z.object({
     'codigoNivel',
     'codigoApto',
   ]),
-  ordem: z.number().min(0),
+  ordem: z.number().min(1, 'Ordem deve ser maior que 0'),
   numerico: z.boolean(),
   prefixo: z.string().optional(),
 })
@@ -74,7 +74,7 @@ type FormValues = z.infer<typeof formatoSchema>
 const defaultSegmento = {
   nome: '',
   campoFisico: 'codigoRua' as CampoFisico,
-  ordem: 0,
+  ordem: 1,
   numerico: false,
   prefixo: '',
 }
@@ -110,7 +110,7 @@ export default function FormatosEnderecoTab() {
 
   function handleNew() {
     setEditItem(null)
-    reset({ nome: '', segmentos: [{ ...defaultSegmento, ordem: 0 }] })
+    reset({ nome: '', segmentos: [{ ...defaultSegmento, ordem: 1 }] })
     setModalOpen(true)
   }
 
@@ -298,7 +298,7 @@ export default function FormatosEnderecoTab() {
                   variant="light"
                   leftSection={<IconPlus size={14} />}
                   onClick={() =>
-                    append({ ...defaultSegmento, ordem: fields.length })
+                    append({ ...defaultSegmento, ordem: fields.length + 1 })
                   }
                 >
                   Adicionar
@@ -367,10 +367,10 @@ export default function FormatosEnderecoTab() {
                           <NumberInput
                             label="Ordem"
                             size="xs"
-                            min={0}
+                            min={1}
                             error={errors.segmentos?.[index]?.ordem?.message}
                             value={field.value}
-                            onChange={(val) => field.onChange(val || 0)}
+                            onChange={(val) => field.onChange(val || 1)}
                           />
                         )}
                       />
