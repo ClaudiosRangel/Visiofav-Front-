@@ -88,16 +88,21 @@ export default function EnderecoAutoModal({ opened, onClose }: Props) {
   // Determinar se estamos usando formato dinâmico (v2) ou legado
   const usarFormatoDinamico = useMemo(() => {
     if (!formatoResolvido || formatoError) return false
+    // Se o formato resolvido é o padrão (6 segmentos legado), usar endpoint legado
+    if ((formatoResolvido as any).id === 'padrao') return false
     const segmentos: SegmentoFormato[] = (formatoResolvido as any).segmentos || []
     if (segmentos.length === 0) return false
-    // Se tem exatamente os 6 segmentos padrão (rua, predio, nivel, apto, deposito, zona), usar legado
-    const camposFaixa = segmentos.filter(s => s.ativo !== false).map(s => s.campoFisico)
-    const temRua = camposFaixa.includes('codigoRua')
-    const temPredio = camposFaixa.includes('codigoPredio')
-    const temNivel = camposFaixa.includes('codigoNivel')
-    const temApto = camposFaixa.includes('codigoApto')
-    // Se tem todos os 4 campos de faixa, usar legado (mais simples)
-    if (temRua && temPredio && temNivel && temApto) return false
+    // Se tem exatamente os 6 segmentos (deposito + zona + rua + predio + nivel + apto), usar legado
+    const camposAtivos = segmentos.filter(s => s.ativo !== false).map(s => s.campoFisico)
+    const temTodos6 = camposAtivos.includes('codigoDeposito') &&
+      camposAtivos.includes('codigoZona') &&
+      camposAtivos.includes('codigoRua') &&
+      camposAtivos.includes('codigoPredio') &&
+      camposAtivos.includes('codigoNivel') &&
+      camposAtivos.includes('codigoApto')
+    if (temTodos6 && camposAtivos.length === 6) return false
+    // Qualquer outro formato customizado → usar v2
+    return true
     // Formato com menos segmentos → usar v2
     return true
   }, [formatoResolvido, formatoError])
