@@ -16,6 +16,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 import PendenciasLogisticasButton from '@/components/wms/PendenciasLogisticasButton'
+import { ShelfLifeAlert } from '@/components/wms/ShelfLifeAlert'
 import {
   useSugerirLote,
   useConfirmarLote,
@@ -24,6 +25,11 @@ import {
   useGerarEtiquetaEnderecamento,
   useGerarEtiquetaEnderecamentoZpl,
 } from '@/data/hooks/useEnderecamento'
+import {
+  useDistribuicaoInteligente,
+  useConfirmarDistribuicao,
+  type DistribuicaoResult,
+} from '@/data/hooks/useEnderecamentoInteligente'
 
 const statusColors: Record<string, string> = {
   PENDENTE: 'orange', EM_CONFERENCIA: 'blue', CONFERIDA: 'green', REJEITADA: 'red', ENDERECADA: 'teal',
@@ -85,6 +91,13 @@ export default function ConferenciaEntradaPage() {
   const [endModoAtivo, setEndModoAtivo] = useState<string | null>(null) // null = lista, 'manual' | 'coletor'
   const [endNotaSelecionada, setEndNotaSelecionada] = useState<any>(null)
   const [endDestinos, setEndDestinos] = useState<Record<string, string>>({}) // itemId -> enderecoId
+
+  // Distribuição Inteligente state (Task 8.1)
+  const [sugestoesInteligentes, setSugestoesInteligentes] = useState<Record<string, {
+    loading: boolean
+    resultado: DistribuicaoResult | null
+    error?: string
+  }>>({})
 
   // OCR Endereçamento state
   const [ocrEndModalOpen, setOcrEndModalOpen] = useState(false)
@@ -157,6 +170,10 @@ export default function ConferenciaEntradaPage() {
   const gerarEtiquetaHtml = useGerarEtiquetaEnderecamento()
   const gerarEtiquetaZpl = useGerarEtiquetaEnderecamentoZpl()
 
+  // ===== Distribuição Inteligente hooks (Task 8.1) =====
+  const distribuicaoInteligente = useDistribuicaoInteligente()
+  const confirmarDistribuicao = useConfirmarDistribuicao()
+
   // ===== Acompanhamento polling (coletor mode) =====
   const fetchAcompanhamento = useCallback(async () => {
     if (!conferencia?.nota?.id) return
@@ -181,6 +198,47 @@ export default function ConferenciaEntradaPage() {
       if (acompanhamentoInterval.current) clearInterval(acompanhamentoInterval.current)
     }
   }, [modoColetor, etapa, conferencia?.nota?.id, fetchAcompanhamento])
+
+  // ===== Task 8.1: Disparar distribuição inteligente ao entrar no modo manual =====
+  useEffect(() => {
+    if (endModoAtivo === 'manual' && endNotaSelecionada && sugestoesResp?.sugestoes) {
+      const itensPendentes = sugestoesResp.sugestoes.filter(
+        (s: any) => !s.distribuicao || s.distribuicao.alocacoes.length === 0
+      )
+      for (const item of itensPendentes) {
+        // Skip if already loading or has result
+        if (sugestoesInteligentes[item.itemId]?.loading || sugestoesInteligentes[item.itemId]?.resultado) continue
+
+        setSugestoesInteligentes((prev) => ({
+          ...prev,
+          [item.itemId]: { loading: true, resultado: null },
+        }))
+
+        distribuicaoInteligente.mutate(
+          {
+            produtoId: item.produtoId,
+            quantidade: item.quantidade,
+            lote: item.lote || undefined,
+            validade: item.validade || undefined,
+          },
+          {
+            onSuccess: (data) => {
+              setSugestoesInteligentes((prev) => ({
+                ...prev,
+                [item.itemId]: { loading: false, resultado: data },
+              }))
+            },
+            onError: (err) => {
+              setSugestoesInteligentes((prev) => ({
+                ...prev,
+                [item.itemId]: { loading: false, resultado: null, error: err.message || 'Erro ao buscar sugestão' },
+              }))
+            },
+          }
+        )
+      }
+    }
+  }, [endModoAtivo, endNotaSelecionada, sugestoesResp?.sugestoes])
 
   // Compute acompanhamento stats
   const acompanhamentoItens = acompanhamentoData?.itens || conferencia?.itens || []
@@ -543,18 +601,124 @@ export default function ConferenciaEntradaPage() {
     setEndNotaSelecionada(null)
     setEndModoAtivo(null)
     setEndDestinos({})
+    setSugestoesInteligentes({})
   }
 
   function handleAceitarSugestoes() {
     if (!sugestoesResp?.sugestoes) return
     const novosDestinos: Record<string, string> = {}
     for (const s of sugestoesResp.sugestoes) {
-      if (s.sugestao?.enderecoId) {
+      // First try intelligent distribution suggestions
+      const inteligente = sugestoesInteligentes[s.itemId]
+      if (inteligente?.resultado?.alocacoes?.length) {
+        novosDestinos[s.itemId] = inteligente.resultado.alocacoes[0].enderecoId
+      } else if (s.distribuicao?.alocacoes?.length > 0) {
+        novosDestinos[s.itemId] = s.distribuicao.alocacoes[0].enderecoId
+      } else if (s.sugestao?.enderecoId) {
         novosDestinos[s.itemId] = s.sugestao.enderecoId
       }
     }
     setEndDestinos({ ...endDestinos, ...novosDestinos })
     notifications.show({ title: '✅ Sugestões aceitas', message: 'Endereços sugeridos preenchidos nos campos de destino', color: 'green' })
+  }
+
+  // Task 8.3: Confirmar endereçamento via useConfirmarDistribuicao
+  function handleConfirmarDistribuicaoInteligente() {
+    if (!sugestoesResp?.sugestoes) return
+
+    const itensComDestino = sugestoesResp.sugestoes.filter((s: any) => endDestinos[s.itemId])
+
+    if (itensComDestino.length === 0) {
+      notifications.show({ title: 'Atenção', message: 'Preencha ao menos um endereço de destino', color: 'yellow' })
+      return
+    }
+
+    // Group by produtoId and confirm each
+    const porProduto: Record<string, { produtoId: string; lote?: string; validade?: string; alocacoes: Array<{ enderecoId: string; enderecoCompleto: string; quantidadeAlocada: number }> }> = {}
+
+    for (const s of itensComDestino) {
+      const enderecoId = endDestinos[s.itemId]
+      if (!enderecoId) continue
+
+      // Get enderecoCompleto from intelligent suggestions or sugestoes
+      let enderecoCompleto = ''
+      const inteligente = sugestoesInteligentes[s.itemId]
+      if (inteligente?.resultado?.alocacoes?.length) {
+        const aloc = inteligente.resultado.alocacoes.find((a) => a.enderecoId === enderecoId)
+        enderecoCompleto = aloc?.enderecoCompleto || ''
+      }
+      if (!enderecoCompleto && s.distribuicao?.alocacoes?.length > 0) {
+        const aloc = s.distribuicao.alocacoes.find((a: any) => a.enderecoId === enderecoId)
+        enderecoCompleto = aloc?.enderecoCompleto || ''
+      }
+      if (!enderecoCompleto && s.sugestao?.enderecoId === enderecoId) {
+        enderecoCompleto = s.sugestao.enderecoCompleto
+      }
+      if (!enderecoCompleto) enderecoCompleto = enderecoId
+
+      if (!porProduto[s.produtoId]) {
+        porProduto[s.produtoId] = {
+          produtoId: s.produtoId,
+          lote: s.lote || undefined,
+          validade: s.validade || undefined,
+          alocacoes: [],
+        }
+      }
+      porProduto[s.produtoId].alocacoes.push({
+        enderecoId,
+        enderecoCompleto,
+        quantidadeAlocada: s.quantidade,
+      })
+    }
+
+    // Confirm each product's distribution
+    const produtos = Object.values(porProduto)
+    let confirmados = 0
+    let erros = 0
+
+    for (const prod of produtos) {
+      confirmarDistribuicao.mutate(
+        {
+          produtoId: prod.produtoId,
+          alocacoes: prod.alocacoes,
+          lote: prod.lote,
+          validade: prod.validade,
+        },
+        {
+          onSuccess: () => {
+            confirmados++
+            if (confirmados + erros === produtos.length) {
+              if (erros === 0) {
+                notifications.show({
+                  title: '✅ Endereçamento confirmado',
+                  message: `${confirmados} produto(s) endereçados com sucesso via distribuição inteligente`,
+                  color: 'green',
+                })
+                queryClient.invalidateQueries({ queryKey: ['conferencia-notas-conferidas'] })
+                queryClient.invalidateQueries({ queryKey: ['enderecos-livres'] })
+                handleVoltarListaEnd()
+              } else {
+                notifications.show({
+                  title: '⚠️ Endereçamento parcial',
+                  message: `${confirmados} confirmado(s), ${erros} com erro`,
+                  color: 'yellow',
+                })
+              }
+            }
+          },
+          onError: (err: any) => {
+            erros++
+            if (confirmados + erros === produtos.length) {
+              notifications.show({
+                title: 'Erro',
+                message: err?.message || 'Falha ao confirmar endereçamento',
+                color: 'red',
+              })
+            }
+          },
+        }
+      )
+    }
   }
 
   async function handleImprimirFichaEnd() {
@@ -1024,6 +1188,10 @@ export default function ConferenciaEntradaPage() {
                             onChange={(e) => setItensValidades({ ...itensValidades, [item.id]: e.currentTarget.value })}
                             className="w-32"
                           />
+                          <ShelfLifeAlert
+                            dataVencimento={itensValidades[item.id] || null}
+                            shelfLifeMinimo={item.produto?.shelfLifeMinimo ?? item.shelfLifeMinimo ?? null}
+                          />
                         </Table.Td>
                       </Table.Tr>
                     )) : (
@@ -1258,6 +1426,7 @@ export default function ConferenciaEntradaPage() {
                               <Table.Th>Lote</Table.Th>
                               <Table.Th>Validade</Table.Th>
                               <Table.Th>Sugestão</Table.Th>
+                              <Table.Th>% Ocupação</Table.Th>
                               <Table.Th>Destino</Table.Th>
                             </Table.Tr>
                           </Table.Thead>
@@ -1282,12 +1451,47 @@ export default function ConferenciaEntradaPage() {
                                         <Text size="xs" c="red">{s.distribuicao.quantidadeRestante} un sem endereço</Text>
                                       )}
                                     </Stack>
+                                  ) : sugestoesInteligentes[s.itemId]?.loading ? (
+                                    <Group gap={4}>
+                                      <Loader size="xs" />
+                                      <Text size="xs" c="dimmed">Buscando...</Text>
+                                    </Group>
+                                  ) : sugestoesInteligentes[s.itemId]?.resultado?.alocacoes?.length ? (
+                                    <Stack gap={2}>
+                                      {sugestoesInteligentes[s.itemId].resultado!.alocacoes.map((a, i) => (
+                                        <Badge key={i} color="indigo" variant="light" size="sm">
+                                          {a.enderecoCompleto} ({a.quantidadeAlocada} un)
+                                        </Badge>
+                                      ))}
+                                      {!sugestoesInteligentes[s.itemId].resultado!.completa && (
+                                        <Text size="xs" c="red">{sugestoesInteligentes[s.itemId].resultado!.quantidadeRestante} un sem endereço</Text>
+                                      )}
+                                    </Stack>
+                                  ) : sugestoesInteligentes[s.itemId]?.error ? (
+                                    <Text size="xs" c="orange">Nenhuma sugestão disponível</Text>
                                   ) : s.sugestao ? (
                                     <Badge color="teal" variant="light" size="sm">
                                       {s.sugestao.enderecoCompleto}
                                     </Badge>
                                   ) : (
                                     <Text size="xs" c="orange">Sem sugestão</Text>
+                                  )}
+                                </Table.Td>
+                                <Table.Td>
+                                  {sugestoesInteligentes[s.itemId]?.resultado?.alocacoes?.length ? (
+                                    <Stack gap={2}>
+                                      {sugestoesInteligentes[s.itemId].resultado!.alocacoes.map((a, i) => (
+                                        <Text key={i} size="xs" fw={500}>
+                                          {Math.round((a.quantidadeAlocada / (sugestoesInteligentes[s.itemId].resultado!.quantidadeTotal || 1)) * 100)}%
+                                        </Text>
+                                      ))}
+                                    </Stack>
+                                  ) : s.distribuicao?.alocacoes?.length > 0 ? (
+                                    <Text size="xs" c="dimmed">—</Text>
+                                  ) : sugestoesInteligentes[s.itemId]?.loading ? (
+                                    <Loader size="xs" />
+                                  ) : (
+                                    <Text size="xs" c="dimmed">—</Text>
                                   )}
                                 </Table.Td>
                                 <Table.Td>
@@ -1304,12 +1508,17 @@ export default function ConferenciaEntradaPage() {
                                             value: a.enderecoId,
                                             label: `${a.enderecoCompleto} (${a.quantidadeAlocada} un)${a.areaArmazenagem === 'PICKING' ? ' 🅿' : ''}`,
                                           }))
-                                        : s.sugestao
-                                          ? [{ value: s.sugestao.enderecoId, label: s.sugestao.enderecoCompleto }]
-                                          : []
+                                        : sugestoesInteligentes[s.itemId]?.resultado?.alocacoes?.length
+                                          ? sugestoesInteligentes[s.itemId].resultado!.alocacoes.map((a) => ({
+                                              value: a.enderecoId,
+                                              label: `${a.enderecoCompleto} (${a.quantidadeAlocada} un)`,
+                                            }))
+                                          : s.sugestao
+                                            ? [{ value: s.sugestao.enderecoId, label: s.sugestao.enderecoCompleto }]
+                                            : []
                                     }
                                     className="w-56"
-                                    styles={!endDestinos[s.itemId] && !s.sugestao ? { input: { borderColor: 'var(--mantine-color-orange-5)' } } : undefined}
+                                    styles={!endDestinos[s.itemId] && !s.sugestao && !sugestoesInteligentes[s.itemId]?.resultado ? { input: { borderColor: 'var(--mantine-color-orange-5)' } } : undefined}
                                   />
                                 </Table.Td>
                               </Table.Tr>
@@ -1318,7 +1527,7 @@ export default function ConferenciaEntradaPage() {
                         </Table>
 
                         {/* Warning for items without suggestions */}
-                        {sugestoesResp.sugestoes.some((s: any) => !s.sugestao) && (
+                        {sugestoesResp.sugestoes.some((s: any) => !s.sugestao && !s.distribuicao?.alocacoes?.length && !sugestoesInteligentes[s.itemId]?.resultado?.alocacoes?.length) && (
                           <Alert icon={<IconAlertCircle size={16} />} color="orange" variant="light" mb="md">
                             Alguns itens não possuem sugestão de endereço. Preencha manualmente ou verifique os endereços disponíveis.
                           </Alert>
@@ -1328,7 +1537,7 @@ export default function ConferenciaEntradaPage() {
                         <Group justify="space-between">
                           <Group>
                             <Button variant="light" color="teal" onClick={handleAceitarSugestoes}
-                              disabled={!sugestoesResp.sugestoes.some((s: any) => s.sugestao)}>
+                              disabled={!sugestoesResp.sugestoes.some((s: any) => s.sugestao || s.distribuicao?.alocacoes?.length > 0 || sugestoesInteligentes[s.itemId]?.resultado?.alocacoes?.length)}>
                               Aceitar Sugestões
                             </Button>
                             <Button variant="light" leftSection={<IconPrinter size={14} />} onClick={handleImprimirFichaEnd}>
@@ -1338,12 +1547,20 @@ export default function ConferenciaEntradaPage() {
                               📷 Importar Ficha OCR
                             </Button>
                           </Group>
-                          <Button color="teal" leftSection={<IconCheck size={16} />}
-                            onClick={handleConfirmarEnderecamento}
-                            loading={confirmarLote.isPending}
-                            disabled={!Object.values(endDestinos).some(Boolean)}>
-                            Confirmar Endereçamento
-                          </Button>
+                          <Group>
+                            <Button color="indigo" variant="light" leftSection={<IconCheck size={16} />}
+                              onClick={handleConfirmarDistribuicaoInteligente}
+                              loading={confirmarDistribuicao.isPending}
+                              disabled={!Object.values(endDestinos).some(Boolean)}>
+                              Confirmar Endereçamento
+                            </Button>
+                            <Button color="teal" leftSection={<IconCheck size={16} />}
+                              onClick={handleConfirmarEnderecamento}
+                              loading={confirmarLote.isPending}
+                              disabled={!Object.values(endDestinos).some(Boolean)}>
+                              Confirmar (Lote)
+                            </Button>
+                          </Group>
                         </Group>
                       </>
                     ) : !sugestoesLoading ? (

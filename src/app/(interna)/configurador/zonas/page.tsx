@@ -8,8 +8,12 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { notifications } from '@mantine/notifications'
 import { zonasCrud } from '@/data/hooks/useCrudGenerico'
+import { FormatoEnderecoSelect } from '@/components/configurador/FormatoEnderecoSelect'
 
-const schema = z.object({ descricao: z.string().min(1, 'Descrição é obrigatória') })
+const schema = z.object({
+  descricao: z.string().min(1, 'Descrição é obrigatória'),
+  formatoEnderecoId: z.string().optional().nullable(),
+})
 type FormValues = z.infer<typeof schema>
 
 export default function ZonasPage() {
@@ -24,8 +28,8 @@ export default function ZonasPage() {
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
-  function handleNew() { setEditItem(null); reset({ descricao: '' }); setModalOpen(true) }
-  function handleEdit(item: any) { setEditItem(item); reset({ descricao: item.descricao }); setModalOpen(true) }
+  function handleNew() { setEditItem(null); reset({ descricao: '', formatoEnderecoId: null }); setModalOpen(true) }
+  function handleEdit(item: any) { setEditItem(item); reset({ descricao: item.descricao, formatoEnderecoId: item.formatoEnderecoId || null }); setModalOpen(true) }
 
   async function onSubmit(data: FormValues) {
     try {
@@ -74,6 +78,7 @@ export default function ZonasPage() {
       <Modal opened={modalOpen} onClose={() => setModalOpen(false)} title={editItem ? 'Editar Zona' : 'Nova Zona'} centered closeOnClickOutside={false}>
         <form onSubmit={handleSubmit(onSubmit)}>
           <Controller name="descricao" control={control} render={({ field }) => (<TextInput label={<>Descrição <span style={{ color: 'red' }}>*</span></>} error={errors.descricao?.message} {...field} />)} />
+          <Controller name="formatoEnderecoId" control={control} render={({ field }) => (<FormatoEnderecoSelect value={field.value ?? null} onChange={field.onChange} error={errors.formatoEnderecoId?.message} />)} />
           <Group justify="flex-end" mt="md"><Button variant="default" onClick={() => setModalOpen(false)}>Cancelar</Button><Button type="submit" loading={criar.isPending || atualizar.isPending}>Salvar</Button></Group>
         </form>
       </Modal>

@@ -8,6 +8,7 @@ import { useEffect } from 'react'
 import { notifications } from '@mantine/notifications'
 import { useCriarDeposito, useAtualizarDeposito } from '@/data/hooks/useDeposito'
 import { useCentrosDistribuicao } from '@/data/hooks/useCentroDistribuicao'
+import { FormatoEnderecoSelect } from '@/components/configurador/FormatoEnderecoSelect'
 
 const schema = z.object({
   descricao: z.string().min(1, 'Descrição é obrigatória'),
@@ -19,6 +20,7 @@ const schema = z.object({
   cep: z.string().optional(),
   telefone1: z.string().optional(),
   telefone2: z.string().optional(),
+  formatoEnderecoId: z.string().optional().nullable(),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -38,9 +40,9 @@ export default function DepositoModal({ opened, onClose, editData }: Props) {
 
   useEffect(() => {
     if (editData) {
-      reset({ descricao: editData.descricao, centroDistribuicaoId: editData.centroDistribuicaoId, cidade: editData.cidade || '', uf: editData.uf || '', cep: editData.cep || '', telefone1: editData.telefone1 || '', telefone2: editData.telefone2 || '' })
+      reset({ descricao: editData.descricao, centroDistribuicaoId: editData.centroDistribuicaoId, cidade: editData.cidade || '', uf: editData.uf || '', cep: editData.cep || '', telefone1: editData.telefone1 || '', telefone2: editData.telefone2 || '', formatoEnderecoId: editData.formatoEnderecoId || null })
     } else {
-      reset({ descricao: '', centroDistribuicaoId: '' })
+      reset({ descricao: '', centroDistribuicaoId: '', formatoEnderecoId: null })
     }
   }, [editData, reset, opened])
 
@@ -71,6 +73,9 @@ export default function DepositoModal({ opened, onClose, editData }: Props) {
             <Controller name="telefone1" control={control} render={({ field }) => (<TextInput label="Telefone 1" className="w-6/12" {...field} />)} />
             <Controller name="telefone2" control={control} render={({ field }) => (<TextInput label="Telefone 2" className="w-6/12" {...field} />)} />
           </div>
+          <Controller name="formatoEnderecoId" control={control} render={({ field }) => (
+            <FormatoEnderecoSelect value={field.value ?? null} onChange={field.onChange} error={errors.formatoEnderecoId?.message} />
+          )} />
         </div>
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={onClose}>Cancelar</Button>
