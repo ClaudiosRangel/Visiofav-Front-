@@ -104,7 +104,7 @@ export default function EnderecosPage() {
             </Table>
           </Card>
           <EnderecoModal opened={modalOpen} onClose={() => { setModalOpen(false); setEditItem(null) }} editData={editItem} />
-          <EnderecoAutoModal opened={autoModalOpen} onClose={() => setAutoModalOpen(false)} />
+          <EnderecoAutoModal opened={autoModalOpen} onClose={() => { setAutoModalOpen(false); refetch() }} />
         </Tabs.Panel>
 
         <Tabs.Panel value="formatos">
