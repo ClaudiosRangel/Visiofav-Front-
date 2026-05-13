@@ -17,6 +17,7 @@ import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 import PendenciasLogisticasButton from '@/components/wms/PendenciasLogisticasButton'
 import { ShelfLifeAlert } from '@/components/wms/ShelfLifeAlert'
+import { verificarShelfLife } from '@/utils/shelfLife'
 import {
   useSugerirLote,
   useConfirmarLote,
@@ -1238,7 +1239,12 @@ export default function ConferenciaEntradaPage() {
                     )}
                   </Group>
                   <Button color="blue" leftSection={<IconEye size={16} />}
-                    onClick={() => conferirTodos.mutate()} loading={conferirTodos.isPending}>
+                    onClick={() => conferirTodos.mutate()} loading={conferirTodos.isPending}
+                    disabled={conferencia?.itens?.some((item: any) => {
+                      const validade = itensValidades[item.id]
+                      const shelfMin = item.shelfLifeMinimo
+                      return validade && shelfMin ? verificarShelfLife(validade, shelfMin) !== null : false
+                    })}>
                     Verificar Resultado
                   </Button>
                 </Group>
