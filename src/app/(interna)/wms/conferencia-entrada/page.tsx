@@ -281,6 +281,21 @@ export default function ConferenciaEntradaPage() {
       setItensConferidos({})
       setResultado(null)
       setAcompanhamentoData(null)
+      // Pré-preencher lote e validade vindos da nota (importados do XML)
+      const lotes: Record<string, string> = {}
+      const validades: Record<string, string> = {}
+      for (const item of (data.itens || [])) {
+        if (item.lote) lotes[item.id] = item.lote
+        if (item.validade) {
+          // Converter ISO para DD/MM/AAAA
+          const d = new Date(item.validade)
+          if (!isNaN(d.getTime())) {
+            validades[item.id] = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+          }
+        }
+      }
+      setItensLotes(lotes)
+      setItensValidades(validades)
       // Verificar se tem OS vinculada sem funcionários — abrir seleção
       checkOsAndStart(data)
     },
