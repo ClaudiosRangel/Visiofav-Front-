@@ -45,6 +45,7 @@ export interface GerarEnderecosInput {
   formatoEnderecoId?: string
   depositoId: string
   centroDistribuicaoId: string
+  zonaId?: string
   estruturaId?: string
   codigoDeposito: string
   codigoZona: string

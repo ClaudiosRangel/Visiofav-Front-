@@ -9,7 +9,7 @@ import { notifications } from '@mantine/notifications'
 import { useGerarEnderecos } from '@/data/hooks/useEndereco'
 import { useDepositos } from '@/data/hooks/useDeposito'
 import { useCentrosDistribuicao } from '@/data/hooks/useCentroDistribuicao'
-import { estruturasCrud } from '@/data/hooks/useCrudGenerico'
+import { estruturasCrud, zonasCrud } from '@/data/hooks/useCrudGenerico'
 import { useResolverFormato, useGerarComFormato } from '@/data/hooks/useFormatoEndereco'
 import type { SegmentoFormato, FaixaSegmento } from '@/data/hooks/useFormatoEndereco'
 
@@ -17,6 +17,7 @@ import type { SegmentoFormato, FaixaSegmento } from '@/data/hooks/useFormatoEnde
 const schema = z.object({
   centroDistribuicaoId: z.string().min(1, 'CD é obrigatório'),
   depositoId: z.string().min(1, 'Depósito é obrigatório'),
+  zonaId: z.string().optional(),
   estruturaId: z.string().optional(),
   codigoDeposito: z.string().min(1),
   codigoZona: z.string().min(1),
@@ -52,6 +53,7 @@ export default function EnderecoAutoModal({ opened, onClose }: Props) {
   const { data: cdsResp } = useCentrosDistribuicao({ limit: 100 })
   const { data: depsResp } = useDepositos({ limit: 100 })
   const { data: estruturasResp } = estruturasCrud.useListar({ limit: 100 })
+  const { data: zonasResp } = zonasCrud.useListar({ limit: 100 })
 
   const cdOptions = (cdsResp?.data || []).map((c: any) => ({ value: c.id, label: c.nome || c.descricao || c.codigo || '—' }))
   const depOptions = (depsResp?.data || []).map((d: any) => ({ value: d.id, label: d.descricao || '—' }))
@@ -69,9 +71,19 @@ export default function EnderecoAutoModal({ opened, onClose }: Props) {
 
   const v = watch()
   const depositoId = v.depositoId
+  const zonaId = v.zonaId
 
-  // Resolve formato de endereço baseado no depósito selecionado
-  const { data: formatoResolvido, isError: formatoError } = useResolverFormato(depositoId || null)
+  // Filtrar zonas pelo depósito selecionado
+  const zonaOptions = useMemo(() => {
+    const todas = (zonasResp?.data || []) as any[]
+    if (!depositoId) return todas.map((z: any) => ({ value: z.id, label: z.descricao || '—' }))
+    return todas
+      .filter((z: any) => !z.depositoId || z.depositoId === depositoId)
+      .map((z: any) => ({ value: z.id, label: z.descricao || '—' }))
+  }, [zonasResp, depositoId])
+
+  // Resolve formato de endereço baseado no depósito e zona selecionados
+  const { data: formatoResolvido, isError: formatoError } = useResolverFormato(depositoId || null, zonaId || null)
 
   // Determinar se estamos usando formato dinâmico (v2) ou legado
   const usarFormatoDinamico = useMemo(() => {
@@ -168,6 +180,7 @@ export default function EnderecoAutoModal({ opened, onClose }: Props) {
           tipo: data.tipo,
           nivelPicking: data.nivelPicking,
           faixas,
+          ...(data.zonaId ? { zonaId: data.zonaId } : {}),
         })
         notifications.show({ title: 'Sucesso', message: `${result.criados} endereços criados`, color: 'green' })
       } else {
@@ -182,6 +195,7 @@ export default function EnderecoAutoModal({ opened, onClose }: Props) {
           nivelFim: data.nivelFim || 1,
           aptoInicio: data.aptoInicio || 1,
           aptoFim: data.aptoFim || 1,
+          ...(data.zonaId ? { zonaId: data.zonaId } : {}),
         })
         notifications.show({ title: 'Sucesso', message: `${result.criados} endereços criados`, color: 'green' })
       }
@@ -202,7 +216,8 @@ export default function EnderecoAutoModal({ opened, onClose }: Props) {
             <Controller name="depositoId" control={control} render={({ field }) => (<Select label={<>Depósito <span style={{ color: 'red' }}>*</span></>} data={depOptions} error={errors.depositoId?.message} className="w-6/12" searchable {...field} />)} />
           </div>
           <div className="flex gap-4 w-full">
-            <Controller name="estruturaId" control={control} render={({ field }) => (<Select label="Estrutura" data={estruturaOptions} className="w-full" searchable clearable placeholder="Selecione uma estrutura (opcional)" {...field} value={field.value || null} />)} />
+            <Controller name="zonaId" control={control} render={({ field }) => (<Select label="Zona" data={zonaOptions} className="w-6/12" searchable clearable placeholder="Selecione uma zona (opcional)" {...field} value={field.value || null} />)} />
+            <Controller name="estruturaId" control={control} render={({ field }) => (<Select label="Estrutura" data={estruturaOptions} className="w-6/12" searchable clearable placeholder="Selecione uma estrutura (opcional)" {...field} value={field.value || null} />)} />
           </div>
           <div className="flex gap-4 w-full">
             <Controller name="codigoDeposito" control={control} render={({ field }) => (<TextInput label="Cód. Depósito" className="w-3/12" {...field} />)} />
