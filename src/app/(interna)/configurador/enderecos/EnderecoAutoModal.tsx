@@ -87,7 +87,7 @@ export default function EnderecoAutoModal({ opened, onClose }: Props) {
     try {
       let result: any
 
-      if (formatoResolvido && !formatoError) {
+      if (formatoResolvido && !formatoError && formatoResolvido.id !== 'padrao') {
         // Usar geração com formato: montar payload com faixas
         const faixas: { campoFisico: string; inicio: number; fim: number }[] = []
         if (camposVisiveis.rua) faixas.push({ campoFisico: 'codigoRua', inicio: data.ruaInicio, fim: data.ruaFim })
