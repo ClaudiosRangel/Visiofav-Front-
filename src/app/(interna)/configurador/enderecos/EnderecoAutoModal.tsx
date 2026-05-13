@@ -85,36 +85,7 @@ export default function EnderecoAutoModal({ opened, onClose }: Props) {
 
   async function onSubmit(data: FormValues) {
     try {
-      let result: any
-
-      if (formatoResolvido && !formatoError && formatoResolvido.id !== 'padrao') {
-        // Usar geração com formato: montar payload com faixas
-        const faixas: { campoFisico: string; inicio: number; fim: number }[] = []
-        if (camposVisiveis.rua) faixas.push({ campoFisico: 'codigoRua', inicio: data.ruaInicio, fim: data.ruaFim })
-        if (camposVisiveis.predio) faixas.push({ campoFisico: 'codigoPredio', inicio: data.predioInicio, fim: data.predioFim })
-        if (camposVisiveis.nivel) faixas.push({ campoFisico: 'codigoNivel', inicio: data.nivelInicio, fim: data.nivelFim })
-        if (camposVisiveis.apto) faixas.push({ campoFisico: 'codigoApto', inicio: data.aptoInicio, fim: data.aptoFim })
-
-        result = await gerarComFormato.mutateAsync({
-          formatoEnderecoId: formatoResolvido.id,
-          depositoId: data.depositoId,
-          centroDistribuicaoId: data.centroDistribuicaoId,
-          estruturaId: data.estruturaId,
-          codigoDeposito: data.codigoDeposito,
-          codigoZona: data.codigoZona,
-          tipo: data.tipo,
-          nivelPicking: data.nivelPicking,
-          ...(camposVisiveis.rua && { ruaInicio: data.ruaInicio, ruaFim: data.ruaFim }),
-          ...(camposVisiveis.predio && { predioInicio: data.predioInicio, predioFim: data.predioFim }),
-          ...(camposVisiveis.nivel && { nivelInicio: data.nivelInicio, nivelFim: data.nivelFim }),
-          ...(camposVisiveis.apto && { aptoInicio: data.aptoInicio, aptoFim: data.aptoFim }),
-          faixas,
-        } as any)
-      } else {
-        // Fallback: usar geração legada sem formato
-        result = await gerar.mutateAsync(data)
-      }
-
+      const result: any = await gerar.mutateAsync(data)
       notifications.show({ title: 'Sucesso', message: `${result.criados} endereços criados`, color: 'green' })
       onClose()
     } catch { notifications.show({ title: 'Erro', message: 'Falha ao gerar', color: 'red' }) }
@@ -188,7 +159,7 @@ export default function EnderecoAutoModal({ opened, onClose }: Props) {
         </div>
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={onClose}>Cancelar</Button>
-          <Button type="submit" loading={gerar.isPending || gerarComFormato.isPending}>Gerar Endereços</Button>
+          <Button type="submit" loading={gerar.isPending}>Gerar Endereços</Button>
         </Group>
       </form>
     </Modal>
