@@ -23,6 +23,7 @@ const nfSchema = z.object({
     unidade: z.string().min(1),
     quantidade: z.number().min(0.001, 'Obrigatório'),
     lote: z.string().optional(),
+    validade: z.string().optional(),
   })).optional(),
 })
 type NfForm = z.infer<typeof nfSchema>
@@ -123,6 +124,7 @@ export default function NotaEntradaModal({ opened, onClose, onSave, importedData
           unidade: i.unidade || 'UN',
           quantidade: i.quantidade || 0,
           lote: i.lote || '',
+          validade: i.validade || '',
         })),
       })
     } else {
@@ -215,6 +217,7 @@ export default function NotaEntradaModal({ opened, onClose, onSave, importedData
                   <Table.Th className="w-20">Unid.</Table.Th>
                   <Table.Th className="w-28">Qtd</Table.Th>
                   <Table.Th className="w-28">Lote</Table.Th>
+                  <Table.Th className="w-28">Validade</Table.Th>
                   <Table.Th className="w-10"></Table.Th>
                 </Table.Tr>
               </Table.Thead>
@@ -254,6 +257,11 @@ export default function NotaEntradaModal({ opened, onClose, onSave, importedData
                     <Table.Td>
                       <Controller name={`itens.${index}.lote`} control={control} render={({ field }) => (
                         <TextInput size="xs" placeholder="Lote" {...field} />
+                      )} />
+                    </Table.Td>
+                    <Table.Td>
+                      <Controller name={`itens.${index}.validade`} control={control} render={({ field }) => (
+                        <TextInput size="xs" placeholder="AAAA-MM-DD" {...field} />
                       )} />
                     </Table.Td>
                     <Table.Td>
