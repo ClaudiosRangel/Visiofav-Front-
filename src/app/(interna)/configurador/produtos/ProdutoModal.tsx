@@ -357,9 +357,24 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
             <Tabs.Panel value="estoque">
               <div className="relative min-h-[120px]">
                 <LoadingOverlay visible={saldosLoading} />
+
+                {/* Info do produto */}
+                <Card withBorder mb="md" bg="gray.0" p="sm">
+                  <Group justify="space-between">
+                    <div>
+                      <Text size="sm" fw={600}>{editData?.nome || editData?.descricao || '—'}</Text>
+                      <Text size="xs" c="dimmed">Código: {editData?.codigo} | Unidade: {editData?.unidade}</Text>
+                    </div>
+                    {editData?.shelfLifeMinimo && (
+                      <Badge color="blue" variant="light">Shelf Life: {editData.shelfLifeMinimo} dias</Badge>
+                    )}
+                  </Group>
+                </Card>
+
                 {(!saldosResp || saldosResp.length === 0) && !saldosLoading && (
                   <Text size="sm" c="dimmed" ta="center" py="xl">
                     Nenhum saldo em estoque para este produto.
+                    <Text size="xs" c="dimmed" mt={4}>Os saldos aparecem após o endereçamento na conferência de entrada.</Text>
                   </Text>
                 )}
                 {saldosResp && saldosResp.length > 0 && (
