@@ -87,9 +87,13 @@ export default function AgendamentoDocaModal({ opened, onClose, onAgendado, pedi
       const endIdx = slots.indexOf(horario)
 
       if (endIdx >= startIdx) {
-        // Horário fim = próximo slot após o último selecionado
-        const fimSlot = endIdx < slots.length - 1 ? slots[endIdx + 1] : '22:00'
-        setSelectedSlotEnd(fimSlot)
+        // Horário fim = horário do último slot selecionado + 30 min
+        const lastSlot = slots[endIdx]
+        const [h, m] = lastSlot.split(':').map(Number)
+        const totalMin = h * 60 + m + 30
+        const fimH = String(Math.floor(totalMin / 60)).padStart(2, '0')
+        const fimM = String(totalMin % 60).padStart(2, '0')
+        setSelectedSlotEnd(`${fimH}:${fimM}`)
         setSelecting(false)
       } else {
         // Clicou antes do início, reiniciar com novo início
@@ -106,8 +110,14 @@ export default function AgendamentoDocaModal({ opened, onClose, onAgendado, pedi
     const currentIdx = slots.indexOf(horario)
 
     if (selectedSlotEnd) {
-      const endIdx = slots.indexOf(selectedSlotEnd)
-      return currentIdx >= startIdx && currentIdx < endIdx
+      // Calcular o índice do último slot incluído (selectedSlotEnd - 30min)
+      const [h, m] = selectedSlotEnd.split(':').map(Number)
+      const lastSlotMin = h * 60 + m - 30
+      const lastSlotH = String(Math.floor(lastSlotMin / 60)).padStart(2, '0')
+      const lastSlotM = String(lastSlotMin % 60).padStart(2, '0')
+      const lastSlotStr = `${lastSlotH}:${lastSlotM}`
+      const endIdx = slots.indexOf(lastSlotStr)
+      return currentIdx >= startIdx && currentIdx <= endIdx
     }
     // Durante seleção, marcar apenas o slot inicial
     return currentIdx === startIdx
