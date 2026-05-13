@@ -1,12 +1,12 @@
 'use client'
 
-import { Modal, TextInput, Button, Group, Select, NumberInput, Tabs, Text, Divider, Image, FileButton, ActionIcon, Stack, Tooltip, Badge } from '@mantine/core'
+import { Modal, TextInput, Button, Group, Select, NumberInput, Tabs, Text, Divider, Image, FileButton, ActionIcon, Stack, Tooltip, Badge, Table, LoadingOverlay } from '@mantine/core'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useState } from 'react'
 import { notifications } from '@mantine/notifications'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { IconPhoto, IconTrash, IconUpload, IconInfoCircle } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 
@@ -65,6 +65,19 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
   const isEditing = !!editData
   const [imagemUrl, setImagemUrl] = useState<string | null>(null)
   const [uploadingImg, setUploadingImg] = useState(false)
+
+  // Buscar saldos/lotes do produto (apenas em modo edição)
+  const { data: saldosResp, isLoading: saldosLoading } = useQuery({
+    queryKey: ['saldos-produto', editData?.id],
+    queryFn: async () => {
+      const { data } = await api.get('/saldos', { params: { search: editData?.codigo, limit: 100 } })
+      // Filtrar apenas saldos deste produto (search pode retornar outros)
+      const saldos = (data?.data || []).filter((s: any) => s.produtoId === editData?.id)
+      return saldos
+    },
+    enabled: !!editData?.id,
+    staleTime: 1000 * 30,
+  })
 
   const criar = useMutation({
     mutationFn: async (body: any) => { const { data } = await api.post('/produtos', body); return data },
@@ -164,6 +177,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
           <Tabs.List mb="md">
             <Tabs.Tab value="geral">Dados Gerais</Tabs.Tab>
             <Tabs.Tab value="fiscal">Dados Fiscais / NF-e</Tabs.Tab>
+            {isEditing && <Tabs.Tab value="estoque">Estoque / Lotes</Tabs.Tab>}
           </Tabs.List>
 
           {/* ABA GERAL */}
@@ -337,6 +351,59 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
               </div>
             </div>
           </Tabs.Panel>
+
+          {/* ABA ESTOQUE / LOTES */}
+          {isEditing && (
+            <Tabs.Panel value="estoque">
+              <div className="relative min-h-[120px]">
+                <LoadingOverlay visible={saldosLoading} />
+                {(!saldosResp || saldosResp.length === 0) && !saldosLoading && (
+                  <Text size="sm" c="dimmed" ta="center" py="xl">
+                    Nenhum saldo em estoque para este produto.
+                  </Text>
+                )}
+                {saldosResp && saldosResp.length > 0 && (
+                  <>
+                    <Text size="sm" fw={600} mb="sm">Saldos por Lote / Endereço</Text>
+                    <Table striped withTableBorder>
+                      <Table.Thead>
+                        <Table.Tr>
+                          <Table.Th>Lote</Table.Th>
+                          <Table.Th>Validade</Table.Th>
+                          <Table.Th>Unidade</Table.Th>
+                          <Table.Th>Endereço</Table.Th>
+                          <Table.Th ta="right">Saldo Atual</Table.Th>
+                        </Table.Tr>
+                      </Table.Thead>
+                      <Table.Tbody>
+                        {saldosResp.map((saldo: any) => (
+                          <Table.Tr key={saldo.id}>
+                            <Table.Td fw={500}>{saldo.lote || '—'}</Table.Td>
+                            <Table.Td>
+                              {saldo.validade
+                                ? new Date(saldo.validade).toLocaleDateString('pt-BR')
+                                : '—'}
+                            </Table.Td>
+                            <Table.Td>{saldo.produto?.unidade || editData?.unidade || '—'}</Table.Td>
+                            <Table.Td className="font-mono text-xs">{saldo.endereco?.enderecoCompleto || '—'}</Table.Td>
+                            <Table.Td ta="right" fw={600}>{Number(saldo.quantidade)}</Table.Td>
+                          </Table.Tr>
+                        ))}
+                      </Table.Tbody>
+                      <Table.Tfoot>
+                        <Table.Tr>
+                          <Table.Td colSpan={4} fw={600}>Total</Table.Td>
+                          <Table.Td ta="right" fw={700}>
+                            {saldosResp.reduce((acc: number, s: any) => acc + Number(s.quantidade), 0)}
+                          </Table.Td>
+                        </Table.Tr>
+                      </Table.Tfoot>
+                    </Table>
+                  </>
+                )}
+              </div>
+            </Tabs.Panel>
+          )}
         </Tabs>
 
         <Group justify="flex-end" mt="md">
