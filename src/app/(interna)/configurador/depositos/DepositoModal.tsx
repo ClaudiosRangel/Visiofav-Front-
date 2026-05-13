@@ -48,10 +48,21 @@ export default function DepositoModal({ opened, onClose, editData }: Props) {
 
   async function onSubmit(data: FormValues) {
     try {
-      if (isEditing) { await atualizar.mutateAsync({ id: editData.id, ...data }); notifications.show({ title: 'Sucesso', message: 'Atualizado', color: 'green' }) }
-      else { await criar.mutateAsync(data); notifications.show({ title: 'Sucesso', message: 'Criado', color: 'green' }) }
+      // Limpar campos vazios e garantir formatoEnderecoId como null quando não selecionado
+      const payload: any = { ...data }
+      if (!payload.formatoEnderecoId) payload.formatoEnderecoId = null
+      if (!payload.cidade) delete payload.cidade
+      if (!payload.uf) delete payload.uf
+      if (!payload.cep) delete payload.cep
+      if (!payload.telefone1) delete payload.telefone1
+      if (!payload.telefone2) delete payload.telefone2
+      if (!payload.logradouro) delete payload.logradouro
+      if (!payload.numero) delete payload.numero
+
+      if (isEditing) { await atualizar.mutateAsync({ id: editData.id, ...payload }); notifications.show({ title: 'Sucesso', message: 'Atualizado', color: 'green' }) }
+      else { await criar.mutateAsync(payload); notifications.show({ title: 'Sucesso', message: 'Criado', color: 'green' }) }
       onClose()
-    } catch { notifications.show({ title: 'Erro', message: 'Falha ao salvar', color: 'red' }) }
+    } catch (err: any) { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar', color: 'red' }) }
   }
 
   return (
