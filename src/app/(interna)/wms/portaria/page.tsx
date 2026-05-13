@@ -145,6 +145,18 @@ export default function PortariaPage() {
     setConferirModal(true)
   }
 
+  /** Calcula qtd de paletes baseado nas caixas informadas e SKU do pedido */
+  function calcularPaletes(caixas: number | undefined, agendamento: any): number | undefined {
+    if (!caixas || caixas <= 0) return undefined
+    // Buscar SKU do primeiro item do pedido que tenha lastro e camada
+    const itens = agendamento?.pedido?.itens || []
+    const itemComSku = itens.find((i: any) => i.sku?.lastro && i.sku?.camada)
+    if (!itemComSku) return undefined
+    const caixasPorPalete = itemComSku.sku.lastro * itemComSku.sku.camada
+    if (caixasPorPalete <= 0) return undefined
+    return Math.ceil(caixas / caixasPorPalete)
+  }
+
   const items = response?.data || []
   const agendados = items.filter((i: any) => i.status === 'AGENDADO')
   const emProcesso = items.filter((i: any) => ['ESPERA', 'CONFIRMADO', 'NA_DOCA', 'CONFERINDO', 'CONFERIDO'].includes(i.status))
@@ -390,9 +402,15 @@ export default function PortariaPage() {
             </div>
             <div className="grid grid-cols-2 gap-4 mb-4">
               <NumberInput label="Qtd Caixas" min={0} value={qtdCaixas}
-                onChange={(v) => setQtdCaixas(typeof v === 'number' ? v : undefined)} />
+                onChange={(v) => {
+                  const val = typeof v === 'number' ? v : undefined
+                  setQtdCaixas(val)
+                  const paletes = calcularPaletes(val, conferirAgendamento)
+                  if (paletes !== undefined) setQtdPaletes(paletes)
+                }} />
               <NumberInput label="Qtd Paletes" min={0} value={qtdPaletes}
-                onChange={(v) => setQtdPaletes(typeof v === 'number' ? v : undefined)} />
+                onChange={(v) => setQtdPaletes(typeof v === 'number' ? v : undefined)}
+                description={qtdCaixas && calcularPaletes(qtdCaixas, conferirAgendamento) ? 'Calculado pelo SKU' : undefined} />
             </div>
             <TextInput label="Observação" value={observacao} onChange={(e) => setObservacao(e.currentTarget.value)} mb="md" />
           </>
