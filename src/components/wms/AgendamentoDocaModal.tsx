@@ -75,19 +75,23 @@ export default function AgendamentoDocaModal({ opened, onClose, onAgendado, pedi
     if (ocupado) return
 
     if (!selecting || selectedDoca !== docaId) {
-      // Iniciar seleção — o horário clicado é o início
+      // Primeiro clique: seleciona 1 slot (30 min) imediatamente
       setSelectedDoca(docaId)
       setSelectedSlotStart(horario)
-      setSelectedSlotEnd(null)
+      const [h, m] = horario.split(':').map(Number)
+      const totalMin = h * 60 + m + 30
+      const fimH = String(Math.floor(totalMin / 60)).padStart(2, '0')
+      const fimM = String(totalMin % 60).padStart(2, '0')
+      setSelectedSlotEnd(`${fimH}:${fimM}`)
       setSelecting(true)
     } else {
-      // Finalizar seleção
+      // Segundo clique: expande ou reduz a seleção
       const slots = gradeResp?.slots || []
       const startIdx = slots.indexOf(selectedSlotStart!)
       const endIdx = slots.indexOf(horario)
 
       if (endIdx >= startIdx) {
-        // Horário fim = horário do último slot selecionado + 30 min
+        // Horário fim = horário do último slot clicado + 30 min
         const lastSlot = slots[endIdx]
         const [h, m] = lastSlot.split(':').map(Number)
         const totalMin = h * 60 + m + 30
@@ -96,9 +100,13 @@ export default function AgendamentoDocaModal({ opened, onClose, onAgendado, pedi
         setSelectedSlotEnd(`${fimH}:${fimM}`)
         setSelecting(false)
       } else {
-        // Clicou antes do início, reiniciar com novo início
+        // Clicou antes do início — reiniciar com novo slot
         setSelectedSlotStart(horario)
-        setSelectedSlotEnd(null)
+        const [h, m] = horario.split(':').map(Number)
+        const totalMin = h * 60 + m + 30
+        const fimH = String(Math.floor(totalMin / 60)).padStart(2, '0')
+        const fimM = String(totalMin % 60).padStart(2, '0')
+        setSelectedSlotEnd(`${fimH}:${fimM}`)
       }
     }
   }
