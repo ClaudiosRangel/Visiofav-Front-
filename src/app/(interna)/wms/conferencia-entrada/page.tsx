@@ -1265,9 +1265,21 @@ export default function ConferenciaEntradaPage() {
                   </Alert>
                 )}
 
-                {!resultado.temDivergencia && (
+                {!resultado.temDivergencia && !resultado.falhasShelfLife && (
                   <Alert icon={<IconCheck size={16} />} color="green" variant="light" mb="md">
                     Todos os itens conferidos estão conformes. Pode aprovar a conferência.
+                  </Alert>
+                )}
+
+                {resultado.falhasShelfLife && resultado.falhasShelfLife.length > 0 && (
+                  <Alert icon={<IconAlertCircle size={16} />} color="orange" variant="light" mb="md">
+                    <Text fw={600}>⚠️ Shelf Life insuficiente!</Text>
+                    {resultado.falhasShelfLife.map((falha: any, idx: number) => (
+                      <Text size="sm" key={idx} mt={4}>{falha.mensagem}</Text>
+                    ))}
+                    <Text size="sm" mt="xs" c="dimmed">
+                      Estes itens foram bloqueados. Corrija a validade ou entre em contato com o fornecedor.
+                    </Text>
                   </Alert>
                 )}
 
