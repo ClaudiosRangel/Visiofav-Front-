@@ -1,8 +1,10 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import ModuleSidebar from '@/components/layout/ModuleSidebar'
 import Header from '@/components/layout/Header'
+import { api } from '@/lib/api'
 
 // Páginas sem sidebar (tela limpa)
 const NO_SIDEBAR_PAGES = ['/selecionar-empresa', '/modulos']
@@ -10,12 +12,30 @@ const NO_SIDEBAR_PAGES = ['/selecionar-empresa', '/modulos']
 export default function InternaLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const showSidebar = !NO_SIDEBAR_PAGES.includes(pathname)
+  const [backBuild, setBackBuild] = useState<string | null>(null)
+
+  useEffect(() => {
+    api.get('/health').then(({ data }) => {
+      if (data?.buildDate) {
+        setBackBuild(new Date(data.buildDate).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }))
+      }
+    }).catch(() => {})
+  }, [])
+
+  const buildDate = process.env.NEXT_PUBLIC_BUILD_DATE
+    ? new Date(process.env.NEXT_PUBLIC_BUILD_DATE).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '—'
+
+  const footerText = `Front: ${buildDate}${backBuild ? ` | Back: ${backBuild}` : ''}`
 
   if (!showSidebar) {
     return (
-      <div className="min-h-screen">
+      <div className="min-h-screen flex flex-col">
         <Header />
-        <main className="p-6 max-w-5xl mx-auto">{children}</main>
+        <main className="p-6 max-w-5xl mx-auto flex-1">{children}</main>
+        <footer className="text-right text-xs text-zinc-400 px-4 py-2">
+          {footerText}
+        </footer>
       </div>
     )
   }
@@ -23,9 +43,12 @@ export default function InternaLayout({ children }: { children: React.ReactNode 
   return (
     <div className="flex min-h-screen">
       <ModuleSidebar />
-      <div className="flex-1 ml-[220px]">
+      <div className="flex-1 ml-[220px] flex flex-col">
         <Header />
-        <main className="p-6">{children}</main>
+        <main className="p-6 flex-1">{children}</main>
+        <footer className="text-right text-xs text-zinc-400 px-4 py-2">
+          {footerText}
+        </footer>
       </div>
     </div>
   )
