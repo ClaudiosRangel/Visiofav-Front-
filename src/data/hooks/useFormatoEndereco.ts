@@ -11,17 +11,34 @@ export interface ComponenteFormato {
   separador: string
 }
 
+export interface SegmentoFormato {
+  campoFisico: string
+  ativo: boolean
+  digitos: number
+  separador?: string
+  ordem?: number
+}
+
 export interface FormatoEndereco {
   id: string
   nome: string
-  componentes: ComponenteFormato[]
+  componentes?: ComponenteFormato[]
+  segmentos?: SegmentoFormato[]
   status?: boolean
 }
 
 export interface FormatoResolvidoResponse {
   id: string
   nome: string
-  componentes: ComponenteFormato[]
+  segmentos: SegmentoFormato[]
+  /** @deprecated backend retorna segmentos, não componentes */
+  componentes?: ComponenteFormato[]
+}
+
+export interface FaixaSegmento {
+  campoFisico: string
+  inicio: number
+  fim: number
 }
 
 export interface GerarEnderecosInput {
@@ -41,6 +58,7 @@ export interface GerarEnderecosInput {
   nivelFim?: number
   aptoInicio?: number
   aptoFim?: number
+  faixas?: FaixaSegmento[]
 }
 
 // ===== CRUD via useCrudGenerico =====

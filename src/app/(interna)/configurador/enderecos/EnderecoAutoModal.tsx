@@ -11,22 +11,40 @@ import { useDepositos } from '@/data/hooks/useDeposito'
 import { useCentrosDistribuicao } from '@/data/hooks/useCentroDistribuicao'
 import { estruturasCrud } from '@/data/hooks/useCrudGenerico'
 import { useResolverFormato, useGerarComFormato } from '@/data/hooks/useFormatoEndereco'
+import type { SegmentoFormato, FaixaSegmento } from '@/data/hooks/useFormatoEndereco'
 
+// Schema base — campos de faixa são opcionais para suportar formatos dinâmicos
 const schema = z.object({
   centroDistribuicaoId: z.string().min(1, 'CD é obrigatório'),
   depositoId: z.string().min(1, 'Depósito é obrigatório'),
   estruturaId: z.string().optional(),
-  codigoDeposito: z.string().min(1), codigoZona: z.string().min(1),
-  ruaInicio: z.number().min(1), ruaFim: z.number().min(1),
-  predioInicio: z.number().min(1), predioFim: z.number().min(1),
-  nivelInicio: z.number().min(1), nivelFim: z.number().min(1),
-  aptoInicio: z.number().min(1), aptoFim: z.number().min(1),
+  codigoDeposito: z.string().min(1),
+  codigoZona: z.string().min(1),
+  ruaInicio: z.number().min(1).optional(),
+  ruaFim: z.number().min(1).optional(),
+  predioInicio: z.number().min(1).optional(),
+  predioFim: z.number().min(1).optional(),
+  nivelInicio: z.number().min(1).optional(),
+  nivelFim: z.number().min(1).optional(),
+  aptoInicio: z.number().min(1).optional(),
+  aptoFim: z.number().min(1).optional(),
   tipo: z.string().min(1),
   nivelPicking: z.number().min(0).optional(),
 })
 type FormValues = z.infer<typeof schema>
 
 interface Props { opened: boolean; onClose: () => void }
+
+/** Mapeia campoFisico do backend para chave interna de visibilidade */
+function mapCampoFisico(campoFisico: string): 'rua' | 'predio' | 'nivel' | 'apto' | null {
+  switch (campoFisico) {
+    case 'codigoRua': return 'rua'
+    case 'codigoPredio': return 'predio'
+    case 'codigoNivel': return 'nivel'
+    case 'codigoApto': return 'apto'
+    default: return null // codigoDeposito, codigoZona — não precisam de faixa
+  }
+}
 
 export default function EnderecoAutoModal({ opened, onClose }: Props) {
   const gerar = useGerarEnderecos()
@@ -41,7 +59,12 @@ export default function EnderecoAutoModal({ opened, onClose }: Props) {
 
   const { control, handleSubmit, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { codigoDeposito: '001', codigoZona: '001', ruaInicio: 1, ruaFim: 1, predioInicio: 1, predioFim: 1, nivelInicio: 1, nivelFim: 1, aptoInicio: 1, aptoFim: 1, tipo: 'ARMAZENAGEM', nivelPicking: 1 },
+    defaultValues: {
+      codigoDeposito: '001', codigoZona: '001',
+      ruaInicio: 1, ruaFim: 1, predioInicio: 1, predioFim: 1,
+      nivelInicio: 1, nivelFim: 1, aptoInicio: 1, aptoFim: 1,
+      tipo: 'ARMAZENAGEM', nivelPicking: 1,
+    },
   })
 
   const v = watch()
@@ -50,23 +73,39 @@ export default function EnderecoAutoModal({ opened, onClose }: Props) {
   // Resolve formato de endereço baseado no depósito selecionado
   const { data: formatoResolvido, isError: formatoError } = useResolverFormato(depositoId || null)
 
+  // Determinar se estamos usando formato dinâmico (v2) ou legado
+  const usarFormatoDinamico = useMemo(() => {
+    if (!formatoResolvido || formatoError) return false
+    const segmentos: SegmentoFormato[] = (formatoResolvido as any).segmentos || []
+    if (segmentos.length === 0) return false
+    // Se tem exatamente os 6 segmentos padrão (rua, predio, nivel, apto, deposito, zona), usar legado
+    const camposFaixa = segmentos.filter(s => s.ativo !== false).map(s => s.campoFisico)
+    const temRua = camposFaixa.includes('codigoRua')
+    const temPredio = camposFaixa.includes('codigoPredio')
+    const temNivel = camposFaixa.includes('codigoNivel')
+    const temApto = camposFaixa.includes('codigoApto')
+    // Se tem todos os 4 campos de faixa, usar legado (mais simples)
+    if (temRua && temPredio && temNivel && temApto) return false
+    // Formato com menos segmentos → usar v2
+    return true
+  }, [formatoResolvido, formatoError])
+
   // Determinar quais campos de faixa estão visíveis baseado no formato resolvido
   const camposVisiveis = useMemo(() => {
     if (!formatoResolvido || formatoError) {
-      // Fallback: exibir todos os campos (comportamento legado)
+      return { rua: true, predio: true, nivel: true, apto: true }
+    }
+    const segmentos: SegmentoFormato[] = (formatoResolvido as any).segmentos || []
+    if (segmentos.length === 0) {
       return { rua: true, predio: true, nivel: true, apto: true }
     }
     const mapa = { rua: false, predio: false, nivel: false, apto: false }
-    // Backend retorna 'segmentos' com 'campoFisico'
-    const segmentos = (formatoResolvido as any).segmentos || formatoResolvido.componentes || []
     for (const seg of segmentos) {
-      const campo = seg.campoFisico || ''
-      if (campo === 'codigoRua') mapa.rua = true
-      else if (campo === 'codigoPredio') mapa.predio = true
-      else if (campo === 'codigoNivel') mapa.nivel = true
-      else if (campo === 'codigoApto') mapa.apto = true
+      if (seg.ativo === false) continue
+      const campo = mapCampoFisico(seg.campoFisico)
+      if (campo) mapa[campo] = true
     }
-    // Se nenhum campo foi mapeado (formato vazio ou incompatível), fallback para todos
+    // Se nenhum campo de faixa foi mapeado, fallback para todos
     if (!mapa.rua && !mapa.predio && !mapa.nivel && !mapa.apto) {
       return { rua: true, predio: true, nivel: true, apto: true }
     }
@@ -85,11 +124,74 @@ export default function EnderecoAutoModal({ opened, onClose }: Props) {
 
   async function onSubmit(data: FormValues) {
     try {
-      const result: any = await gerar.mutateAsync(data)
-      notifications.show({ title: 'Sucesso', message: `${result.criados} endereços criados`, color: 'green' })
+      if (usarFormatoDinamico && formatoResolvido) {
+        // Montar faixas dinâmicas baseado nos segmentos do formato
+        const segmentos: SegmentoFormato[] = (formatoResolvido as any).segmentos || []
+        const faixas: FaixaSegmento[] = []
+
+        for (const seg of segmentos) {
+          if (seg.ativo === false) continue
+          const campo = seg.campoFisico
+          switch (campo) {
+            case 'codigoRua':
+              faixas.push({ campoFisico: campo, inicio: data.ruaInicio || 1, fim: data.ruaFim || 1 })
+              break
+            case 'codigoPredio':
+              faixas.push({ campoFisico: campo, inicio: data.predioInicio || 1, fim: data.predioFim || 1 })
+              break
+            case 'codigoNivel':
+              faixas.push({ campoFisico: campo, inicio: data.nivelInicio || 1, fim: data.nivelFim || 1 })
+              break
+            case 'codigoApto':
+              faixas.push({ campoFisico: campo, inicio: data.aptoInicio || 1, fim: data.aptoFim || 1 })
+              break
+            case 'codigoDeposito': {
+              const val = parseInt(data.codigoDeposito, 10) || 1
+              faixas.push({ campoFisico: campo, inicio: val, fim: val })
+              break
+            }
+            case 'codigoZona': {
+              const val = parseInt(data.codigoZona, 10) || 1
+              faixas.push({ campoFisico: campo, inicio: val, fim: val })
+              break
+            }
+          }
+        }
+
+        const result: any = await gerarComFormato.mutateAsync({
+          formatoEnderecoId: formatoResolvido.id,
+          depositoId: data.depositoId,
+          centroDistribuicaoId: data.centroDistribuicaoId,
+          estruturaId: data.estruturaId,
+          codigoDeposito: data.codigoDeposito,
+          codigoZona: data.codigoZona,
+          tipo: data.tipo,
+          nivelPicking: data.nivelPicking,
+          faixas,
+        })
+        notifications.show({ title: 'Sucesso', message: `${result.criados} endereços criados`, color: 'green' })
+      } else {
+        // Endpoint legado — enviar todos os campos de faixa
+        const result: any = await gerar.mutateAsync({
+          ...data,
+          ruaInicio: data.ruaInicio || 1,
+          ruaFim: data.ruaFim || 1,
+          predioInicio: data.predioInicio || 1,
+          predioFim: data.predioFim || 1,
+          nivelInicio: data.nivelInicio || 1,
+          nivelFim: data.nivelFim || 1,
+          aptoInicio: data.aptoInicio || 1,
+          aptoFim: data.aptoFim || 1,
+        })
+        notifications.show({ title: 'Sucesso', message: `${result.criados} endereços criados`, color: 'green' })
+      }
       onClose()
-    } catch { notifications.show({ title: 'Erro', message: 'Falha ao gerar', color: 'red' }) }
+    } catch {
+      notifications.show({ title: 'Erro', message: 'Falha ao gerar endereços', color: 'red' })
+    }
   }
+
+  const isLoading = gerar.isPending || gerarComFormato.isPending
 
   return (
     <Modal opened={opened} onClose={onClose} title="Gerar Endereços Automáticos" size="lg">
@@ -118,7 +220,16 @@ export default function EnderecoAutoModal({ opened, onClose }: Props) {
               />
             )} />
           </div>
-          <Text size="sm" fw={600}>Faixas de Endereço</Text>
+
+          <Text size="sm" fw={600}>
+            Faixas de Endereço
+            {usarFormatoDinamico && formatoResolvido && (
+              <Text span size="xs" c="dimmed" ml="xs">
+                (formato: {formatoResolvido.nome})
+              </Text>
+            )}
+          </Text>
+
           {camposVisiveis.rua && (
             <div className="flex gap-4 w-full">
               <Controller name="ruaInicio" control={control} render={({ field }) => (<NumberInput label="Rua Início" className="w-3/12" min={1} {...field} />)} />
@@ -153,13 +264,14 @@ export default function EnderecoAutoModal({ opened, onClose }: Props) {
               )}
             </div>
           )}
+
           <div className="bg-gray-50 border border-gray-200 p-3 rounded-md">
             <Text size="sm" fw={600}>Total de endereços a gerar: <Text span c="primary" fw={700}>{total}</Text></Text>
           </div>
         </div>
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={onClose}>Cancelar</Button>
-          <Button type="submit" loading={gerar.isPending}>Gerar Endereços</Button>
+          <Button type="submit" loading={isLoading}>Gerar Endereços</Button>
         </Group>
       </form>
     </Modal>
