@@ -1,6 +1,6 @@
 'use client'
 
-import { Modal, TextInput, Button, Group, Select, NumberInput, Tabs, Text, Divider, Image, FileButton, ActionIcon, Stack, Tooltip, Badge, Table, LoadingOverlay } from '@mantine/core'
+import { Modal, TextInput, Button, Group, Select, NumberInput, Tabs, Text, Divider, Image, FileButton, ActionIcon, Stack, Tooltip, Badge, Table, LoadingOverlay, Card } from '@mantine/core'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'

@@ -22,9 +22,13 @@ export default function InternaLayout({ children }: { children: React.ReactNode 
     }).catch(() => {})
   }, [])
 
-  const buildDate = process.env.NEXT_PUBLIC_BUILD_DATE
-    ? new Date(process.env.NEXT_PUBLIC_BUILD_DATE).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : '—'
+  const buildDate = (() => {
+    try {
+      const d = process.env.NEXT_PUBLIC_BUILD_DATE
+      if (!d) return '—'
+      return new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    } catch { return '—' }
+  })()
 
   const footerText = `Front: ${buildDate}${backBuild ? ` | Back: ${backBuild}` : ''}`
 
