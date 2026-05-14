@@ -1045,9 +1045,9 @@ export default function ConferenciaEntradaPage() {
         <td style="padding:6px;border:1px solid #ccc;font-family:monospace">${item.codigoProduto || ''}</td>
         <td style="padding:6px;border:1px solid #ccc">${item.descricao || ''}</td>
         <td style="padding:6px;border:1px solid #ccc;text-align:center">${item.unidade || ''}</td>
-        <td style="padding:6px;border:1px solid #ccc;width:100px"></td>
-        <td style="padding:6px;border:1px solid #ccc;width:100px"></td>
-        <td style="padding:6px;border:1px solid #ccc;width:80px"></td>
+        <td style="padding:6px;border:1px solid #ccc;width:100px">${itensConferidos[item.id] != null ? itensConferidos[item.id] : ''}</td>
+        <td style="padding:6px;border:1px solid #ccc;width:100px">${itensLotes[item.id] || ''}</td>
+        <td style="padding:6px;border:1px solid #ccc;width:80px">${itensValidades[item.id] || ''}</td>
       </tr>
     `).join('')
 
