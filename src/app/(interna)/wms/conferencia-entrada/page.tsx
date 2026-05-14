@@ -91,7 +91,10 @@ export default function ConferenciaEntradaPage() {
   // Endereçamento dual-mode state
   const [endModoAtivo, setEndModoAtivo] = useState<string | null>(null) // null = lista, 'manual' | 'coletor'
   const [endNotaSelecionada, setEndNotaSelecionada] = useState<any>(null)
-  const [endDestinos, setEndDestinos] = useState<Record<string, string>>({}) // itemId -> enderecoId
+  const [endDestinos, setEndDestinos] = useState<Record<string, string>>({}) // itemId -> enderecoId (legacy, kept for OCR import compat)
+  const [endAlocacoes, setEndAlocacoes] = useState<Record<string, Array<{enderecoId: string, enderecoCompleto: string, quantidadeAlocada: number}>>>({})
+  const [endFuncSelecionados, setEndFuncSelecionados] = useState<string[]>([])
+  const [endEditingAloc, setEndEditingAloc] = useState<string | null>(null) // "itemId-idx" key for inline editing
 
   // Distribuição Inteligente state (Task 8.1)
   const [sugestoesInteligentes, setSugestoesInteligentes] = useState<Record<string, {
@@ -609,31 +612,54 @@ export default function ConferenciaEntradaPage() {
 
   function handleAbrirEnderecamento(nota: any) {
     setEndNotaSelecionada(nota)
-    setEndModoAtivo('manual')
-    setEndDestinos({})
+    setPendingEndNotaId(nota.id)
+    setEndFuncIds([])
+    setEndFuncSelecionados([])
+    setEndFuncModal(true)
+    // Don't set endModoAtivo yet — wait for funcionário selection
   }
 
   function handleVoltarListaEnd() {
     setEndNotaSelecionada(null)
     setEndModoAtivo(null)
     setEndDestinos({})
+    setEndAlocacoes({})
+    setEndFuncSelecionados([])
+    setEndEditingAloc(null)
     setSugestoesInteligentes({})
   }
 
   function handleAceitarSugestoes() {
     if (!sugestoesResp?.sugestoes) return
+    const novasAlocacoes: Record<string, Array<{enderecoId: string, enderecoCompleto: string, quantidadeAlocada: number}>> = {}
     const novosDestinos: Record<string, string> = {}
     for (const s of sugestoesResp.sugestoes) {
       // First try intelligent distribution suggestions
       const inteligente = sugestoesInteligentes[s.itemId]
       if (inteligente?.resultado?.alocacoes?.length) {
+        novasAlocacoes[s.itemId] = inteligente.resultado.alocacoes.map(a => ({
+          enderecoId: a.enderecoId,
+          enderecoCompleto: a.enderecoCompleto,
+          quantidadeAlocada: a.quantidadeAlocada,
+        }))
         novosDestinos[s.itemId] = inteligente.resultado.alocacoes[0].enderecoId
       } else if (s.distribuicao?.alocacoes?.length > 0) {
+        novasAlocacoes[s.itemId] = s.distribuicao.alocacoes.map((a: any) => ({
+          enderecoId: a.enderecoId,
+          enderecoCompleto: a.enderecoCompleto,
+          quantidadeAlocada: a.quantidadeAlocada,
+        }))
         novosDestinos[s.itemId] = s.distribuicao.alocacoes[0].enderecoId
       } else if (s.sugestao?.enderecoId) {
+        novasAlocacoes[s.itemId] = [{
+          enderecoId: s.sugestao.enderecoId,
+          enderecoCompleto: s.sugestao.enderecoCompleto,
+          quantidadeAlocada: s.quantidade,
+        }]
         novosDestinos[s.itemId] = s.sugestao.enderecoId
       }
     }
+    setEndAlocacoes({ ...endAlocacoes, ...novasAlocacoes })
     setEndDestinos({ ...endDestinos, ...novosDestinos })
     notifications.show({ title: '✅ Sugestões aceitas', message: 'Endereços sugeridos preenchidos nos campos de destino', color: 'green' })
   }
@@ -739,38 +765,110 @@ export default function ConferenciaEntradaPage() {
 
   async function handleImprimirFichaEnd() {
     if (!endNotaSelecionada?.id) return
-    try {
-      const { data: fichaResp } = await api.post('/enderecamento-wms/gerar-ficha', {
-        notaEntradaId: endNotaSelecionada.id,
-      })
-      const fichaId = fichaResp.id || fichaResp.fichaId
-      if (fichaId) {
-        // Buscar HTML via API (com auth) e abrir em nova aba
-        const { data: html } = await api.get(`/enderecamento-wms/ficha/${fichaId}/html`, { responseType: 'text' })
-        const w = window.open('', '_blank')
-        if (w) {
-          w.document.write(html)
-          w.document.close()
-        }
-      }
-    } catch (err: any) {
-      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao gerar ficha', color: 'red' })
-    }
+
+    // Get funcionário names
+    const funcNomes = endFuncSelecionados.length > 0
+      ? endFuncSelecionados.map(id => funcOptions.find((f: any) => f.value === id)?.label || '').filter(Boolean).join(', ')
+      : ''
+
+    // Build ficha with addresses from endAlocacoes
+    const itensHtml = (sugestoesResp?.sugestoes || []).map((s: any, idx: number) => {
+      const alocacoes = endAlocacoes[s.itemId] || []
+      const enderecosStr = alocacoes.length > 0
+        ? alocacoes.map(a => `${a.enderecoCompleto} (${a.quantidadeAlocada} un)`).join('<br/>')
+        : endDestinos[s.itemId] || '—'
+      return `
+        <tr>
+          <td style="padding:6px;border:1px solid #ccc;text-align:center">${idx + 1}</td>
+          <td style="padding:6px;border:1px solid #ccc;font-family:monospace">${s.produtoCodigo || ''}</td>
+          <td style="padding:6px;border:1px solid #ccc">${s.produtoNome || ''}</td>
+          <td style="padding:6px;border:1px solid #ccc;text-align:center">${s.quantidade}</td>
+          <td style="padding:6px;border:1px solid #ccc;font-family:monospace">${enderecosStr}</td>
+        </tr>
+      `
+    }).join('')
+
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
+
+    printWindow.document.write(`
+      <html><head><title>Ficha de Endereçamento - NF ${endNotaSelecionada.numero}</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; font-size: 12px; }
+        h1 { font-size: 16px; margin-bottom: 4px; }
+        h2 { font-size: 13px; color: #555; margin-bottom: 16px; }
+        .info { display: flex; gap: 30px; margin-bottom: 16px; flex-wrap: wrap; }
+        .info label { font-size: 10px; color: #888; display: block; }
+        .info span { font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; }
+        th { padding: 6px; border: 1px solid #333; background: #f0f0f0; font-size: 11px; text-align: center; }
+        td { font-size: 11px; }
+        .footer { margin-top: 30px; font-size: 10px; color: #888; }
+        .assinatura { margin-top: 50px; display: flex; gap: 60px; }
+        .assinatura div { border-top: 1px solid #333; padding-top: 4px; width: 200px; text-align: center; font-size: 10px; }
+        @media print { body { margin: 10px; } }
+      </style></head><body>
+      <h1>FICHA DE ENDEREÇAMENTO</h1>
+      <h2>Nota Fiscal: ${endNotaSelecionada.numero} | Fornecedor: ${endNotaSelecionada.fornecedor || '—'}</h2>
+      <div class="info">
+        <div><label>NF Número</label><span>${endNotaSelecionada.numero}</span></div>
+        <div><label>Fornecedor</label><span>${endNotaSelecionada.fornecedor || '—'}</span></div>
+        <div><label>Data</label><span>${new Date().toLocaleDateString('pt-BR')}</span></div>
+        ${funcNomes ? `<div><label>Funcionário(s)</label><span>${funcNomes}</span></div>` : ''}
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Código</th><th>Produto</th><th>Quantidade</th><th>Endereço Destino</th>
+          </tr>
+        </thead>
+        <tbody>${itensHtml}</tbody>
+      </table>
+      <div class="footer">
+        <p>Ficha de endereçamento gerada em ${new Date().toLocaleString('pt-BR')}.</p>
+      </div>
+      <div class="assinatura">
+        <div>Operador</div>
+        <div>Supervisor</div>
+      </div>
+      <script>window.print();</script>
+      </body></html>
+    `)
+    printWindow.document.close()
   }
 
   async function handleConfirmarEnderecamento() {
     if (!endNotaSelecionada?.id || !sugestoesResp?.sugestoes) return
 
-    const itens = sugestoesResp.sugestoes
-      .filter((s) => endDestinos[s.itemId])
-      .map((s) => ({
-        itemNotaEntradaId: s.itemId,
-        produtoId: s.produtoId,
-        enderecoId: endDestinos[s.itemId],
-        quantidade: s.quantidade,
-        lote: s.lote || undefined,
-        validade: s.validade || undefined,
-      }))
+    // Build itens from endAlocacoes (new grid) or fall back to endDestinos (legacy)
+    const itens: Array<{itemNotaEntradaId: string, produtoId: string, enderecoId: string, quantidade: number, lote?: string, validade?: string}> = []
+
+    for (const s of sugestoesResp.sugestoes) {
+      const alocacoes = endAlocacoes[s.itemId]
+      if (alocacoes && alocacoes.length > 0) {
+        // Use allocation grid — one entry per allocation
+        for (const aloc of alocacoes) {
+          itens.push({
+            itemNotaEntradaId: s.itemId,
+            produtoId: s.produtoId,
+            enderecoId: aloc.enderecoId,
+            quantidade: aloc.quantidadeAlocada,
+            lote: s.lote || undefined,
+            validade: s.validade || undefined,
+          })
+        }
+      } else if (endDestinos[s.itemId]) {
+        // Fallback to single destination (legacy/OCR)
+        itens.push({
+          itemNotaEntradaId: s.itemId,
+          produtoId: s.produtoId,
+          enderecoId: endDestinos[s.itemId],
+          quantidade: s.quantidade,
+          lote: s.lote || undefined,
+          validade: s.validade || undefined,
+        })
+      }
+    }
 
     if (itens.length === 0) {
       notifications.show({ title: 'Atenção', message: 'Preencha ao menos um endereço de destino', color: 'yellow' })
@@ -1459,106 +1557,139 @@ export default function ConferenciaEntradaPage() {
                               <Table.Th>Lote</Table.Th>
                               <Table.Th>Validade</Table.Th>
                               <Table.Th>Sugestão</Table.Th>
-                              <Table.Th>% Ocupação</Table.Th>
-                              <Table.Th>Destino</Table.Th>
+                              <Table.Th>Alocações / Destino</Table.Th>
                             </Table.Tr>
                           </Table.Thead>
                           <Table.Tbody>
-                            {sugestoesResp.sugestoes.map((s: any, idx: number) => (
-                              <Table.Tr key={s.itemId}>
-                                <Table.Td>{idx + 1}</Table.Td>
-                                <Table.Td className="font-mono">{s.produtoCodigo}</Table.Td>
-                                <Table.Td fw={500}>{s.produtoNome}</Table.Td>
-                                <Table.Td>{s.quantidade}</Table.Td>
-                                <Table.Td>{s.lote || '—'}</Table.Td>
-                                <Table.Td>{s.validade ? new Date(s.validade).toLocaleDateString('pt-BR') : '—'}</Table.Td>
-                                <Table.Td>
-                                  {s.distribuicao && s.distribuicao.alocacoes.length > 0 ? (
-                                    <Stack gap={2}>
-                                      {s.distribuicao.alocacoes.map((a: any, i: number) => (
-                                        <Badge key={i} color={a.areaArmazenagem === 'PICKING' ? 'orange' : 'teal'} variant="light" size="sm">
-                                          {a.enderecoCompleto} ({a.quantidadeAlocada} un) {a.areaArmazenagem === 'PICKING' ? '🅿' : ''}
-                                        </Badge>
-                                      ))}
-                                      {!s.distribuicao.completa && (
-                                        <Text size="xs" c="red">{s.distribuicao.quantidadeRestante} un sem endereço</Text>
-                                      )}
-                                    </Stack>
-                                  ) : sugestoesInteligentes[s.itemId]?.loading ? (
-                                    <Group gap={4}>
-                                      <Loader size="xs" />
-                                      <Text size="xs" c="dimmed">Buscando...</Text>
-                                    </Group>
-                                  ) : sugestoesInteligentes[s.itemId]?.resultado?.alocacoes?.length ? (
-                                    <Stack gap={2}>
-                                      {sugestoesInteligentes[s.itemId].resultado!.alocacoes.map((a, i) => (
-                                        <Badge key={i} color="indigo" variant="light" size="sm">
-                                          {a.enderecoCompleto} ({a.quantidadeAlocada} un)
-                                        </Badge>
-                                      ))}
-                                      {!sugestoesInteligentes[s.itemId].resultado!.completa && (
-                                        <Text size="xs" c="red">{sugestoesInteligentes[s.itemId].resultado!.quantidadeRestante} un sem endereço</Text>
-                                      )}
-                                    </Stack>
-                                  ) : sugestoesInteligentes[s.itemId]?.error ? (
-                                    <Text size="xs" c="orange">Nenhuma sugestão disponível</Text>
-                                  ) : s.sugestao ? (
-                                    <Badge color="teal" variant="light" size="sm">
-                                      {s.sugestao.enderecoCompleto}
-                                    </Badge>
-                                  ) : (
-                                    <Text size="xs" c="orange">Sem sugestão</Text>
-                                  )}
-                                </Table.Td>
-                                <Table.Td>
-                                  {sugestoesInteligentes[s.itemId]?.resultado?.alocacoes?.length ? (
-                                    <Stack gap={2}>
-                                      {sugestoesInteligentes[s.itemId].resultado!.alocacoes.map((a, i) => (
-                                        <Text key={i} size="xs" fw={500}>
-                                          {Math.round((a.quantidadeAlocada / (sugestoesInteligentes[s.itemId].resultado!.quantidadeTotal || 1)) * 100)}%
-                                        </Text>
-                                      ))}
-                                    </Stack>
-                                  ) : s.distribuicao?.alocacoes?.length > 0 ? (
-                                    <Text size="xs" c="dimmed">—</Text>
-                                  ) : sugestoesInteligentes[s.itemId]?.loading ? (
-                                    <Loader size="xs" />
-                                  ) : (
-                                    <Text size="xs" c="dimmed">—</Text>
-                                  )}
-                                </Table.Td>
-                                <Table.Td>
-                                  <Select
-                                    size="xs"
-                                    placeholder="Selecionar endereço"
-                                    searchable
-                                    clearable
-                                    value={endDestinos[s.itemId] || null}
-                                    onChange={(val) => setEndDestinos({ ...endDestinos, [s.itemId]: val || '' })}
-                                    data={
-                                      s.distribuicao && s.distribuicao.alocacoes.length > 0
-                                        ? s.distribuicao.alocacoes.map((a: any) => ({
-                                            value: a.enderecoId,
-                                            label: `${a.enderecoCompleto} (${a.quantidadeAlocada} un)${a.areaArmazenagem === 'PICKING' ? ' 🅿' : ''}`,
-                                          }))
-                                        : sugestoesInteligentes[s.itemId]?.resultado?.alocacoes?.length
-                                          ? sugestoesInteligentes[s.itemId].resultado!.alocacoes.map((a) => ({
-                                              value: a.enderecoId,
-                                              label: `${a.enderecoCompleto} (${a.quantidadeAlocada} un)`,
-                                            }))
-                                          : s.sugestao
-                                            ? [{ value: s.sugestao.enderecoId, label: s.sugestao.enderecoCompleto }]
-                                            : []
-                                    }
-                                    className="w-56"
-                                    styles={!endDestinos[s.itemId] && !s.sugestao && !sugestoesInteligentes[s.itemId]?.resultado ? { input: { borderColor: 'var(--mantine-color-orange-5)' } } : undefined}
-                                  />
-                                </Table.Td>
-                              </Table.Tr>
-                            ))}
+                            {sugestoesResp.sugestoes.map((s: any, idx: number) => {
+                              // Determine allocations to display
+                              const itemAlocacoes = endAlocacoes[s.itemId] || []
+                              const inteligente = sugestoesInteligentes[s.itemId]
+                              const sourceAlocacoes = itemAlocacoes.length > 0
+                                ? itemAlocacoes
+                                : inteligente?.resultado?.alocacoes?.length
+                                  ? inteligente.resultado.alocacoes.map(a => ({ enderecoId: a.enderecoId, enderecoCompleto: a.enderecoCompleto, quantidadeAlocada: a.quantidadeAlocada }))
+                                  : s.distribuicao?.alocacoes?.length > 0
+                                    ? s.distribuicao.alocacoes.map((a: any) => ({ enderecoId: a.enderecoId, enderecoCompleto: a.enderecoCompleto, quantidadeAlocada: a.quantidadeAlocada }))
+                                    : s.sugestao
+                                      ? [{ enderecoId: s.sugestao.enderecoId, enderecoCompleto: s.sugestao.enderecoCompleto, quantidadeAlocada: s.quantidade }]
+                                      : []
+
+                              return (
+                                <Table.Tr key={s.itemId}>
+                                  <Table.Td>{idx + 1}</Table.Td>
+                                  <Table.Td className="font-mono">{s.produtoCodigo}</Table.Td>
+                                  <Table.Td fw={500}>{s.produtoNome}</Table.Td>
+                                  <Table.Td>{s.quantidade}</Table.Td>
+                                  <Table.Td>{s.lote || '—'}</Table.Td>
+                                  <Table.Td>{s.validade ? new Date(s.validade).toLocaleDateString('pt-BR') : '—'}</Table.Td>
+                                  <Table.Td>
+                                    {s.distribuicao && s.distribuicao.alocacoes.length > 0 ? (
+                                      <Stack gap={2}>
+                                        {s.distribuicao.alocacoes.map((a: any, i: number) => (
+                                          <Badge key={i} color={a.areaArmazenagem === 'PICKING' ? 'orange' : 'teal'} variant="light" size="sm">
+                                            {a.enderecoCompleto} ({a.quantidadeAlocada} un) {a.areaArmazenagem === 'PICKING' ? '🅿' : ''}
+                                          </Badge>
+                                        ))}
+                                        {!s.distribuicao.completa && (
+                                          <Text size="xs" c="red">{s.distribuicao.quantidadeRestante} un sem endereço</Text>
+                                        )}
+                                      </Stack>
+                                    ) : inteligente?.loading ? (
+                                      <Group gap={4}>
+                                        <Loader size="xs" />
+                                        <Text size="xs" c="dimmed">Buscando...</Text>
+                                      </Group>
+                                    ) : inteligente?.resultado?.alocacoes?.length ? (
+                                      <Stack gap={2}>
+                                        {inteligente.resultado!.alocacoes.map((a, i) => (
+                                          <Badge key={i} color="indigo" variant="light" size="sm">
+                                            {a.enderecoCompleto} ({a.quantidadeAlocada} un)
+                                          </Badge>
+                                        ))}
+                                        {!inteligente.resultado!.completa && (
+                                          <Text size="xs" c="red">{inteligente.resultado!.quantidadeRestante} un sem endereço</Text>
+                                        )}
+                                      </Stack>
+                                    ) : inteligente?.error ? (
+                                      <Text size="xs" c="orange">Nenhuma sugestão disponível</Text>
+                                    ) : s.sugestao ? (
+                                      <Badge color="teal" variant="light" size="sm">
+                                        {s.sugestao.enderecoCompleto}
+                                      </Badge>
+                                    ) : (
+                                      <Text size="xs" c="orange">Sem sugestão</Text>
+                                    )}
+                                  </Table.Td>
+                                  <Table.Td>
+                                    {/* Allocation sub-rows */}
+                                    {sourceAlocacoes.length > 0 ? (
+                                      <Stack gap={4}>
+                                        {sourceAlocacoes.map((aloc: any, alocIdx: number) => {
+                                          const editKey = `${s.itemId}-${alocIdx}`
+                                          const isEditing = endEditingAloc === editKey
+                                          return (
+                                            <Group key={alocIdx} gap={4} wrap="nowrap">
+                                              {isEditing ? (
+                                                <Select
+                                                  size="xs"
+                                                  placeholder="Selecionar endereço"
+                                                  searchable
+                                                  value={aloc.enderecoId}
+                                                  onChange={(val) => {
+                                                    if (!val) return
+                                                    const endLabel = (enderecosResp || []).find((e: any) => e.id === val || e.value === val)
+                                                    const endCompleto = endLabel?.enderecoCompleto || endLabel?.label || val
+                                                    const updated = [...(endAlocacoes[s.itemId] || sourceAlocacoes)]
+                                                    updated[alocIdx] = { ...updated[alocIdx], enderecoId: val, enderecoCompleto: endCompleto }
+                                                    setEndAlocacoes({ ...endAlocacoes, [s.itemId]: updated })
+                                                    setEndEditingAloc(null)
+                                                  }}
+                                                  data={
+                                                    (enderecosResp || []).map((e: any) => ({
+                                                      value: e.id || e.value,
+                                                      label: e.enderecoCompleto || e.label || e.id,
+                                                    }))
+                                                  }
+                                                  className="w-48"
+                                                  onBlur={() => setEndEditingAloc(null)}
+                                                  autoFocus
+                                                />
+                                              ) : (
+                                                <>
+                                                  <Badge color="teal" variant="light" size="sm" style={{ maxWidth: 160 }}>
+                                                    {aloc.enderecoCompleto} ({aloc.quantidadeAlocada} un)
+                                                  </Badge>
+                                                  <Button
+                                                    size="compact-xs"
+                                                    variant="subtle"
+                                                    color="blue"
+                                                    onClick={() => {
+                                                      // Ensure endAlocacoes is populated for this item
+                                                      if (!endAlocacoes[s.itemId]) {
+                                                        setEndAlocacoes({ ...endAlocacoes, [s.itemId]: [...sourceAlocacoes] })
+                                                      }
+                                                      setEndEditingAloc(editKey)
+                                                    }}
+                                                    leftSection={<IconMapPin size={12} />}
+                                                  >
+                                                    Localizar
+                                                  </Button>
+                                                </>
+                                              )}
+                                            </Group>
+                                          )
+                                        })}
+                                      </Stack>
+                                    ) : (
+                                      <Text size="xs" c="dimmed">Sem alocação</Text>
+                                    )}
+                                  </Table.Td>
+                                </Table.Tr>
+                              )
+                            })}
                           </Table.Tbody>
                         </Table>
-
                         {/* Warning for items without suggestions */}
                         {sugestoesResp.sugestoes.some((s: any) => !s.sugestao && !s.distribuicao?.alocacoes?.length && !sugestoesInteligentes[s.itemId]?.resultado?.alocacoes?.length) && (
                           <Alert icon={<IconAlertCircle size={16} />} color="orange" variant="light" mb="md">
@@ -1581,16 +1712,10 @@ export default function ConferenciaEntradaPage() {
                             </Button>
                           </Group>
                           <Group>
-                            <Button color="indigo" variant="light" leftSection={<IconCheck size={16} />}
-                              onClick={handleConfirmarDistribuicaoInteligente}
-                              loading={confirmarDistribuicao.isPending}
-                              disabled={!Object.values(endDestinos).some(Boolean)}>
-                              Confirmar Endereçamento
-                            </Button>
                             <Button color="teal" leftSection={<IconCheck size={16} />}
                               onClick={handleConfirmarEnderecamento}
                               loading={confirmarLote.isPending}
-                              disabled={!Object.values(endDestinos).some(Boolean)}>
+                              disabled={endFuncSelecionados.length === 0 || (!Object.keys(endAlocacoes).some(k => endAlocacoes[k]?.length > 0) && !Object.values(endDestinos).some(Boolean))}>
                               Confirmar (Lote)
                             </Button>
                           </Group>
@@ -1705,16 +1830,34 @@ export default function ConferenciaEntradaPage() {
       </Card>
 
       {/* Modal Seleção de Funcionários para Endereçamento */}
-      <Modal opened={endFuncModal} onClose={() => { setEndFuncModal(false); setPendingEndNotaId(null) }}
+      <Modal opened={endFuncModal} onClose={() => { setEndFuncModal(false); setPendingEndNotaId(null); setEndNotaSelecionada(null) }}
         title="Designar Funcionários para Endereçamento" centered closeOnClickOutside={false}>
         <Alert icon={<IconMapPin size={16} />} color="teal" variant="light" mb="md">
-          Selecione os funcionários que irão realizar o endereçamento.
+          Selecione os funcionários que irão realizar o endereçamento. É obrigatório designar ao menos um funcionário.
         </Alert>
         <MultiSelect label="Funcionário(s) *" data={funcOptions} value={endFuncIds} onChange={setEndFuncIds}
           searchable placeholder="Selecione os funcionários..." mb="md" />
         <Group justify="flex-end">
-          <Button variant="default" onClick={() => { setEndFuncModal(false); if (pendingEndNotaId) enderecarAuto.mutate(pendingEndNotaId) }}>Pular</Button>
-          <Button onClick={() => designarEndFuncionarios.mutate()} loading={designarEndFuncionarios.isPending}
+          <Button onClick={async () => {
+            if (endFuncIds.length === 0) {
+              notifications.show({ title: 'Atenção', message: 'Selecione ao menos um funcionário', color: 'yellow' })
+              return
+            }
+            try {
+              // Try to designate on OS if available
+              const { data: osResp } = await api.get('/os-wms', { params: { status: 'ABERTO', operacao: 'ENDERECAMENTO', limit: 10 } })
+              const osVinculada = (osResp?.data || []).find((os: any) => os.notaEntradaId === pendingEndNotaId)
+              if (osVinculada) {
+                await api.patch(`/os-wms/${osVinculada.id}/iniciar`, { funcionarioIds: endFuncIds })
+              }
+            } catch { /* continue even if OS designation fails */ }
+            setEndFuncSelecionados([...endFuncIds])
+            setEndFuncModal(false)
+            setEndModoAtivo('manual')
+            setEndDestinos({})
+            setEndAlocacoes({})
+            notifications.show({ title: '✅ Funcionários designados', message: 'Endereçamento iniciado', color: 'green' })
+          }}
             disabled={endFuncIds.length === 0} leftSection={<IconCheck size={16} />} color="teal">
             Designar e Endereçar
           </Button>
