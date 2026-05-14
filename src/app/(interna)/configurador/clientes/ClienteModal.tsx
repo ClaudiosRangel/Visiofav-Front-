@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
 import { notifications } from '@mantine/notifications'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(u => ({ value: u, label: u }))
@@ -16,6 +16,7 @@ const schema = z.object({
   nomeFantasia: z.string().optional(),
   cpfCnpj: z.string().min(1, 'CPF/CNPJ é obrigatório'),
   inscEstadual: z.string().optional(),
+  rotaId: z.string().uuid().nullable().optional(),
   logradouro: z.string().optional(),
   numero: z.string().optional(),
   complemento: z.string().optional(),
@@ -35,6 +36,13 @@ export default function ClienteModal({ opened, onClose, editData }: Props) {
   const queryClient = useQueryClient()
   const isEditing = !!editData
 
+  // Buscar rotas disponíveis
+  const { data: rotasResp } = useQuery<any>({
+    queryKey: ['rotas-ativas'],
+    queryFn: async () => { const { data } = await api.get('/rotas', { params: { status: 'true' } }); return data },
+  })
+  const rotaOptions = (rotasResp?.data || []).map((r: any) => ({ value: r.id, label: `${r.codigo} — ${r.descricao}` }))
+
   const criar = useMutation({
     mutationFn: async (body: any) => { const { data } = await api.post('/clientes', body); return data },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clientes'] }),
@@ -52,13 +60,14 @@ export default function ClienteModal({ opened, onClose, editData }: Props) {
       reset({
         razaoSocial: editData.razaoSocial || '', nomeFantasia: editData.nomeFantasia || '',
         cpfCnpj: editData.cpfCnpj || '', inscEstadual: editData.inscEstadual || '',
+        rotaId: editData.rotaId || null,
         logradouro: editData.logradouro || '', numero: editData.numero || '',
         complemento: editData.complemento || '', bairro: editData.bairro || '',
         cidade: editData.cidade || '', uf: editData.uf || '', cep: editData.cep || '',
         telefone: editData.telefone || '', email: editData.email || '',
       })
     } else {
-      reset({ razaoSocial: '', cpfCnpj: '' })
+      reset({ razaoSocial: '', cpfCnpj: '', rotaId: null })
     }
   }, [editData, reset, opened])
 
@@ -99,6 +108,18 @@ export default function ClienteModal({ opened, onClose, editData }: Props) {
                   <TextInput label="Inscrição Estadual" placeholder="Isento ou número" {...field} />
                 )} />
               </div>
+              <Controller name="rotaId" control={control} render={({ field }) => (
+                <Select
+                  label="Rota de Entrega"
+                  placeholder="Selecione uma rota (opcional)"
+                  data={rotaOptions}
+                  searchable
+                  clearable
+                  value={field.value || null}
+                  onChange={(v) => field.onChange(v || null)}
+                  className="max-w-sm"
+                />
+              )} />
             </div>
           </Tabs.Panel>
 
