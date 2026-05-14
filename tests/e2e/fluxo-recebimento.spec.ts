@@ -80,20 +80,18 @@ test.describe('Fluxo Completo de Recebimento WMS', () => {
   })
 
   test('02 - Importar XML em Compras', async () => {
-    // Navegar para compras
+    // Navegar para recebimento
     await page.goto(`${BASE_URL}/recebimento`)
     await page.waitForLoadState('networkidle')
 
-    // Procurar botão de importar XML
-    const importBtn = page.getByRole('button', { name: /importar/i })
-    if (await importBtn.isVisible()) {
-      await importBtn.click()
+    // Aguardar carregamento da página
+    await expect(page.locator('text=/recebimento/i').first()).toBeVisible({ timeout: 10000 })
 
-      // Upload do arquivo XML
-      const fileInput = page.locator('input[type="file"]')
-      if (await fileInput.isVisible()) {
-        // Criar arquivo XML temporário via API
-        const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+    // O botão "Importar XML" usa um input[type=file] criado programaticamente
+    // Precisamos interceptar o file chooser
+    const importBtn = page.getByRole('button', { name: /importar xml/i }).first()
+    if (await importBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
 <nfeProc xmlns="http://portalfiscal.inf.br" versao="4.00">
   <NFe><infNFe versao="4.00" Id="NFe33240505999999000199550010000001231000001234">
     <ide><nNF>999</nNF><serie>1</serie><dhEmi>2024-05-20T10:00:00-03:00</dhEmi></ide>
@@ -108,23 +106,29 @@ test.describe('Fluxo Completo de Recebimento WMS', () => {
   </infNFe></NFe>
 </nfeProc>`
 
-        await fileInput.setInputFiles({
-          name: 'test-nfe.xml',
-          mimeType: 'application/xml',
-          buffer: Buffer.from(xmlContent, 'utf-8'),
-        })
+      // Interceptar o file chooser que será aberto pelo botão
+      const [fileChooser] = await Promise.all([
+        page.waitForEvent('filechooser'),
+        importBtn.click(),
+      ])
 
-        // Aguardar processamento
-        await page.waitForTimeout(2000)
+      await fileChooser.setFiles({
+        name: 'test-nfe.xml',
+        mimeType: 'application/xml',
+        buffer: Buffer.from(xmlContent, 'utf-8'),
+      })
 
-        // Verificar se importou com sucesso (toast ou dados na tela)
-        const successIndicator = page.locator('text=/importad|sucesso|MOCA395/i')
-        if (await successIndicator.isVisible({ timeout: 5000 }).catch(() => false)) {
-          await expect(successIndicator).toBeVisible()
-        }
-      }
+      // Aguardar processamento — deve abrir modal ou mostrar notificação
+      await page.waitForTimeout(3000)
+
+      // Verificar se importou (modal aberto ou notificação de sucesso)
+      const successIndicator = page.locator('text=/importad|sucesso|NF 999|MOCA395/i')
+      const modalIndicator = page.locator('[role="dialog"]')
+      const imported = await successIndicator.isVisible({ timeout: 5000 }).catch(() => false)
+        || await modalIndicator.isVisible({ timeout: 2000 }).catch(() => false)
+
+      expect(imported).toBeTruthy()
     }
-    // Se não encontrou botão de importar, o teste passa (pode não ter a tela)
   })
 
   test('03 - Agendar na Portaria', async () => {
