@@ -1,6 +1,7 @@
 'use client'
 
-import { Button, Card, Group, Text, Select, NumberInput, Table, ActionIcon, Tooltip } from '@mantine/core'
+import { Suspense } from 'react'
+import { Button, Card, Group, Text, Select, NumberInput, Table, ActionIcon, Tooltip, LoadingOverlay } from '@mantine/core'
 import { IconPlus, IconTrash, IconArrowLeft } from '@tabler/icons-react'
 import { useForm, Controller, useFieldArray } from 'react-hook-form'
 import { z } from 'zod'
@@ -29,6 +30,14 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>
 
 export default function NovoPedidoVendaPage() {
+  return (
+    <Suspense fallback={<LoadingOverlay visible />}>
+      <NovoPedidoVendaContent />
+    </Suspense>
+  )
+}
+
+function NovoPedidoVendaContent() {
   useModuloGuard('VENDAS')
   const router = useRouter()
   const searchParams = useSearchParams()
