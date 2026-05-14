@@ -1704,7 +1704,8 @@ export default function ConferenciaEntradaPage() {
                               disabled={!sugestoesResp.sugestoes.some((s: any) => s.sugestao || s.distribuicao?.alocacoes?.length > 0 || sugestoesInteligentes[s.itemId]?.resultado?.alocacoes?.length)}>
                               Aceitar Sugestões
                             </Button>
-                            <Button variant="light" leftSection={<IconPrinter size={14} />} onClick={handleImprimirFichaEnd}>
+                            <Button variant="light" leftSection={<IconPrinter size={14} />} onClick={handleImprimirFichaEnd}
+                              disabled={!Object.keys(endAlocacoes).some(k => endAlocacoes[k]?.length > 0) && !Object.values(endDestinos).some(Boolean)}>
                               Imprimir Ficha
                             </Button>
                             <Button variant="light" color="violet" leftSection={<IconCamera size={14} />} onClick={() => setOcrEndModalOpen(true)}>
