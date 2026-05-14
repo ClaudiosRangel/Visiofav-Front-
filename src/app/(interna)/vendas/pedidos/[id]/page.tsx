@@ -92,7 +92,7 @@ export default function DetalhePedidoVendaPage() {
             {(pedido.itens || []).map((item: any) => (
               <Table.Tr key={item.id}>
                 <Table.Td fw={500}>{item.produto?.nome || item.produtoId}</Table.Td>
-                <Table.Td>{item.produto?.unidade || item.unidade || '—'}</Table.Td>
+                <Table.Td>{item.unidade || item.produto?.unidade || '—'}</Table.Td>
                 <Table.Td>{Number(item.quantidade)}</Table.Td>
                 <Table.Td>{Number(item.precoBase).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</Table.Td>
                 <Table.Td>{Number(item.precoFinal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</Table.Td>
