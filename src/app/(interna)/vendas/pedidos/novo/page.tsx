@@ -5,11 +5,12 @@ import { IconPlus, IconTrash, IconArrowLeft } from '@tabler/icons-react'
 import { useForm, Controller, useFieldArray } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useEffect } from 'react'
 import { notifications } from '@mantine/notifications'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 const formSchema = z.object({
   clienteId: z.string().min(1, 'Cliente é obrigatório'),
@@ -30,13 +31,42 @@ type FormValues = z.infer<typeof formSchema>
 export default function NovoPedidoVendaPage() {
   useModuloGuard('VENDAS')
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const editId = searchParams.get('editId')
+  const isEditing = !!editId
 
-  const { control, handleSubmit, watch, formState: { errors } } = useForm<FormValues>({
+  const { control, handleSubmit, watch, reset, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: { clienteId: '', vendedorId: '', tabelaPrecoId: '', condicaoPagId: '', itens: [{ produtoId: '', quantidade: 1, unidade: '', precoUnitario: 0, desconto: 0 }] },
   })
 
-  const { fields, append, remove } = useFieldArray({ control, name: 'itens' })
+  const { fields, append, remove, replace } = useFieldArray({ control, name: 'itens' })
+
+  // Carregar pedido existente para edição
+  const { data: pedidoExistente } = useQuery<any>({
+    queryKey: ['pedido-venda-edit', editId],
+    queryFn: async () => { const { data } = await api.get(`/pedidos-venda/${editId}`); return data },
+    enabled: !!editId,
+  })
+
+  // Preencher formulário quando pedido carrega
+  useEffect(() => {
+    if (pedidoExistente && isEditing) {
+      reset({
+        clienteId: pedidoExistente.clienteId || '',
+        vendedorId: pedidoExistente.vendedorId || '',
+        tabelaPrecoId: pedidoExistente.tabelaPrecoId || '',
+        condicaoPagId: '',
+        itens: (pedidoExistente.itens || []).map((item: any) => ({
+          produtoId: item.produtoId,
+          quantidade: Number(item.quantidade),
+          unidade: item.produto?.unidade || item.unidade || 'UN',
+          precoUnitario: Number(item.precoFinal || item.precoBase || 0),
+          desconto: 0,
+        })),
+      })
+    }
+  }, [pedidoExistente, isEditing, reset])
 
   const { data: clientesData } = useQuery<any>({ queryKey: ['clientes-select'], queryFn: async () => { const { data } = await api.get('/clientes', { params: { limit: 100, status: 'true' } }); return data } })
   const { data: vendedoresData } = useQuery<any>({ queryKey: ['vendedores-select'], queryFn: async () => { const { data } = await api.get('/vendedores', { params: { limit: 100, status: 'true' } }); return data } })
@@ -51,7 +81,14 @@ export default function NovoPedidoVendaPage() {
   }))
 
   const criar = useMutation({
-    mutationFn: async (body: any) => { const { data } = await api.post('/pedidos-venda', body); return data },
+    mutationFn: async (body: any) => {
+      if (isEditing) {
+        const { data } = await api.put(`/pedidos-venda/${editId}`, body)
+        return data
+      }
+      const { data } = await api.post('/pedidos-venda', body)
+      return data
+    },
   })
 
   async function onSubmit(data: FormValues) {
@@ -60,8 +97,8 @@ export default function NovoPedidoVendaPage() {
       if (data.vendedorId) payload.vendedorId = data.vendedorId
       if (data.condicaoPagId) payload.condicaoPagId = data.condicaoPagId
       await criar.mutateAsync(payload)
-      notifications.show({ title: 'Sucesso', message: 'Pedido de venda criado', color: 'green' })
-      router.push('/vendas/pedidos')
+      notifications.show({ title: 'Sucesso', message: isEditing ? 'Pedido atualizado' : 'Pedido de venda criado', color: 'green' })
+      router.push(isEditing ? `/vendas/pedidos/${editId}` : '/vendas/pedidos')
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' })
     }
@@ -74,10 +111,10 @@ export default function NovoPedidoVendaPage() {
 
   return (
     <div>
-      <Text size="xs" c="dimmed" mb={4}>Início / Vendas / Pedidos / Novo</Text>
+      <Text size="xs" c="dimmed" mb={4}>Início / Vendas / Pedidos / {isEditing ? 'Editar' : 'Novo'}</Text>
       <Group mb="lg">
-        <Button variant="subtle" leftSection={<IconArrowLeft size={16} />} onClick={() => router.push('/vendas/pedidos')}>Voltar</Button>
-        <Text size="xl" fw={600}>Novo Pedido de Venda</Text>
+        <Button variant="subtle" leftSection={<IconArrowLeft size={16} />} onClick={() => router.push(isEditing ? `/vendas/pedidos/${editId}` : '/vendas/pedidos')}>Voltar</Button>
+        <Text size="xl" fw={600}>{isEditing ? `Editar Pedido #${pedidoExistente?.numero || ''}` : 'Novo Pedido de Venda'}</Text>
       </Group>
 
       <form onSubmit={handleSubmit(onSubmit)}>
@@ -168,8 +205,8 @@ export default function NovoPedidoVendaPage() {
         </Card>
 
         <Group justify="flex-end">
-          <Button variant="default" onClick={() => router.push('/vendas/pedidos')}>Cancelar</Button>
-          <Button type="submit" loading={criar.isPending}>Criar Pedido</Button>
+          <Button variant="default" onClick={() => router.push(isEditing ? `/vendas/pedidos/${editId}` : '/vendas/pedidos')}>Cancelar</Button>
+          <Button type="submit" loading={criar.isPending}>{isEditing ? 'Salvar Alterações' : 'Criar Pedido'}</Button>
         </Group>
       </form>
     </div>
