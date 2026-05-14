@@ -10,7 +10,7 @@ export default defineConfig({
   timeout: 60000,
 
   use: {
-    baseURL: process.env.FRONTEND_URL || 'http://localhost:3000',
+    baseURL: process.env.FRONTEND_URL || 'https://visiofav-front.vercel.app',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
