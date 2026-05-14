@@ -84,7 +84,7 @@ export default function DetalhePedidoVendaPage() {
         <Table striped>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Produto</Table.Th><Table.Th>Quantidade</Table.Th>
+              <Table.Th>Produto</Table.Th><Table.Th>Unidade</Table.Th><Table.Th>Quantidade</Table.Th>
               <Table.Th>Preço Base</Table.Th><Table.Th>Preço Final</Table.Th><Table.Th>Total</Table.Th>
             </Table.Tr>
           </Table.Thead>
@@ -92,6 +92,7 @@ export default function DetalhePedidoVendaPage() {
             {(pedido.itens || []).map((item: any) => (
               <Table.Tr key={item.id}>
                 <Table.Td fw={500}>{item.produto?.nome || item.produtoId}</Table.Td>
+                <Table.Td>{item.produto?.unidade || item.unidade || '—'}</Table.Td>
                 <Table.Td>{Number(item.quantidade)}</Table.Td>
                 <Table.Td>{Number(item.precoBase).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</Table.Td>
                 <Table.Td>{Number(item.precoFinal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</Table.Td>
@@ -112,7 +113,7 @@ export default function DetalhePedidoVendaPage() {
       <Group justify="flex-end">
         {pedido.status === 'RASCUNHO' && (
           <>
-            <Button variant="light" onClick={() => router.push(`/vendas/pedidos/${id}/editar`)}>Editar Itens</Button>
+            <Button variant="light" onClick={() => router.push(`/vendas/pedidos/novo?editId=${id}`)}>Editar Itens</Button>
             <Button color="blue" leftSection={<IconCheck size={16} />} onClick={() => { if (confirm('Confirmar pedido?')) confirmar.mutate() }}>Confirmar</Button>
           </>
         )}
