@@ -22,7 +22,7 @@ import { test, expect, type Page } from '@playwright/test'
 // CONFIGURAÇÃO
 // ══════════════════════════════════════════════════════════════════════════════
 
-const BASE_URL = process.env.FRONTEND_URL || 'https://visiofav-front.vercel.app'
+const BASE_URL = process.env.FRONTEND_URL || 'https://visiofav-front-wofr.vercel.app'
 const API_URL = process.env.API_URL || 'https://visiofav.onrender.com/api'
 const EMAIL = process.env.TEST_EMAIL || 'admin@visiofab.com'
 const PASSWORD = process.env.TEST_PASSWORD || '987123'
