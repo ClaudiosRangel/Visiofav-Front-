@@ -401,8 +401,8 @@ function TabMontagem() {
                 </Table.Td>
                 <Table.Td>{nf.numero || nf.nNF}</Table.Td>
                 <Table.Td>{nf.serie}</Table.Td>
-                <Table.Td>{nf.cliente?.razaoSocial || nf.clienteNome || '-'}</Table.Td>
-                <Table.Td>{nf.rota?.codigo || nf.rotaCodigo || '-'}</Table.Td>
+                <Table.Td>{typeof nf.cliente === 'string' ? nf.cliente : (nf.cliente?.razaoSocial || nf.clienteNome || '-')}</Table.Td>
+                <Table.Td>{nf.rotaCodigo ? `${nf.rotaCodigo}` : (nf.rota?.codigo || '-')}</Table.Td>
                 <Table.Td style={{ textAlign: 'right' }}>{Number(nf.valorTotal || 0).toFixed(2)}</Table.Td>
                 <Table.Td style={{ textAlign: 'right' }}>{Number(nf.pesoKg || nf.pesoTotal || 0).toFixed(3)}</Table.Td>
                 <Table.Td style={{ textAlign: 'center' }}>
