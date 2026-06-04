@@ -6,6 +6,7 @@ import { IconPlus, IconSearch, IconEdit, IconBan, IconRefresh } from '@tabler/ic
 import { notifications } from '@mantine/notifications'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { GeoStatusBadge } from '@/components/geo/GeoStatusBadge'
 import ClienteModal from './ClienteModal'
 
 export default function ClientesPage() {
@@ -62,6 +63,9 @@ export default function ClientesPage() {
               <Table.Th>CPF/CNPJ</Table.Th>
               <Table.Th>Cidade/UF</Table.Th>
               <Table.Th>Telefone</Table.Th>
+              <Table.Th>Geo</Table.Th>
+              <Table.Th>Latitude</Table.Th>
+              <Table.Th>Longitude</Table.Th>
               <Table.Th>Status</Table.Th>
               <Table.Th className="w-24">Ações</Table.Th>
             </Table.Tr>
@@ -74,6 +78,9 @@ export default function ClientesPage() {
                 <Table.Td className="text-sm font-mono">{item.cpfCnpj || '—'}</Table.Td>
                 <Table.Td>{item.cidade ? `${item.cidade}/${item.uf}` : '—'}</Table.Td>
                 <Table.Td>{item.telefone || '—'}</Table.Td>
+                <Table.Td><GeoStatusBadge geocodificado={!!(item.latitude && item.longitude)} /></Table.Td>
+                <Table.Td className="text-sm font-mono">{item.latitude ?? '—'}</Table.Td>
+                <Table.Td className="text-sm font-mono">{item.longitude ?? '—'}</Table.Td>
                 <Table.Td><Badge color={item.status ? 'green' : 'gray'}>{item.status ? 'Ativo' : 'Inativo'}</Badge></Table.Td>
                 <Table.Td>
                   <Group gap={4}>
@@ -86,7 +93,7 @@ export default function ClientesPage() {
               </Table.Tr>
             ))}
             {!isLoading && items.length === 0 && (
-              <Table.Tr><Table.Td colSpan={7} className="text-center py-8 text-zinc-500">Nenhum cliente cadastrado</Table.Td></Table.Tr>
+              <Table.Tr><Table.Td colSpan={10} className="text-center py-8 text-zinc-500">Nenhum cliente cadastrado</Table.Td></Table.Tr>
             )}
           </Table.Tbody>
         </Table>

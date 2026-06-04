@@ -5,7 +5,7 @@ import {
   Card, Table, Badge, Button, Modal, TextInput, Select, Group, Text,
   LoadingOverlay, ActionIcon, Tooltip,
 } from '@mantine/core'
-import { IconPlus, IconEdit, IconTrash, IconRefresh } from '@tabler/icons-react'
+import { IconPlus, IconEdit, IconTrash, IconRefresh, IconMap } from '@tabler/icons-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
@@ -13,6 +13,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { notifications } from '@mantine/notifications'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
+import { CoberturaRotaModal } from '@/components/geo/CoberturaRotaModal'
+import { CoberturaConsolidadaModal } from '@/components/geo/CoberturaConsolidadaModal'
 
 const schema = z.object({
   codigo: z.string().min(1, 'Código é obrigatório').max(20),
@@ -28,6 +30,8 @@ export default function RotasPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editItem, setEditItem] = useState<any>(null)
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
+  const [coberturaRota, setCoberturaRota] = useState<{ id: string; descricao: string } | null>(null)
+  const [coberturaConsolidadaOpen, setCoberturaConsolidadaOpen] = useState(false)
   const queryClient = useQueryClient()
 
   const { data: response, isLoading } = useQuery<any>({
@@ -151,6 +155,13 @@ export default function RotasPage() {
           <Group>
             <Button
               variant="default"
+              leftSection={<IconMap size={16} />}
+              onClick={() => setCoberturaConsolidadaOpen(true)}
+            >
+              Cobertura Consolidada
+            </Button>
+            <Button
+              variant="default"
               leftSection={<IconRefresh size={16} />}
               onClick={() => queryClient.invalidateQueries({ queryKey: ['rotas'] })}
             >
@@ -185,6 +196,11 @@ export default function RotasPage() {
                 </Table.Td>
                 <Table.Td>
                   <Group gap={4}>
+                    <Tooltip label="Ver Cobertura">
+                      <ActionIcon variant="subtle" color="blue" onClick={() => setCoberturaRota({ id: item.id, descricao: item.descricao })}>
+                        <IconMap size={18} />
+                      </ActionIcon>
+                    </Tooltip>
                     <Tooltip label="Editar">
                       <ActionIcon variant="subtle" color="gray" onClick={() => handleEdit(item)}>
                         <IconEdit size={18} />
@@ -220,7 +236,8 @@ export default function RotasPage() {
         closeOnClickOutside={false}
       >
         <form onSubmit={handleSubmit(onSubmit)}>
-          <div className="flex flex-col gap-4">
+          {/* MAIN FIELDS - Always visible at top */}
+          <div className="flex flex-col gap-4 mb-4">
             <Controller
               name="codigo"
               control={control}
@@ -244,6 +261,10 @@ export default function RotasPage() {
                 />
               )}
             />
+          </div>
+
+          {/* SECONDARY FIELDS - Dados */}
+          <div className="flex flex-col gap-4">
             <Controller
               name="transportadoraId"
               control={control}
@@ -260,6 +281,7 @@ export default function RotasPage() {
               )}
             />
           </div>
+
           <Group justify="flex-end" mt="md">
             <Button variant="default" onClick={() => setModalOpen(false)}>
               Cancelar
@@ -270,6 +292,18 @@ export default function RotasPage() {
           </Group>
         </form>
       </Modal>
+
+      <CoberturaRotaModal
+        opened={!!coberturaRota}
+        onClose={() => setCoberturaRota(null)}
+        rotaId={coberturaRota?.id ?? ''}
+        rotaDescricao={coberturaRota?.descricao ?? ''}
+      />
+
+      <CoberturaConsolidadaModal
+        opened={coberturaConsolidadaOpen}
+        onClose={() => setCoberturaConsolidadaOpen(false)}
+      />
     </div>
   )
 }

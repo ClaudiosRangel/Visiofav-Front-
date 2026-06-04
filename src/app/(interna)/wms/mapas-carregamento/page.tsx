@@ -3,13 +3,15 @@
 import { useState, useMemo } from 'react'
 import {
   Card, Table, Badge, Button, Modal, TextInput, Select, Group, Text,
-  LoadingOverlay, Stack, SimpleGrid,
+  LoadingOverlay, Stack, SimpleGrid, ThemeIcon,
 } from '@mantine/core'
-import { IconRefresh } from '@tabler/icons-react'
+import { IconRefresh, IconRoute } from '@tabler/icons-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
+import type { SequenciaEntrega } from '@/data/types/geo'
+import { OtimizarRotaPanel } from '@/components/geo/OtimizarRotaPanel'
 
 const statusColors: Record<string, string> = {
   AGUARDANDO_SEPARACAO: 'orange',
@@ -221,6 +223,7 @@ export default function MapasCarregamentoPage() {
                 <Table.Th>Placa</Table.Th>
                 <Table.Th>Motorista</Table.Th>
                 <Table.Th>Status</Table.Th>
+                <Table.Th>Distância Total (km)</Table.Th>
                 <Table.Th>Emissão</Table.Th>
                 <Table.Th>Ações</Table.Th>
               </Table.Tr>
@@ -235,6 +238,11 @@ export default function MapasCarregamentoPage() {
                     <Badge color={statusColors[mapa.status] || 'gray'} variant="light">
                       {statusLabels[mapa.status] || mapa.status}
                     </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    {mapa.distanciaTotalKm != null
+                      ? `${Number(mapa.distanciaTotalKm).toFixed(2)} km`
+                      : '—'}
                   </Table.Td>
                   <Table.Td>
                     {mapa.emissaoEm ? new Date(mapa.emissaoEm).toLocaleDateString('pt-BR') : '-'}
@@ -270,7 +278,7 @@ export default function MapasCarregamentoPage() {
               ))}
               {!isLoading && mapas.length === 0 && (
                 <Table.Tr>
-                  <Table.Td colSpan={6} className="text-center py-8 text-zinc-500">
+                  <Table.Td colSpan={7} className="text-center py-8 text-zinc-500">
                     Nenhum mapa encontrado
                   </Table.Td>
                 </Table.Tr>
@@ -365,7 +373,7 @@ export default function MapasCarregamentoPage() {
           </Stack>
         </Modal>
 
-        {/* Modal Detalhe */}
+        {/* Modal Detalhe / Romaneio */}
         <Modal
           opened={!!detalheModal}
           onClose={() => setDetalheModal(null)}
@@ -404,43 +412,120 @@ export default function MapasCarregamentoPage() {
                 </div>
               </SimpleGrid>
 
+              {/* Distância Total card — shown when sequence exists */}
+              {detalheModal.sequenciaEntrega && detalheModal.sequenciaEntrega.length > 0 && detalheModal.distanciaTotalKm != null && (
+                <Card withBorder padding="sm">
+                  <Group gap="xs">
+                    <ThemeIcon color="blue" variant="light" size="sm">
+                      <IconRoute size={14} />
+                    </ThemeIcon>
+                    <Text size="sm" fw={500}>Distância Total do Percurso:</Text>
+                    <Badge size="lg" color="blue">
+                      {Number(detalheModal.distanciaTotalKm).toFixed(2)} km
+                    </Badge>
+                  </Group>
+                </Card>
+              )}
+
               <Text size="sm" fw={500}>NFs do Mapa</Text>
-              <Table withTableBorder striped>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>NF</Table.Th>
-                    <Table.Th>Cliente</Table.Th>
-                    <Table.Th>Status Entrega</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {(detalheModal.nfs || []).map((nf: any, idx: number) => (
-                    <Table.Tr key={idx}>
-                      <Table.Td>{nf.nfe?.numero || nf.nfe?.nNF || '-'}</Table.Td>
-                      <Table.Td>{nf.nfe?.vendaEfetivada?.pedidoVenda?.cliente?.razaoSocial || '-'}</Table.Td>
-                      <Table.Td>
-                        {nf.statusEntrega ? (
-                          <Badge
-                            color={nf.statusEntrega === 'ENTREGUE' ? 'green' : 'red'}
-                            variant="light"
-                          >
-                            {nf.statusEntrega}
-                          </Badge>
-                        ) : (
-                          <Text size="sm" c="dimmed">Pendente</Text>
-                        )}
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                  {(detalheModal.nfs || []).length === 0 && (
+
+              {/* Romaneio with sequence: show Ordem + Distância columns, NFs in sequence order */}
+              {detalheModal.sequenciaEntrega && detalheModal.sequenciaEntrega.length > 0 ? (
+                <Table withTableBorder striped>
+                  <Table.Thead>
                     <Table.Tr>
-                      <Table.Td colSpan={3} className="text-center py-4 text-zinc-500">
-                        Nenhuma NF associada
-                      </Table.Td>
+                      <Table.Th>Ordem</Table.Th>
+                      <Table.Th>NF</Table.Th>
+                      <Table.Th>Cliente</Table.Th>
+                      <Table.Th>Distância Parcial (km)</Table.Th>
+                      <Table.Th>Status Entrega</Table.Th>
                     </Table.Tr>
-                  )}
-                </Table.Tbody>
-              </Table>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {(detalheModal.sequenciaEntrega as SequenciaEntrega[])
+                      .slice()
+                      .sort((a, b) => a.ordem - b.ordem)
+                      .map((item) => {
+                        const nfMatch = (detalheModal.nfs || []).find(
+                          (nf: any) => (nf.nfeId || nf.id) === item.nfeId
+                        )
+                        return (
+                          <Table.Tr key={item.nfeId}>
+                            <Table.Td fw={600}>{item.ordem}</Table.Td>
+                            <Table.Td>
+                              {nfMatch?.nfe?.numero || nfMatch?.nfe?.nNF || '-'}
+                            </Table.Td>
+                            <Table.Td>{item.clienteRazaoSocial}</Table.Td>
+                            <Table.Td>
+                              {item.distanciaParcialKm != null
+                                ? `${Number(item.distanciaParcialKm).toFixed(2)} km`
+                                : '—'}
+                            </Table.Td>
+                            <Table.Td>
+                              {nfMatch?.statusEntrega ? (
+                                <Badge
+                                  color={nfMatch.statusEntrega === 'ENTREGUE' ? 'green' : 'red'}
+                                  variant="light"
+                                >
+                                  {nfMatch.statusEntrega}
+                                </Badge>
+                              ) : (
+                                <Text size="sm" c="dimmed">Pendente</Text>
+                              )}
+                            </Table.Td>
+                          </Table.Tr>
+                        )
+                      })}
+                  </Table.Tbody>
+                </Table>
+              ) : (
+                /* Romaneio without sequence: original order, no Ordem/Distância columns */
+                <Table withTableBorder striped>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>NF</Table.Th>
+                      <Table.Th>Cliente</Table.Th>
+                      <Table.Th>Status Entrega</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {(detalheModal.nfs || []).map((nf: any, idx: number) => (
+                      <Table.Tr key={idx}>
+                        <Table.Td>{nf.nfe?.numero || nf.nfe?.nNF || '-'}</Table.Td>
+                        <Table.Td>{nf.nfe?.vendaEfetivada?.pedidoVenda?.cliente?.razaoSocial || '-'}</Table.Td>
+                        <Table.Td>
+                          {nf.statusEntrega ? (
+                            <Badge
+                              color={nf.statusEntrega === 'ENTREGUE' ? 'green' : 'red'}
+                              variant="light"
+                            >
+                              {nf.statusEntrega}
+                            </Badge>
+                          ) : (
+                            <Text size="sm" c="dimmed">Pendente</Text>
+                          )}
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                    {(detalheModal.nfs || []).length === 0 && (
+                      <Table.Tr>
+                        <Table.Td colSpan={3} className="text-center py-4 text-zinc-500">
+                          Nenhuma NF associada
+                        </Table.Td>
+                      </Table.Tr>
+                    )}
+                  </Table.Tbody>
+                </Table>
+              )}
+
+              {/* Otimizar Rota Panel */}
+              <OtimizarRotaPanel
+                mapaId={detalheModal.id}
+                status={detalheModal.status}
+                nfs={(detalheModal.nfs || []).map((nf: any) => ({
+                  nfeId: nf.nfeId || nf.id,
+                }))}
+              />
 
               <Group justify="flex-end">
                 <Button variant="default" onClick={() => setDetalheModal(null)}>

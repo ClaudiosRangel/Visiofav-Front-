@@ -39,6 +39,8 @@ const produtoSchema = z.object({
   precoBase: z.number().min(0).optional(),
   status: z.boolean().default(true),
   shelfLifeMinimo: z.number().int().positive().nullable().optional(),
+  classificacaoPcp: z.string().nullable().optional(),
+  tipoFisico: z.string().nullable().optional(),
   // Código de barras
   cEAN: z.string().max(14).optional(),
   // Fiscal
@@ -91,7 +93,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<ProdutoForm>({
     resolver: zodResolver(produtoSchema),
-    defaultValues: { codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 },
+    defaultValues: { codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 },
   })
 
   useEffect(() => {
@@ -104,6 +106,8 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
         precoBase: Number(editData.precoBase) || 0,
         status: editData.status ?? true,
         shelfLifeMinimo: editData.shelfLifeMinimo ?? null,
+        classificacaoPcp: editData.classificacaoPcp || null,
+        tipoFisico: editData.tipoFisico || null,
         cEAN: editData.cEAN || editData.codigoBarra || '',
         ncm: editData.ncm || '',
         cfopEstadual: editData.cfopEstadual || '',
@@ -120,7 +124,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
       })
       setImagemUrl(editData.imagemUrl || null)
     } else {
-      reset({ codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 })
+      reset({ codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 })
       setImagemUrl(null)
     }
   }, [editData, reset, opened])
@@ -356,7 +360,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
                 {(!saldosResp || saldosResp.length === 0) && !saldosLoading && (
                   <Text size="sm" c="dimmed" ta="center" py="xl">
                     Nenhum saldo em estoque para este produto.
-                    <Text size="xs" c="dimmed" mt={4}>Os saldos aparecem após o endereçamento na conferência de entrada.</Text>
+                    <Text component="span" size="xs" c="dimmed" mt={4} display="block">Os saldos aparecem após o endereçamento na conferência de entrada.</Text>
                   </Text>
                 )}
                 {saldosResp && saldosResp.length > 0 && (

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, Card, Group, Text, TextInput, Table, ActionIcon, Tooltip, Modal, LoadingOverlay } from '@mantine/core'
+import { Button, Card, Group, Text, TextInput, Table, ActionIcon, Tooltip, Modal, LoadingOverlay, Divider } from '@mantine/core'
 import { IconSearch, IconEdit, IconRefresh } from '@tabler/icons-react'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
@@ -9,6 +9,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { notifications } from '@mantine/notifications'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { GeocodificarEmpresaButton } from '@/components/geo/GeocodificarEmpresaButton'
+import { GEO_KEYS } from '@/data/types/geo'
 
 const schema = z.object({ valor: z.string().optional() })
 type FormValues = z.infer<typeof schema>
@@ -23,6 +25,15 @@ export default function ParametrosPage() {
     queryFn: async () => { const { data } = await api.get('/parametros', { params: { search: search || undefined } }); return data },
     staleTime: 1000 * 60 * 5,
   })
+
+  const { data: empresa } = useQuery<any>({
+    queryKey: [GEO_KEYS.empresa],
+    queryFn: async () => { const { data } = await api.get('/empresas/minha'); return data },
+    staleTime: 1000 * 60 * 5,
+  })
+
+  const temEndereco = !!(empresa?.cep || empresa?.cidade)
+  const temCoordenadas = !!(empresa?.latitude && empresa?.longitude)
 
   const qc = useQueryClient()
   const atualizar = useMutation({
@@ -64,6 +75,32 @@ export default function ParametrosPage() {
           </Table.Tbody>
         </Table>
       </Card>
+      <Divider my="xl" />
+
+      <Text size="xl" fw={600} mb="lg">Geolocalização da Empresa</Text>
+      <Card>
+        <Group gap="xl" mb="md">
+          <TextInput
+            label="Latitude"
+            value={empresa?.latitude != null ? String(empresa.latitude) : ''}
+            readOnly
+            placeholder="Não definida"
+            className="w-48"
+          />
+          <TextInput
+            label="Longitude"
+            value={empresa?.longitude != null ? String(empresa.longitude) : ''}
+            readOnly
+            placeholder="Não definida"
+            className="w-48"
+          />
+        </Group>
+        <GeocodificarEmpresaButton
+          temEndereco={temEndereco}
+          temCoordenadas={temCoordenadas}
+        />
+      </Card>
+
       <Modal opened={modalOpen} onClose={() => setModalOpen(false)} title="Editar Parâmetro" centered closeOnClickOutside={false}>
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="flex flex-col gap-3 mb-4">

@@ -10,6 +10,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { useRouter, useParams } from 'next/navigation'
+import { DistanciaClienteInfo } from '@/components/geo/DistanciaClienteInfo'
+import { GEO_KEYS } from '@/data/types/geo'
 
 const statusColors: Record<string, string> = {
   RASCUNHO: 'gray', CONFIRMADO: 'blue', EM_SEPARACAO: 'orange', FATURADO: 'green', CANCELADO: 'red',
@@ -27,6 +29,24 @@ export default function DetalhePedidoVendaPage() {
   const { data: pedido, isLoading } = useQuery<any>({
     queryKey: ['pedido-venda', id],
     queryFn: async () => { const { data } = await api.get(`/pedidos-venda/${id}`); return data },
+  })
+
+  const { data: empresa } = useQuery<any>({
+    queryKey: [GEO_KEYS.empresa],
+    queryFn: async () => { const { data } = await api.get('/empresas/minha'); return data },
+    staleTime: 1000 * 60 * 5,
+  })
+
+  const clienteId = pedido?.cliente?.id
+  const { data: clienteDetalhe } = useQuery<any>({
+    queryKey: ['cliente-detalhe', clienteId],
+    queryFn: async () => {
+      const { data } = await api.get('/clientes', { params: { busca: clienteId, limit: 1 } })
+      const lista = data?.data || data
+      return Array.isArray(lista) ? lista.find((c: any) => c.id === clienteId) : null
+    },
+    enabled: !!clienteId,
+    staleTime: 1000 * 60 * 5,
   })
 
   const confirmar = useMutation({
@@ -77,6 +97,15 @@ export default function DetalhePedidoVendaPage() {
           <div><Text size="sm" c="dimmed">Tabela de Preço</Text><Text>{pedido.tabelaPreco?.nome || '—'}</Text></div>
           <div><Text size="sm" c="dimmed">Valor Total</Text><Text fw={600} size="lg">{Number(pedido.valorTotal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</Text></div>
         </div>
+        {clienteId && (
+          <div className="mt-4">
+            <DistanciaClienteInfo
+              clienteId={clienteId}
+              clienteTemCoordenadas={!!(clienteDetalhe?.latitude && clienteDetalhe?.longitude)}
+              empresaTemCoordenadas={!!(empresa?.latitude && empresa?.longitude)}
+            />
+          </div>
+        )}
       </Card>
 
       <Card mb="md">

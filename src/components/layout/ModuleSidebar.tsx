@@ -17,6 +17,8 @@ import {
   IconEye, IconDatabase,
   // Integração
   IconKey, IconWebhook, IconUpload,
+  // PCP
+  IconAssembly, IconListDetails, IconCalendarEvent, IconRoute, IconSitemap, IconTool, IconClock, IconPalette,
 } from '@tabler/icons-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
@@ -192,6 +194,30 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       },
     ],
   },
+  pcp: {
+    title: 'PCP',
+    entries: [
+      { icon: IconHome, label: 'Dashboard', href: '/pcp/dashboard' },
+      { icon: IconListDetails, label: 'Ordens de Produção', href: '/pcp/ordens-producao' },
+      { icon: IconAssembly, label: 'Kanban', href: '/pcp/kanban' },
+      { icon: IconCalendarEvent, label: 'Programação', href: '/pcp/programacao' },
+      { icon: IconClipboardCheck, label: 'Apontamentos', href: '/pcp/apontamentos' },
+      { icon: IconPackage, label: 'Liberação de Materiais', href: '/pcp/liberacoes' },
+      { icon: IconArrowsExchange, label: 'Conversão de Unidades', href: '/pcp/conversao' },
+      {
+        label: 'Cadastros', icon: IconDatabase, items: [
+          { icon: IconTool, label: 'Centros de Produção', href: '/pcp/cadastros/centros' },
+          { icon: IconTool, label: 'Recursos', href: '/pcp/cadastros/recursos' },
+          { icon: IconClock, label: 'Turnos', href: '/pcp/cadastros/turnos' },
+          { icon: IconSitemap, label: 'Estruturas (BOM)', href: '/pcp/cadastros/estruturas' },
+          { icon: IconRoute, label: 'Roteiros', href: '/pcp/cadastros/roteiros' },
+          { icon: IconPalette, label: 'Atributos Gráficos', href: '/pcp/cadastros/atributos-graficos' },
+          { icon: IconPackage, label: 'Produtos (PCP)', href: '/pcp/cadastros/produtos' },
+        ],
+      },
+      { icon: IconSettings, label: 'Configuração PCP', href: '/pcp/configuracao' },
+    ],
+  },
 }
 
 function detectModule(pathname: string): string | null {
@@ -199,6 +225,7 @@ function detectModule(pathname: string): string | null {
   if (pathname.startsWith('/vendas')) return 'vendas'
   if (pathname.startsWith('/financeiro')) return 'financeiro'
   if (pathname.startsWith('/fiscal')) return 'fiscal'
+  if (pathname.startsWith('/pcp')) return 'pcp'
   if (pathname.startsWith('/configurador/produtos')) return 'compras'
   if (pathname.startsWith('/configurador/fornecedores')) return 'compras'
   if (pathname.startsWith('/configurador/clientes')) return 'vendas'

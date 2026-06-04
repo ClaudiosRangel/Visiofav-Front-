@@ -1,13 +1,16 @@
 'use client'
 
-import { Modal, TextInput, Button, Group, Select, Tabs } from '@mantine/core'
+import { Modal, TextInput, Button, Group, Select, Tabs, Tooltip } from '@mantine/core'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { IconRoute } from '@tabler/icons-react'
 import { api } from '@/lib/api'
+import { GeocodificarClienteButton } from '@/components/geo/GeocodificarClienteButton'
+import { SugestaoRotaModal } from '@/components/geo/SugestaoRotaModal'
 
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(u => ({ value: u, label: u }))
 
@@ -35,6 +38,10 @@ interface Props { opened: boolean; onClose: () => void; editData?: any }
 export default function ClienteModal({ opened, onClose, editData }: Props) {
   const queryClient = useQueryClient()
   const isEditing = !!editData
+  const [sugestaoModalOpen, setSugestaoModalOpen] = useState(false)
+
+  const temEndereco = !!(editData?.cep || editData?.cidade)
+  const temCoordenadas = !!(editData?.latitude && editData?.longitude)
 
   // Buscar rotas disponíveis
   const { data: rotasResp } = useQuery<any>({
@@ -85,29 +92,33 @@ export default function ClienteModal({ opened, onClose, editData }: Props) {
   return (
     <Modal opened={opened} onClose={onClose} title={isEditing ? 'Editar Cliente' : 'Novo Cliente'} size="xl" centered closeOnClickOutside={false}>
       <form onSubmit={handleSubmit(onSubmit)}>
+        {/* MAIN FIELDS - Always visible above tabs */}
+        <div className="flex flex-col gap-4 mb-4">
+          <Controller name="razaoSocial" control={control} render={({ field }) => (
+            <TextInput label={<>Razão Social / Nome <span style={{ color: 'red' }}>*</span></>} error={errors.razaoSocial?.message} {...field} />
+          )} />
+          <Controller name="nomeFantasia" control={control} render={({ field }) => (
+            <TextInput label="Nome Fantasia" {...field} />
+          )} />
+          <Controller name="cpfCnpj" control={control} render={({ field }) => (
+            <TextInput label={<>CPF / CNPJ <span style={{ color: 'red' }}>*</span></>} placeholder="000.000.000-00 ou 00.000.000/0000-00" error={errors.cpfCnpj?.message} {...field} />
+          )} />
+        </div>
+
+        {/* TABS - Secondary grouped fields */}
         <Tabs defaultValue="dados">
           <Tabs.List mb="md">
             <Tabs.Tab value="dados">Dados Cadastrais</Tabs.Tab>
             <Tabs.Tab value="endereco">Endereço</Tabs.Tab>
             <Tabs.Tab value="contato">Contato</Tabs.Tab>
+            {isEditing && <Tabs.Tab value="geolocalizacao">Geolocalização</Tabs.Tab>}
           </Tabs.List>
 
           <Tabs.Panel value="dados">
             <div className="flex flex-col gap-4">
-              <Controller name="razaoSocial" control={control} render={({ field }) => (
-                <TextInput label={<>Razão Social / Nome <span style={{ color: 'red' }}>*</span></>} error={errors.razaoSocial?.message} {...field} />
+              <Controller name="inscEstadual" control={control} render={({ field }) => (
+                <TextInput label="Inscrição Estadual" placeholder="Isento ou número" {...field} />
               )} />
-              <Controller name="nomeFantasia" control={control} render={({ field }) => (
-                <TextInput label="Nome Fantasia" {...field} />
-              )} />
-              <div className="grid grid-cols-2 gap-4">
-                <Controller name="cpfCnpj" control={control} render={({ field }) => (
-                  <TextInput label={<>CPF / CNPJ <span style={{ color: 'red' }}>*</span></>} placeholder="000.000.000-00 ou 00.000.000/0000-00" error={errors.cpfCnpj?.message} {...field} />
-                )} />
-                <Controller name="inscEstadual" control={control} render={({ field }) => (
-                  <TextInput label="Inscrição Estadual" placeholder="Isento ou número" {...field} />
-                )} />
-              </div>
               <Controller name="rotaId" control={control} render={({ field }) => (
                 <Select
                   label="Rota de Entrega"
@@ -165,6 +176,38 @@ export default function ClienteModal({ opened, onClose, editData }: Props) {
               )} />
             </div>
           </Tabs.Panel>
+
+          {isEditing && (
+            <Tabs.Panel value="geolocalizacao">
+              <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <TextInput label="Latitude" value={editData?.latitude ?? ''} readOnly disabled />
+                  <TextInput label="Longitude" value={editData?.longitude ?? ''} readOnly disabled />
+                </div>
+                <Group>
+                  <GeocodificarClienteButton
+                    clienteId={editData.id}
+                    temEndereco={temEndereco}
+                    temCoordenadas={temCoordenadas}
+                  />
+                  <Tooltip
+                    label={temCoordenadas ? 'Sugerir rota por proximidade' : 'Cliente precisa ser geocodificado primeiro'}
+                  >
+                    <span>
+                      <Button
+                        variant="light"
+                        leftSection={<IconRoute size={16} />}
+                        disabled={!temCoordenadas}
+                        onClick={() => setSugestaoModalOpen(true)}
+                      >
+                        Sugerir Rota
+                      </Button>
+                    </span>
+                  </Tooltip>
+                </Group>
+              </div>
+            </Tabs.Panel>
+          )}
         </Tabs>
 
         <Group justify="flex-end" mt="md">
@@ -172,6 +215,26 @@ export default function ClienteModal({ opened, onClose, editData }: Props) {
           <Button type="submit" loading={criar.isPending || atualizar.isPending}>Salvar</Button>
         </Group>
       </form>
+
+      {isEditing && (
+        <SugestaoRotaModal
+          opened={sugestaoModalOpen}
+          onClose={() => setSugestaoModalOpen(false)}
+          clienteId={editData.id}
+          onRotaSelecionada={(rotaId) => {
+            setSugestaoModalOpen(false)
+            // Update the rotaId on the client via the API
+            atualizar.mutate(
+              { id: editData.id, rotaId },
+              {
+                onSuccess: () => {
+                  notifications.show({ title: 'Sucesso', message: 'Rota vinculada ao cliente', color: 'green' })
+                },
+              }
+            )
+          }}
+        />
+      )}
     </Modal>
   )
 }

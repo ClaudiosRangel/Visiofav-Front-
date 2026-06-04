@@ -260,7 +260,8 @@ export default function VendedoresPage() {
         closeOnClickOutside={false}
       >
         <form onSubmit={handleSubmit(onSubmit)}>
-          <div className="flex flex-col gap-4">
+          {/* MAIN FIELDS - Always visible at top */}
+          <div className="flex flex-col gap-4 mb-4">
             <Controller
               name="nome"
               control={control}
@@ -273,37 +274,39 @@ export default function VendedoresPage() {
                 />
               )}
             />
-            <div className="flex gap-4 w-full">
-              <Controller
-                name="cpf"
-                control={control}
-                render={({ field }) => (
-                  <TextInput
-                    label={<>CPF <span style={{ color: 'red' }}>*</span></>}
-                    error={errors.cpf?.message}
-                    className="w-6/12"
-                    {...field}
-                  />
-                )}
-              />
-              <Controller
-                name="comissao"
-                control={control}
-                render={({ field }) => (
-                  <NumberInput
-                    label={<>Comissão (%) <span style={{ color: 'red' }}>*</span></>}
-                    error={errors.comissao?.message}
-                    min={0}
-                    max={100}
-                    decimalScale={2}
-                    className="w-6/12"
-                    value={field.value}
-                    onChange={(val) => field.onChange(typeof val === 'string' ? parseFloat(val) || 0 : val)}
-                  />
-                )}
-              />
-            </div>
+            <Controller
+              name="cpf"
+              control={control}
+              render={({ field }) => (
+                <TextInput
+                  label={<>CPF <span style={{ color: 'red' }}>*</span></>}
+                  error={errors.cpf?.message}
+                  {...field}
+                />
+              )}
+            />
           </div>
+
+          {/* SECONDARY FIELDS - Dados */}
+          <div className="flex flex-col gap-4">
+            <Controller
+              name="comissao"
+              control={control}
+              render={({ field }) => (
+                <NumberInput
+                  label={<>Comissão (%) <span style={{ color: 'red' }}>*</span></>}
+                  error={errors.comissao?.message}
+                  min={0}
+                  max={100}
+                  decimalScale={2}
+                  className="max-w-xs"
+                  value={field.value}
+                  onChange={(val) => field.onChange(typeof val === 'string' ? parseFloat(val) || 0 : val)}
+                />
+              )}
+            />
+          </div>
+
           <Group justify="flex-end" mt="md">
             <Button variant="default" onClick={() => setModalOpen(false)}>
               Cancelar

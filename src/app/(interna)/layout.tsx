@@ -36,7 +36,7 @@ export default function InternaLayout({ children }: { children: React.ReactNode 
     return (
       <div className="min-h-screen flex flex-col">
         <Header />
-        <main className="p-6 max-w-5xl mx-auto flex-1">{children}</main>
+        <main className="flex-1">{children}</main>
         <footer className="text-right text-xs text-zinc-400 px-4 py-2">
           {footerText}
         </footer>

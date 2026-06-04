@@ -10,6 +10,7 @@ import {
   IconTruck,
   IconSettings,
   IconTrash,
+  IconAssembly,
 } from '@tabler/icons-react'
 import { useRouter } from 'next/navigation'
 import { useEmpresa } from '@/providers/EmpresaProvider'
@@ -22,8 +23,9 @@ const MODULOS_CONFIG = [
   { modulo: 'VENDAS', label: 'Vendas', icon: IconReceipt, href: '/vendas/pedidos', color: 'green' },
   { modulo: 'FINANCEIRO', label: 'Financeiro', icon: IconCash, href: '/financeiro/contas-pagar', color: 'yellow' },
   { modulo: 'WMS', label: 'WMS', icon: IconBuildingWarehouse, href: '/recebimento', color: 'primary' },
+  { modulo: 'PCP', label: 'PCP', icon: IconAssembly, href: '/pcp/dashboard', color: 'violet' },
   { modulo: 'CTE', label: 'Fiscal', icon: IconTruck, href: '/fiscal/nfe', color: 'orange' },
-  { modulo: 'PCP', label: 'Configurador', icon: IconSettings, href: '/configurador', color: 'grape' },
+  { modulo: 'CONFIGURADOR', label: 'Configurador', icon: IconSettings, href: '/configurador', color: 'grape' },
 ] as const
 
 export default function ModulosPage() {
@@ -34,10 +36,14 @@ export default function ModulosPage() {
   const [cleanupOpen, setCleanupOpen] = useState(false)
   const [senha, setSenha] = useState('')
   const [loading, setLoading] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
 
-  const modulosVisiveis = MODULOS_CONFIG.filter((m) => modulos.includes(m.modulo))
-  const perfil = getUserPerfil()
-  const isAdmin = perfil === 'SUPER_ADMIN'
+  const modulosVisiveis = MODULOS_CONFIG.filter((m) => m.modulo === 'CONFIGURADOR' || modulos.includes(m.modulo))
+
+  useEffect(() => {
+    const perfil = getUserPerfil()
+    setIsAdmin(perfil === 'SUPER_ADMIN')
+  }, [])
 
   async function handleCleanup() {
     if (!senha) return
@@ -80,14 +86,35 @@ export default function ModulosPage() {
   }
 
   return (
-    <Stack gap="lg">
-      <Title order={2}>
-        Módulos{empresa ? ` — ${empresa.nomeFantasia || empresa.razaoSocial}` : ''}
-      </Title>
+    <div style={{ display: 'flex', minHeight: 'calc(100vh - 120px)', gap: 0 }}>
+      {/* Lado esquerdo — Logo grande */}
+      <div style={{
+        flex: '0 0 320px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+        borderRight: '1px solid #e2e8f0',
+        borderRadius: '0 24px 24px 0',
+      }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/logo.jpeg"
+          alt="VisioFab"
+          style={{ width: 200, height: 200, objectFit: 'contain', filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.1))' }}
+        />
+      </div>
 
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
-        {modulosVisiveis.map((m) => (
-          <UnstyledButton key={m.modulo} onClick={() => window.open(m.href, '_blank')}>
+      {/* Lado direito — Módulos */}
+      <div style={{ flex: 1, padding: '24px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <Stack gap="lg">
+          <Title order={2}>
+            Módulos{empresa ? ` — ${empresa.nomeFantasia || empresa.razaoSocial}` : ''}
+          </Title>
+
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
+            {modulosVisiveis.map((m) => (
+          <UnstyledButton key={m.label} onClick={() => window.open(m.href, '_blank')}>
             <Card withBorder style={{ cursor: 'pointer' }} className="hover:shadow-md transition-shadow">
               <Stack align="center" gap="sm" py="md">
                 <ThemeIcon color={m.color} variant="light" size={56} radius="md">
@@ -151,6 +178,8 @@ export default function ModulosPage() {
           </Stack>
         </Modal>
       )}
-    </Stack>
+        </Stack>
+      </div>
+    </div>
   )
 }

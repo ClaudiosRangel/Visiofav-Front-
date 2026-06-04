@@ -53,7 +53,7 @@ const PERFIS = [
   { value: 'OPERADOR', label: 'Operador' },
 ]
 
-const ALL_MODULES = ['WMS', 'COMPRAS', 'VENDAS', 'FINANCEIRO', 'FISCAL']
+const ALL_MODULES = ['WMS', 'COMPRAS', 'VENDAS', 'FINANCEIRO', 'FISCAL', 'PCP']
 
 const perfilColor: Record<string, string> = { ADMIN: 'red', SUPERVISOR: 'orange', OPERADOR: 'blue' }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { Modal, TextInput, Button, Group, Select, Tabs, Divider } from '@mantine/core'
+import { Modal, TextInput, Button, Group, Select, Tabs } from '@mantine/core'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -76,6 +76,20 @@ export default function FornecedorModal({ opened, onClose, editData }: Props) {
   return (
     <Modal opened={opened} onClose={onClose} title={isEditing ? 'Editar Fornecedor' : 'Novo Fornecedor'} size="xl" centered closeOnClickOutside={false}>
       <form onSubmit={handleSubmit(onSubmit)}>
+        {/* MAIN FIELDS - Always visible above tabs */}
+        <div className="flex flex-col gap-4 mb-4">
+          <Controller name="razaoSocial" control={control} render={({ field }) => (
+            <TextInput label={<>Razão Social <span style={{ color: 'red' }}>*</span></>} error={errors.razaoSocial?.message} {...field} />
+          )} />
+          <Controller name="nomeFantasia" control={control} render={({ field }) => (
+            <TextInput label="Nome Fantasia" {...field} />
+          )} />
+          <Controller name="cnpj" control={control} render={({ field }) => (
+            <TextInput label={<>CNPJ <span style={{ color: 'red' }}>*</span></>} placeholder="00.000.000/0000-00" error={errors.cnpj?.message} {...field} />
+          )} />
+        </div>
+
+        {/* TABS - Secondary grouped fields */}
         <Tabs defaultValue="dados">
           <Tabs.List mb="md">
             <Tabs.Tab value="dados">Dados Cadastrais</Tabs.Tab>
@@ -85,20 +99,9 @@ export default function FornecedorModal({ opened, onClose, editData }: Props) {
 
           <Tabs.Panel value="dados">
             <div className="flex flex-col gap-4">
-              <Controller name="razaoSocial" control={control} render={({ field }) => (
-                <TextInput label={<>Razão Social <span style={{ color: 'red' }}>*</span></>} error={errors.razaoSocial?.message} {...field} />
+              <Controller name="inscEstadual" control={control} render={({ field }) => (
+                <TextInput label="Inscrição Estadual" placeholder="Isento ou número" {...field} />
               )} />
-              <Controller name="nomeFantasia" control={control} render={({ field }) => (
-                <TextInput label="Nome Fantasia" {...field} />
-              )} />
-              <div className="grid grid-cols-2 gap-4">
-                <Controller name="cnpj" control={control} render={({ field }) => (
-                  <TextInput label={<>CNPJ <span style={{ color: 'red' }}>*</span></>} placeholder="00.000.000/0000-00" error={errors.cnpj?.message} {...field} />
-                )} />
-                <Controller name="inscEstadual" control={control} render={({ field }) => (
-                  <TextInput label="Inscrição Estadual" placeholder="Isento ou número" {...field} />
-                )} />
-              </div>
             </div>
           </Tabs.Panel>
 
