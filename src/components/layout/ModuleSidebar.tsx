@@ -19,6 +19,8 @@ import {
   IconKey, IconWebhook, IconUpload,
   // PCP
   IconAssembly, IconListDetails, IconCalendarEvent, IconRoute, IconSitemap, IconTool, IconClock, IconPalette,
+  // Configurador
+  IconBuilding,
 } from '@tabler/icons-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
@@ -167,6 +169,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       // ── CONFIGURAÇÕES ──
       {
         label: 'Configurações', icon: IconSettings, items: [
+          { icon: IconSettings, label: 'Empresa', href: '/configurador/empresa' },
           { icon: IconSettings, label: 'Centros Distrib.', href: '/configurador/centros-distribuicao' },
           { icon: IconSettings, label: 'Depósitos', href: '/configurador/depositos' },
           { icon: IconSettings, label: 'Zonas', href: '/configurador/zonas' },
@@ -183,6 +186,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
   configurador: {
     title: 'Configurador',
     entries: [
+      { icon: IconBuilding, label: 'Empresa', href: '/configurador/empresa' },
       { icon: IconUsers, label: 'Vendedores', href: '/configurador/vendedores' },
       { icon: IconSettings, label: 'Tributação', href: '/configurador/tributacao' },
       {
@@ -231,6 +235,7 @@ function detectModule(pathname: string): string | null {
   if (pathname.startsWith('/configurador/clientes')) return 'vendas'
   if (pathname.startsWith('/configurador/vendedores')) return 'vendas'
   if (pathname.startsWith('/configurador/tributacao')) return 'fiscal'
+  if (pathname.startsWith('/configurador/empresa')) return 'configurador'
   if (pathname.startsWith('/configurador/integracao')) return 'configurador'
   if (pathname.startsWith('/configurador/centros-distribuicao')) return 'wms'
   if (pathname.startsWith('/configurador/depositos')) return 'wms'
