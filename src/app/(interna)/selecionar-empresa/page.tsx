@@ -77,11 +77,11 @@ export default function SelecionarEmpresaPage() {
   })
 
   // Query para gerenciamento (admin only)
-  const { data: empresasAdmin, isLoading: isLoadingAdmin } = useQuery<EmpresaAdmin[]>({
+  const { data: empresasAdmin, isLoading: isLoadingAdmin, error: errorAdmin } = useQuery<EmpresaAdmin[]>({
     queryKey: ['empresas-admin'],
     queryFn: async () => {
       const { data } = await api.get('/empresas')
-      return data.data
+      return data.data || data
     },
     enabled: isAdmin && modoGerenciar,
   })
