@@ -106,6 +106,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       {
         label: 'Recebimento', icon: IconTruckDelivery, items: [
           { icon: IconClipboardCheck, label: 'Agenda de Docas', href: '/wms/agenda' },
+          { icon: IconCalendarEvent, label: 'Agenda Avançada', href: '/wms/agenda-doca' },
           { icon: IconTruckDelivery, label: 'Portaria', href: '/wms/portaria' },
           { icon: IconTruckDelivery, label: 'Notas de Entrada', href: '/recebimento' },
           { icon: IconClipboardCheck, label: 'Conferência de Entrada', href: '/wms/conferencia-entrada' },
@@ -121,6 +122,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconPackage, label: 'Embalagem', href: '/expedicao' },
           { icon: IconTruckDelivery, label: 'Montagem de Carga', href: '/wms/montagem-carga' },
           { icon: IconTruck, label: 'Mapas de Carregamento', href: '/wms/mapas-carregamento' },
+          { icon: IconArrowsExchange, label: 'Cross-Docking', href: '/wms/cross-dock' },
         ],
       },
 
@@ -144,11 +146,22 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
         ],
       },
 
+      // ── CONFIGURAÇÃO WMS ──
+      {
+        label: 'Configuração WMS', icon: IconSettings, items: [
+          { icon: IconBarcode, label: 'Etiquetas ZPL', href: '/wms/etiquetas/templates' },
+          { icon: IconBarcode, label: 'Impressoras', href: '/wms/etiquetas/impressoras' },
+          { icon: IconBarcode, label: 'Fila de Impressão', href: '/wms/etiquetas/fila' },
+        ],
+      },
+
       // ── RELATÓRIOS E GESTÃO ──
       {
         label: 'Gestão', icon: IconChartBar, items: [
+          { icon: IconChartBar, label: 'KPI / SLA', href: '/wms/kpi' },
           { icon: IconChartBar, label: 'Relatórios WMS', href: '/wms/relatorios' },
           { icon: IconTruckDelivery, label: 'Relatórios Expedição', href: '/wms/relatorios-expedicao' },
+          { icon: IconArrowBack, label: 'Devoluções', href: '/wms/logistica-reversa' },
           { icon: IconEye, label: 'Auditoria', href: '/wms/auditoria' },
         ],
       },
