@@ -155,6 +155,86 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
         ],
       },
 
+      // ── FASE 2 — ESCALAR ──
+      {
+        label: 'Faturamento', icon: IconCash, items: [
+          { icon: IconCash, label: 'Dashboard', href: '/wms/faturamento' },
+          { icon: IconCash, label: 'Contratos', href: '/wms/faturamento/contratos' },
+          { icon: IconCash, label: 'Faturas', href: '/wms/faturamento/faturas' },
+          { icon: IconChartBar, label: 'Relatórios', href: '/wms/faturamento/relatorios' },
+        ],
+      },
+      {
+        label: 'Picking Zona', icon: IconPackage, items: [
+          { icon: IconPackage, label: 'Zonas', href: '/wms/picking-zona' },
+          { icon: IconPackage, label: 'Separadores', href: '/wms/picking-zona/separadores' },
+          { icon: IconPackage, label: 'Painel', href: '/wms/picking-zona/painel' },
+          { icon: IconPackage, label: 'Dividir Onda', href: '/wms/picking-zona/dividir-onda' },
+        ],
+      },
+      {
+        label: 'LMS', icon: IconChartBar, items: [
+          { icon: IconChartBar, label: 'Dashboard', href: '/wms/lms' },
+          { icon: IconChartBar, label: 'Metas', href: '/wms/lms/metas' },
+          { icon: IconChartBar, label: 'Ranking', href: '/wms/lms/ranking' },
+          { icon: IconChartBar, label: 'Incentivos', href: '/wms/lms/incentivos' },
+          { icon: IconChartBar, label: 'Pausas', href: '/wms/lms/pausas' },
+        ],
+      },
+      {
+        label: 'Pátio', icon: IconTruckDelivery, items: [
+          { icon: IconTruckDelivery, label: 'Painel', href: '/wms/patio' },
+          { icon: IconTruckDelivery, label: 'Entrada', href: '/wms/patio/entrada' },
+          { icon: IconTruckDelivery, label: 'Fila', href: '/wms/patio/fila' },
+          { icon: IconTruckDelivery, label: 'Chamada Doca', href: '/wms/patio/chamada' },
+          { icon: IconTruckDelivery, label: 'Relatórios', href: '/wms/patio/relatorios' },
+          { icon: IconSettings, label: 'Configuração', href: '/wms/patio/config' },
+        ],
+      },
+      {
+        label: 'Multi-CD', icon: IconArrowsExchange, items: [
+          { icon: IconArrowsExchange, label: 'Transferências', href: '/wms/multi-cd' },
+          { icon: IconArrowsExchange, label: 'Nova Solicitação', href: '/wms/multi-cd/nova-solicitacao' },
+          { icon: IconArrowsExchange, label: 'Estoque Trânsito', href: '/wms/multi-cd/transito' },
+          { icon: IconArrowsExchange, label: 'Aprovações', href: '/wms/multi-cd/aprovacoes' },
+        ],
+      },
+
+      // ── FASE 3 — DIFERENCIAR ──
+      {
+        label: 'Demanda/IA', icon: IconChartBar, items: [
+          { icon: IconChartBar, label: 'Dashboard', href: '/wms/demanda' },
+          { icon: IconChartBar, label: 'Classificação ABC', href: '/wms/demanda/abc' },
+          { icon: IconChartBar, label: 'Slotting', href: '/wms/demanda/slotting' },
+          { icon: IconChartBar, label: 'Previsões', href: '/wms/demanda/previsoes' },
+          { icon: IconChartBar, label: 'Simulação', href: '/wms/demanda/simulacao' },
+        ],
+      },
+      {
+        label: 'BI Avançado', icon: IconChartBar, items: [
+          { icon: IconChartBar, label: 'Dashboard', href: '/wms/bi' },
+          { icon: IconCash, label: 'Custos', href: '/wms/bi/custos' },
+          { icon: IconChartBar, label: 'Correlação', href: '/wms/bi/correlacao' },
+          { icon: IconChartBar, label: 'Alertas', href: '/wms/bi/alertas' },
+          { icon: IconSettings, label: 'Config Custos', href: '/wms/bi/config' },
+        ],
+      },
+      {
+        label: 'Wave Planning', icon: IconPackage, items: [
+          { icon: IconPackage, label: 'Painel', href: '/wms/wave' },
+          { icon: IconPackage, label: 'Regras', href: '/wms/wave/regras' },
+          { icon: IconPackage, label: 'Simular', href: '/wms/wave/simular' },
+          { icon: IconPackage, label: 'Planejamentos', href: '/wms/wave/planejamentos' },
+        ],
+      },
+      {
+        label: 'Portal 3PL', icon: IconEye, items: [
+          { icon: IconEye, label: 'Admin Portal', href: '/wms/portal' },
+          { icon: IconEye, label: 'Usuários', href: '/wms/portal/usuarios' },
+          { icon: IconEye, label: 'Solicitações', href: '/wms/portal/solicitacoes' },
+        ],
+      },
+
       // ── RELATÓRIOS E GESTÃO ──
       {
         label: 'Gestão', icon: IconChartBar, items: [
