@@ -37,13 +37,12 @@ const MOEDA_OPTIONS = [
 ]
 
 const TARIFA_TIPO_OPTIONS = [
-  { value: 'ARMAZENAGEM', label: 'Armazenagem' },
-  { value: 'MOVIMENTACAO', label: 'Movimentação' },
-  { value: 'PICKING', label: 'Picking' },
-  { value: 'EXPEDICAO', label: 'Expedição' },
-  { value: 'RECEBIMENTO', label: 'Recebimento' },
-  { value: 'VALOR_FIXO', label: 'Valor Fixo' },
-  { value: 'AD_VALOREM', label: 'Ad Valorem' },
+  { value: 'PALLET_DIA', label: 'Pallet/Dia' },
+  { value: 'METRO_CUBICO', label: 'Metro Cúbico' },
+  { value: 'MOVIMENTACAO_ENTRADA', label: 'Movimentação Entrada' },
+  { value: 'MOVIMENTACAO_SAIDA', label: 'Movimentação Saída' },
+  { value: 'PERMANENCIA', label: 'Permanência' },
+  { value: 'PICKING_UNITARIO', label: 'Picking Unitário' },
 ]
 
 export function ContratoModal({ opened, onClose, onSuccess }: ContratoModalProps) {
@@ -130,7 +129,7 @@ export function ContratoModal({ opened, onClose, onSuccess }: ContratoModalProps
         .filter((t) => t.tipo && t.valorUnitario !== '')
         .map((t) => ({
           tipo: t.tipo,
-          valorUnitario: Number(t.valorUnitario),
+          valorUnitario: String(Number(t.valorUnitario).toFixed(4)),
           carenciaDias: t.carenciaDias ? Number(t.carenciaDias) : null,
           descricao: t.descricao || null,
         })),
