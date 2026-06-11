@@ -88,13 +88,9 @@ export default function NovaSolicitacaoPage() {
     if (!produtoId || !cdOrigemId) return
     try {
       const { data } = await api.get(`/multi-cd/estoque/${cdOrigemId}/${produtoId}`)
-      const updated = [...itens]
-      updated[index] = { ...updated[index], estoqueDisponivel: data.quantidadeDisponivel ?? 0 }
-      setItens(updated)
+      setItens(prev => prev.map((item, i) => i === index ? { ...item, estoqueDisponivel: data.quantidadeDisponivel ?? 0 } : item))
     } catch {
-      const updated = [...itens]
-      updated[index] = { ...updated[index], estoqueDisponivel: null }
-      setItens(updated)
+      setItens(prev => prev.map((item, i) => i === index ? { ...item, estoqueDisponivel: null } : item))
     }
   }
 
