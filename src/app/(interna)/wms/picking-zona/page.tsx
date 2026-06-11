@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   Card, Group, Text, Table, Badge, Button, TextInput, Modal,
-  LoadingOverlay, ColorSwatch, ColorPicker, Select, Stack,
+  LoadingOverlay, ColorSwatch, Select, Stack,
 } from '@mantine/core'
 import { IconPlus, IconEdit, IconTrash, IconMapPin } from '@tabler/icons-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -196,10 +196,12 @@ export default function PickingZonaPage() {
             onChange={(e) => setCodigo(e.currentTarget.value)}
             required
           />
-          <div>
-            <Text size="sm" fw={500} mb={4}>Cor</Text>
-            <ColorPicker value={cor} onChange={setCor} fullWidth />
-          </div>
+          <TextInput
+            label="Cor (hex)"
+            placeholder="#228be6"
+            value={cor}
+            onChange={(e) => setCor(e.currentTarget.value)}
+          />
           <Select
             label="Ponto de Consolidação"
             placeholder="Selecione (opcional)"
