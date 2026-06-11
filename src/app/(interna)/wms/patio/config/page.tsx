@@ -58,12 +58,13 @@ export default function PatioConfigPage() {
   const mutation = useMutation({
     mutationFn: async () => {
       await api.put('/patio/config', {
-        cdId: Number(cdId),
-        limitePermMinutos,
+        cdId: cdId,
+        limitePermMinutos: Number(limitePermMinutos),
         alertaPermAtivo,
-        prioridadeCarga,
-        prioridadeDescarga,
-        prioridadeUrgente,
+        prioridadeAgendado: Number(prioridadeUrgente) || 10,
+        prioridadeDescarga: Number(prioridadeDescarga) || 5,
+        prioridadeCarga: Number(prioridadeCarga) || 3,
+        prioridadePadrao: 1,
       })
     },
     onSuccess: () => {
