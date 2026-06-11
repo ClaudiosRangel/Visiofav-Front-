@@ -24,24 +24,27 @@ interface Meta {
 const EMPTY_META: Meta = {
   tipoOperacao: '',
   tempoMetaMinutos: 0,
-  unidadeMedida: 'UNIDADE',
-  tolerancia: 10,
+  unidadeMedida: 'POR_ITEM',
+  tolerancia: 15,
   categoriaProduto: '',
 }
 
 const TIPOS_OPERACAO = [
-  { value: 'PICKING', label: 'Picking' },
-  { value: 'PUTAWAY', label: 'Putaway' },
-  { value: 'REABASTECIMENTO', label: 'Reabastecimento' },
+  { value: 'CONFERENCIA', label: 'Conferência' },
+  { value: 'ENDERECAMENTO', label: 'Endereçamento' },
+  { value: 'SEPARACAO', label: 'Separação' },
+  { value: 'CARREGAMENTO', label: 'Carregamento' },
   { value: 'INVENTARIO', label: 'Inventário' },
-  { value: 'EXPEDICAO', label: 'Expedição' },
 ]
 
 const UNIDADES_MEDIDA = [
-  { value: 'UNIDADE', label: 'Unidade' },
-  { value: 'CAIXA', label: 'Caixa' },
-  { value: 'PALETE', label: 'Palete' },
+  { value: 'POR_ITEM', label: 'Por Item' },
+  { value: 'POR_PALLET', label: 'Por Pallet' },
+  { value: 'POR_LINHA', label: 'Por Linha' },
+  { value: 'POR_VOLUME', label: 'Por Volume' },
+  { value: 'PALLET', label: 'Pallet' },
   { value: 'LINHA', label: 'Linha' },
+  { value: 'POSICAO', label: 'Posição' },
 ]
 
 export default function LmsMetasPage() {
@@ -64,10 +67,11 @@ export default function LmsMetasPage() {
 
   const salvarMutation = useMutation({
     mutationFn: async (meta: Meta) => {
+      const payload = { ...meta, toleranciaPercentual: meta.tolerancia }
       if (meta.id) {
-        await api.put(`/lms/metas/${meta.id}`, meta)
+        await api.put(`/lms/metas/${meta.id}`, payload)
       } else {
-        await api.post('/lms/metas', meta)
+        await api.post('/lms/metas', payload)
       }
     },
     onSuccess: () => {
@@ -96,7 +100,7 @@ export default function LmsMetasPage() {
   }
 
   function handleEdit(meta: Meta) {
-    setEditingMeta({ ...meta })
+    setEditingMeta({ ...meta, tolerancia: (meta as any).toleranciaPercentual ?? meta.tolerancia ?? 15 })
     open()
   }
 
@@ -134,7 +138,7 @@ export default function LmsMetasPage() {
                 <Table.Td>{meta.tipoOperacao}</Table.Td>
                 <Table.Td>{meta.tempoMetaMinutos}</Table.Td>
                 <Table.Td>{meta.unidadeMedida}</Table.Td>
-                <Table.Td>{meta.tolerancia}%</Table.Td>
+                <Table.Td>{(meta as any).toleranciaPercentual ?? meta.tolerancia}%</Table.Td>
                 <Table.Td>{meta.categoriaProduto || '—'}</Table.Td>
                 <Table.Td>
                   <Group gap="xs">
