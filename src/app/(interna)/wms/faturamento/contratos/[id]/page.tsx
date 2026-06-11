@@ -22,7 +22,7 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 const FATURA_STATUS_COLORS: Record<string, string> = {
-  RASCUNHO: 'gray',
+  GERADA: 'gray',
   ENVIADA: 'blue',
   PAGA: 'green',
   CANCELADA: 'red',
@@ -49,8 +49,8 @@ export default function ContratoDetailPage() {
   const { data: medicoesResp, isLoading: loadingMedicoes } = useQuery<any>({
     queryKey: ['faturamento', 'contratos', id, 'medicoes', medicaoPage],
     queryFn: async () => {
-      const { data } = await api.get(`/faturamento/contratos/${id}/medicoes`, {
-        params: { page: medicaoPage, limit: medicaoLimit },
+      const { data } = await api.get(`/faturamento/medicoes`, {
+        params: { contratoId: id, dataInicio: '2020-01-01', dataFim: '2030-12-31', page: medicaoPage, limit: medicaoLimit },
       })
       return data
     },
@@ -70,8 +70,8 @@ export default function ContratoDetailPage() {
 
   const tarifas = contrato?.tarifas || []
   const medicoes = medicoesResp?.data || []
-  const medicoesTotal = medicoesResp?.total || 0
-  const medicoesTotalPages = Math.ceil(medicoesTotal / medicaoLimit)
+  const medicoesTotal = medicoesResp?.pagination?.total || 0
+  const medicoesTotalPages = medicoesResp?.pagination?.totalPages || 0
   const faturas = faturasResp?.data || []
 
   return (
@@ -186,38 +186,28 @@ export default function ContratoDetailPage() {
             <Table striped highlightOnHover>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Período</Table.Th>
-                  <Table.Th>Tipo Tarifa</Table.Th>
-                  <Table.Th>Quantidade</Table.Th>
-                  <Table.Th>Valor Unitário</Table.Th>
-                  <Table.Th>Subtotal</Table.Th>
-                  <Table.Th>Data</Table.Th>
+                  <Table.Th>Data Medição</Table.Th>
+                  <Table.Th>Pallets</Table.Th>
+                  <Table.Th>Volume (m³)</Table.Th>
+                  <Table.Th>Posições Ocupadas</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {medicoes.map((m: any) => (
                   <Table.Tr key={m.id}>
-                    <Table.Td>{m.periodo || '—'}</Table.Td>
                     <Table.Td>
-                      <Badge variant="light" size="sm">{m.tipoTarifa}</Badge>
-                    </Table.Td>
-                    <Table.Td>{m.quantidade}</Table.Td>
-                    <Table.Td>
-                      {(m.valorUnitario ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: contrato?.moeda || 'BRL' })}
-                    </Table.Td>
-                    <Table.Td>
-                      {(m.subtotal ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: contrato?.moeda || 'BRL' })}
-                    </Table.Td>
-                    <Table.Td>
-                      {m.criadoEm
-                        ? new Date(m.criadoEm).toLocaleDateString('pt-BR')
+                      {m.dataMedicao
+                        ? new Date(m.dataMedicao).toLocaleDateString('pt-BR')
                         : '—'}
                     </Table.Td>
+                    <Table.Td>{m.quantidadePallets ?? 0}</Table.Td>
+                    <Table.Td>{Number(m.volumeM3 ?? 0).toFixed(2)}</Table.Td>
+                    <Table.Td>{m.posicoesOcupadas ?? 0}</Table.Td>
                   </Table.Tr>
                 ))}
                 {medicoes.length === 0 && !loadingMedicoes && (
                   <Table.Tr>
-                    <Table.Td colSpan={6} className="text-center py-4 text-zinc-500">
+                    <Table.Td colSpan={4} className="text-center py-4 text-zinc-500">
                       Nenhuma medição encontrada
                     </Table.Td>
                   </Table.Tr>
@@ -257,7 +247,11 @@ export default function ContratoDetailPage() {
                         {f.numero}
                       </Text>
                     </Table.Td>
-                    <Table.Td>{f.periodo || '—'}</Table.Td>
+                    <Table.Td>
+                      {f.periodoInicio && f.periodoFim
+                        ? `${new Date(f.periodoInicio).toLocaleDateString('pt-BR')} a ${new Date(f.periodoFim).toLocaleDateString('pt-BR')}`
+                        : '—'}
+                    </Table.Td>
                     <Table.Td>
                       {(f.valorTotal ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: contrato?.moeda || 'BRL' })}
                     </Table.Td>
@@ -267,8 +261,8 @@ export default function ContratoDetailPage() {
                       </Badge>
                     </Table.Td>
                     <Table.Td>
-                      {f.dataEmissao
-                        ? new Date(f.dataEmissao).toLocaleDateString('pt-BR')
+                      {f.criadoEm
+                        ? new Date(f.criadoEm).toLocaleDateString('pt-BR')
                         : '—'}
                     </Table.Td>
                   </Table.Tr>

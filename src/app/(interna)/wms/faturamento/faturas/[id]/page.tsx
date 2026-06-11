@@ -13,7 +13,7 @@ import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { notifications } from '@mantine/notifications'
 
 const STATUS_COLORS: Record<string, string> = {
-  RASCUNHO: 'gray',
+  GERADA: 'gray',
   ENVIADA: 'blue',
   PAGA: 'green',
   CANCELADA: 'red',
@@ -37,7 +37,7 @@ export default function FaturaDetailPage() {
 
   const enviarMutation = useMutation({
     mutationFn: async () => {
-      await api.patch(`/faturamento/faturas/${id}/enviar`)
+      await api.put(`/faturamento/faturas/${id}/enviar`)
     },
     onSuccess: () => {
       notifications.show({ title: 'Sucesso', message: 'Fatura enviada', color: 'green' })
@@ -50,7 +50,7 @@ export default function FaturaDetailPage() {
 
   const pagarMutation = useMutation({
     mutationFn: async () => {
-      await api.patch(`/faturamento/faturas/${id}/pagar`)
+      await api.put(`/faturamento/faturas/${id}/pagar`)
     },
     onSuccess: () => {
       notifications.show({ title: 'Sucesso', message: 'Fatura marcada como paga', color: 'green' })
@@ -63,7 +63,7 @@ export default function FaturaDetailPage() {
 
   const cancelarMutation = useMutation({
     mutationFn: async () => {
-      await api.patch(`/faturamento/faturas/${id}/cancelar`)
+      await api.put(`/faturamento/faturas/${id}/cancelar`)
     },
     onSuccess: () => {
       notifications.show({ title: 'Sucesso', message: 'Fatura cancelada', color: 'green' })
@@ -102,13 +102,17 @@ export default function FaturaDetailPage() {
           </Stack>
           <Stack gap="xs">
             <Text size="sm" c="dimmed">Período</Text>
-            <Text fw={500}>{fatura?.periodo || '—'}</Text>
+            <Text fw={500}>
+              {fatura?.periodoInicio && fatura?.periodoFim
+                ? `${new Date(fatura.periodoInicio).toLocaleDateString('pt-BR')} a ${new Date(fatura.periodoFim).toLocaleDateString('pt-BR')}`
+                : '—'}
+            </Text>
           </Stack>
           <Stack gap="xs">
             <Text size="sm" c="dimmed">Data Emissão</Text>
             <Text fw={500}>
-              {fatura?.dataEmissao
-                ? new Date(fatura.dataEmissao).toLocaleDateString('pt-BR')
+              {fatura?.criadoEm
+                ? new Date(fatura.criadoEm).toLocaleDateString('pt-BR')
                 : '—'}
             </Text>
           </Stack>
@@ -179,7 +183,7 @@ export default function FaturaDetailPage() {
       {fatura && (
         <Card withBorder>
           <Group gap="md">
-            {fatura.status === 'RASCUNHO' && (
+            {fatura.status === 'GERADA' && (
               <Button
                 leftSection={<IconSend size={16} />}
                 onClick={() => enviarMutation.mutate()}
@@ -198,7 +202,7 @@ export default function FaturaDetailPage() {
                 Registrar Pagamento
               </Button>
             )}
-            {(fatura.status === 'RASCUNHO' || fatura.status === 'ENVIADA') && (
+            {(fatura.status === 'GERADA' || fatura.status === 'ENVIADA') && (
               <Button
                 color="red"
                 variant="outline"

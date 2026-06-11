@@ -14,7 +14,7 @@ import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 
 const STATUS_COLORS: Record<string, string> = {
-  RASCUNHO: 'gray',
+  GERADA: 'gray',
   ENVIADA: 'blue',
   PAGA: 'green',
   CANCELADA: 'red',
@@ -38,13 +38,37 @@ export default function RelatoriosPage() {
       const params: any = {}
       if (dataInicio) params.dataInicio = dataInicio.toISOString()
       if (dataFim) params.dataFim = dataFim.toISOString()
-      const { data } = await api.get('/faturamento/relatorios', { params })
+      const { data } = await api.get('/faturamento/relatorio', { params })
       return data
     },
   })
 
-  const resumo = resp?.resumo || {}
-  const faturas = resp?.faturas || []
+  // Also fetch faturas for the period to display in the table
+  const { data: faturasResp } = useQuery<any>({
+    queryKey: ['faturamento', 'relatorios', 'faturas', dataInicio, dataFim],
+    queryFn: async () => {
+      const params: any = { limit: 100 }
+      if (dataInicio) params.periodoInicio = dataInicio.toISOString()
+      if (dataFim) params.periodoFim = dataFim.toISOString()
+      const { data } = await api.get('/faturamento/faturas', { params })
+      return data
+    },
+  })
+
+  // Build resumo from totaisPorStatus
+  const totaisPorStatus = resp?.totaisPorStatus || []
+  const resumo = {
+    totalFaturado: Number(
+      totaisPorStatus.find((t: any) => t.status === 'PAGA')?.valor || 0
+    ),
+    aReceber: Number(
+      totaisPorStatus.find((t: any) => t.status === 'ENVIADA')?.valor || 0
+    ),
+    inadimplente: Number(
+      totaisPorStatus.find((t: any) => t.status === 'GERADA')?.valor || 0
+    ),
+  }
+  const faturas = faturasResp?.data || []
 
   function exportCSV() {
     if (!faturas.length) return
@@ -53,10 +77,12 @@ export default function RelatoriosPage() {
     const rows = faturas.map((f: any) => [
       f.numero,
       f.clienteNome || f.clienteId,
-      f.periodo || '',
+      f.periodoInicio && f.periodoFim
+        ? `${new Date(f.periodoInicio).toLocaleDateString('pt-BR')} a ${new Date(f.periodoFim).toLocaleDateString('pt-BR')}`
+        : '',
       (f.valorTotal ?? 0).toFixed(2),
       f.status,
-      f.dataEmissao ? new Date(f.dataEmissao).toLocaleDateString('pt-BR') : '',
+      f.criadoEm ? new Date(f.criadoEm).toLocaleDateString('pt-BR') : '',
     ])
 
     const csv = [headers.join(';'), ...rows.map((r: string[]) => r.join(';'))].join('\n')
@@ -170,7 +196,11 @@ export default function RelatoriosPage() {
               <Table.Tr key={f.id}>
                 <Table.Td className="font-mono">{f.numero}</Table.Td>
                 <Table.Td>{f.clienteNome || f.clienteId}</Table.Td>
-                <Table.Td>{f.periodo || '—'}</Table.Td>
+                <Table.Td>
+                  {f.periodoInicio && f.periodoFim
+                    ? `${new Date(f.periodoInicio).toLocaleDateString('pt-BR')} a ${new Date(f.periodoFim).toLocaleDateString('pt-BR')}`
+                    : '—'}
+                </Table.Td>
                 <Table.Td>
                   {(f.valorTotal ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </Table.Td>
@@ -180,8 +210,8 @@ export default function RelatoriosPage() {
                   </Badge>
                 </Table.Td>
                 <Table.Td>
-                  {f.dataEmissao
-                    ? new Date(f.dataEmissao).toLocaleDateString('pt-BR')
+                  {f.criadoEm
+                    ? new Date(f.criadoEm).toLocaleDateString('pt-BR')
                     : '—'}
                 </Table.Td>
               </Table.Tr>

@@ -17,7 +17,7 @@ import Link from 'next/link'
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Todos' },
-  { value: 'RASCUNHO', label: 'Rascunho' },
+  { value: 'GERADA', label: 'Gerada' },
   { value: 'ENVIADA', label: 'Enviada' },
   { value: 'PAGA', label: 'Paga' },
   { value: 'CANCELADA', label: 'Cancelada' },
@@ -25,7 +25,7 @@ const STATUS_OPTIONS = [
 ]
 
 const STATUS_COLORS: Record<string, string> = {
-  RASCUNHO: 'gray',
+  GERADA: 'gray',
   ENVIADA: 'blue',
   PAGA: 'green',
   CANCELADA: 'red',
@@ -74,12 +74,12 @@ export default function FaturasPage() {
   })
 
   const items = resp?.data || []
-  const total = resp?.total || 0
-  const totalPages = Math.ceil(total / limit)
+  const total = resp?.pagination?.total || 0
+  const totalPages = resp?.pagination?.totalPages || 0
 
   const enviarMutation = useMutation({
     mutationFn: async (faturaId: string) => {
-      await api.patch(`/faturamento/faturas/${faturaId}/enviar`)
+      await api.put(`/faturamento/faturas/${faturaId}/enviar`)
     },
     onSuccess: () => {
       notifications.show({ title: 'Sucesso', message: 'Fatura enviada', color: 'green' })
@@ -92,7 +92,7 @@ export default function FaturasPage() {
 
   const pagarMutation = useMutation({
     mutationFn: async (faturaId: string) => {
-      await api.patch(`/faturamento/faturas/${faturaId}/pagar`)
+      await api.put(`/faturamento/faturas/${faturaId}/pagar`)
     },
     onSuccess: () => {
       notifications.show({ title: 'Sucesso', message: 'Fatura marcada como paga', color: 'green' })
@@ -105,7 +105,7 @@ export default function FaturasPage() {
 
   const cancelarMutation = useMutation({
     mutationFn: async (faturaId: string) => {
-      await api.patch(`/faturamento/faturas/${faturaId}/cancelar`)
+      await api.put(`/faturamento/faturas/${faturaId}/cancelar`)
     },
     onSuccess: () => {
       notifications.show({ title: 'Sucesso', message: 'Fatura cancelada', color: 'green' })
@@ -201,7 +201,7 @@ export default function FaturasPage() {
                     >
                       Ver
                     </Button>
-                    {item.status === 'RASCUNHO' && (
+                    {item.status === 'GERADA' && (
                       <Button
                         variant="subtle"
                         size="xs"
@@ -225,7 +225,7 @@ export default function FaturasPage() {
                         Pagar
                       </Button>
                     )}
-                    {(item.status === 'RASCUNHO' || item.status === 'ENVIADA') && (
+                    {(item.status === 'GERADA' || item.status === 'ENVIADA') && (
                       <Button
                         variant="subtle"
                         size="xs"
