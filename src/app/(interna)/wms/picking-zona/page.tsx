@@ -39,7 +39,12 @@ export default function PickingZonaPage() {
     queryKey: ['picking-zona', 'zonas'],
     queryFn: async () => {
       const { data } = await api.get('/picking-zona/zonas')
-      return data
+      const items = data?.data || data || []
+      return items.map((z: any) => ({
+        ...z,
+        enderecosCount: z._count?.enderecos ?? z.enderecosCount ?? 0,
+        separadoresCount: z._count?.separadores ?? z.separadoresCount ?? 0,
+      }))
     },
   })
 
@@ -47,7 +52,8 @@ export default function PickingZonaPage() {
     queryKey: ['picking-zona', 'pontos-options'],
     queryFn: async () => {
       const { data } = await api.get('/picking-zona/pontos-consolidacao')
-      return data.map((p: any) => ({ value: p.id, label: p.nome }))
+      const items = Array.isArray(data) ? data : (data?.data || [])
+      return items.map((p: any) => ({ value: p.id, label: p.nome }))
     },
   })
 
