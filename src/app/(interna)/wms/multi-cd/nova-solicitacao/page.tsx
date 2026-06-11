@@ -64,9 +64,9 @@ export default function NovaSolicitacaoPage() {
     label: cd.nome,
   }))
 
-  const produtoOptions = (produtosResp?.data || []).map((p: any) => ({
+  const produtoOptions = (produtosResp?.data || produtosResp || []).map((p: any) => ({
     value: p.id,
-    label: `${p.codigo || p.sku} - ${p.nome}`,
+    label: `${p.codigo || p.sku || ''} - ${p.nome || p.descricao || 'Produto'}`.trim(),
   }))
 
   const addItem = () => {
