@@ -59,7 +59,7 @@ export default function AprovacoesPage() {
 
   const aprovarMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { data } = await api.post(`/multi-cd/solicitacoes/${id}/aprovar`)
+      const { data } = await api.put(`/multi-cd/solicitacoes/${id}/aprovar`)
       return data
     },
     onSuccess: () => {
@@ -77,7 +77,7 @@ export default function AprovacoesPage() {
 
   const rejeitarMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { data } = await api.post(`/multi-cd/solicitacoes/${id}/cancelar`)
+      const { data } = await api.put(`/multi-cd/solicitacoes/${id}/cancelar`, { motivo: 'Rejeitada na fila de aprovações' })
       return data
     },
     onSuccess: () => {

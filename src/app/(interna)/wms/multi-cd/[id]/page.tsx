@@ -60,7 +60,7 @@ export default function DetalhesSolicitacaoPage() {
 
   const actionMutation = useMutation({
     mutationFn: async ({ action, payload }: { action: string; payload?: any }) => {
-      const { data } = await api.post(`/multi-cd/solicitacoes/${id}/${action}`, payload || {})
+      const { data } = await api.put(`/multi-cd/solicitacoes/${id}/${action}`, payload || {})
       return data
     },
     onSuccess: () => {
