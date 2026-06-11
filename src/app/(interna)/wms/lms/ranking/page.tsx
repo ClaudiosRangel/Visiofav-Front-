@@ -64,7 +64,7 @@ export default function LmsRankingPage() {
     },
   })
 
-  const ranking = rankingResp?.data || rankingResp || []
+  const ranking = rankingResp?.ranking || rankingResp?.data || (Array.isArray(rankingResp) ? rankingResp : [])
 
   return (
     <div>
