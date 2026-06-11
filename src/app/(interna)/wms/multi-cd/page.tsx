@@ -68,7 +68,7 @@ export default function MultiCdPage() {
   const { data: cdsResp } = useQuery<any>({
     queryKey: ['centros-distribuicao'],
     queryFn: async () => {
-      const { data } = await api.get('/multi-cd/centros-distribuicao')
+      const { data } = await api.get('/centros-distribuicao')
       return data
     },
   })
