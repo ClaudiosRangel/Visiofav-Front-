@@ -65,8 +65,8 @@ export default function PatioChamadaPage() {
   const mutationChamar = useMutation({
     mutationFn: async () => {
       const { data } = await api.post('/patio/chamadas', {
-        docaId: Number(docaId),
-        veiculoId: sugestao?.id,
+        docaId: docaId,
+        veiculoId: sugestao?.veiculoId || sugestao?.id,
       })
       return data
     },
