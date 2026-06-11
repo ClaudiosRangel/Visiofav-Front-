@@ -29,12 +29,13 @@ export default function PainelPickingZonaPage() {
     queryKey: ['picking-zona', 'painel'],
     queryFn: async () => {
       const { data } = await api.get('/picking-zona/painel')
-      return data
+      return Array.isArray(data) ? data : (data?.data || [])
     },
     refetchInterval: 30000,
   })
 
   function formatMinutes(min: number): string {
+    if (!min || isNaN(min) || min <= 0) return '0 min'
     if (min < 1) return '< 1 min'
     if (min < 60) return `${Math.round(min)} min`
     const h = Math.floor(min / 60)
