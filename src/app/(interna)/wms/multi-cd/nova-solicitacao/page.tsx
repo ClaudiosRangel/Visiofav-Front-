@@ -19,6 +19,7 @@ interface ItemRow {
   produtoId: string
   quantidadeSolicitada: number | ''
   estoqueDisponivel: number | null
+  unidade: string
 }
 
 const PRIORIDADE_OPTIONS = [
@@ -40,7 +41,7 @@ export default function NovaSolicitacaoPage() {
   const [prioridade, setPrioridade] = useState<string>('NORMAL')
   const [dataPrevistaEnvio, setDataPrevistaEnvio] = useState<Date | null>(null)
   const [itens, setItens] = useState<ItemRow[]>([
-    { produtoId: '', quantidadeSolicitada: '', estoqueDisponivel: null },
+    { produtoId: '', quantidadeSolicitada: '', estoqueDisponivel: null, unidade: '' },
   ])
 
   const { data: cdsResp } = useQuery<any>({
@@ -70,7 +71,7 @@ export default function NovaSolicitacaoPage() {
   }))
 
   const addItem = () => {
-    setItens([...itens, { produtoId: '', quantidadeSolicitada: '', estoqueDisponivel: null }])
+    setItens([...itens, { produtoId: '', quantidadeSolicitada: '', estoqueDisponivel: null, unidade: '' }])
   }
 
   const removeItem = (index: number) => {
@@ -95,7 +96,9 @@ export default function NovaSolicitacaoPage() {
   }
 
   const handleProdutoChange = (index: number, value: string | null) => {
-    updateItem(index, 'produtoId', value || '')
+    const produtoSelecionado = (produtosResp?.data || produtosResp || []).find((p: any) => p.id === value)
+    const unidade = produtoSelecionado?.unidade || ''
+    setItens(prev => prev.map((item, i) => i === index ? { ...item, produtoId: value || '', unidade } : item))
     if (value) checkEstoque(index, value)
   }
 
@@ -245,6 +248,7 @@ export default function NovaSolicitacaoPage() {
                     value={item.quantidadeSolicitada}
                     onChange={(val) => updateItem(index, 'quantidadeSolicitada', val)}
                     min={1}
+                    suffix={item.unidade ? ` ${item.unidade}` : undefined}
                   />
                 </Table.Td>
                 <Table.Td>
