@@ -24,7 +24,7 @@ interface Zona {
 
 export default function PickingZonaPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Picking por Zona' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Picking por Zona' }, [])
 
   const queryClient = useQueryClient()
   const [opened, { open, close }] = useDisclosure(false)

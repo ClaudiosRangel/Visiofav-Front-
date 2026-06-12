@@ -51,7 +51,7 @@ const TIPO_COLORS: Record<string, string> = {
 
 export default function CrossDockPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Cross-Docking' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Cross-Docking' }, [])
 
   const [status, setStatus] = useState<string>('')
   const [search, setSearch] = useState('')

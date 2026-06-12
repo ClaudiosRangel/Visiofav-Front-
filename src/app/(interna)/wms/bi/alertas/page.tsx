@@ -30,7 +30,7 @@ const STATUS_OPTIONS = [
 
 export default function BiAlertasPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Alertas Inteligentes' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Alertas Inteligentes' }, [])
 
   const queryClient = useQueryClient()
   const [statusFiltro, setStatusFiltro] = useState('')

@@ -12,7 +12,7 @@ const entregaColors: Record<string, string> = { PENDENTE: 'gray', EM_TRANSITO: '
 
 export default function VendasEfetivadasPage() {
   useModuloGuard('VENDAS')
-  useEffect(() => { document.title = 'VisioFab - Vendas - Efetivadas' }, [])
+  useEffect(() => { document.title = 'Vizor - Vendas - Efetivadas' }, [])
   const router = useRouter()
   const [page, setPage] = useState(1)
   const limit = 20

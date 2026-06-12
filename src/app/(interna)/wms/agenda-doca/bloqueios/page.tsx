@@ -15,7 +15,7 @@ import Link from 'next/link'
 
 export default function BloqueiosDocaPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Bloqueios de Doca' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Bloqueios de Doca' }, [])
 
   const queryClient = useQueryClient()
   const [createModal, setCreateModal] = useState(false)

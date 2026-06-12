@@ -23,7 +23,7 @@ const statusColors: Record<string, string> = {
 
 export default function RelatoriosExpedicaoPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Relatórios Expedição' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Relatórios Expedição' }, [])
 
   const [dataInicio, setDataInicio] = useState<Date | null>(null)
   const [dataFim, setDataFim] = useState<Date | null>(null)

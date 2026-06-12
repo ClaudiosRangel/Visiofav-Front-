@@ -10,7 +10,7 @@ import SkuPanel from '../../../configurador/produtos/SkuPanel'
 
 export default function ConsultaProdutosPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Consulta Produtos' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Consulta Produtos' }, [])
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [skuDrawer, setSkuDrawer] = useState<{ id: string; nome: string } | null>(null)

@@ -71,7 +71,7 @@ export default function RADetailPage() {
 
   useEffect(() => {
     if (ra?.numero) {
-      document.title = `VisioFab - WMS - ${ra.numero}`
+      document.title = `Vizor - WMS - ${ra.numero}`
     }
   }, [ra?.numero])
 

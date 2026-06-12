@@ -20,7 +20,7 @@ const statusColors: Record<string, string> = {
 
 export default function InventarioPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Inventário' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Inventário' }, [])
   const queryClient = useQueryClient()
 
   const [inventarioAtivo, setInventarioAtivo] = useState<any>(null)

@@ -50,7 +50,7 @@ interface OcrCampoItem {
 
 export default function ConferenciaEntradaPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Conferência de Entrada' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Conferência de Entrada' }, [])
   const queryClient = useQueryClient()
 
   // Conferência state

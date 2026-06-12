@@ -13,7 +13,7 @@ const tipoColors: Record<string, string> = {
 
 export default function PortalNotificacoesPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Portal Notificações' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Portal Notificações' }, [])
 
   const [filtroTipo, setFiltroTipo] = useState<string | null>(null)
 

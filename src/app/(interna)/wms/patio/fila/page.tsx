@@ -31,7 +31,7 @@ function prioridadeColor(prioridade: number): string {
 
 export default function PatioFilaPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Pátio - Fila' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Pátio - Fila' }, [])
 
   const queryClient = useQueryClient()
   const [modalOpen, setModalOpen] = useState(false)

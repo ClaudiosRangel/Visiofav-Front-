@@ -43,7 +43,7 @@ const EMPTY_INCENTIVO: Incentivo = {
 
 export default function LmsIncentivosPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - LMS - Incentivos' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - LMS - Incentivos' }, [])
 
   const queryClient = useQueryClient()
   const [opened, { open, close }] = useDisclosure(false)

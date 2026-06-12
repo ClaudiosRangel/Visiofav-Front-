@@ -34,7 +34,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function FaturasPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Faturas' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Faturas' }, [])
 
   const queryClient = useQueryClient()
   const [status, setStatus] = useState<string>('')

@@ -15,7 +15,7 @@ const statusColors: Record<string, string> = {
 
 export default function WavePlanejamentosPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Wave Planejamentos' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Wave Planejamentos' }, [])
 
   const [detalhes, setDetalhes] = useState<any>(null)
 

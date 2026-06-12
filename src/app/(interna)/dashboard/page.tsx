@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 
 export default function DashboardPage() {
-  useEffect(() => { document.title = 'VisioFab - Dashboard' }, [])
+  useEffect(() => { document.title = 'Vizor - Dashboard' }, [])
   const { data: produtosResp } = useQuery({ queryKey: ['dash-produtos'], queryFn: async () => { const { data } = await api.get('/produtos', { params: { limit: 1 } }); return data }, staleTime: 1000 * 60 })
   const { data: enderecosResp } = useQuery({ queryKey: ['dash-enderecos'], queryFn: async () => { const { data } = await api.get('/enderecos', { params: { limit: 1 } }); return data }, staleTime: 1000 * 60 })
   const { data: endOcupados } = useQuery({ queryKey: ['dash-end-ocupados'], queryFn: async () => { const { data } = await api.get('/enderecos', { params: { estado: 'OCUPADO', limit: 1 } }); return data }, staleTime: 1000 * 60 })

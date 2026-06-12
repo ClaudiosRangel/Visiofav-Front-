@@ -49,7 +49,7 @@ async function exportarCSV(periodo: string, tipoOperacao: string) {
 
 export default function LmsRankingPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - LMS - Ranking' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - LMS - Ranking' }, [])
 
   const [periodo, setPeriodo] = useState('SEMANA')
   const [tipoOperacao, setTipoOperacao] = useState('')

@@ -21,7 +21,7 @@ const prioridadeColors: Record<string, string> = { ALTA: 'red', MEDIA: 'yellow',
 
 export default function PickingPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Picking' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Picking' }, [])
   const router = useRouter()
   const queryClient = useQueryClient()
   const [modalOpen, setModalOpen] = useState(false)

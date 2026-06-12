@@ -39,7 +39,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function AlertasKpiPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Alertas KPI' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Alertas KPI' }, [])
 
   const queryClient = useQueryClient()
   const [severidade, setSeveridade] = useState<string>('')

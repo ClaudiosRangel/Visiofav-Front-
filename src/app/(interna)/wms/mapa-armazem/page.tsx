@@ -40,7 +40,7 @@ const areaBorder: Record<string, string> = {
 
 export default function MapaArmazemPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Mapa do Armazém' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Mapa do Armazém' }, [])
 
   const [depositoId, setDepositoId] = useState<string | null>(null)
   const [produtoFiltro, setProdutoFiltro] = useState<string | null>(null)

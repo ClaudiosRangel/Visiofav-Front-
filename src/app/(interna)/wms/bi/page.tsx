@@ -31,7 +31,7 @@ const KPI_COLORS: Record<string, string> = {
 
 export default function BiDashboardPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - BI Avançado' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - BI Avançado' }, [])
 
   const { data: resp, isLoading } = useQuery<any>({
     queryKey: ['bi-dashboard'],

@@ -30,7 +30,7 @@ export default function MonitorCarregamentoPage() {
   const [carregamentoId, setCarregamentoId] = useState('')
 
   useEffect(() => {
-    document.title = 'VisioFab - Monitor Carregamento'
+    document.title = 'Vizor - Monitor Carregamento'
     // Read from URL params on client side
     const params = new URLSearchParams(window.location.search)
     const id = params.get('carregamentoId')

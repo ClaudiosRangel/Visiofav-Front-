@@ -11,7 +11,7 @@ import { useModuloGuard } from '@/hooks/useModuloGuard'
 
 export default function WaveDashboardPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Wave Planning' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Wave Planning' }, [])
 
   const { data: response, isLoading } = useQuery<any>({
     queryKey: ['wave-dashboard'],

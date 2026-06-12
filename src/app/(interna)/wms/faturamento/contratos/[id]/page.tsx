@@ -32,7 +32,7 @@ const FATURA_STATUS_COLORS: Record<string, string> = {
 export default function ContratoDetailPage() {
   useModuloGuard('WMS')
   const { id } = useParams<{ id: string }>()
-  useEffect(() => { document.title = 'VisioFab - WMS - Contrato Detalhe' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Contrato Detalhe' }, [])
 
   const [medicaoPage, setMedicaoPage] = useState(1)
   const medicaoLimit = 10

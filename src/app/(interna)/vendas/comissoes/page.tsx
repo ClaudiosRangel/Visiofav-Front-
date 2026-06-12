@@ -9,7 +9,7 @@ import { useModuloGuard } from '@/hooks/useModuloGuard'
 
 export default function ComissoesPage() {
   useModuloGuard('VENDAS')
-  useEffect(() => { document.title = 'VisioFab - Vendas - Comissões' }, [])
+  useEffect(() => { document.title = 'Vizor - Vendas - Comissões' }, [])
 
   const { data: vendas, isLoading, refetch } = useQuery<any[]>({
     queryKey: ['comissoes'],

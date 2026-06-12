@@ -29,7 +29,7 @@ function isPlacaValida(placa: string): boolean {
 
 export default function PatioEntradaPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Pátio - Entrada' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Pátio - Entrada' }, [])
 
   const [placa, setPlaca] = useState('')
   const [motoristaNome, setMotoristaNome] = useState('')

@@ -13,7 +13,7 @@ import Link from 'next/link'
 
 export default function ConfigDocaPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Configuração de Docas' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Configuração de Docas' }, [])
 
   const queryClient = useQueryClient()
   const [form, setForm] = useState({

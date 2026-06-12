@@ -47,7 +47,7 @@ export default function DetalhesSolicitacaoPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
 
-  useEffect(() => { document.title = 'VisioFab - WMS - Detalhes da Transferência' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Detalhes da Transferência' }, [])
 
   const { data: solicitacao, isLoading } = useQuery<any>({
     queryKey: ['multi-cd-solicitacao', id],

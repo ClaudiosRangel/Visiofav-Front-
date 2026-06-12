@@ -36,7 +36,7 @@ const TIPO_LABELS: Record<string, string> = {
 
 export default function PatioPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Pátio' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Pátio' }, [])
 
   const eventSourceRef = useRef<EventSource | null>(null)
 

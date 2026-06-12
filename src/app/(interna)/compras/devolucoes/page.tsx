@@ -19,7 +19,7 @@ interface ItemDevolucao {
 
 export default function DevolucoesPage() {
   useModuloGuard('COMPRAS')
-  useEffect(() => { document.title = 'VisioFab - Compras - Devoluções' }, [])
+  useEffect(() => { document.title = 'Vizor - Compras - Devoluções' }, [])
   const router = useRouter()
   const [compraId, setCompraId] = useState<string | null>(null)
   const [itens, setItens] = useState<ItemDevolucao[]>([])

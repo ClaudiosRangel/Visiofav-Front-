@@ -23,7 +23,7 @@ const entidadeColors: Record<string, string> = {
 
 export default function AuditoriaPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Auditoria' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Auditoria' }, [])
 
   const [page, setPage] = useState(1)
   const [entidade, setEntidade] = useState<string | null>(null)

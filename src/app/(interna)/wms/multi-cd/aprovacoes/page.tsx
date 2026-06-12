@@ -22,7 +22,7 @@ const PRIORIDADE_COLORS: Record<string, string> = {
 
 export default function AprovacoesPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Aprovações de Transferência' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Aprovações de Transferência' }, [])
 
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)

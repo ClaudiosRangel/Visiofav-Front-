@@ -33,7 +33,7 @@ const PRIORIDADE_OPTIONS = [
 
 export default function SlottingSugestoesPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Sugestões de Slotting' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Sugestões de Slotting' }, [])
 
   const queryClient = useQueryClient()
   const [statusFiltro, setStatusFiltro] = useState('')

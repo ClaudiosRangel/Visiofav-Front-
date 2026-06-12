@@ -15,7 +15,7 @@ const statusColors: Record<string, string> = {
 
 export default function EnderecamentoPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Endereçamento' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Endereçamento' }, [])
   const queryClient = useQueryClient()
 
   // Notas conferidas (prontas para endereçar)

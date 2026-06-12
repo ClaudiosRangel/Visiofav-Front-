@@ -43,7 +43,7 @@ async function exportarCSV() {
 
 export default function KpiDashboardPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - KPI / SLA' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - KPI / SLA' }, [])
 
   const [selectedKpi, setSelectedKpi] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<string | null>('dashboard')

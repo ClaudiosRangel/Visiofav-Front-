@@ -15,7 +15,7 @@ import Link from 'next/link'
 
 export default function EstatisticasDocaPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Estatísticas de Docas' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Estatísticas de Docas' }, [])
 
   const [dataInicio, setDataInicio] = useState<Date>((() => { const d = new Date(); d.setDate(d.getDate() - 7); return d })())
   const [dataFim, setDataFim] = useState<Date>(new Date())

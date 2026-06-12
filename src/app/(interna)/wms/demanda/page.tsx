@@ -16,7 +16,7 @@ import Link from 'next/link'
 
 export default function DemandaDashboardPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Demanda / Slotting' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Demanda / Slotting' }, [])
 
   const { data: dashboard, isLoading } = useQuery<any>({
     queryKey: ['demanda-dashboard'],

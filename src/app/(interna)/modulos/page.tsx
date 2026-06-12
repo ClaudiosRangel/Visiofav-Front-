@@ -29,7 +29,7 @@ const MODULOS_CONFIG = [
 ] as const
 
 export default function ModulosPage() {
-  useEffect(() => { document.title = 'VisioFab - Módulos' }, [])
+  useEffect(() => { document.title = 'Vizor - Módulos' }, [])
   const router = useRouter()
   const { modulos, empresa } = useEmpresa()
 
@@ -100,7 +100,7 @@ export default function ModulosPage() {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/logo.jpeg"
-          alt="VisioFab"
+          alt="Vizor"
           style={{ width: 200, height: 200, objectFit: 'contain', filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.1))' }}
         />
       </div>

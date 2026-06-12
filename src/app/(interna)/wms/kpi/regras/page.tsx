@@ -81,7 +81,7 @@ const INITIAL_FORM: RegraForm = {
 
 export default function RegrasKpiPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Regras KPI' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Regras KPI' }, [])
 
   const queryClient = useQueryClient()
   const [opened, { open, close }] = useDisclosure(false)

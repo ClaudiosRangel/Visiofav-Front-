@@ -22,7 +22,7 @@ const statusColors: Record<string, string> = {
 
 export default function ExpedicaoPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Expedição' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Expedição' }, [])
   const queryClient = useQueryClient()
   const [carregModal, setCarregModal] = useState(false)
   const [docaId, setDocaId] = useState<string | null>(null)

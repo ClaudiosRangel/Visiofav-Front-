@@ -25,7 +25,7 @@ function getForça(correlacao: number): string {
 
 export default function BiCorrelacaoPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Análise Cruzada' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Análise Cruzada' }, [])
 
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([
     new Date(new Date().setDate(new Date().getDate() - 30)),

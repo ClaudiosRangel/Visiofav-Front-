@@ -18,7 +18,7 @@ const operacaoLabels: Record<string, string> = {
 export default function DashboardWmsPage() {
   useModuloGuard('WMS')
 
-  useEffect(() => { document.title = 'VisioFab - WMS - Dashboard' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Dashboard' }, [])
 
   const { data: kpis, isLoading } = useQuery<any>({
     queryKey: ['dashboard-wms'],

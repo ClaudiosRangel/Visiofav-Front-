@@ -28,7 +28,7 @@ export default function Header() {
   return (
     <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-6">
       <Group gap="sm">
-        <Text size="sm" c="primary" fw={600}>VisioFab ERP</Text>
+        <Text size="sm" c="primary" fw={600}>Vizor ERP</Text>
         {empresa && (
           <>
             <Text size="sm" c="dimmed">|</Text>

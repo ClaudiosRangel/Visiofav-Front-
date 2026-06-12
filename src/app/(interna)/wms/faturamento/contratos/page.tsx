@@ -33,7 +33,7 @@ const PERIODICIDADE_LABELS: Record<string, string> = {
 
 export default function ContratosPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Contratos' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Contratos' }, [])
 
   const [status, setStatus] = useState<string>('')
   const [clienteId, setClienteId] = useState<string>('')

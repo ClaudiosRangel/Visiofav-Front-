@@ -22,7 +22,7 @@ interface SubOnda {
 
 export default function DividirOndaPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Dividir Onda por Zona' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Dividir Onda por Zona' }, [])
 
   const queryClient = useQueryClient()
   const [ondaId, setOndaId] = useState<string | null>(null)

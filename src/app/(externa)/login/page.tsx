@@ -38,7 +38,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card shadow="md" padding="xl" radius="md" className="w-full max-w-md">
         <Stack gap="md" align="center" mb="xl">
-          <Text size="xl" fw={700} c="primary">VisioFab WMS</Text>
+          <Text size="xl" fw={700} c="primary">Vizor WMS</Text>
           <Text size="sm" c="dimmed">Sistema de Gerenciamento de Armazém</Text>
         </Stack>
 

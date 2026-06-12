@@ -28,7 +28,7 @@ interface MinhaZona {
 
 export default function MobilePickingZonaPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - Picking Mobile' }, [])
+  useEffect(() => { document.title = 'Vizor - Picking Mobile' }, [])
 
   const queryClient = useQueryClient()
 

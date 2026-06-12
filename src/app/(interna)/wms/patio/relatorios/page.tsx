@@ -36,7 +36,7 @@ function exportCSV(data: any[], filename: string) {
 
 export default function PatioRelatoriosPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Pátio - Relatórios' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Pátio - Relatórios' }, [])
 
   const [tab, setTab] = useState<string | null>('permanencia')
   const [dataInicio, setDataInicio] = useState<Date | null>(

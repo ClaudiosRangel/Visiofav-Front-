@@ -29,7 +29,7 @@ type FormValues = z.infer<typeof formSchema>
 
 export default function CtePage() {
   useModuloGuard('CTE')
-  useEffect(() => { document.title = 'VisioFab - Fiscal - CT-e' }, [])
+  useEffect(() => { document.title = 'Vizor - Fiscal - CT-e' }, [])
   const queryClient = useQueryClient()
   const [modalOpen, setModalOpen] = useState(false)
   const [page, setPage] = useState(1)

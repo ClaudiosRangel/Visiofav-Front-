@@ -15,7 +15,7 @@ import { useState } from 'react'
 
 export default function TransitoPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Estoque em Trânsito' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Estoque em Trânsito' }, [])
 
   const [page, setPage] = useState(1)
   const limit = 20

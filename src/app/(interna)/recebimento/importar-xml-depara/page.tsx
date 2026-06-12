@@ -15,7 +15,7 @@ import { useCriarNotaEntrada } from '@/data/hooks/useNotaEntrada'
 import PendingMappingModal, { PendingXmlItem, ResolvedXmlItem } from '@/components/depara/PendingMappingModal'
 
 export default function ImportarXmlDeparaPage() {
-  useEffect(() => { document.title = 'VisioFab - Recebimento - Importar XML (De-Para)' }, [])
+  useEffect(() => { document.title = 'Vizor - Recebimento - Importar XML (De-Para)' }, [])
   const router = useRouter()
 
   const [file, setFile] = useState<File | null>(null)

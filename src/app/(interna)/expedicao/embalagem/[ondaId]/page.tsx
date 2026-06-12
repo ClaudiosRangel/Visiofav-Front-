@@ -53,7 +53,7 @@ interface VolumeAtivo {
 
 export default function EmbalagemPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Embalagem' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Embalagem' }, [])
 
   const { ondaId } = useParams<{ ondaId: string }>()
   const router = useRouter()

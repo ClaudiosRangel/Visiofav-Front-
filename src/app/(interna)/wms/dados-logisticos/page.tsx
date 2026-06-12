@@ -16,7 +16,7 @@ import { useModuloGuard } from '@/hooks/useModuloGuard'
 
 export default function DadosLogisticosPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Dados Logísticos' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Dados Logísticos' }, [])
   const queryClient = useQueryClient()
 
   const [produtoId, setProdutoId] = useState<string | null>(null)

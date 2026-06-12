@@ -68,7 +68,7 @@ export default function DisposicaoPage() {
 
   useEffect(() => {
     if (ra?.numero) {
-      document.title = `VisioFab - WMS - Disposição - ${ra.numero}`
+      document.title = `Vizor - WMS - Disposição - ${ra.numero}`
     }
   }, [ra?.numero])
 

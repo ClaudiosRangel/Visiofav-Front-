@@ -24,7 +24,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function FaturamentoDashboardPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Faturamento' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Faturamento' }, [])
 
   const { data: resumo, isLoading } = useQuery<any>({
     queryKey: ['faturamento', 'resumo'],

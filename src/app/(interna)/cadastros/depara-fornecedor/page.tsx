@@ -13,7 +13,7 @@ import { useDepara, useDeparaDelete, useDeparaUpdate, DeparaFornecedor } from '@
 import DeparaModal from './DeparaModal'
 
 export default function DeparaFornecedorPage() {
-  useEffect(() => { document.title = 'VisioFab - Cadastros - De-Para Fornecedor' }, [])
+  useEffect(() => { document.title = 'Vizor - Cadastros - De-Para Fornecedor' }, [])
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editItem, setEditItem] = useState<DeparaFornecedor | null>(null)

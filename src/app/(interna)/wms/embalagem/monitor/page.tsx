@@ -23,7 +23,7 @@ export default function MonitorEmbalagemPage() {
   const [ondaId, setOndaId] = useState('')
 
   useEffect(() => {
-    document.title = 'VisioFab - Monitor Embalagem'
+    document.title = 'Vizor - Monitor Embalagem'
     const params = new URLSearchParams(window.location.search)
     const id = params.get('ondaId')
     if (id) setOndaId(id)

@@ -27,7 +27,7 @@ const MODELO_OPTIONS = [
 
 export default function ImpressorasPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Impressoras de Rede' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Impressoras de Rede' }, [])
 
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)

@@ -23,7 +23,7 @@ interface ZonaProgresso {
 
 export default function PainelPickingZonaPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Painel Picking por Zona' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Painel Picking por Zona' }, [])
 
   const { data: progressos = [], isLoading, dataUpdatedAt } = useQuery<ZonaProgresso[]>({
     queryKey: ['picking-zona', 'painel'],

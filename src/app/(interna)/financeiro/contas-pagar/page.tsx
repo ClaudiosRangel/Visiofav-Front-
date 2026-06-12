@@ -41,7 +41,7 @@ type PagarValues = z.infer<typeof pagarSchema>
 
 export default function ContasPagarPage() {
   useModuloGuard('FINANCEIRO')
-  useEffect(() => { document.title = 'VisioFab - Financeiro - Contas a Pagar' }, [])
+  useEffect(() => { document.title = 'Vizor - Financeiro - Contas a Pagar' }, [])
   const queryClient = useQueryClient()
   const [criarModal, setCriarModal] = useState(false)
   const [pagarModal, setPagarModal] = useState<string | null>(null)

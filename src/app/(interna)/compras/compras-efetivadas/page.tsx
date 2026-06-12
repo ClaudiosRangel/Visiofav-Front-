@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation'
 
 export default function ComprasEfetivadasPage() {
   useModuloGuard('COMPRAS')
-  useEffect(() => { document.title = 'VisioFab - Compras - Efetivadas' }, [])
+  useEffect(() => { document.title = 'Vizor - Compras - Efetivadas' }, [])
   const router = useRouter()
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)

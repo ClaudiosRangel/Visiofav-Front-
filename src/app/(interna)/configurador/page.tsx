@@ -54,7 +54,7 @@ const cadastros = [
 ]
 
 export default function ConfiguradorPage() {
-  useEffect(() => { document.title = 'VisioFab - Configurador' }, [])
+  useEffect(() => { document.title = 'Vizor - Configurador' }, [])
 
   const filteredCadastros = useMemo(() => {
     const perfil = getUserPerfil()

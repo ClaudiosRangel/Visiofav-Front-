@@ -22,7 +22,7 @@ interface PontoConsolidacao {
 
 export default function PontosConsolidacaoPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Pontos de Consolidação' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Pontos de Consolidação' }, [])
 
   const queryClient = useQueryClient()
   const [opened, { open, close }] = useDisclosure(false)

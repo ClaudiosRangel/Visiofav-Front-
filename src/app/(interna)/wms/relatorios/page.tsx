@@ -21,7 +21,7 @@ const operacaoLabels: Record<string, string> = {
 
 export default function RelatoriosWmsPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Relatórios' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Relatórios' }, [])
 
   const [dataInicio, setDataInicio] = useState<Date | null>(null)
   const [dataFim, setDataFim] = useState<Date | null>(null)

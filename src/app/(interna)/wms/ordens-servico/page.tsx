@@ -25,7 +25,7 @@ const operacaoLabels: Record<string, string> = {
 
 export default function OrdensServicoWmsPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Ordens de Serviço' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Ordens de Serviço' }, [])
   const queryClient = useQueryClient()
   const [statusFiltro, setStatusFiltro] = useState<string | null>(null)
   const [operacaoFiltro, setOperacaoFiltro] = useState<string | null>(null)

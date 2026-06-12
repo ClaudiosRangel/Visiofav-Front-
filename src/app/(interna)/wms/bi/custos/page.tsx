@@ -12,7 +12,7 @@ import { useModuloGuard } from '@/hooks/useModuloGuard'
 
 export default function BiCustosPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Custo por Operação' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Custo por Operação' }, [])
 
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([
     new Date(new Date().setDate(new Date().getDate() - 30)),

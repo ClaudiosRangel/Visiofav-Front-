@@ -19,7 +19,7 @@ const METODO_COLORS: Record<string, string> = {
 
 export default function PrevisoesPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Previsões de Demanda' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Previsões de Demanda' }, [])
 
   const [page, setPage] = useState(1)
   const [filtroProduto, setFiltroProduto] = useState('')

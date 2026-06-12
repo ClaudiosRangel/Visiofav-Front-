@@ -21,7 +21,7 @@ const osSchema = z.object({
 type OsForm = z.infer<typeof osSchema>
 
 export default function MovimentacaoPage() {
-  useEffect(() => { document.title = 'VisioFab - WMS - Movimentação' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Movimentação' }, [])
   const [modalOpen, setModalOpen] = useState(false)
   const { data: response, isLoading } = useOrdensServico()
   const { data: cdsResp } = useCentrosDistribuicao({ limit: 100 })

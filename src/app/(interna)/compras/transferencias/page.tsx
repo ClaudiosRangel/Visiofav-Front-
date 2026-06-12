@@ -13,7 +13,7 @@ interface ItemTransf { produtoId: string; quantidade: number }
 
 export default function TransferenciasPage() {
   useModuloGuard('COMPRAS')
-  useEffect(() => { document.title = 'VisioFab - Compras - Transferências' }, [])
+  useEffect(() => { document.title = 'Vizor - Compras - Transferências' }, [])
   const router = useRouter()
   const [empresaDestinoId, setEmpresaDestinoId] = useState<string | null>(null)
   const [itens, setItens] = useState<ItemTransf[]>([{ produtoId: '', quantidade: 1 }])

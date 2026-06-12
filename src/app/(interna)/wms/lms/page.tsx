@@ -24,7 +24,7 @@ const FAIXA_COLORS: Record<string, string> = {
 
 export default function LmsDashboardPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - LMS' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - LMS' }, [])
 
   const { data: dashboard, isLoading } = useQuery<any>({
     queryKey: ['lms-dashboard'],

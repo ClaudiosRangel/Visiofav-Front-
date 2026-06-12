@@ -55,7 +55,7 @@ interface EmpresaAdmin {
 const ADMIN_PROFILES = ['SUPER_ADMIN', 'ADMIN', 'DIRETOR']
 
 export default function SelecionarEmpresaPage() {
-  useEffect(() => { document.title = 'VisioFab - Selecionar Empresa' }, [])
+  useEffect(() => { document.title = 'Vizor - Selecionar Empresa' }, [])
   const router = useRouter()
   const { selecionarEmpresa } = useEmpresa()
   const queryClient = useQueryClient()

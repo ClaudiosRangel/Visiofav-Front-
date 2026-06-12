@@ -61,7 +61,7 @@ const statusColors: Record<string, string> = {
 
 export default function PedidosCompraPage() {
   useModuloGuard('COMPRAS')
-  useEffect(() => { document.title = 'VisioFab - Compras - Pedidos' }, [])
+  useEffect(() => { document.title = 'Vizor - Compras - Pedidos' }, [])
 
   const router = useRouter()
   const queryClient = useQueryClient()

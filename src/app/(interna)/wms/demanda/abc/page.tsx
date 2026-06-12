@@ -24,7 +24,7 @@ const CLASS_COLORS: Record<string, string> = {
 
 export default function ClassificacaoAbcPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Classificação ABC' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Classificação ABC' }, [])
 
   const queryClient = useQueryClient()
   const [criterio, setCriterio] = useState<string>('FREQUENCIA')

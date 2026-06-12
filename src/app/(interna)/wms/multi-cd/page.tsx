@@ -56,7 +56,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 export default function MultiCdPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Multi-CD' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Multi-CD' }, [])
 
   const [status, setStatus] = useState<string>('')
   const [cdId, setCdId] = useState<string>('')

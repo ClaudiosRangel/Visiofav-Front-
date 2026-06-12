@@ -12,7 +12,7 @@ import { useModuloGuard } from '@/hooks/useModuloGuard'
 
 export default function PortalUsuariosPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Portal Usuários' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Portal Usuários' }, [])
   const queryClient = useQueryClient()
 
   const [modalOpen, setModalOpen] = useState(false)

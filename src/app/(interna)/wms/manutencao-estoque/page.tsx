@@ -31,7 +31,7 @@ const tipoColors: Record<string, string> = {
 
 export default function ManutencaoEstoquePage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Manutenção de Estoque' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Manutenção de Estoque' }, [])
   const queryClient = useQueryClient()
 
   // Ajuste state

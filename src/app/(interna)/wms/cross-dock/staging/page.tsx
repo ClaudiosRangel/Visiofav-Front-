@@ -25,7 +25,7 @@ type FormValues = z.infer<typeof schema>
 
 export default function StagingAreasPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Staging Areas' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Staging Areas' }, [])
 
   const queryClient = useQueryClient()
   const [modalOpen, setModalOpen] = useState(false)

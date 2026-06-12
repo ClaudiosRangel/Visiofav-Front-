@@ -18,7 +18,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333'
 
 export default function EtiquetasPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Etiquetas' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Etiquetas' }, [])
 
   const [selectedEnderecos, setSelectedEnderecos] = useState<Set<string>>(new Set())
   const [selectedProdutos, setSelectedProdutos] = useState<Set<string>>(new Set())

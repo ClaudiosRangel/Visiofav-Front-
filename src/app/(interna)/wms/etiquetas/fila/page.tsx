@@ -34,7 +34,7 @@ const PRIORIDADE_COLORS: Record<string, string> = {
 
 export default function FilaImpressaoPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Fila de Impressão' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Fila de Impressão' }, [])
 
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)

@@ -29,7 +29,7 @@ const TIPOS_OPERACAO = [
 
 export default function LmsOperacaoPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - LMS - Por Operação' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - LMS - Por Operação' }, [])
 
   const [tipoOperacao, setTipoOperacao] = useState('PICKING')
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([

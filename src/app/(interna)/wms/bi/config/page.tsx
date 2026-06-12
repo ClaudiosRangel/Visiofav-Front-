@@ -13,7 +13,7 @@ import { notifications } from '@mantine/notifications'
 
 export default function BiConfigPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Configuração Custos BI' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Configuração Custos BI' }, [])
 
   const queryClient = useQueryClient()
 

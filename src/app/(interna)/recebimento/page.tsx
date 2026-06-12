@@ -14,7 +14,7 @@ import NotaEntradaModal from './NotaEntradaModal'
 const statusColor: Record<string, string> = { PENDENTE: 'orange', CONFERIDA: 'blue', ENDERECADA: 'green', CANCELADA: 'red' }
 
 export default function RecebimentoPage() {
-  useEffect(() => { document.title = 'VisioFab - WMS - Recebimento' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Recebimento' }, [])
   const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
   const [detalheId, setDetalheId] = useState<string | null>(null)

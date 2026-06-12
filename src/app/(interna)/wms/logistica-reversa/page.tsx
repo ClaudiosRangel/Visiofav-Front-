@@ -39,7 +39,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 export default function LogisticaReversaPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Logística Reversa' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Logística Reversa' }, [])
 
   const [status, setStatus] = useState<string>('')
   const [search, setSearch] = useState('')

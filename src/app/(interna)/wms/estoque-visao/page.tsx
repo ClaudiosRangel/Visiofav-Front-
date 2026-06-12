@@ -24,7 +24,7 @@ export default function EstoqueVisaoPage() {
   const [dropdownOpen, setDropdownOpen] = useState(false)
 
   useEffect(() => {
-    document.title = 'VisioFab - Visão Estoque'
+    document.title = 'Vizor - Visão Estoque'
   }, [])
 
   const { data: produtos, isFetching: buscando } = useQuery<any>({

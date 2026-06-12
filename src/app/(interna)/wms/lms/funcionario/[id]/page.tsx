@@ -27,7 +27,7 @@ export default function LmsFuncionarioPage() {
   const params = useParams()
   const id = params.id as string
 
-  useEffect(() => { document.title = 'VisioFab - WMS - LMS - Funcionário' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - LMS - Funcionário' }, [])
 
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([
     new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),

@@ -12,7 +12,7 @@ import { useModuloGuard } from '@/hooks/useModuloGuard'
 
 export default function PatioConfigPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Pátio - Configuração' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Pátio - Configuração' }, [])
 
   const queryClient = useQueryClient()
   const [cdId, setCdId] = useState<string | null>(null)

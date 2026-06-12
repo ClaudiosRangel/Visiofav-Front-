@@ -12,8 +12,8 @@ import { EmpresaProvider } from '@/providers/EmpresaProvider'
 
 export const metadata = {
   title: {
-    template: 'VisioFab - %s',
-    default: 'VisioFab',
+    template: 'Vizor - %s',
+    default: 'Vizor',
   },
   description: 'Sistema de Gerenciamento de Armazém',
 }

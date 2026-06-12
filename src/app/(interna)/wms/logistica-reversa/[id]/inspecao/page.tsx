@@ -62,7 +62,7 @@ export default function InspecaoPage() {
 
   useEffect(() => {
     if (ra?.numero) {
-      document.title = `VisioFab - WMS - Inspeção - ${ra.numero}`
+      document.title = `Vizor - WMS - Inspeção - ${ra.numero}`
     }
   }, [ra?.numero])
 

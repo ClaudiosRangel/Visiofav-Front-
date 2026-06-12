@@ -25,7 +25,7 @@ const statusFlow = ['AGENDADO', 'ESPERA', 'CONFIRMADO', 'NA_DOCA', 'CONFERINDO',
 
 export default function AgendaWmsPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Agenda de Recebimento' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Agenda de Recebimento' }, [])
   const queryClient = useQueryClient()
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [modalOpen, setModalOpen] = useState(false)

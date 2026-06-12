@@ -41,7 +41,7 @@ type ReceberValues = z.infer<typeof receberSchema>
 
 export default function ContasReceberPage() {
   useModuloGuard('FINANCEIRO')
-  useEffect(() => { document.title = 'VisioFab - Financeiro - Contas a Receber' }, [])
+  useEffect(() => { document.title = 'Vizor - Financeiro - Contas a Receber' }, [])
   const queryClient = useQueryClient()
   const [criarModal, setCriarModal] = useState(false)
   const [receberModal, setReceberModal] = useState<string | null>(null)

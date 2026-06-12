@@ -9,7 +9,7 @@ import { useModuloGuard } from '@/hooks/useModuloGuard'
 
 export default function EstoquePage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Estoque' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Estoque' }, [])
   const [search, setSearch] = useState('')
 
   const { data: prodResp } = useQuery<any>({

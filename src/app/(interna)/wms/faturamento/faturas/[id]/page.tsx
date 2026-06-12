@@ -24,7 +24,7 @@ export default function FaturaDetailPage() {
   useModuloGuard('WMS')
   const { id } = useParams<{ id: string }>()
   const queryClient = useQueryClient()
-  useEffect(() => { document.title = 'VisioFab - WMS - Fatura Detalhe' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Fatura Detalhe' }, [])
 
   const { data: fatura, isLoading } = useQuery<any>({
     queryKey: ['faturamento', 'faturas', id],

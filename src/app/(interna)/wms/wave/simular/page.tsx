@@ -13,7 +13,7 @@ import { useModuloGuard } from '@/hooks/useModuloGuard'
 
 export default function WaveSimularPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Wave Simulação' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Wave Simulação' }, [])
   const queryClient = useQueryClient()
 
   const [data, setData] = useState<Date | null>(new Date())

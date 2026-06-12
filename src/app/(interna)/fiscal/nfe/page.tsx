@@ -15,7 +15,7 @@ const statusColors: Record<string, string> = { PENDENTE: 'gray', AUTORIZADA: 'gr
 
 export default function NfePage() {
   useModuloGuard('VENDAS')
-  useEffect(() => { document.title = 'VisioFab - Fiscal - NF-e' }, [])
+  useEffect(() => { document.title = 'Vizor - Fiscal - NF-e' }, [])
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
   const [xmlModal, setXmlModal] = useState<string | null>(null)

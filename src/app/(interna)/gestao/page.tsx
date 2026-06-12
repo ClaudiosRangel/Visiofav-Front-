@@ -14,7 +14,7 @@ const statusColor: Record<string, string> = {
 
 export default function GestaoPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - Gestão' }, [])
+  useEffect(() => { document.title = 'Vizor - Gestão' }, [])
 
   const dataStr = new Date().toISOString().split('T')[0]
 

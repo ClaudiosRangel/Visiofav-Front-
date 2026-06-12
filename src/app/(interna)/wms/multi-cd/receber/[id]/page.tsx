@@ -28,7 +28,7 @@ export default function ReceberPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
 
-  useEffect(() => { document.title = 'VisioFab - WMS - Receber Transferência' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Receber Transferência' }, [])
 
   const [itensRecebimento, setItensRecebimento] = useState<RecebimentoItem[]>([])
   const [divergencias, setDivergencias] = useState<any[]>([])

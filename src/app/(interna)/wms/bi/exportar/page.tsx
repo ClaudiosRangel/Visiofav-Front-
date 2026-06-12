@@ -45,7 +45,7 @@ const ENDPOINTS = [
 
 export default function BiExportarPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Exportar Power BI' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Exportar Power BI' }, [])
 
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([
     new Date(new Date().setDate(new Date().getDate() - 30)),

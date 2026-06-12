@@ -31,7 +31,7 @@ const PRIORIDADE_OPTIONS = [
 
 export default function NovaSolicitacaoPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Nova Solicitação de Transferência' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Nova Solicitação de Transferência' }, [])
 
   const router = useRouter()
 

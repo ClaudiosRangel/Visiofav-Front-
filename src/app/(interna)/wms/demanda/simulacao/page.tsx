@@ -13,7 +13,7 @@ import { notifications } from '@mantine/notifications'
 
 export default function SimulacaoWhatIfPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Simulação What-If' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Simulação What-If' }, [])
 
   const [produtoId, setProdutoId] = useState<string | null>(null)
   const [enderecoDestino, setEnderecoDestino] = useState<string | null>(null)

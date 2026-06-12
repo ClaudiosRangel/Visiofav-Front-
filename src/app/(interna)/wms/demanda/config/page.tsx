@@ -20,7 +20,7 @@ const METODOS = [
 
 export default function DemandaConfigPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Configuração Demanda' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Configuração Demanda' }, [])
 
   const queryClient = useQueryClient()
 

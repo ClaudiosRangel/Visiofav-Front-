@@ -14,7 +14,7 @@ const statusColors: Record<string, string> = { RASCUNHO: 'gray', CONFIRMADO: 'bl
 
 export default function PedidosVendaPage() {
   useModuloGuard('VENDAS')
-  useEffect(() => { document.title = 'VisioFab - Vendas - Pedidos' }, [])
+  useEffect(() => { document.title = 'Vizor - Vendas - Pedidos' }, [])
   const router = useRouter()
   const queryClient = useQueryClient()
   const [statusFilter, setStatusFilter] = useState<string | null>(null)

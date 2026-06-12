@@ -12,7 +12,7 @@ import Link from 'next/link'
 
 export default function PortalAdminPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Portal 3PL' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Portal 3PL' }, [])
 
   const { data: dashboard, isLoading } = useQuery<any>({
     queryKey: ['portal-dashboard'],

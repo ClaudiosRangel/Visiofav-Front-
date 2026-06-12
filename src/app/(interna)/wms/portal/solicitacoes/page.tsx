@@ -16,7 +16,7 @@ const statusColors: Record<string, string> = {
 
 export default function PortalSolicitacoesPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Portal Solicitações' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Portal Solicitações' }, [])
   const queryClient = useQueryClient()
 
   const [filtroStatus, setFiltroStatus] = useState<string | null>(null)

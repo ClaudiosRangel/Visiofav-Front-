@@ -12,7 +12,7 @@ import AgendamentoDocaModal from '@/components/wms/AgendamentoDocaModal'
 
 export default function ImportarXmlPage() {
   useModuloGuard('COMPRAS')
-  useEffect(() => { document.title = 'VisioFab - Compras - Importar XML' }, [])
+  useEffect(() => { document.title = 'Vizor - Compras - Importar XML' }, [])
   const router = useRouter()
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<any>(null)

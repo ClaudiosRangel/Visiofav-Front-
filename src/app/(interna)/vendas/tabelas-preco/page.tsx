@@ -39,7 +39,7 @@ type FormValues = z.infer<typeof formSchema>
 
 export default function TabelasPrecoPage() {
   useModuloGuard('VENDAS')
-  useEffect(() => { document.title = 'VisioFab - Vendas - Tabelas de Preço' }, [])
+  useEffect(() => { document.title = 'Vizor - Vendas - Tabelas de Preço' }, [])
   const queryClient = useQueryClient()
   const [modalOpen, setModalOpen] = useState(false)
   const [editItem, setEditItem] = useState<any>(null)

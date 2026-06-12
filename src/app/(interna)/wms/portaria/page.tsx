@@ -28,7 +28,7 @@ const statusLabels: Record<string, string> = {
 
 export default function PortariaPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Portaria' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Portaria' }, [])
   const queryClient = useQueryClient()
 
   // Conferência modal state

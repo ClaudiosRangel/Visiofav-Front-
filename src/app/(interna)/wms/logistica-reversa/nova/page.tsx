@@ -24,7 +24,7 @@ interface NfeItem {
 
 export default function NovaRAPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Nova RA' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Nova RA' }, [])
 
   const router = useRouter()
 

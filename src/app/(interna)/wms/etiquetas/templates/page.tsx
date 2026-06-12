@@ -22,7 +22,7 @@ const TIPO_OPTIONS = [
 
 export default function TemplatesEtiquetaPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Templates de Etiquetas ZPL' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Templates de Etiquetas ZPL' }, [])
 
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)

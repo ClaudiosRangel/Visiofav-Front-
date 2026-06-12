@@ -49,7 +49,7 @@ const UNIDADES_MEDIDA = [
 
 export default function LmsMetasPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - LMS - Metas' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - LMS - Metas' }, [])
 
   const queryClient = useQueryClient()
   const [opened, { open, close }] = useDisclosure(false)

@@ -17,7 +17,7 @@ const statusOptions = [
 
 export default function EntregasPage() {
   useModuloGuard('VENDAS')
-  useEffect(() => { document.title = 'VisioFab - Vendas - Entregas' }, [])
+  useEffect(() => { document.title = 'Vizor - Vendas - Entregas' }, [])
   const queryClient = useQueryClient()
   const [motivoModal, setMotivoModal] = useState<{ vendaId: string; novoStatus: string } | null>(null)
   const [motivo, setMotivo] = useState('')

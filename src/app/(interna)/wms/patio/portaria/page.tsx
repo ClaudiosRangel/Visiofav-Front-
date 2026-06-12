@@ -27,7 +27,7 @@ function formatPlaca(value: string): string {
 
 export default function PatioPortariaPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Pátio - Portaria' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Pátio - Portaria' }, [])
 
   const [modo, setModo] = useState<'menu' | 'entrada' | 'saida'>('menu')
   const [mensagem, setMensagem] = useState<{ tipo: 'success' | 'error'; texto: string } | null>(null)

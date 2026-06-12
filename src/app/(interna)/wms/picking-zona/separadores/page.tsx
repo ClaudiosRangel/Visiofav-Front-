@@ -33,7 +33,7 @@ const TIPO_COLORS: Record<string, string> = {
 
 export default function SeparadoresPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Separadores por Zona' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Separadores por Zona' }, [])
 
   const queryClient = useQueryClient()
   const [zonaId, setZonaId] = useState<string | null>(null)

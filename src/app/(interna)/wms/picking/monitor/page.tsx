@@ -29,7 +29,7 @@ export default function MonitorSeparacaoPage() {
   const [ondaId, setOndaId] = useState('')
 
   useEffect(() => {
-    document.title = 'VisioFab - Monitor Separação'
+    document.title = 'Vizor - Monitor Separação'
     const params = new URLSearchParams(window.location.search)
     const id = params.get('ondaId')
     if (id) setOndaId(id)

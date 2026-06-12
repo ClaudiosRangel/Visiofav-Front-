@@ -18,7 +18,7 @@ const tipoColors: Record<string, string> = {
 
 export default function WaveRegrasPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Wave Regras' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Wave Regras' }, [])
   const queryClient = useQueryClient()
 
   const [modalOpen, setModalOpen] = useState(false)

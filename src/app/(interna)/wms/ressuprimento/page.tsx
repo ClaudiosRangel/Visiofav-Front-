@@ -10,7 +10,7 @@ import { useModuloGuard } from '@/hooks/useModuloGuard'
 
 export default function RessuprimentoPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Ressuprimento' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Ressuprimento' }, [])
   const queryClient = useQueryClient()
 
   const { data: response, isLoading, refetch } = useQuery<any>({

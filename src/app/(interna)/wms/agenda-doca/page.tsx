@@ -44,7 +44,7 @@ function parseTime(dateStr: string): number {
 
 export default function AgendaDocaPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Agenda de Docas' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Agenda de Docas' }, [])
 
   const queryClient = useQueryClient()
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())

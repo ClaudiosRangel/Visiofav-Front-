@@ -34,7 +34,7 @@ function formatDuration(startTime: string): string {
 
 export default function LmsPausasPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - LMS - Pausas' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - LMS - Pausas' }, [])
 
   const queryClient = useQueryClient()
   const [tipoPausa, setTipoPausa] = useState('CAFE')

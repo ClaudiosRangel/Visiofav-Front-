@@ -9,7 +9,7 @@ import { useModuloGuard } from '@/hooks/useModuloGuard'
 
 export default function ConsultaClientesPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Consulta Clientes' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Consulta Clientes' }, [])
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const limit = 20

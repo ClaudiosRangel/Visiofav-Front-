@@ -26,7 +26,7 @@ const STATUS_CHAMADA_LABELS: Record<string, string> = {
 
 export default function PatioChamadaPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Pátio - Chamada' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Pátio - Chamada' }, [])
 
   const queryClient = useQueryClient()
   const [docaId, setDocaId] = useState<string | null>(null)

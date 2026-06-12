@@ -11,7 +11,7 @@ import { useModuloGuard } from '@/hooks/useModuloGuard'
 
 export default function WaveMonitoramentoPage() {
   useModuloGuard('WMS')
-  useEffect(() => { document.title = 'VisioFab - WMS - Wave Monitoramento' }, [])
+  useEffect(() => { document.title = 'Vizor - WMS - Wave Monitoramento' }, [])
 
   const { data: response, isLoading, dataUpdatedAt } = useQuery<any>({
     queryKey: ['wave-monitoramento'],
