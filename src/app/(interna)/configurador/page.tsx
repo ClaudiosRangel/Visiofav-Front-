@@ -25,6 +25,7 @@ const atalhos = [
   { icon: IconMapPin, label: 'Endereços', href: '/configurador/enderecos' },
   { icon: IconColumns, label: 'Estrutura física', href: '/configurador/estruturas' },
   { icon: IconListCheck, label: 'Convocação Ativa', href: '/configurador/convocacao' },
+  { icon: IconBarcode, label: 'Conferência', href: '/configurador/conferencia' },
 ]
 
 const cadastros = [
