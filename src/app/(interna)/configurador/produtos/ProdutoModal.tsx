@@ -1,6 +1,6 @@
 'use client'
 
-import { Modal, TextInput, Button, Group, Select, NumberInput, Tabs, Text, Divider, Image, FileButton, ActionIcon, Stack, Tooltip, Badge, Table, LoadingOverlay, Card } from '@mantine/core'
+import { Modal, TextInput, Button, Group, Select, NumberInput, Tabs, Text, Divider, Image, FileButton, ActionIcon, Stack, Tooltip, Badge, Table, LoadingOverlay, Card, Switch } from '@mantine/core'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -41,6 +41,7 @@ const produtoSchema = z.object({
   shelfLifeMinimo: z.number().int().positive().nullable().optional(),
   classificacaoPcp: z.string().nullable().optional(),
   tipoFisico: z.string().nullable().optional(),
+  exigeLote: z.boolean().optional(),
   // Código de barras
   cEAN: z.string().max(14).optional(),
   // Fiscal
@@ -93,7 +94,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<ProdutoForm>({
     resolver: zodResolver(produtoSchema),
-    defaultValues: { codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 },
+    defaultValues: { codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, exigeLote: false, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 },
   })
 
   useEffect(() => {
@@ -108,6 +109,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
         shelfLifeMinimo: editData.shelfLifeMinimo ?? null,
         classificacaoPcp: editData.classificacaoPcp || null,
         tipoFisico: editData.tipoFisico || null,
+        exigeLote: editData.exigeLote ?? false,
         cEAN: editData.cEAN || editData.codigoBarra || '',
         ncm: editData.ncm || '',
         cfopEstadual: editData.cfopEstadual || '',
@@ -124,7 +126,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
       })
       setImagemUrl(editData.imagemUrl || null)
     } else {
-      reset({ codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 })
+      reset({ codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, exigeLote: false, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 })
       setImagemUrl(null)
     }
   }, [editData, reset, opened])
@@ -262,6 +264,18 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
                       onChange={(v) => field.onChange(v === '' ? null : typeof v === 'number' ? v : null)}
                     />
                   </Tooltip>
+                )} />
+                <Controller name="exigeLote" control={control} render={({ field }) => (
+                  <div className="flex flex-col justify-end">
+                    <Text size="sm" fw={500} mb={4}>Exige Lote</Text>
+                    <Switch
+                      checked={field.value ?? false}
+                      onChange={(e) => field.onChange(e.currentTarget.checked)}
+                      label={field.value ? 'Obrigatório' : 'Opcional'}
+                      color="teal"
+                    />
+                    <Text size="xs" c="dimmed" mt={2}>Obriga informar lote na conferência</Text>
+                  </div>
                 )} />
                 {isEditing && editData?.curvaAbc && (
                   <div className="flex flex-col justify-end">
