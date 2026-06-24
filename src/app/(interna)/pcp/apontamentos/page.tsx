@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react'
 import { Title, Stack, Table, Group, Button, Select, Pagination, Text, Loader, Center, Badge } from '@mantine/core'
 import { IconPlus } from '@tabler/icons-react'
+import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 
 export default function ApontamentosPage() {
   useEffect(() => { document.title = 'PCP - Apontamentos' }, [])
-
+  const router = useRouter()
   const [data, setData] = useState<any[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -32,7 +33,7 @@ export default function ApontamentosPage() {
     <Stack gap="md">
       <Group justify="space-between">
         <Title order={3}>Apontamentos de Produção</Title>
-        <Button leftSection={<IconPlus size={16} />}>Novo Apontamento</Button>
+        <Button leftSection={<IconPlus size={16} />} onClick={() => router.push('/pcp/programacao')}>Novo Apontamento</Button>
       </Group>
 
       {loading ? (

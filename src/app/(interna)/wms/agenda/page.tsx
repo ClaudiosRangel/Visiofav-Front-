@@ -8,7 +8,7 @@ import {
 import { DateInput } from '@mantine/dates'
 import {
   IconRefresh, IconCheck, IconPlus, IconCalendar, IconTruck,
-  IconClock, IconArrowRight, IconX, IconEdit,
+  IconClock, IconArrowRight, IconX, IconEdit, IconPrinter,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -167,6 +167,85 @@ export default function AgendaWmsPage() {
   const emAndamento = items.filter((i: any) => ['CONFIRMADO', 'ESPERA', 'NA_DOCA', 'CONFERINDO'].includes(i.status)).length
   const concluidos = items.filter((i: any) => i.status === 'RECEBIDO').length
 
+  function handlePrint() {
+    const dateFormatted = selectedDate.toLocaleDateString('pt-BR')
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Agenda de Recebimento - ${dateFormatted}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; font-size: 12px; padding: 20px; color: #333; }
+          h1 { font-size: 18px; margin-bottom: 4px; }
+          .subtitle { color: #666; font-size: 12px; margin-bottom: 16px; }
+          .stats { display: flex; gap: 24px; margin-bottom: 16px; padding: 8px 0; border-bottom: 1px solid #ccc; }
+          .stat { font-weight: bold; }
+          .stat-label { font-weight: normal; color: #666; }
+          .doca-section { margin-bottom: 16px; page-break-inside: avoid; }
+          .doca-header { font-weight: bold; font-size: 14px; padding: 6px 0; border-bottom: 2px solid #333; margin-bottom: 4px; }
+          table { width: 100%; border-collapse: collapse; font-size: 11px; }
+          th { text-align: left; padding: 4px 8px; background: #f0f0f0; border: 1px solid #ddd; font-weight: 600; }
+          td { padding: 4px 8px; border: 1px solid #ddd; }
+          .status { font-weight: bold; text-transform: uppercase; font-size: 10px; }
+          .footer { margin-top: 24px; text-align: right; font-size: 10px; color: #999; border-top: 1px solid #ddd; padding-top: 8px; }
+          @media print {
+            body { padding: 10px; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <h1>Agenda de Recebimento</h1>
+        <div class="subtitle">Data: ${dateFormatted} | Total: ${items.length} agendamento(s)</div>
+        <div class="stats">
+          <span><span class="stat-label">Agendados:</span> <span class="stat">${agendados}</span></span>
+          <span><span class="stat-label">Em Andamento:</span> <span class="stat">${emAndamento}</span></span>
+          <span><span class="stat-label">Concluídos:</span> <span class="stat">${concluidos}</span></span>
+        </div>
+        ${Object.entries(porDoca).map(([docaNome, agendamentos]) => `
+          <div class="doca-section">
+            <div class="doca-header">${docaNome} — ${agendamentos.length} agendamento(s)</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Horário</th>
+                  <th>Fornecedor</th>
+                  <th>NF</th>
+                  <th>Motorista/Placa</th>
+                  <th>Caixas/Paletes</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${agendamentos.sort((a: any, b: any) => (a.horaInicio || '').localeCompare(b.horaInicio || '')).map((ag: any) => `
+                  <tr>
+                    <td>${ag.horaInicio || '—'} - ${ag.horaFim || '—'}</td>
+                    <td>${ag.fornecedor?.nomeFantasia || ag.fornecedor?.razaoSocial || '—'}</td>
+                    <td>${ag.notaEntrada?.numero ? `NF ${ag.notaEntrada.numero}${ag.notaEntrada.serie ? '/' + ag.notaEntrada.serie : ''}` : '—'}</td>
+                    <td>${ag.motorista || '—'}${ag.placa ? ' (' + ag.placa + ')' : ''}</td>
+                    <td>${ag.qtdCaixas ? ag.qtdCaixas + ' cx' : ''}${ag.qtdCaixas && ag.qtdPaletes ? ' / ' : ''}${ag.qtdPaletes ? ag.qtdPaletes + ' pl' : ''}${!ag.qtdCaixas && !ag.qtdPaletes ? '—' : ''}</td>
+                    <td class="status">${ag.status}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `).join('')}
+        ${Object.keys(porDoca).length === 0 ? '<p style="text-align:center;color:#999;padding:40px 0;">Nenhum agendamento para esta data.</p>' : ''}
+        <div class="footer">Impresso em ${new Date().toLocaleString('pt-BR')} | Vizor ERP - Agenda de Recebimento</div>
+      </body>
+      </html>
+    `
+
+    printWindow.document.write(html)
+    printWindow.document.close()
+    printWindow.onload = () => { printWindow.print() }
+  }
+
   return (
     <div>
       <Text size="xs" c="dimmed" mb={4}>WMS / Agenda de Recebimento</Text>
@@ -192,6 +271,7 @@ export default function AgendaWmsPage() {
             ]} value={statusFilter} onChange={setStatusFilter} clearable className="w-40" />
           </Group>
           <Group>
+            <Button variant="default" leftSection={<IconPrinter size={16} />} onClick={handlePrint} disabled={items.length === 0}>Imprimir</Button>
             <Button variant="default" leftSection={<IconRefresh size={16} />} onClick={() => refetch()}>Atualizar</Button>
             <Button leftSection={<IconPlus size={16} />} onClick={() => { resetForm(); setModalOpen(true) }}>Novo Agendamento</Button>
           </Group>

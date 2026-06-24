@@ -31,6 +31,8 @@ import {
   useConfirmarDistribuicao,
   type DistribuicaoResult,
 } from '@/data/hooks/useEnderecamentoInteligente'
+import DivergenciaLoteValidadePanel from '@/components/wms/DivergenciaLoteValidadePanel'
+import { isFinalizacaoHabilitada } from '@/hooks/useResolverDivergenciaLV'
 
 const statusColors: Record<string, string> = {
   PENDENTE: 'orange', EM_CONFERENCIA: 'blue', CONFERIDA: 'green', REJEITADA: 'red', ENDERECADA: 'teal',
@@ -274,7 +276,10 @@ export default function ConferenciaEntradaPage() {
             descricao: item.descricao,
             codigoProduto: item.codigoProduto,
             unidade: item.unidade,
-            lote: item.lote,
+            // Não incluir lote/validade no fallback — o backend filtra via filtrarDadosConforme no POST
+            // Se o POST não retornou itens, respeitar a configuração cega
+            lote: undefined,
+            validade: undefined,
           })),
         }
       }
@@ -285,21 +290,10 @@ export default function ConferenciaEntradaPage() {
       setItensConferidos({})
       setResultado(null)
       setAcompanhamentoData(null)
-      // Pré-preencher lote e validade vindos da nota (importados do XML)
-      const lotes: Record<string, string> = {}
-      const validades: Record<string, string> = {}
-      for (const item of (data.itens || [])) {
-        if (item.lote) lotes[item.id] = item.lote
-        if (item.validade) {
-          // Converter ISO para DD/MM/AAAA
-          const d = new Date(item.validade)
-          if (!isNaN(d.getTime())) {
-            validades[item.id] = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
-          }
-        }
-      }
-      setItensLotes(lotes)
-      setItensValidades(validades)
+      // Conferência cega: NÃO pré-preencher lote e validade
+      // O conferente deve digitar esses valores sem ver os dados da NF
+      setItensLotes({})
+      setItensValidades({})
       // Verificar se tem OS vinculada sem funcionários — abrir seleção
       checkOsAndStart(data)
     },
@@ -1378,7 +1372,7 @@ export default function ConferenciaEntradaPage() {
                   <Alert icon={<IconAlertCircle size={16} />} color="red" variant="light" mb="md">
                     <Text fw={600}>Divergência detectada!</Text>
                     <Text size="sm">
-                      {resultado.divergentes} item(ns) com quantidade diferente da nota.
+                      {resultado.divergentes} item(ns) com divergência na conferência.
                       Você pode: Aprovar (aceitar a divergência), Recontar (rejeitar e conferir novamente) ou Adicionar observação.
                     </Text>
                   </Alert>
@@ -1428,7 +1422,10 @@ export default function ConferenciaEntradaPage() {
                         <Table.Td>
                           {item.tipoDivergencia === 'EXCESSO' && <Badge color="orange" variant="light">Excesso</Badge>}
                           {item.tipoDivergencia === 'FALTA' && <Badge color="red" variant="light">Falta</Badge>}
-                          {!item.tipoDivergencia && <Text c="green">—</Text>}
+                          {item.tipoDivergencia === 'LOTE_NAO_INFORMADO' && <Badge color="yellow" variant="light">Lote não informado</Badge>}
+                          {item.tipoDivergencia === 'VALIDADE_NAO_INFORMADA' && <Badge color="yellow" variant="light">Validade não informada</Badge>}
+                          {!item.tipoDivergencia && item.status === 'CONFORME' && <Text c="green">—</Text>}
+                          {!item.tipoDivergencia && item.status !== 'CONFORME' && <Text c="dimmed">—</Text>}
                         </Table.Td>
                         <Table.Td>
                           <Badge color={item.status === 'CONFORME' ? 'green' : 'red'} variant="filled">
@@ -1439,6 +1436,17 @@ export default function ConferenciaEntradaPage() {
                     ))}
                   </Table.Tbody>
                 </Table>
+
+                {/* Divergências de Lote/Validade */}
+                {resultado?.divergenciasLoteValidade && resultado.divergenciasLoteValidade.length > 0 && (
+                  <Card mt="md">
+                    <DivergenciaLoteValidadePanel
+                      divergencias={resultado.divergenciasLoteValidade}
+                      notaId={conferencia.nota.id}
+                      onResolucaoCompleta={() => conferirTodos.mutate()}
+                    />
+                  </Card>
+                )}
 
                 {/* Ações */}
                 <Divider mb="md" />
@@ -1463,7 +1471,8 @@ export default function ConferenciaEntradaPage() {
                       </Button>
                     )}
                     <Button color="green" leftSection={<IconCheck size={16} />}
-                      onClick={() => aprovarConf.mutate()} loading={aprovarConf.isPending}>
+                      onClick={() => aprovarConf.mutate()} loading={aprovarConf.isPending}
+                      disabled={resultado?.divergenciasLoteValidade?.length > 0 && !isFinalizacaoHabilitada(resultado.divergenciasLoteValidade)}>
                       {resultado.temDivergencia ? 'Aprovar com Divergência' : 'Aprovar Conferência'}
                     </Button>
                   </Group>

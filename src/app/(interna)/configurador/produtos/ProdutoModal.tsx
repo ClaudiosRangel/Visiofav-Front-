@@ -42,6 +42,8 @@ const produtoSchema = z.object({
   classificacaoPcp: z.string().nullable().optional(),
   tipoFisico: z.string().nullable().optional(),
   exigeLote: z.boolean().optional(),
+  modoResolucaoLote: z.string().optional(),
+  modoResolucaoValidade: z.string().optional(),
   // Código de barras
   cEAN: z.string().max(14).optional(),
   // Fiscal
@@ -94,7 +96,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<ProdutoForm>({
     resolver: zodResolver(produtoSchema),
-    defaultValues: { codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, exigeLote: false, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 },
+    defaultValues: { codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, exigeLote: false, modoResolucaoLote: 'BLOQUEAR', modoResolucaoValidade: 'BLOQUEAR', origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 },
   })
 
   useEffect(() => {
@@ -110,6 +112,8 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
         classificacaoPcp: editData.classificacaoPcp || null,
         tipoFisico: editData.tipoFisico || null,
         exigeLote: editData.exigeLote ?? false,
+        modoResolucaoLote: editData.modoResolucaoLote || 'BLOQUEAR',
+        modoResolucaoValidade: editData.modoResolucaoValidade || 'BLOQUEAR',
         cEAN: editData.cEAN || editData.codigoBarra || '',
         ncm: editData.ncm || '',
         cfopEstadual: editData.cfopEstadual || '',
@@ -126,7 +130,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
       })
       setImagemUrl(editData.imagemUrl || null)
     } else {
-      reset({ codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, exigeLote: false, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 })
+      reset({ codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, exigeLote: false, modoResolucaoLote: 'BLOQUEAR', modoResolucaoValidade: 'BLOQUEAR', origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 })
       setImagemUrl(null)
     }
   }, [editData, reset, opened])
@@ -277,6 +281,38 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
                     <Text size="xs" c="dimmed" mt={2}>Obriga informar lote na conferência</Text>
                   </div>
                 )} />
+              </div>
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <Controller name="modoResolucaoLote" control={control} render={({ field }) => (
+                  <Select
+                    label="Divergência de Lote"
+                    description="Ação quando lote conferido difere da NF"
+                    data={[
+                      { value: 'BLOQUEAR', label: '🔴 Bloquear (exige reconferência)' },
+                      { value: 'ACEITAR_LIVRE', label: '🟢 Aceitar livremente' },
+                      { value: 'ACEITAR_SENHA', label: '🟡 Aceitar com senha supervisor' },
+                      { value: 'ACEITAR_CCE', label: '🔵 Aceitar com CC-e automática' },
+                    ]}
+                    value={field.value || 'BLOQUEAR'}
+                    onChange={field.onChange}
+                  />
+                )} />
+                <Controller name="modoResolucaoValidade" control={control} render={({ field }) => (
+                  <Select
+                    label="Divergência de Validade"
+                    description="Ação quando validade conferida difere da NF"
+                    data={[
+                      { value: 'BLOQUEAR', label: '🔴 Bloquear (exige reconferência)' },
+                      { value: 'ACEITAR_LIVRE', label: '🟢 Aceitar livremente' },
+                      { value: 'ACEITAR_SENHA', label: '🟡 Aceitar com senha supervisor' },
+                      { value: 'ACEITAR_CCE', label: '🔵 Aceitar com CC-e automática' },
+                    ]}
+                    value={field.value || 'BLOQUEAR'}
+                    onChange={field.onChange}
+                  />
+                )} />
+              </div>
+              <div>
                 {isEditing && editData?.curvaAbc && (
                   <div className="flex flex-col justify-end">
                     <Text size="sm" fw={500} mb={4}>Curva ABC</Text>

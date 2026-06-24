@@ -40,6 +40,38 @@ export default function DetalheOpPage() {
   if (loading) return <Center py="xl"><Loader /></Center>
   if (!op) return <Text c="red" ta="center" py="xl">OP não encontrada</Text>
 
+  async function alterarStatus(novoStatus: string) {
+    try {
+      await api.patch(`/ordens-producao/${id}/status`, { status: novoStatus })
+      // Recarrega
+      const res = await api.get(`/ordens-producao/${id}`)
+      setOp(res.data)
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Erro ao alterar status')
+    }
+  }
+
+  const transicoesPermitidas: Record<string, string[]> = {
+    RASCUNHO: ['PLANEJADA', 'CANCELADA'],
+    PLANEJADA: ['PROGRAMADA', 'CANCELADA'],
+    PROGRAMADA: ['LIBERADA', 'CANCELADA'],
+    LIBERADA: ['EM_PRODUCAO', 'CANCELADA'],
+    EM_PRODUCAO: ['CONCLUIDA'],
+    CONCLUIDA: [],
+    CANCELADA: [],
+  }
+
+  const botoesStatus: Record<string, { label: string; color: string }> = {
+    PLANEJADA: { label: '→ Planejar', color: 'blue' },
+    PROGRAMADA: { label: '→ Programar', color: 'indigo' },
+    LIBERADA: { label: '→ Liberar', color: 'cyan' },
+    EM_PRODUCAO: { label: '→ Iniciar Produção', color: 'orange' },
+    CONCLUIDA: { label: '→ Concluir', color: 'green' },
+    CANCELADA: { label: '✕ Cancelar', color: 'red' },
+  }
+
+  const proximosStatus = transicoesPermitidas[op.status] || []
+
   return (
     <Stack gap="md">
       <Group>
@@ -50,12 +82,27 @@ export default function DetalheOpPage() {
         <Text size="sm" c="dimmed">{op.percentualConcluido}% concluído</Text>
       </Group>
 
+      {/* Botões de transição de status */}
+      {proximosStatus.length > 0 && (
+        <Group gap="xs">
+          {proximosStatus.map((s) => {
+            const config = botoesStatus[s]
+            return config ? (
+              <Button key={s} size="xs" color={config.color} variant={s === 'CANCELADA' ? 'outline' : 'filled'} onClick={() => alterarStatus(s)}>
+                {config.label}
+              </Button>
+            ) : null
+          })}
+        </Group>
+      )}
+
       {/* Cabeçalho */}
       <Card withBorder>
         <Group grow>
           <div><Text size="xs" c="dimmed">Produto</Text><Text fw={600}>{op.produtoNome || op.produtoId}</Text></div>
           <div><Text size="xs" c="dimmed">Quantidade</Text><Text fw={600}>{Number(op.quantidade)} {op.unidadeMedida}{Number(op.quantidadeExcedente) > 0 ? ` (+${Number(op.quantidadeExcedente)} excedente)` : ''}</Text></div>
-          <div><Text size="xs" c="dimmed">Entrega Prevista</Text><Text fw={600}>{new Date(op.dataEntregaPrevista).toLocaleDateString('pt-BR')}</Text></div>
+          <div><Text size="xs" c="dimmed">Entrega Prevista</Text><Text fw={600}>{op.dataEntregaPrevista ? new Date(op.dataEntregaPrevista).toLocaleDateString('pt-BR') : '—'}</Text></div>
+          <div><Text size="xs" c="dimmed">Cliente</Text><Text fw={600}>{op.clienteNome || '—'}</Text></div>
           <div><Text size="xs" c="dimmed">Lote</Text><Text fw={600}>{op.lote || '—'}</Text></div>
           <div><Text size="xs" c="dimmed">Cor</Text><Text fw={600}>{op.cor || '—'}</Text></div>
         </Group>
