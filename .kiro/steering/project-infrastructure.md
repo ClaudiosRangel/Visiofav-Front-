@@ -5,7 +5,7 @@
 | Recurso | Provedor | URL |
 |---------|----------|-----|
 | **Frontend Web** | Vercel | https://visiofav-front-wofr.vercel.app |
-| **API Backend** | Render | https://visiofav.onrender.com/api |
+| **API Backend** | Render | https://api.vizorerp.com.br/api |
 | **Deploy** | Automático após push | ~1-2 minutos |
 
 ## Desenvolvimento Local
@@ -45,7 +45,7 @@
 
 | Variável | Valor |
 |----------|-------|
-| `NEXT_PUBLIC_API_URL` | https://visiofav.onrender.com/api |
+| `NEXT_PUBLIC_API_URL` | https://api.vizorerp.com.br/api |
 
 ## Projetos Relacionados
 
