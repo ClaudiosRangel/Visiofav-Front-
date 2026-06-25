@@ -1,7 +1,7 @@
 'use client'
 
 import { Group, Text, Badge, ActionIcon, Menu } from '@mantine/core'
-import { IconBell, IconUser, IconLogout, IconBuildingSkyscraper, IconArrowsExchange } from '@tabler/icons-react'
+import { IconBell, IconUser, IconLogout, IconBuildingSkyscraper, IconArrowsExchange, IconMenu2 } from '@tabler/icons-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useEmpresa } from '@/providers/EmpresaProvider'
@@ -26,13 +26,16 @@ export default function Header() {
   }
 
   return (
-    <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-6">
+    <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-3 md:px-6">
       <Group gap="sm">
+        <ActionIcon variant="subtle" color="gray" size="lg" className="md:hidden" onClick={() => router.push('/modulos')}>
+          <IconMenu2 size={20} />
+        </ActionIcon>
         <Text size="sm" c="primary" fw={600}>Vizor ERP</Text>
         {empresa && (
           <>
-            <Text size="sm" c="dimmed">|</Text>
-            <Group gap={4}>
+            <Text size="sm" c="dimmed" className="hidden sm:block">|</Text>
+            <Group gap={4} className="hidden sm:flex">
               <IconBuildingSkyscraper size={14} className="text-gray-400" />
               <Text size="sm" c="dimmed">{empresa.nomeFantasia || empresa.razaoSocial}</Text>
             </Group>

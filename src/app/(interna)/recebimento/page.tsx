@@ -113,15 +113,16 @@ export default function RecebimentoPage() {
 
       <Card pos="relative">
         <LoadingOverlay visible={isLoading} />
-        <Group justify="space-between" mb="md">
+        <Group justify="space-between" mb="md" wrap="wrap">
           <Text fw={600}>Notas Fiscais de Entrada</Text>
-          <Group>
+          <Group wrap="wrap">
             <Button variant="light" color="blue" leftSection={<IconUpload size={16} />} onClick={handleImportXml}>Importar XML</Button>
             <Button variant="light" color="grape" leftSection={<IconLink size={16} />} onClick={() => router.push('/recebimento/importar-xml-depara')}>Importar XML (De-Para)</Button>
             <Button leftSection={<IconPlus size={16} />} onClick={handleNew}>Nova Nota</Button>
           </Group>
         </Group>
 
+        <div className="overflow-x-auto">
         <Table striped highlightOnHover>
           <Table.Thead><Table.Tr><Table.Th>NF</Table.Th><Table.Th>Série</Table.Th><Table.Th>Fornecedor</Table.Th><Table.Th>CNPJ</Table.Th><Table.Th>Tipo</Table.Th><Table.Th>Entrada</Table.Th><Table.Th>Itens</Table.Th><Table.Th>Status</Table.Th><Table.Th>Ações</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>
@@ -149,6 +150,7 @@ export default function RecebimentoPage() {
             {!isLoading && notas.length === 0 && <Table.Tr><Table.Td colSpan={9} className="text-center py-8 text-zinc-500">Nenhuma nota</Table.Td></Table.Tr>}
           </Table.Tbody>
         </Table>
+        </div>
       </Card>
 
       <NotaEntradaModal

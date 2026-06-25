@@ -47,9 +47,9 @@ export default function InternaLayout({ children }: { children: React.ReactNode 
   return (
     <div className="flex min-h-screen">
       <ModuleSidebar />
-      <div className="flex-1 ml-[220px] flex flex-col">
+      <div className="flex-1 md:ml-[220px] flex flex-col">
         <Header />
-        <main className="p-6 flex-1">{children}</main>
+        <main className="p-4 md:p-6 flex-1 overflow-x-hidden">{children}</main>
         <footer className="text-right text-xs text-zinc-400 px-4 py-2">
           {footerText}
         </footer>

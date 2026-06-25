@@ -108,10 +108,9 @@ export default function ModulosPage() {
 
   return (
     <div style={{ display: 'flex', minHeight: 'calc(100vh - 120px)', gap: 0 }}>
-      {/* Lado esquerdo — Logo grande */}
-      <div style={{
+      {/* Lado esquerdo — Logo grande (hidden mobile) */}
+      <div className="hidden md:flex" style={{
         flex: '0 0 320px',
-        display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
@@ -127,7 +126,7 @@ export default function ModulosPage() {
       </div>
 
       {/* Lado direito — Módulos */}
-      <div style={{ flex: 1, padding: '24px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+      <div style={{ flex: 1, padding: '24px 16px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }} className="md:!px-10">
         <Stack gap="lg">
           <Title order={2}>
             Módulos{empresa ? ` — ${empresa.nomeFantasia || empresa.razaoSocial}` : ''}

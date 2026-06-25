@@ -205,8 +205,8 @@ function OcupacaoRuaChart() {
     <div>
       {ruas.map((rua: any) => (
         <div key={rua.rua} className="flex items-center gap-3 mb-2">
-          <Text size="sm" fw={500} className="w-16 text-right">Rua {rua.rua}</Text>
-          <div className="flex-1">
+          <Text size="sm" fw={500} className="w-12 md:w-16 text-right shrink-0">Rua {rua.rua}</Text>
+          <div className="flex-1 min-w-0">
             <div className="relative h-6 bg-gray-100 rounded overflow-hidden">
               <div
                 style={{ width: `${(rua.ocupados / maxTotal) * 100}%` }}
@@ -220,7 +220,7 @@ function OcupacaoRuaChart() {
               />
             </div>
           </div>
-          <Text size="xs" fw={600} className="w-20 text-right">
+          <Text size="xs" fw={600} className="w-16 md:w-20 text-right shrink-0">
             {rua.ocupados}/{rua.total} ({rua.percentual}%)
           </Text>
         </div>

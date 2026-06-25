@@ -69,11 +69,12 @@ export default function EstoquePage() {
 
       <Card pos="relative">
         <LoadingOverlay visible={isLoading} />
-        <Group justify="space-between" mb="md">
+        <Group justify="space-between" mb="md" wrap="wrap">
           <TextInput placeholder="Pesquisar por produto ou endereço..." leftSection={<IconSearch size={16} />}
-            value={search} onChange={(e) => setSearch(e.currentTarget.value)} className="w-96" />
+            value={search} onChange={(e) => setSearch(e.currentTarget.value)} className="w-full md:w-96" />
           <Button variant="default" leftSection={<IconRefresh size={16} />} onClick={() => refetch()}>Atualizar</Button>
         </Group>
+        <div className="overflow-x-auto">
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
@@ -103,6 +104,7 @@ export default function EstoquePage() {
             )}
           </Table.Tbody>
         </Table>
+        </div>
       </Card>
     </div>
   )
