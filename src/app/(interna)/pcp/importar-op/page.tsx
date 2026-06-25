@@ -156,9 +156,9 @@ export default function ImportarOpPdfPage() {
       let finalProdutoId = produtoId
 
       // 1. Criar cliente se necessário
-      if (clienteAcao === 'criar' && clienteForm.razaoSocial && clienteForm.cpfCnpj) {
+      if (clienteAcao === 'criar' && clienteForm.razaoSocial) {
         try {
-          const res = await api.post('/clientes', { razaoSocial: clienteForm.razaoSocial, cpfCnpj: clienteForm.cpfCnpj, telefone: clienteForm.telefone || undefined })
+          const res = await api.post('/clientes', { razaoSocial: clienteForm.razaoSocial, cpfCnpj: clienteForm.cpfCnpj || '00000000000', telefone: clienteForm.telefone || undefined })
           finalClienteId = res.data.id
           notifications.show({ title: 'Cliente criado', message: clienteForm.razaoSocial, color: 'green' })
         } catch (err: any) {
@@ -333,7 +333,7 @@ export default function ImportarOpPdfPage() {
                     <>
                       <TextInput label="Razão Social *" value={clienteForm.razaoSocial} onChange={(e) => setClienteForm({ ...clienteForm, razaoSocial: e.target.value })} />
                       <Group grow>
-                        <TextInput label="CPF/CNPJ *" value={clienteForm.cpfCnpj} onChange={(e) => setClienteForm({ ...clienteForm, cpfCnpj: e.target.value })} placeholder="00.000.000/0000-00" />
+                        <TextInput label="CPF/CNPJ" value={clienteForm.cpfCnpj} onChange={(e) => setClienteForm({ ...clienteForm, cpfCnpj: e.target.value })} placeholder="00.000.000/0000-00" />
                         <TextInput label="Telefone" value={clienteForm.telefone} onChange={(e) => setClienteForm({ ...clienteForm, telefone: e.target.value })} />
                       </Group>
                     </>
