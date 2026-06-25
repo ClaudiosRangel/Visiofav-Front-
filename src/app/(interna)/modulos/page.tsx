@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, SimpleGrid, Text, Title, ThemeIcon, UnstyledButton, Center, Stack, Button, Modal, PasswordInput, Loader } from '@mantine/core'
+import { Card, SimpleGrid, Text, Title, ThemeIcon, UnstyledButton, Center, Stack, Button, Modal, Checkbox, Group, Loader } from '@mantine/core'
 import {
   IconShoppingCart,
   IconReceipt,
@@ -28,13 +28,23 @@ const MODULOS_CONFIG = [
   { modulo: 'CONFIGURADOR', label: 'Configurador', icon: IconSettings, href: '/configurador', color: 'grape' },
 ] as const
 
+const MODULOS_LIMPEZA = [
+  { value: 'pcp', label: 'PCP (ordens, apontamentos, roteiros, estruturas)' },
+  { value: 'wms', label: 'WMS (ondas, separações, conferências, inventários, notas)' },
+  { value: 'vendas', label: 'Vendas (pedidos, vendas efetivadas)' },
+  { value: 'compras', label: 'Compras (pedidos, compras efetivadas, devoluções)' },
+  { value: 'financeiro', label: 'Financeiro (contas a pagar e receber)' },
+  { value: 'fiscal', label: 'Fiscal (NF-e, CT-e)' },
+]
+
 export default function ModulosPage() {
   useEffect(() => { document.title = 'Vizor - Módulos' }, [])
   const router = useRouter()
   const { modulos, empresa } = useEmpresa()
 
   const [cleanupOpen, setCleanupOpen] = useState(false)
-  const [senha, setSenha] = useState('')
+  const [modulosSelecionados, setModulosSelecionados] = useState<string[]>([])
+  const [confirmStep, setConfirmStep] = useState(false)
   const [loading, setLoading] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
 
@@ -45,22 +55,32 @@ export default function ModulosPage() {
     setIsAdmin(perfil === 'SUPER_ADMIN')
   }, [])
 
+  function handleOpenCleanup() {
+    setModulosSelecionados([])
+    setConfirmStep(false)
+    setCleanupOpen(true)
+  }
+
+  function handleToggleModulo(modulo: string) {
+    setModulosSelecionados((prev) =>
+      prev.includes(modulo) ? prev.filter((m) => m !== modulo) : [...prev, modulo]
+    )
+  }
+
   async function handleCleanup() {
-    if (!senha) return
+    if (modulosSelecionados.length === 0) return
     setLoading(true)
     try {
-      const { data } = await api.post('/admin/cleanup', { senha })
-      if (data.done) {
-        notifications.show({
-          title: 'Limpeza concluída',
-          message: 'Todos os dados operacionais foram removidos com sucesso.',
-          color: 'green',
-          position: 'top-right',
-          autoClose: 5000,
-        })
-      }
+      const { data } = await api.delete('/admin/limpar-dados', { data: { modulos: modulosSelecionados } })
+      notifications.show({
+        title: 'Limpeza concluída',
+        message: data.message || `Módulos limpos: ${modulosSelecionados.join(', ')}`,
+        color: 'green',
+        position: 'top-right',
+        autoClose: 5000,
+      })
     } catch (err: any) {
-      const msg = err?.response?.data?.error || 'Erro ao executar limpeza'
+      const msg = err?.response?.data?.message || 'Erro ao executar limpeza'
       notifications.show({
         title: 'Erro',
         message: msg,
@@ -71,7 +91,8 @@ export default function ModulosPage() {
     } finally {
       setLoading(false)
       setCleanupOpen(false)
-      setSenha('')
+      setConfirmStep(false)
+      setModulosSelecionados([])
     }
   }
 
@@ -135,7 +156,7 @@ export default function ModulosPage() {
           variant="light"
           color="red"
           leftSection={<IconTrash size={18} />}
-          onClick={() => setCleanupOpen(true)}
+          onClick={handleOpenCleanup}
           mt="xl"
           w="fit-content"
         >
@@ -143,39 +164,74 @@ export default function ModulosPage() {
         </Button>
       )}
 
-      {/* Modal de confirmação com senha */}
+      {/* Modal de seleção de módulos para limpeza */}
       {isAdmin && (
         <Modal
           opened={cleanupOpen}
-          onClose={() => { setCleanupOpen(false); setSenha('') }}
-          title="Limpeza de Dados"
+          onClose={() => { setCleanupOpen(false); setConfirmStep(false); setModulosSelecionados([]) }}
+          title="Limpar Dados"
           centered
+          size="md"
         >
-          <Stack gap="md">
-            <Text size="sm" c="dimmed">
-              Esta ação irá remover todos os dados operacionais (pedidos, estoque, notas, funcionários, etc.).
-              Serão mantidos: empresa, CD, depósitos, zonas, estruturas, docas, produtos, SKUs, parâmetros e o usuário admin.
-            </Text>
-            <Text size="sm" c="red" fw={600}>
-              Esta ação é irreversível!
-            </Text>
-            <PasswordInput
-              label="Senha de confirmação"
-              placeholder="Digite a senha para confirmar"
-              value={senha}
-              onChange={(e) => setSenha(e.currentTarget.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleCleanup() }}
-            />
-            <Button
-              color="red"
-              onClick={handleCleanup}
-              loading={loading}
-              disabled={!senha}
-              fullWidth
-            >
-              Confirmar Limpeza
-            </Button>
-          </Stack>
+          {!confirmStep ? (
+            <Stack gap="md">
+              <Text size="sm" c="dimmed">
+                Selecione os módulos cujos dados deseja apagar. Os cadastros base (produtos, clientes, fornecedores, empresa) serão mantidos.
+              </Text>
+
+              <Stack gap="xs">
+                {MODULOS_LIMPEZA.map((m) => (
+                  <Checkbox
+                    key={m.value}
+                    label={m.label}
+                    checked={modulosSelecionados.includes(m.value)}
+                    onChange={() => handleToggleModulo(m.value)}
+                  />
+                ))}
+              </Stack>
+
+              <Button
+                color="red"
+                variant="light"
+                onClick={() => setConfirmStep(true)}
+                disabled={modulosSelecionados.length === 0}
+                fullWidth
+                mt="sm"
+              >
+                Continuar ({modulosSelecionados.length} módulo{modulosSelecionados.length !== 1 ? 's' : ''})
+              </Button>
+            </Stack>
+          ) : (
+            <Stack gap="md">
+              <Text size="sm" fw={600} c="red">
+                ⚠️ Ação irreversível!
+              </Text>
+              <Text size="sm">
+                Confirma a exclusão de todos os dados dos módulos:
+              </Text>
+              <Stack gap={4}>
+                {modulosSelecionados.map((m) => (
+                  <Text key={m} size="sm" fw={500}>• {MODULOS_LIMPEZA.find((x) => x.value === m)?.label}</Text>
+                ))}
+              </Stack>
+
+              <Group grow mt="sm">
+                <Button
+                  variant="default"
+                  onClick={() => setConfirmStep(false)}
+                >
+                  Voltar
+                </Button>
+                <Button
+                  color="red"
+                  onClick={handleCleanup}
+                  loading={loading}
+                >
+                  Confirmar Limpeza
+                </Button>
+              </Group>
+            </Stack>
+          )}
         </Modal>
       )}
         </Stack>
