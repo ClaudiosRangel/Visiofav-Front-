@@ -56,6 +56,7 @@ interface CentroParaCriar {
   indice: number
   descricao: string
   maquina: string
+  maquinaOriginal: string
   criar: boolean
   codigo: string
   tipo: string
@@ -138,6 +139,7 @@ export default function ImportarOpPdfPage() {
       const sug = data.sugestoes.centros.find(c => c.indice === i)
       return {
         indice: i, descricao: et.descricao, maquina: et.maquina || et.descricao,
+        maquinaOriginal: et.maquina || et.descricao,
         criar: !sug?.sugestao, codigo: sug?.sugestao?.codigo || (et.maquina || et.descricao).substring(0, 15).toUpperCase().replace(/\s/g, '-'),
         tipo: 'MAQUINA', centroIdVinculado: sug?.sugestao?.id || null,
       }
@@ -203,15 +205,17 @@ export default function ImportarOpPdfPage() {
       }
 
       // 4. Criar centros marcados
-      const centrosVinculados: Array<{ indice: number; centroProducaoId: string | null }> = []
+      const centrosVinculados: Array<{ indice: number; centroProducaoId: string | null; nomeEditado: string }> = []
       for (const ctr of centros) {
         if (ctr.centroIdVinculado) {
-          centrosVinculados.push({ indice: ctr.indice, centroProducaoId: ctr.centroIdVinculado })
+          centrosVinculados.push({ indice: ctr.indice, centroProducaoId: ctr.centroIdVinculado, nomeEditado: ctr.maquina })
         } else if (ctr.criar) {
           try {
             const res = await api.post('/centros-producao', { codigo: ctr.codigo, descricao: ctr.maquina, tipo: ctr.tipo })
-            centrosVinculados.push({ indice: ctr.indice, centroProducaoId: res.data.id })
+            centrosVinculados.push({ indice: ctr.indice, centroProducaoId: res.data.id, nomeEditado: ctr.maquina })
           } catch { /* ignora erro individual */ }
+        } else {
+          centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: ctr.maquina })
         }
       }
 
@@ -374,13 +378,15 @@ export default function ImportarOpPdfPage() {
                 <Button size="xs" variant="light" onClick={() => setMateriais(materiais.map(m => ({ ...m, criar: !m.produtoIdVinculado })))}>Marcar todos para criar</Button>
               </Group>
               <Table striped highlightOnHover>
-                <Table.Thead><Table.Tr><Table.Th>Criar</Table.Th><Table.Th>Tipo</Table.Th><Table.Th>Descrição</Table.Th><Table.Th>Código</Table.Th><Table.Th>Classif.</Table.Th><Table.Th>Status</Table.Th></Table.Tr></Table.Thead>
+                <Table.Thead><Table.Tr><Table.Th>Criar</Table.Th><Table.Th>Tipo</Table.Th><Table.Th>Descrição</Table.Th><Table.Th>Qtd.</Table.Th><Table.Th>Unid.</Table.Th><Table.Th>Código</Table.Th><Table.Th>Classif.</Table.Th><Table.Th>Status</Table.Th></Table.Tr></Table.Thead>
                 <Table.Tbody>
                   {materiais.map((mat, i) => (
                     <Table.Tr key={i}>
                       <Table.Td>{mat.produtoIdVinculado ? '—' : <Checkbox checked={mat.criar} onChange={(e) => { const novo = [...materiais]; novo[i].criar = e.target.checked; setMateriais(novo) }} />}</Table.Td>
                       <Table.Td><Badge size="xs" color={corTipo(mat.tipo)}>{mat.tipo}</Badge></Table.Td>
                       <Table.Td>{mat.descricao}</Table.Td>
+                      <Table.Td style={{ textAlign: 'right' }}>{mat.quantidade?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Table.Td>
+                      <Table.Td>{mat.unidade}</Table.Td>
                       <Table.Td>{mat.produtoIdVinculado ? '—' : <TextInput size="xs" value={mat.codigo} onChange={(e) => { const novo = [...materiais]; novo[i].codigo = e.target.value; setMateriais(novo) }} style={{ width: 120 }} />}</Table.Td>
                       <Table.Td>{mat.produtoIdVinculado ? '—' : <Select size="xs" data={['MATERIA_PRIMA', 'INSUMO', 'EMBALAGEM']} value={mat.classificacao} onChange={(v) => { const novo = [...materiais]; novo[i].classificacao = v || 'INSUMO'; setMateriais(novo) }} style={{ width: 130 }} />}</Table.Td>
                       <Table.Td>{mat.produtoIdVinculado ? <Badge color="green" size="sm">✓ Vinculado</Badge> : mat.criar ? <Badge color="blue" size="sm">Será criado</Badge> : <Badge color="gray" size="sm">Pular</Badge>}</Table.Td>
@@ -398,6 +404,7 @@ export default function ImportarOpPdfPage() {
                 <Title order={5}>Passo 4 — Centros / Máquinas ({centros.length})</Title>
                 <Button size="xs" variant="light" onClick={() => setCentros(centros.map(c => ({ ...c, criar: !c.centroIdVinculado })))}>Marcar todos para criar</Button>
               </Group>
+              <Text size="xs" c="dimmed">Você pode editar o nome da máquina. O sistema salvará o de-para para importações futuras.</Text>
               <Table striped highlightOnHover>
                 <Table.Thead><Table.Tr><Table.Th>Criar</Table.Th><Table.Th>Etapa</Table.Th><Table.Th>Máquina</Table.Th><Table.Th>Código</Table.Th><Table.Th>Status</Table.Th></Table.Tr></Table.Thead>
                 <Table.Tbody>
@@ -405,8 +412,8 @@ export default function ImportarOpPdfPage() {
                     <Table.Tr key={i}>
                       <Table.Td>{ctr.centroIdVinculado ? '—' : <Checkbox checked={ctr.criar} onChange={(e) => { const novo = [...centros]; novo[i].criar = e.target.checked; setCentros(novo) }} />}</Table.Td>
                       <Table.Td>{ctr.descricao}</Table.Td>
-                      <Table.Td>{ctr.maquina}</Table.Td>
-                      <Table.Td>{ctr.centroIdVinculado ? '—' : <TextInput size="xs" value={ctr.codigo} onChange={(e) => { const novo = [...centros]; novo[i].codigo = e.target.value; setCentros(novo) }} style={{ width: 120 }} />}</Table.Td>
+                      <Table.Td><TextInput size="xs" value={ctr.maquina} onChange={(e) => { const novo = [...centros]; novo[i].maquina = e.target.value; setCentros(novo) }} style={{ width: 220 }} /></Table.Td>
+                      <Table.Td>{ctr.centroIdVinculado ? '—' : <TextInput size="xs" value={ctr.codigo} onChange={(e) => { const novo = [...centros]; novo[i].codigo = e.target.value; setCentros(novo) }} style={{ width: 140 }} />}</Table.Td>
                       <Table.Td>{ctr.centroIdVinculado ? <Badge color="green" size="sm">✓ Vinculado</Badge> : ctr.criar ? <Badge color="blue" size="sm">Será criado</Badge> : <Badge color="gray" size="sm">Pular</Badge>}</Table.Td>
                     </Table.Tr>
                   ))}
