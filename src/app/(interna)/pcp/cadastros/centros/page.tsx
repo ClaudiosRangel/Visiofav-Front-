@@ -13,7 +13,7 @@ export default function CentrosProducaoPage() {
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
   const [editando, setEditando] = useState<any>(null)
-  const [form, setForm] = useState({ codigo: '', descricao: '', tipo: 'MAQUINA', capacidadeHora: 0, custoHora: 0 })
+  const [form, setForm] = useState({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoMaquina: null as string | null, capacidadeHora: 0, custoHora: 0 })
 
   async function carregar() {
     setLoading(true)
@@ -23,13 +23,17 @@ export default function CentrosProducaoPage() {
 
   useEffect(() => { carregar() }, [])
 
-  function abrirNovo() { setEditando(null); setForm({ codigo: '', descricao: '', tipo: 'MAQUINA', capacidadeHora: 0, custoHora: 0 }); setModalAberto(true) }
-  function abrirEdicao(item: any) { setEditando(item); setForm({ codigo: item.codigo, descricao: item.descricao, tipo: item.tipo, capacidadeHora: Number(item.capacidadeHora) || 0, custoHora: Number(item.custoHora) || 0 }); setModalAberto(true) }
+  function abrirNovo() { setEditando(null); setForm({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoMaquina: null, capacidadeHora: 0, custoHora: 0 }); setModalAberto(true) }
+  function abrirEdicao(item: any) { setEditando(item); setForm({ codigo: item.codigo, descricao: item.descricao, tipo: item.tipo, tipoMaquina: item.tipoMaquina || null, capacidadeHora: Number(item.capacidadeHora) || 0, custoHora: Number(item.custoHora) || 0 }); setModalAberto(true) }
 
   async function salvar() {
     try {
-      if (editando) { await api.put(`/centros-producao/${editando.id}`, form) }
-      else { await api.post('/centros-producao', form) }
+      const payload = {
+        ...form,
+        tipoMaquina: form.tipo === 'MAQUINA' ? form.tipoMaquina : null,
+      }
+      if (editando) { await api.put(`/centros-producao/${editando.id}`, payload) }
+      else { await api.post('/centros-producao', payload) }
       notifications.show({ title: 'Salvo', message: '', color: 'green' })
       setModalAberto(false); carregar()
     } catch (err: any) { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' }) }
@@ -77,7 +81,23 @@ export default function CentrosProducaoPage() {
         <Stack gap="md">
           <TextInput label="Código" value={form.codigo} onChange={(e) => setForm({ ...form, codigo: e.currentTarget.value })} required />
           <TextInput label="Descrição" value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.currentTarget.value })} required />
-          <Select label="Tipo" data={['MAQUINA', 'SETOR', 'LINHA']} value={form.tipo} onChange={(v) => setForm({ ...form, tipo: v || 'MAQUINA' })} />
+          <Select label="Tipo" data={['MAQUINA', 'SETOR', 'LINHA']} value={form.tipo} onChange={(v) => setForm({ ...form, tipo: v || 'MAQUINA', tipoMaquina: v === 'MAQUINA' ? form.tipoMaquina : null })} />
+          {form.tipo === 'MAQUINA' && (
+            <Select
+              label="Tipo de Máquina"
+              placeholder="Selecione o tipo"
+              data={[
+                { value: 'IMPRESSAO', label: 'Impressão' },
+                { value: 'ACABAMENTO', label: 'Acabamento' },
+                { value: 'CORTADEIRA', label: 'Cortadeira' },
+                { value: 'COLAGEM', label: 'Colagem' },
+                { value: 'VERNIZ', label: 'Verniz' },
+              ]}
+              value={form.tipoMaquina}
+              onChange={(v) => setForm({ ...form, tipoMaquina: v })}
+              clearable
+            />
+          )}
           <Group grow>
             <NumberInput label="Capacidade/Hora" value={form.capacidadeHora} onChange={(v) => setForm({ ...form, capacidadeHora: typeof v === 'number' ? v : 0 })} min={0} />
             <NumberInput label="Custo/Hora (R$)" value={form.custoHora} onChange={(v) => setForm({ ...form, custoHora: typeof v === 'number' ? v : 0 })} min={0} decimalScale={2} />

@@ -13,17 +13,15 @@ import { notifications } from '@mantine/notifications'
 const PRIORIDADE_COLORS: Record<string, string> = { BAIXA: 'gray', NORMAL: 'blue', ALTA: 'orange', URGENTE: 'red' }
 const STATUS_COLORS: Record<string, string> = { PENDENTE: 'gray', EM_ANDAMENTO: 'blue', PAUSADA: 'orange', CONCLUIDA: 'green' }
 
-const CATEGORIA_KEYWORDS: Record<string, string[]> = {
-  impressao: ['impress', 'heidelberg', 'offset'],
-  cortadeira: ['corta', 'cortadeira', 'makpel', 'guilhotina'],
-  acabamento: ['bobst', 'aft', 'colagem', 'verniz', 'acabamento', 'dobra', 'cola'],
-}
-
-function getCategoriaCentro(descricao: string): string {
-  const desc = descricao.toLowerCase()
-  for (const [categoria, keywords] of Object.entries(CATEGORIA_KEYWORDS)) {
-    if (keywords.some(kw => desc.includes(kw))) return categoria
-  }
+/**
+ * Retorna a categoria/aba de um centro com base no campo tipoMaquina (determinístico).
+ * Centros com tipoMaquina null retornam 'outros' e aparecem somente na aba "Todos".
+ */
+function getCategoriaCentro(tipoMaquina: string | null | undefined): string {
+  if (!tipoMaquina) return 'outros'
+  if (tipoMaquina === 'CORTADEIRA') return 'cortadeira'
+  if (tipoMaquina === 'IMPRESSAO') return 'impressao'
+  if (['ACABAMENTO', 'COLAGEM', 'VERNIZ'].includes(tipoMaquina)) return 'acabamento'
   return 'outros'
 }
 
@@ -341,7 +339,7 @@ export default function ProgramacaoPage() {
         // Expand this centro
         setAbertos(prev => ({ ...prev, [centro.centro.id]: true }))
         // Switch to the correct tab
-        const categoriaCentro = getCategoriaCentro(centro.centro.descricao)
+        const categoriaCentro = getCategoriaCentro(centro.centro.tipoMaquina)
         if (activeTab !== 'todos' && activeTab !== categoriaCentro) {
           setActiveTab('todos')
         }
@@ -370,16 +368,10 @@ export default function ProgramacaoPage() {
       notifications.show({ title: 'Erro', message: 'Selecione a aba', color: 'red' })
       return
     }
-    // Garantir que a descrição contém a keyword da aba para categorização correta
-    const keywords: Record<string, string> = { cortadeira: 'Cortadeira', impressao: 'Impressão', acabamento: 'Acabamento' }
-    let descricao = formNovoGrupo.descricao.trim()
-    const keyword = keywords[formNovoGrupo.tipo]
-    if (keyword && !getCategoriaCentro(descricao).includes(formNovoGrupo.tipo)) {
-      // Se a descrição não contém keyword da aba, prefixar
-      if (getCategoriaCentro(descricao) === 'outros') {
-        descricao = `${keyword} ${descricao}`
-      }
-    }
+    // Mapear aba para tipoMaquina
+    const tipoMaquinaMap: Record<string, string> = { cortadeira: 'CORTADEIRA', impressao: 'IMPRESSAO', acabamento: 'ACABAMENTO' }
+    const tipoMaquina = tipoMaquinaMap[formNovoGrupo.tipo] || null
+    const descricao = formNovoGrupo.descricao.trim()
     // Verificar se já existe grupo com mesma descrição
     const grupoExistente = painel?.centros?.find((c: any) =>
       c.centro.descricao.toLowerCase() === descricao.toLowerCase()
@@ -393,6 +385,7 @@ export default function ProgramacaoPage() {
         codigo: descricao.substring(0, 20).toUpperCase().replace(/\s+/g, '_'),
         descricao,
         tipo: 'MAQUINA',
+        tipoMaquina,
         status: true,
       })
       notifications.show({ title: 'Grupo criado', message: `"${descricao}" criado com sucesso`, color: 'green' })
@@ -447,11 +440,17 @@ export default function ProgramacaoPage() {
   const opsAguardandoCartao = new Set(
     (painel.aguardandoCartao || []).map((item: any) => item.opNumero)
   )
-  const mostrarAguardandoCartao = (activeTab === 'cortadeira' || activeTab === 'todos') && painel.aguardandoCartao?.length > 0
+
+  // Filtra itens aguardandoCartao pelo tipoMaquina da primeira etapa conforme aba ativa
+  const aguardandoCartaoFiltrado = (painel.aguardandoCartao || []).filter((item: any) => {
+    if (activeTab === 'todos') return true
+    return getCategoriaCentro(item.tipoMaquina) === activeTab
+  })
+  const mostrarAguardandoCartao = aguardandoCartaoFiltrado.length > 0
 
   const centrosFiltrados = (activeTab === 'todos'
     ? painel.centros
-    : painel.centros.filter((c: any) => getCategoriaCentro(c.centro.descricao) === activeTab)
+    : painel.centros.filter((c: any) => getCategoriaCentro(c.centro.tipoMaquina) === activeTab)
   ).map((c: any) => {
     let etapas = c.etapas
     if (busca) {
@@ -492,7 +491,12 @@ export default function ProgramacaoPage() {
             <Tabs.Tab value="acabamento">Acabamento</Tabs.Tab>
           </Tabs.List>
         </Tabs>
-        <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => setModalNovoGrupo(true)}>
+        <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => {
+          // Pre-selecionar tipoMaquina com base na aba ativa (Req 7.1–7.4)
+          const preSelectTipo = activeTab !== 'todos' ? activeTab : ''
+          setFormNovoGrupo({ descricao: '', tipo: preSelectTipo })
+          setModalNovoGrupo(true)
+        }}>
           Novo Grupo
         </Button>
       </Group>
@@ -546,7 +550,7 @@ export default function ProgramacaoPage() {
         />
       </Group>
 
-      {/* Seção AGUARDANDO CARTÃO — exibida na tab Cortadeira (ou Todos) */}
+      {/* Seção AGUARDANDO CARTÃO — filtrada por tipoMaquina conforme aba ativa */}
       {mostrarAguardandoCartao && (
         <Card withBorder padding="xs" style={{ borderColor: 'var(--mantine-color-yellow-5)', background: 'var(--mantine-color-yellow-0)' }}>
           <Text fw={700} size="lg" c="orange" mb="xs">AGUARDANDO CARTÃO</Text>
@@ -566,7 +570,7 @@ export default function ProgramacaoPage() {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {painel.aguardandoCartao.map((item: any) => (
+              {aguardandoCartaoFiltrado.map((item: any) => (
                 <Table.Tr key={item.opNumero}>
                   <Table.Td fw={700}>{item.opNumero}</Table.Td>
                   <Table.Td>{item.descricao}</Table.Td>
@@ -1011,10 +1015,13 @@ export default function ProgramacaoPage() {
           <Select
             data={centrosDisponiveis.filter((c: any) => {
               if (c.value === modalMover?.centroAtualId) return false
-              // Filtrar pela mesma categoria da aba
-              if (modalMover?.centroDescricao) {
-                const categoriaAtual = getCategoriaCentro(modalMover.centroDescricao)
-                const categoriaOpcao = getCategoriaCentro(c.label?.split(' - ').slice(1).join(' - ') || '')
+              // Filtrar pela mesma categoria — baseado no tipoMaquina do centro atual
+              const centroAtual = painel?.centros?.find((ct: any) => ct.centro.id === modalMover?.centroAtualId)
+              if (centroAtual) {
+                const categoriaAtual = getCategoriaCentro(centroAtual.centro.tipoMaquina)
+                // Buscar tipoMaquina do centro opção pelo ID
+                const centroOpcao = painel?.centros?.find((ct: any) => ct.centro.id === c.value)
+                const categoriaOpcao = centroOpcao ? getCategoriaCentro(centroOpcao.centro.tipoMaquina) : 'outros'
                 return categoriaOpcao === categoriaAtual
               }
               return true

@@ -61,6 +61,7 @@ interface CentroParaCriar {
   codigo: string
   tipo: string
   centroIdVinculado: string | null
+  tipoMaquina: string | null
 }
 
 // ─── Página Principal ────────────────────────────────────────────────────────
@@ -142,6 +143,7 @@ export default function ImportarOpPdfPage() {
         maquinaOriginal: et.maquina || et.descricao,
         criar: !sug?.sugestao, codigo: sug?.sugestao?.codigo || (et.maquina || et.descricao).substring(0, 15).toUpperCase().replace(/\s/g, '-'),
         tipo: 'MAQUINA', centroIdVinculado: sug?.sugestao?.id || null,
+        tipoMaquina: sug?.sugestao?.tipoMaquina || null,
       }
     })
     setCentros(ctrs)
@@ -205,17 +207,17 @@ export default function ImportarOpPdfPage() {
       }
 
       // 4. Criar centros marcados
-      const centrosVinculados: Array<{ indice: number; centroProducaoId: string | null; nomeEditado: string }> = []
+      const centrosVinculados: Array<{ indice: number; centroProducaoId: string | null; nomeEditado: string; tipoMaquina?: string }> = []
       for (const ctr of centros) {
         if (ctr.centroIdVinculado) {
-          centrosVinculados.push({ indice: ctr.indice, centroProducaoId: ctr.centroIdVinculado, nomeEditado: ctr.maquina })
+          centrosVinculados.push({ indice: ctr.indice, centroProducaoId: ctr.centroIdVinculado, nomeEditado: ctr.maquina, tipoMaquina: ctr.tipoMaquina || undefined })
         } else if (ctr.criar) {
           try {
-            const res = await api.post('/centros-producao', { codigo: ctr.codigo, descricao: ctr.maquina, tipo: ctr.tipo })
-            centrosVinculados.push({ indice: ctr.indice, centroProducaoId: res.data.id, nomeEditado: ctr.maquina })
+            const res = await api.post('/centros-producao', { codigo: ctr.codigo, descricao: ctr.maquina, tipo: ctr.tipo, tipoMaquina: ctr.tipoMaquina || undefined })
+            centrosVinculados.push({ indice: ctr.indice, centroProducaoId: res.data.id, nomeEditado: ctr.maquina, tipoMaquina: ctr.tipoMaquina || undefined })
           } catch { /* ignora erro individual */ }
         } else {
-          centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: ctr.maquina })
+          centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: ctr.maquina, tipoMaquina: ctr.tipoMaquina || undefined })
         }
       }
 
@@ -406,7 +408,7 @@ export default function ImportarOpPdfPage() {
               </Group>
               <Text size="xs" c="dimmed">Você pode editar o nome da máquina. O sistema salvará o de-para para importações futuras.</Text>
               <Table striped highlightOnHover>
-                <Table.Thead><Table.Tr><Table.Th>Criar</Table.Th><Table.Th>Etapa</Table.Th><Table.Th>Máquina</Table.Th><Table.Th>Código</Table.Th><Table.Th>Status</Table.Th></Table.Tr></Table.Thead>
+                <Table.Thead><Table.Tr><Table.Th>Criar</Table.Th><Table.Th>Etapa</Table.Th><Table.Th>Máquina</Table.Th><Table.Th>Código</Table.Th><Table.Th>Tipo Máquina</Table.Th><Table.Th>Status</Table.Th></Table.Tr></Table.Thead>
                 <Table.Tbody>
                   {centros.map((ctr, i) => (
                     <Table.Tr key={i}>
@@ -414,6 +416,23 @@ export default function ImportarOpPdfPage() {
                       <Table.Td>{ctr.descricao}</Table.Td>
                       <Table.Td><TextInput size="xs" value={ctr.maquina} onChange={(e) => { const novo = [...centros]; novo[i].maquina = e.target.value; setCentros(novo) }} style={{ width: 220 }} /></Table.Td>
                       <Table.Td>{ctr.centroIdVinculado ? '—' : <TextInput size="xs" value={ctr.codigo} onChange={(e) => { const novo = [...centros]; novo[i].codigo = e.target.value; setCentros(novo) }} style={{ width: 140 }} />}</Table.Td>
+                      <Table.Td>
+                        <Select
+                          size="xs"
+                          placeholder="Selecione"
+                          data={[
+                            { value: 'IMPRESSAO', label: 'Impressão' },
+                            { value: 'ACABAMENTO', label: 'Acabamento' },
+                            { value: 'CORTADEIRA', label: 'Cortadeira' },
+                            { value: 'COLAGEM', label: 'Colagem' },
+                            { value: 'VERNIZ', label: 'Verniz' },
+                          ]}
+                          value={ctr.tipoMaquina}
+                          onChange={(v) => { const novo = [...centros]; novo[i].tipoMaquina = v || null; setCentros(novo) }}
+                          error={ctr.criar && !ctr.centroIdVinculado && !ctr.tipoMaquina ? 'Obrigatório' : undefined}
+                          style={{ width: 140 }}
+                        />
+                      </Table.Td>
                       <Table.Td>{ctr.centroIdVinculado ? <Badge color="green" size="sm">✓ Vinculado</Badge> : ctr.criar ? <Badge color="blue" size="sm">Será criado</Badge> : <Badge color="gray" size="sm">Pular</Badge>}</Table.Td>
                     </Table.Tr>
                   ))}
@@ -455,7 +474,17 @@ export default function ImportarOpPdfPage() {
               {wizardStep === 0 ? 'Voltar ao Preview' : 'Anterior'}
             </Button>
             {wizardStep < 4 ? (
-              <Button onClick={() => setWizardStep(wizardStep + 1)}>Próximo</Button>
+              <Button onClick={() => {
+                // Validar Step 4 (centros): tipoMaquina obrigatório quando criar = true
+                if (wizardStep === 3) {
+                  const centrosSemTipo = centros.filter(c => c.criar && !c.centroIdVinculado && !c.tipoMaquina)
+                  if (centrosSemTipo.length > 0) {
+                    notifications.show({ title: 'Atenção', message: 'Selecione o Tipo de Máquina para todos os centros que serão criados.', color: 'yellow' })
+                    return
+                  }
+                }
+                setWizardStep(wizardStep + 1)
+              }}>Próximo</Button>
             ) : (
               <Button color="green" leftSection={<IconCheck size={16} />} onClick={executarCriacao} loading={loading}>
                 Criar OP
