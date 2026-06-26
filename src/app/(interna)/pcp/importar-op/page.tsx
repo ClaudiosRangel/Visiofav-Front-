@@ -217,7 +217,8 @@ export default function ImportarOpPdfPage() {
             centrosVinculados.push({ indice: ctr.indice, centroProducaoId: res.data.id, nomeEditado: ctr.maquina, tipoMaquina: ctr.tipoMaquina || undefined })
           } catch { /* ignora erro individual */ }
         } else {
-          centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: ctr.maquina, tipoMaquina: ctr.tipoMaquina || undefined })
+          // Item desmarcado: não enviar nomeEditado para que o backend não crie centro/etapa
+          centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: '', tipoMaquina: undefined })
         }
       }
 
