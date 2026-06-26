@@ -614,7 +614,7 @@ export default function ProgramacaoPage() {
                 <Table.Th>Formato</Table.Th>
                 <Table.Th>KG</Table.Th>
                 <Table.Th>Entrega</Table.Th>
-                <Table.Th>Status Acompanhamento</Table.Th>
+                <Table.Th>Acomp.</Table.Th>
                 <Table.Th>Ações</Table.Th>
               </Table.Tr>
             </Table.Thead>
@@ -769,7 +769,7 @@ export default function ProgramacaoPage() {
                           <Table.Th>Entrega</Table.Th>
                           <Table.Th>Prioridade</Table.Th>
                           <Table.Th>Status</Table.Th>
-                          <Table.Th>Status Acompanhamento</Table.Th>
+                          <Table.Th>Acomp.</Table.Th>
                           <Table.Th>Ações</Table.Th>
                         </Table.Tr>
                       </Table.Thead>
