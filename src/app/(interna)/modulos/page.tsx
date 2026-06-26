@@ -10,7 +10,6 @@ import {
   IconSettingsAutomation,
   IconFileText,
   IconSettings,
-  IconTrash,
   IconMenu2,
 } from '@tabler/icons-react'
 import { useRouter } from 'next/navigation'
@@ -24,6 +23,7 @@ import ModulesSidebar from '@/components/modules/ModulesSidebar'
 import ModuleCard from '@/components/modules/ModuleCard'
 import StatusCard from '@/components/modules/StatusCard'
 import QuickActions from '@/components/modules/QuickActions'
+import IntegrationCard from '@/components/modules/IntegrationCard'
 
 const MODULOS_CONFIG = [
   {
@@ -189,7 +189,12 @@ export default function ModulosPage() {
 
       <div className="flex">
         {/* Sidebar */}
-        <ModulesSidebar collapsed={!sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
+        <ModulesSidebar
+          collapsed={!sidebarOpen}
+          onToggle={() => setSidebarOpen(!sidebarOpen)}
+          isAdmin={isAdmin}
+          onCleanup={handleOpenCleanup}
+        />
 
         {/* Toggle sidebar button (mobile) */}
         <button
@@ -236,25 +241,12 @@ export default function ModulosPage() {
                   onClick={() => window.open(m.href, '_blank')}
                 />
               ))}
+              {/* Card promocional */}
+              <IntegrationCard />
             </div>
 
             {/* Quick actions */}
             <QuickActions />
-
-            {/* Admin cleanup button */}
-            {isAdmin && (
-              <div className="mt-8">
-                <Button
-                  variant="light"
-                  color="red"
-                  leftSection={<IconTrash size={18} />}
-                  onClick={handleOpenCleanup}
-                  radius="md"
-                >
-                  Limpar Dados
-                </Button>
-              </div>
-            )}
           </div>
 
           {/* Footer */}

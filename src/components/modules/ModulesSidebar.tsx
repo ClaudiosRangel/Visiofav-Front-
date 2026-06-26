@@ -1,6 +1,6 @@
 'use client'
 
-import { Text, UnstyledButton, Stack, Divider } from '@mantine/core'
+import { Text, UnstyledButton, Stack, Divider, Collapse } from '@mantine/core'
 import {
   IconLayoutDashboard,
   IconApps,
@@ -13,7 +13,8 @@ import {
   IconFileText,
   IconHeadset,
   IconChevronDown,
-  IconMenu2,
+  IconChevronRight,
+  IconTrash,
 } from '@tabler/icons-react'
 import { useEmpresa } from '@/providers/EmpresaProvider'
 import { useState } from 'react'
@@ -23,9 +24,10 @@ interface SidebarItemProps {
   label: string
   active?: boolean
   onClick?: () => void
+  color?: string
 }
 
-function SidebarItem({ icon: Icon, label, active, onClick }: SidebarItemProps) {
+function SidebarItem({ icon: Icon, label, active, onClick, color }: SidebarItemProps) {
   return (
     <UnstyledButton
       onClick={onClick}
@@ -34,9 +36,10 @@ function SidebarItem({ icon: Icon, label, active, onClick }: SidebarItemProps) {
           ? 'bg-green-50 text-green-700 font-semibold'
           : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
       }`}
+      style={color ? { color } : undefined}
     >
       <Icon size={20} stroke={1.5} />
-      <Text size="sm" fw={active ? 600 : 400}>
+      <Text size="sm" fw={active ? 600 : 400} style={color ? { color } : undefined}>
         {label}
       </Text>
     </UnstyledButton>
@@ -46,10 +49,13 @@ function SidebarItem({ icon: Icon, label, active, onClick }: SidebarItemProps) {
 interface ModulesSidebarProps {
   collapsed: boolean
   onToggle: () => void
+  isAdmin?: boolean
+  onCleanup?: () => void
 }
 
-export default function ModulesSidebar({ collapsed, onToggle }: ModulesSidebarProps) {
+export default function ModulesSidebar({ collapsed, onToggle, isAdmin, onCleanup }: ModulesSidebarProps) {
   const { empresa } = useEmpresa()
+  const [configOpen, setConfigOpen] = useState(false)
 
   if (collapsed) return null
 
@@ -84,7 +90,25 @@ export default function ModulesSidebar({ collapsed, onToggle }: ModulesSidebarPr
 
         <Divider my="sm" label="ADMINISTRAÇÃO" labelPosition="left" styles={{ label: { fontSize: 10, fontWeight: 600, color: '#9CA3AF', letterSpacing: '0.05em' } }} />
 
-        <SidebarItem icon={IconSettings} label="Configurações" />
+        {/* Configurações com sub-menu */}
+        <UnstyledButton
+          onClick={() => setConfigOpen(!configOpen)}
+          className="flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-800"
+        >
+          <div className="flex items-center gap-3">
+            <IconSettings size={20} stroke={1.5} />
+            <Text size="sm">Configurações</Text>
+          </div>
+          {configOpen ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+        </UnstyledButton>
+        <Collapse in={configOpen}>
+          <Stack gap={1} className="pl-4">
+            {isAdmin && (
+              <SidebarItem icon={IconTrash} label="Limpar Dados" onClick={onCleanup} color="#EF4444" />
+            )}
+          </Stack>
+        </Collapse>
+
         <SidebarItem icon={IconUsers} label="Usuários" />
         <SidebarItem icon={IconShieldCheck} label="Permissões" />
         <SidebarItem icon={IconFileText} label="Logs" />
