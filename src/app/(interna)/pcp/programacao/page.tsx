@@ -9,6 +9,8 @@ import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
+import { SortableCentroItem } from '@/components/pcp/SortableCentroItem'
+import { useCentrosOrdenacao } from '@/hooks/useCentrosOrdenacao'
 
 const PRIORIDADE_COLORS: Record<string, string> = { BAIXA: 'gray', NORMAL: 'blue', ALTA: 'orange', URGENTE: 'red' }
 const STATUS_COLORS: Record<string, string> = { PENDENTE: 'gray', EM_ANDAMENTO: 'blue', PAUSADA: 'orange', CONCLUIDA: 'green' }
@@ -116,6 +118,53 @@ export default function ProgramacaoPage() {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor)
   )
+
+  // Centros reordering mutation
+  const ordenacaoMutation = useCentrosOrdenacao()
+
+  function handleCentroDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = centrosFiltrados.findIndex((c: any) => c.centro.id === active.id)
+    const newIndex = centrosFiltrados.findIndex((c: any) => c.centro.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    // Calculate new order
+    const novaOrdem = arrayMove(centrosFiltrados, oldIndex, newIndex)
+
+    // Build mutation payload with sequential positions
+    const itens = novaOrdem.map((c: any, index: number) => ({
+      id: c.centro.id,
+      posicao: index,
+    }))
+
+    // Optimistic local update on painel.centros
+    setPainel((prev: any) => {
+      if (!prev) return prev
+      const centrosAtualizados = prev.centros.map((c: any) => {
+        const item = itens.find((i: any) => i.id === c.centro.id)
+        if (item) return { ...c, centro: { ...c.centro, posicao: item.posicao } }
+        return c
+      })
+      // Re-sort centros by posicao
+      centrosAtualizados.sort((a: any, b: any) => {
+        const posA = a.centro.posicao ?? 0
+        const posB = b.centro.posicao ?? 0
+        if (posA !== posB) return posA - posB
+        return (a.centro.codigo || '').localeCompare(b.centro.codigo || '')
+      })
+      return { ...prev, centros: centrosAtualizados }
+    })
+
+    // Persist via API
+    ordenacaoMutation.mutate(itens, {
+      onError: () => {
+        // Rollback: reload from server
+        carregar()
+      },
+    })
+  }
 
   async function handleDragEnd(centroId: string, event: DragEndEvent) {
     const { active, over } = event
@@ -634,8 +683,20 @@ export default function ProgramacaoPage() {
         </Card>
       )}
 
-      {centrosFiltrados.map((centro: any) => (
-        <Card key={centro.centro.id} withBorder padding="xs">
+      {/* Indicador de salvamento da reordenação de centros */}
+      {ordenacaoMutation.isPending && (
+        <Group gap="xs" justify="center">
+          <Loader size="xs" />
+          <Text size="xs" c="dimmed">Salvando ordem...</Text>
+        </Group>
+      )}
+
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleCentroDragEnd}>
+        <SortableContext items={centrosFiltrados.map((c: any) => c.centro.id)} strategy={verticalListSortingStrategy}>
+          <div style={{ opacity: ordenacaoMutation.isPending ? 0.7 : 1, transition: 'opacity 0.2s' }}>
+          {centrosFiltrados.map((centro: any) => (
+            <SortableCentroItem key={centro.centro.id} id={centro.centro.id}>
+            <Card withBorder padding="xs">
           <Group justify="space-between" py={4} px={8}>
             <Group gap="sm" style={{ flex: 1 }}>
               <UnstyledButton onClick={() => toggleCentro(centro.centro.id)}>
@@ -836,7 +897,11 @@ export default function ProgramacaoPage() {
             )}
           </Collapse>
         </Card>
+            </SortableCentroItem>
       ))}
+          </div>
+        </SortableContext>
+      </DndContext>
 
       {/* Modal: Apontar Produção */}
       <Modal opened={!!modalApontar} onClose={() => setModalApontar(null)} title={`Apontar Produção — OP #${modalApontar?.opNumero}`} centered>
