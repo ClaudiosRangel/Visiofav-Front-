@@ -524,7 +524,13 @@ export default function ProgramacaoPage() {
       etapas = etapas.filter((e: any) => e.dataEntrega && new Date(e.dataEntrega) <= filtroDataRange[1]!)
     }
     return { ...c, etapas }
-  }).filter((c: any) => c.etapas.length > 0 || c.resumo.total > 0)
+  }).filter((c: any) => {
+    // Só ocultar grupos vazios quando há filtro de busca/status/prioridade/data ativo
+    if (busca || filtroStatus || filtroPrioridade || filtroDataRange[0] || filtroDataRange[1]) {
+      return c.etapas.length > 0
+    }
+    return true // Sem filtro: mostrar todos os grupos (inclusive vazios)
+  })
 
   return (
     <Stack gap="md">
