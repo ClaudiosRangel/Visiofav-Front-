@@ -1,16 +1,17 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, SimpleGrid, Text, Title, ThemeIcon, UnstyledButton, Center, Stack, Button, Modal, Checkbox, Group, Loader } from '@mantine/core'
+import { Text, Title, Button, Modal, Checkbox, Group, Stack, Center } from '@mantine/core'
 import {
   IconShoppingCart,
   IconReceipt,
-  IconCash,
+  IconWallet,
   IconBuildingWarehouse,
-  IconTruck,
+  IconSettingsAutomation,
+  IconFileText,
   IconSettings,
   IconTrash,
-  IconAssembly,
+  IconMenu2,
 } from '@tabler/icons-react'
 import { useRouter } from 'next/navigation'
 import { useEmpresa } from '@/providers/EmpresaProvider'
@@ -18,14 +19,69 @@ import { notifications } from '@mantine/notifications'
 import { api } from '@/lib/api'
 import { getUserPerfil } from '@/hooks/usePerfilGuard'
 
+import ModulesHeader from '@/components/modules/ModulesHeader'
+import ModulesSidebar from '@/components/modules/ModulesSidebar'
+import ModuleCard from '@/components/modules/ModuleCard'
+import StatusCard from '@/components/modules/StatusCard'
+import QuickActions from '@/components/modules/QuickActions'
+
 const MODULOS_CONFIG = [
-  { modulo: 'COMPRAS', label: 'Compras', icon: IconShoppingCart, href: '/compras/pedidos', color: 'blue' },
-  { modulo: 'VENDAS', label: 'Vendas', icon: IconReceipt, href: '/vendas/pedidos', color: 'green' },
-  { modulo: 'FINANCEIRO', label: 'Financeiro', icon: IconCash, href: '/financeiro/contas-pagar', color: 'yellow' },
-  { modulo: 'WMS', label: 'WMS', icon: IconBuildingWarehouse, href: '/recebimento', color: 'primary' },
-  { modulo: 'PCP', label: 'PCP', icon: IconAssembly, href: '/pcp/dashboard', color: 'violet' },
-  { modulo: 'CTE', label: 'Fiscal', icon: IconTruck, href: '/fiscal/nfe', color: 'orange' },
-  { modulo: 'CONFIGURADOR', label: 'Configurador', icon: IconSettings, href: '/configurador', color: 'grape' },
+  {
+    modulo: 'COMPRAS',
+    label: 'Compras',
+    description: 'Gerencie cotações, pedidos e fornecedores.',
+    icon: IconShoppingCart,
+    href: '/compras/pedidos',
+    color: '#2563EB',
+  },
+  {
+    modulo: 'VENDAS',
+    label: 'Vendas',
+    description: 'Controle pedidos, clientes, NF-e e faturamento.',
+    icon: IconReceipt,
+    href: '/vendas/pedidos',
+    color: '#16A34A',
+  },
+  {
+    modulo: 'FINANCEIRO',
+    label: 'Financeiro',
+    description: 'Contas a pagar, receber, fluxo de caixa e conciliações.',
+    icon: IconWallet,
+    href: '/financeiro/contas-pagar',
+    color: '#F59E0B',
+  },
+  {
+    modulo: 'WMS',
+    label: 'WMS',
+    description: 'Gestão de estoque, endereços, recebimentos e expedições.',
+    icon: IconBuildingWarehouse,
+    href: '/recebimento',
+    color: '#4F46E5',
+  },
+  {
+    modulo: 'PCP',
+    label: 'PCP',
+    description: 'Planejamento e controle da produção.',
+    icon: IconSettingsAutomation,
+    href: '/pcp/dashboard',
+    color: '#7C3AED',
+  },
+  {
+    modulo: 'CTE',
+    label: 'Fiscal',
+    description: 'Notas fiscais, impostos e obrigações fiscais.',
+    icon: IconFileText,
+    href: '/fiscal/nfe',
+    color: '#EF4444',
+  },
+  {
+    modulo: 'CONFIGURADOR',
+    label: 'Configurador',
+    description: 'Parâmetros do sistema, integrações e preferências.',
+    icon: IconSettings,
+    href: '/configurador',
+    color: '#EC4899',
+  },
 ] as const
 
 const MODULOS_LIMPEZA = [
@@ -38,21 +94,39 @@ const MODULOS_LIMPEZA = [
 ]
 
 export default function ModulosPage() {
-  useEffect(() => { document.title = 'Vizor - Módulos' }, [])
+  useEffect(() => {
+    document.title = 'Vizor - Módulos'
+  }, [])
+
   const router = useRouter()
   const { modulos, empresa } = useEmpresa()
 
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [cleanupOpen, setCleanupOpen] = useState(false)
   const [modulosSelecionados, setModulosSelecionados] = useState<string[]>([])
   const [confirmStep, setConfirmStep] = useState(false)
   const [loading, setLoading] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
 
-  const modulosVisiveis = MODULOS_CONFIG.filter((m) => m.modulo === 'CONFIGURADOR' || modulos.includes(m.modulo))
+  const modulosVisiveis = MODULOS_CONFIG.filter(
+    (m) => m.modulo === 'CONFIGURADOR' || modulos.includes(m.modulo)
+  )
 
   useEffect(() => {
     const perfil = getUserPerfil()
     setIsAdmin(perfil === 'SUPER_ADMIN')
+  }, [])
+
+  // Responsive: collapse sidebar on mobile
+  useEffect(() => {
+    function handleResize() {
+      if (window.innerWidth < 768) {
+        setSidebarOpen(false)
+      }
+    }
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
   }, [])
 
   function handleOpenCleanup() {
@@ -71,7 +145,9 @@ export default function ModulosPage() {
     if (modulosSelecionados.length === 0) return
     setLoading(true)
     try {
-      const { data } = await api.delete('/admin/limpar-dados', { data: { modulos: modulosSelecionados } })
+      const { data } = await api.delete('/admin/limpar-dados', {
+        data: { modulos: modulosSelecionados },
+      })
       notifications.show({
         title: 'Limpeza concluída',
         message: data.message || `Módulos limpos: ${modulosSelecionados.join(', ')}`,
@@ -107,75 +183,127 @@ export default function ModulosPage() {
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: 'calc(100vh - 120px)', gap: 0 }}>
-      {/* Lado esquerdo — Logo grande (hidden mobile) */}
-      <div className="hidden md:flex" style={{
-        flex: '0 0 320px',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
-        borderRight: '1px solid #e2e8f0',
-        borderRadius: '0 24px 24px 0',
-      }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/logo.jpeg"
-          alt="Vizor"
-          style={{ width: 200, height: 200, objectFit: 'contain', filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.1))' }}
-        />
+    <div className="min-h-screen" style={{ backgroundColor: '#F8FAFC' }}>
+      {/* Header */}
+      <ModulesHeader />
+
+      <div className="flex">
+        {/* Sidebar */}
+        <ModulesSidebar collapsed={!sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
+
+        {/* Toggle sidebar button (mobile) */}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="fixed bottom-4 left-4 z-50 md:hidden bg-white border border-gray-200 rounded-full p-3 shadow-lg"
+          aria-label="Alternar menu lateral"
+        >
+          <IconMenu2 size={20} />
+        </button>
+
+        {/* Main content */}
+        <main
+          className={`flex-1 min-h-[calc(100vh-72px)] transition-all duration-300 ${
+            sidebarOpen ? 'md:ml-[250px]' : ''
+          }`}
+        >
+          <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-10 py-8 lg:py-10">
+            {/* Page header */}
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-10">
+              <div>
+                <Title
+                  order={2}
+                  fw={700}
+                  style={{ color: '#111827', fontSize: '1.75rem' }}
+                >
+                  Módulos{empresa ? ` — ${empresa.nomeFantasia || empresa.razaoSocial}` : ''}
+                </Title>
+                <Text size="md" c="#6B7280" mt={4}>
+                  Acesse os módulos do sistema de forma rápida e eficiente.
+                </Text>
+              </div>
+              <StatusCard />
+            </div>
+
+            {/* Module cards grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-10">
+              {modulosVisiveis.map((m) => (
+                <ModuleCard
+                  key={m.modulo}
+                  label={m.label}
+                  description={m.description}
+                  icon={m.icon}
+                  color={m.color}
+                  onClick={() => window.open(m.href, '_blank')}
+                />
+              ))}
+            </div>
+
+            {/* Quick actions */}
+            <QuickActions />
+
+            {/* Admin cleanup button */}
+            {isAdmin && (
+              <div className="mt-8">
+                <Button
+                  variant="light"
+                  color="red"
+                  leftSection={<IconTrash size={18} />}
+                  onClick={handleOpenCleanup}
+                  radius="md"
+                >
+                  Limpar Dados
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <footer className="border-t border-gray-100 bg-white px-6 lg:px-10 py-4">
+            <div className="max-w-[1400px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+              <Text size="xs" c="#9CA3AF">
+                © {new Date().getFullYear()} VIZOR ERP — Todos os direitos reservados.
+              </Text>
+              <Text size="xs" c="#9CA3AF">
+                Front: {(() => {
+                  try {
+                    const d = process.env.NEXT_PUBLIC_BUILD_DATE
+                    if (!d) return '—'
+                    return new Date(d).toLocaleString('pt-BR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
+                  } catch {
+                    return '—'
+                  }
+                })()}
+              </Text>
+            </div>
+          </footer>
+        </main>
       </div>
 
-      {/* Lado direito — Módulos */}
-      <div style={{ flex: 1, padding: '24px 16px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }} className="md:!px-10">
-        <Stack gap="lg">
-          <Title order={2}>
-            Módulos{empresa ? ` — ${empresa.nomeFantasia || empresa.razaoSocial}` : ''}
-          </Title>
-
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
-            {modulosVisiveis.map((m) => (
-          <UnstyledButton key={m.label} onClick={() => window.open(m.href, '_blank')}>
-            <Card withBorder style={{ cursor: 'pointer' }} className="hover:shadow-md transition-shadow">
-              <Stack align="center" gap="sm" py="md">
-                <ThemeIcon color={m.color} variant="light" size={56} radius="md">
-                  <m.icon size={28} />
-                </ThemeIcon>
-                <Text fw={600} size="lg">
-                  {m.label}
-                </Text>
-              </Stack>
-            </Card>
-          </UnstyledButton>
-        ))}
-      </SimpleGrid>
-
-      {/* Botão de Limpeza de Dados - apenas para SUPER_ADMIN */}
-      {isAdmin && (
-        <Button
-          variant="light"
-          color="red"
-          leftSection={<IconTrash size={18} />}
-          onClick={handleOpenCleanup}
-          mt="xl"
-          w="fit-content"
-        >
-          Limpar Dados
-        </Button>
-      )}
-
-      {/* Modal de seleção de módulos para limpeza */}
+      {/* Cleanup Modal */}
       {isAdmin && (
         <Modal
           opened={cleanupOpen}
-          onClose={() => { setCleanupOpen(false); setConfirmStep(false); setModulosSelecionados([]) }}
+          onClose={() => {
+            setCleanupOpen(false)
+            setConfirmStep(false)
+            setModulosSelecionados([])
+          }}
           title="Limpar Dados"
           centered
           size="md"
+          radius="lg"
         >
           {!confirmStep ? (
             <Stack gap="md">
               <Text size="sm" c="dimmed">
-                Selecione os módulos cujos dados deseja apagar. Os cadastros base (produtos, clientes, fornecedores, empresa) serão mantidos.
+                Selecione os módulos cujos dados deseja apagar. Os cadastros base (produtos,
+                clientes, fornecedores, empresa) serão mantidos.
               </Text>
 
               <Stack gap="xs">
@@ -196,8 +324,10 @@ export default function ModulosPage() {
                 disabled={modulosSelecionados.length === 0}
                 fullWidth
                 mt="sm"
+                radius="md"
               >
-                Continuar ({modulosSelecionados.length} módulo{modulosSelecionados.length !== 1 ? 's' : ''})
+                Continuar ({modulosSelecionados.length} módulo
+                {modulosSelecionados.length !== 1 ? 's' : ''})
               </Button>
             </Stack>
           ) : (
@@ -205,27 +335,20 @@ export default function ModulosPage() {
               <Text size="sm" fw={600} c="red">
                 ⚠️ Ação irreversível!
               </Text>
-              <Text size="sm">
-                Confirma a exclusão de todos os dados dos módulos:
-              </Text>
+              <Text size="sm">Confirma a exclusão de todos os dados dos módulos:</Text>
               <Stack gap={4}>
                 {modulosSelecionados.map((m) => (
-                  <Text key={m} size="sm" fw={500}>• {MODULOS_LIMPEZA.find((x) => x.value === m)?.label}</Text>
+                  <Text key={m} size="sm" fw={500}>
+                    • {MODULOS_LIMPEZA.find((x) => x.value === m)?.label}
+                  </Text>
                 ))}
               </Stack>
 
               <Group grow mt="sm">
-                <Button
-                  variant="default"
-                  onClick={() => setConfirmStep(false)}
-                >
+                <Button variant="default" onClick={() => setConfirmStep(false)} radius="md">
                   Voltar
                 </Button>
-                <Button
-                  color="red"
-                  onClick={handleCleanup}
-                  loading={loading}
-                >
+                <Button color="red" onClick={handleCleanup} loading={loading} radius="md">
                   Confirmar Limpeza
                 </Button>
               </Group>
@@ -233,8 +356,6 @@ export default function ModulosPage() {
           )}
         </Modal>
       )}
-        </Stack>
-      </div>
     </div>
   )
 }

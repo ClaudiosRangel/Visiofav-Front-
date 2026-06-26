@@ -33,6 +33,10 @@ export default function InternaLayout({ children }: { children: React.ReactNode 
   const footerText = `Front: ${buildDate}${backBuild ? ` | Back: ${backBuild}` : ''}`
 
   if (!showSidebar) {
+    // /modulos page manages its own full layout (header, sidebar, footer)
+    if (pathname === '/modulos') {
+      return <>{children}</>
+    }
     return (
       <div className="min-h-screen flex flex-col">
         <Header />
