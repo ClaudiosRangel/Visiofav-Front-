@@ -259,7 +259,7 @@ export default function ImportarOpPdfPage() {
 
       setOpCriada(confirmaRes.data.ordemProducao)
       setEtapaGlobal('sucesso')
-      notifications.show({ title: 'OP importada!', message: `OP #${confirmaRes.data.ordemProducao.numero} criada`, color: 'green' })
+      notifications.show({ title: 'OP importada!', message: `OP #${confirmaRes.data.ordemProducao.referenciaExterna || confirmaRes.data.ordemProducao.numero} criada`, color: 'green' })
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Erro ao criar OP', color: 'red' })
     } finally { setLoading(false) }
@@ -500,7 +500,7 @@ export default function ImportarOpPdfPage() {
         <Card shadow="sm" padding="lg">
           <Stack align="center" gap="md" py="xl">
             <IconCheck size={64} color="var(--mantine-color-green-6)" />
-            <Title order={3}>OP #{opCriada.numero} criada!</Title>
+            <Title order={3}>OP #{opCriada.referenciaExterna || opCriada.numero} criada!</Title>
             <Text c="dimmed">Todos os cadastros e vínculos foram realizados.</Text>
             <Group>
               <Button variant="outline" onClick={resetar}>Importar outra</Button>

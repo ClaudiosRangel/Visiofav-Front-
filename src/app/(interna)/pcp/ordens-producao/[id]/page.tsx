@@ -76,7 +76,7 @@ export default function DetalheOpPage() {
     <Stack gap="md">
       <Group>
         <Button variant="subtle" leftSection={<IconArrowLeft size={16} />} onClick={() => router.push('/pcp/ordens-producao')}>Voltar</Button>
-        <Title order={3}>OP #{op.numero}</Title>
+        <Title order={3}>OP #{op.referenciaExterna || op.numero}</Title>
         <Badge color={STATUS_COLORS[op.status]} size="lg">{op.status}</Badge>
         <Badge color={PRIORIDADE_COLORS[op.prioridade]} variant="light">{op.prioridade}</Badge>
         <Text size="sm" c="dimmed">{op.percentualConcluido}% concluído</Text>
