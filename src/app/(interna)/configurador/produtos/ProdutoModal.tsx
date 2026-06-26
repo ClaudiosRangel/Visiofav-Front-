@@ -9,6 +9,8 @@ import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { IconPhoto, IconTrash, IconUpload, IconInfoCircle } from '@tabler/icons-react'
 import { api } from '@/lib/api'
+import { mapearModosBloqueio } from '@/lib/mapearModosBloqueio'
+import { BloqueioConferenciaSection } from './BloqueioConferenciaSection'
 
 const UNIDADES = [
   { value: 'UN', label: 'UN - Unidade' }, { value: 'CX', label: 'CX - Caixa' },
@@ -42,8 +44,8 @@ const produtoSchema = z.object({
   classificacaoPcp: z.string().nullable().optional(),
   tipoFisico: z.string().nullable().optional(),
   exigeLote: z.boolean().optional(),
-  modoResolucaoLote: z.string().optional(),
-  modoResolucaoValidade: z.string().optional(),
+  aceitarSenha: z.boolean().optional(),
+  aceitarCcePendente: z.boolean().optional(),
   // Código de barras
   cEAN: z.string().max(14).optional(),
   // Fiscal
@@ -71,6 +73,17 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
   const [imagemUrl, setImagemUrl] = useState<string | null>(null)
   const [uploadingImg, setUploadingImg] = useState(false)
 
+  // Buscar produto completo (com campos de bloqueio) em modo edição
+  const { data: produtoCompleto } = useQuery({
+    queryKey: ['produto-detalhe', editData?.id],
+    queryFn: async () => {
+      const { data } = await api.get(`/produtos/${editData?.id}`)
+      return data
+    },
+    enabled: !!editData?.id && opened,
+    staleTime: 0, // Sempre buscar fresco ao abrir
+  })
+
   // Buscar saldos/lotes do produto (apenas em modo edição)
   const { data: saldosResp, isLoading: saldosLoading } = useQuery({
     queryKey: ['saldos-produto', editData?.id],
@@ -91,49 +104,57 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
 
   const atualizar = useMutation({
     mutationFn: async ({ id, ...body }: any) => { const { data } = await api.put(`/produtos/${id}`, body); return data },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['produtos'] }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['produtos'] })
+      queryClient.invalidateQueries({ queryKey: ['produto-detalhe', variables.id] })
+    },
   })
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<ProdutoForm>({
     resolver: zodResolver(produtoSchema),
-    defaultValues: { codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, exigeLote: false, modoResolucaoLote: 'BLOQUEAR', modoResolucaoValidade: 'BLOQUEAR', origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 },
+    defaultValues: { codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, exigeLote: false, aceitarSenha: false, aceitarCcePendente: false, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 },
   })
 
   useEffect(() => {
+    if (!opened) return
+
     if (editData) {
+      // Aguardar produtoCompleto para ter os campos de bloqueio corretos
+      const dados = produtoCompleto ?? editData
+      const bloqueio = mapearModosBloqueio(dados)
       reset({
-        codigo: editData.codigo || '',
-        nome: editData.nome || editData.descricao || '',
-        descricao: editData.descricao || '',
-        unidade: editData.unidade || 'UN',
-        precoBase: Number(editData.precoBase) || 0,
-        status: editData.status ?? true,
-        shelfLifeMinimo: editData.shelfLifeMinimo ?? null,
-        classificacaoPcp: editData.classificacaoPcp || null,
-        tipoFisico: editData.tipoFisico || null,
-        exigeLote: editData.exigeLote ?? false,
-        modoResolucaoLote: editData.modoResolucaoLote || 'BLOQUEAR',
-        modoResolucaoValidade: editData.modoResolucaoValidade || 'BLOQUEAR',
-        cEAN: editData.cEAN || editData.codigoBarra || '',
-        ncm: editData.ncm || '',
-        cfopEstadual: editData.cfopEstadual || '',
-        cfopInterest: editData.cfopInterest || '',
-        cst: editData.cst || '',
-        csosn: editData.csosn || '',
-        aliqICMS: Number(editData.aliqICMS) || 0,
-        aliqIPI: Number(editData.aliqIPI) || 0,
-        cstPIS: editData.cstPIS || '',
-        aliqPIS: Number(editData.aliqPIS) || 0,
-        cstCOFINS: editData.cstCOFINS || '',
-        aliqCOFINS: Number(editData.aliqCOFINS) || 0,
-        origemProd: editData.origemProd ?? 0,
+        codigo: dados.codigo || '',
+        nome: dados.nome || dados.descricao || '',
+        descricao: dados.descricao || '',
+        unidade: dados.unidade || 'UN',
+        precoBase: Number(dados.precoBase) || 0,
+        status: dados.status ?? true,
+        shelfLifeMinimo: dados.shelfLifeMinimo ?? null,
+        classificacaoPcp: dados.classificacaoPcp || null,
+        tipoFisico: dados.tipoFisico || null,
+        exigeLote: dados.exigeLote ?? false,
+        aceitarSenha: bloqueio.aceitarSenha,
+        aceitarCcePendente: bloqueio.aceitarCcePendente,
+        cEAN: dados.cEAN || dados.codigoBarra || '',
+        ncm: dados.ncm || '',
+        cfopEstadual: dados.cfopEstadual || '',
+        cfopInterest: dados.cfopInterest || '',
+        cst: dados.cst || '',
+        csosn: dados.csosn || '',
+        aliqICMS: Number(dados.aliqICMS) || 0,
+        aliqIPI: Number(dados.aliqIPI) || 0,
+        cstPIS: dados.cstPIS || '',
+        aliqPIS: Number(dados.aliqPIS) || 0,
+        cstCOFINS: dados.cstCOFINS || '',
+        aliqCOFINS: Number(dados.aliqCOFINS) || 0,
+        origemProd: dados.origemProd ?? 0,
       })
-      setImagemUrl(editData.imagemUrl || null)
+      setImagemUrl(dados.imagemUrl || null)
     } else {
-      reset({ codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, exigeLote: false, modoResolucaoLote: 'BLOQUEAR', modoResolucaoValidade: 'BLOQUEAR', origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 })
+      reset({ codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, exigeLote: false, aceitarSenha: false, aceitarCcePendente: false, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 })
       setImagemUrl(null)
     }
-  }, [editData, reset, opened])
+  }, [editData, produtoCompleto, reset, opened])
 
   async function onSubmit(data: ProdutoForm) {
     try {
@@ -282,35 +303,8 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
                   </div>
                 )} />
               </div>
-              <div className="grid grid-cols-2 gap-4 mt-4">
-                <Controller name="modoResolucaoLote" control={control} render={({ field }) => (
-                  <Select
-                    label="Divergência de Lote"
-                    description="Ação quando lote conferido difere da NF"
-                    data={[
-                      { value: 'BLOQUEAR', label: '🔴 Bloquear (exige reconferência)' },
-                      { value: 'ACEITAR_LIVRE', label: '🟢 Aceitar livremente' },
-                      { value: 'ACEITAR_SENHA', label: '🟡 Aceitar com senha supervisor' },
-                      { value: 'ACEITAR_CCE', label: '🔵 Aceitar com CC-e automática' },
-                    ]}
-                    value={field.value || 'BLOQUEAR'}
-                    onChange={field.onChange}
-                  />
-                )} />
-                <Controller name="modoResolucaoValidade" control={control} render={({ field }) => (
-                  <Select
-                    label="Divergência de Validade"
-                    description="Ação quando validade conferida difere da NF"
-                    data={[
-                      { value: 'BLOQUEAR', label: '🔴 Bloquear (exige reconferência)' },
-                      { value: 'ACEITAR_LIVRE', label: '🟢 Aceitar livremente' },
-                      { value: 'ACEITAR_SENHA', label: '🟡 Aceitar com senha supervisor' },
-                      { value: 'ACEITAR_CCE', label: '🔵 Aceitar com CC-e automática' },
-                    ]}
-                    value={field.value || 'BLOQUEAR'}
-                    onChange={field.onChange}
-                  />
-                )} />
+              <div className="mt-4">
+                <BloqueioConferenciaSection control={control} />
               </div>
               <div>
                 {isEditing && editData?.curvaAbc && (

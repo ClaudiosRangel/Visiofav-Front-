@@ -14,7 +14,7 @@ import {
   IconFileInvoice, IconTruck,
   // WMS
   IconHome, IconPackage, IconClipboardCheck, IconBarcode, IconBuildingWarehouse, IconArrowsExchange as IconMovim, IconSettings,
-  IconEye, IconDatabase,
+  IconEye, IconDatabase, IconAlertCircle,
   // Integração
   IconKey, IconWebhook, IconUpload,
   // PCP
@@ -111,6 +111,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconTruckDelivery, label: 'Notas de Entrada', href: '/recebimento' },
           { icon: IconClipboardCheck, label: 'Conferência de Entrada', href: '/wms/conferencia-entrada' },
           { icon: IconBuildingWarehouse, label: 'Endereçamento', href: '/wms/enderecamento' },
+          { icon: IconAlertCircle, label: 'Pendências CC-e', href: '/wms/pendencias-cce' },
         ],
       },
 

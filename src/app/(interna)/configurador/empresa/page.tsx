@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { Card, TextInput, Select, NumberInput, Tabs, Button, Group, Text, Switch, LoadingOverlay, FileButton, Image, ActionIcon } from '@mantine/core'
+import { Card, TextInput, Select, NumberInput, Tabs, Button, Group, Text, Switch, LoadingOverlay, FileButton, Image, ActionIcon, Divider } from '@mantine/core'
 import { IconPhoto, IconUpload, IconTrash } from '@tabler/icons-react'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
@@ -14,6 +14,7 @@ import { api } from '@/lib/api'
 import { GeocodificarEmpresaButton } from '@/components/geo/GeocodificarEmpresaButton'
 import { GEO_KEYS } from '@/data/types/geo'
 import { getUserPerfil } from '@/hooks/usePerfilGuard'
+import { IntegracaoTabContent } from './IntegracaoTabContent'
 
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(u => ({ value: u, label: u }))
 
@@ -141,8 +142,13 @@ export default function EmpresaPage() {
   const temCoordenadas = !!(empresa?.latitude && empresa?.longitude)
 
   async function onSubmit(data: EmpresaForm) {
-    // Remove cnpj from payload (read-only)
-    const { cnpj, ...payload } = data
+    // Remove cnpj from payload (read-only) and convert string fields to numbers for backend
+    const { cnpj, regimeTributario, ambienteNfe, ...rest } = data
+    const payload: any = {
+      ...rest,
+      regimeTributario: regimeTributario ? Number(regimeTributario) : undefined,
+      ambienteNfe: ambienteNfe ? Number(ambienteNfe) : undefined,
+    }
     salvar.mutate(payload)
   }
 
@@ -236,6 +242,7 @@ export default function EmpresaPage() {
               <Tabs.Tab value="endereco">Endereço</Tabs.Tab>
               <Tabs.Tab value="fiscal">Fiscal</Tabs.Tab>
               <Tabs.Tab value="geolocalizacao">Geolocalização</Tabs.Tab>
+              <Tabs.Tab value="integracao">Integração</Tabs.Tab>
             </Tabs.List>
 
             {/* ABA DADOS GERAIS */}
@@ -386,6 +393,11 @@ export default function EmpresaPage() {
                   temCoordenadas={temCoordenadas}
                 />
               </div>
+            </Tabs.Panel>
+
+            {/* ABA INTEGRAÇÃO */}
+            <Tabs.Panel value="integracao">
+              <IntegracaoTabContent />
             </Tabs.Panel>
           </Tabs>
 

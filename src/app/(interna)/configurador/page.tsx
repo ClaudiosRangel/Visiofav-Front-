@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { Card, Text, SimpleGrid, UnstyledButton, Group, Divider } from '@mantine/core'
 import {
   IconAdjustments,
@@ -57,10 +57,15 @@ const cadastros = [
 export default function ConfiguradorPage() {
   useEffect(() => { document.title = 'Vizor - Configurador' }, [])
 
-  const filteredCadastros = useMemo(() => {
+  const [filteredCadastros, setFilteredCadastros] = useState(cadastros)
+
+  useEffect(() => {
     const perfil = getUserPerfil()
-    if (perfil === 'ADMIN' || perfil === 'SUPER_ADMIN') return cadastros
-    return cadastros.filter((item) => item.href !== '/configurador/usuarios')
+    if (perfil === 'ADMIN' || perfil === 'SUPER_ADMIN') {
+      setFilteredCadastros(cadastros)
+    } else {
+      setFilteredCadastros(cadastros.filter((item) => item.href !== '/configurador/usuarios'))
+    }
   }, [])
   return (
     <div>
