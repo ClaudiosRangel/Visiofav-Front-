@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Title, Stack, Table, Group, Badge, Text, Loader, Center, Collapse, UnstyledButton, Card, ScrollArea, Button, Modal, NumberInput, Select, Textarea, Progress, ActionIcon, Tabs, TextInput } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
-import { IconChevronDown, IconChevronRight, IconPlayerPlay, IconPlayerPause, IconCheck, IconClipboardCheck, IconAlertTriangle, IconCut, IconGripVertical, IconSearch, IconFileText, IconPlus, IconArrowRight, IconX } from '@tabler/icons-react'
+import { IconChevronDown, IconChevronRight, IconPlayerPlay, IconPlayerPause, IconCheck, IconClipboardCheck, IconAlertTriangle, IconCut, IconGripVertical, IconSearch, IconFileText, IconPlus, IconArrowRight, IconX, IconPrinter } from '@tabler/icons-react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -540,6 +540,9 @@ export default function ProgramacaoPage() {
             <Tabs.Tab value="acabamento">Acabamento</Tabs.Tab>
           </Tabs.List>
         </Tabs>
+        <Button size="xs" variant="light" leftSection={<IconPrinter size={14} />} onClick={() => window.print()} className="no-print">
+          Imprimir
+        </Button>
         <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => {
           // Pre-selecionar tipoMaquina com base na aba ativa (Req 7.1–7.4)
           const preSelectTipo = activeTab !== 'todos' ? activeTab : ''
@@ -1099,11 +1102,37 @@ export default function ProgramacaoPage() {
         </Stack>
       </Modal>
 
-      {/* CSS for flash highlight animation */}
+      {/* CSS for flash highlight animation + print styles */}
       <style>{`
         @keyframes flash-highlight {
           0% { background-color: var(--mantine-color-yellow-3); }
           100% { background-color: transparent; }
+        }
+        @media print {
+          /* Esconder sidebar, header, filtros e botões de ação */
+          nav, header, aside, .mantine-AppShell-navbar, .mantine-AppShell-header,
+          .no-print, [class*="AppShell-navbar"], [class*="AppShell-header"] {
+            display: none !important;
+          }
+          /* Expandir conteúdo principal */
+          .mantine-AppShell-main, main {
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          /* Esconder grip de drag, filtros e botões de ação nas linhas */
+          td:first-child, th:first-child,
+          td:last-child, th:last-child {
+            display: none !important;
+          }
+          /* Ajustar tamanho da fonte para impressão */
+          table { font-size: 9px !important; }
+          th, td { padding: 2px 4px !important; }
+          /* Forçar todas as seções abertas */
+          [data-mantine-collapse] { display: block !important; height: auto !important; overflow: visible !important; }
+          /* Remover scroll */
+          * { overflow: visible !important; }
+          /* Orientação paisagem */
+          @page { size: landscape; margin: 8mm; }
         }
       `}</style>
     </Stack>
