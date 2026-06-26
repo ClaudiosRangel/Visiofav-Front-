@@ -603,9 +603,9 @@ export default function ProgramacaoPage() {
       {mostrarAguardandoCartao && (
         <Card withBorder padding="xs" style={{ borderColor: 'var(--mantine-color-yellow-5)', background: 'var(--mantine-color-yellow-0)' }}>
           <Text fw={700} size="lg" c="orange" mb="xs">AGUARDANDO CARTÃO</Text>
-          <Table striped highlightOnHover style={{ minWidth: 800 }}>
+          <Table striped highlightOnHover style={{ minWidth: 800, fontSize: '11px' }}>
             <Table.Thead>
-              <Table.Tr>
+              <Table.Tr style={{ fontSize: '11px' }}>
                 <Table.Th>OS</Table.Th>
                 <Table.Th>Produto</Table.Th>
                 <Table.Th>Qtd</Table.Th>
@@ -749,25 +749,25 @@ export default function ProgramacaoPage() {
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => handleDragEnd(centro.centro.id, event)}>
                 <SortableContext items={centro.etapas.map((e: any) => e.id)} strategy={verticalListSortingStrategy}>
                   <ScrollArea>
-                    <Table striped highlightOnHover mt="xs" style={{ tableLayout: 'auto' }}>
+                    <Table striped highlightOnHover mt="xs" style={{ tableLayout: 'auto', fontSize: '11px' }}>
                       <Table.Thead>
-                        <Table.Tr>
+                        <Table.Tr style={{ fontSize: '11px' }}>
                           <Table.Th style={{ width: 30 }}></Table.Th>
                           <Table.Th>OP</Table.Th>
                           <Table.Th>Cliente</Table.Th>
                           <Table.Th>Produto</Table.Th>
                           <Table.Th>Operação</Table.Th>
-                          <Table.Th>Tiragem</Table.Th>
-                          <Table.Th>Cartão/Material</Table.Th>
-                          <Table.Th>Gramatura</Table.Th>
-                          <Table.Th>Formato</Table.Th>
+                          <Table.Th>Tir.</Table.Th>
+                          <Table.Th>Material</Table.Th>
+                          <Table.Th>Gram.</Table.Th>
+                          <Table.Th>Fmt.</Table.Th>
                           <Table.Th>KG</Table.Th>
-                          <Table.Th>Quantidade</Table.Th>
-                          <Table.Th>Produzido</Table.Th>
+                          <Table.Th>Qtd</Table.Th>
+                          <Table.Th>Prod.</Table.Th>
                           <Table.Th>Perda</Table.Th>
-                          <Table.Th>Progresso</Table.Th>
+                          <Table.Th>%</Table.Th>
                           <Table.Th>Entrega</Table.Th>
-                          <Table.Th>Prioridade</Table.Th>
+                          <Table.Th>Prio.</Table.Th>
                           <Table.Th>Status</Table.Th>
                           <Table.Th>Acomp.</Table.Th>
                           <Table.Th>Ações</Table.Th>
