@@ -3,12 +3,13 @@ import '@mantine/notifications/styles.css'
 import '@mantine/dates/styles.css'
 import './globals.css'
 
-import { ColorSchemeScript, MantineProvider } from '@mantine/core'
+import { ColorSchemeScript } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import { ModalsProvider } from '@mantine/modals'
-import { theme } from '@/theme'
 import { QueryProvider } from '@/providers/QueryProvider'
 import { EmpresaProvider } from '@/providers/EmpresaProvider'
+import { ThemeProvider } from '@/providers/ThemeProvider'
+import { PreferencesProvider } from '@/providers/PreferencesProvider'
 
 export const metadata = {
   title: {
@@ -22,17 +23,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
-        <ColorSchemeScript defaultColorScheme="light" />
+        <ColorSchemeScript defaultColorScheme="auto" />
       </head>
       <body>
-        <MantineProvider theme={theme} defaultColorScheme="light">
+        <ThemeProvider>
           <ModalsProvider>
             <Notifications position="top-right" autoClose={4000} />
             <QueryProvider>
-              <EmpresaProvider>{children}</EmpresaProvider>
+              <EmpresaProvider>
+                <PreferencesProvider>{children}</PreferencesProvider>
+              </EmpresaProvider>
             </QueryProvider>
           </ModalsProvider>
-        </MantineProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

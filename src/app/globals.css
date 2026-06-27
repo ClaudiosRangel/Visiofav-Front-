@@ -9,7 +9,32 @@
   --sidebar-expanded-width: 240px;
 }
 
+.dark {
+  --color-bg-default: #1a1b1e;
+  --color-bg-paper: #25262b;
+}
+
 body {
   background-color: var(--color-bg-default);
   margin: 0;
+}
+
+/* Smooth theme transition */
+*,
+*::before,
+*::after {
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease;
+}
+
+/* Density classes */
+.density-compact {
+  --mantine-spacing-xs: 0.25rem;
+  --mantine-spacing-sm: 0.375rem;
+  --mantine-spacing-md: 0.5rem;
+}
+
+.density-spacious {
+  --mantine-spacing-xs: 0.625rem;
+  --mantine-spacing-sm: 0.875rem;
+  --mantine-spacing-md: 1.25rem;
 }

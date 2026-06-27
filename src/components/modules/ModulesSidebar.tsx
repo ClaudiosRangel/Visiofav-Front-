@@ -18,6 +18,8 @@ import {
 } from '@tabler/icons-react'
 import { useEmpresa } from '@/providers/EmpresaProvider'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import ThemeToggle from '@/components/preferences/ThemeToggle'
 
 interface SidebarItemProps {
   icon: React.ElementType
@@ -33,8 +35,8 @@ function SidebarItem({ icon: Icon, label, active, onClick, color }: SidebarItemP
       onClick={onClick}
       className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm ${
         active
-          ? 'bg-green-50 text-green-700 font-semibold'
-          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+          ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 font-semibold'
+          : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-800 dark:hover:text-gray-100'
       }`}
       style={color ? { color } : undefined}
     >
@@ -55,12 +57,13 @@ interface ModulesSidebarProps {
 
 export default function ModulesSidebar({ collapsed, onToggle, isAdmin, onCleanup }: ModulesSidebarProps) {
   const { empresa } = useEmpresa()
+  const router = useRouter()
   const [configOpen, setConfigOpen] = useState(false)
 
   if (collapsed) return null
 
   return (
-    <aside className="fixed left-0 top-[72px] bottom-0 w-[250px] bg-white border-r border-gray-100 flex flex-col z-40 overflow-y-auto">
+    <aside className="fixed left-0 top-[72px] bottom-0 w-[250px] bg-white dark:bg-[#1a1b1e] border-r border-gray-100 dark:border-gray-800 flex flex-col z-40 overflow-y-auto">
       {/* Empresa info */}
       <div className="px-4 pt-5 pb-4">
         <div className="flex items-center gap-3">
@@ -83,17 +86,17 @@ export default function ModulesSidebar({ collapsed, onToggle, isAdmin, onCleanup
       {/* Navigation */}
       <Stack gap={2} className="px-3 flex-1">
         <SidebarItem icon={IconApps} label="Módulos" active />
-        <SidebarItem icon={IconLayoutDashboard} label="Dashboard" />
-        <SidebarItem icon={IconStar} label="Favoritos" />
-        <SidebarItem icon={IconChartBar} label="Relatórios" />
-        <SidebarItem icon={IconChartColumn} label="Indicadores" />
+        <SidebarItem icon={IconLayoutDashboard} label="Dashboard" onClick={() => router.push('/dashboard')} />
+        <SidebarItem icon={IconStar} label="Favoritos" onClick={() => router.push('/favoritos')} />
+        <SidebarItem icon={IconChartBar} label="Relatórios" onClick={() => router.push('/relatorios')} />
+        <SidebarItem icon={IconChartColumn} label="Indicadores" onClick={() => router.push('/indicadores')} />
 
         <Divider my="sm" label="ADMINISTRAÇÃO" labelPosition="left" styles={{ label: { fontSize: 10, fontWeight: 600, color: '#9CA3AF', letterSpacing: '0.05em' } }} />
 
         {/* Configurações com sub-menu */}
         <UnstyledButton
           onClick={() => setConfigOpen(!configOpen)}
-          className="flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-800"
+          className="flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-800 dark:hover:text-gray-100"
         >
           <div className="flex items-center gap-3">
             <IconSettings size={20} stroke={1.5} />
@@ -103,20 +106,27 @@ export default function ModulesSidebar({ collapsed, onToggle, isAdmin, onCleanup
         </UnstyledButton>
         <Collapse in={configOpen}>
           <Stack gap={1} className="pl-4">
+            <SidebarItem icon={IconSettings} label="Empresa" onClick={() => router.push('/configuracoes/empresa')} />
+            <SidebarItem icon={IconSettings} label="Parâmetros" onClick={() => router.push('/configuracoes/parametros')} />
+            <SidebarItem icon={IconSettings} label="Email/SMTP" onClick={() => router.push('/configuracoes/email')} />
+            <SidebarItem icon={IconSettings} label="Notificações" onClick={() => router.push('/configuracoes/notificacoes')} />
             {isAdmin && (
               <SidebarItem icon={IconTrash} label="Limpar Dados" onClick={onCleanup} color="#EF4444" />
             )}
           </Stack>
         </Collapse>
 
-        <SidebarItem icon={IconUsers} label="Usuários" />
-        <SidebarItem icon={IconShieldCheck} label="Permissões" />
-        <SidebarItem icon={IconFileText} label="Logs" />
+        <SidebarItem icon={IconUsers} label="Usuários" onClick={() => router.push('/configurador/usuarios')} />
+        <SidebarItem icon={IconShieldCheck} label="Permissões" onClick={() => router.push('/permissoes')} />
+        <SidebarItem icon={IconFileText} label="Logs" onClick={() => router.push('/logs')} />
       </Stack>
 
       {/* Footer */}
-      <div className="px-3 py-4 border-t border-gray-100">
-        <SidebarItem icon={IconHeadset} label="Suporte" />
+      <div className="px-3 py-4 border-t border-gray-100 dark:border-gray-800 space-y-3">
+        <div className="px-4">
+          <ThemeToggle />
+        </div>
+        <SidebarItem icon={IconHeadset} label="Suporte" onClick={() => router.push('/suporte')} />
       </div>
     </aside>
   )

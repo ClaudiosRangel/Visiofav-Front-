@@ -11,12 +11,14 @@ import {
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useEmpresa } from '@/providers/EmpresaProvider'
+import PreferencesDrawer from '@/components/preferences/PreferencesDrawer'
 
 export default function ModulesHeader() {
   const router = useRouter()
   const { empresa, trocarEmpresa } = useEmpresa()
   const [userName, setUserName] = useState('')
   const [userInitials, setUserInitials] = useState('U')
+  const [prefsOpen, setPrefsOpen] = useState(false)
 
   useEffect(() => {
     const user = localStorage.getItem('visiofab-wms-user')
@@ -42,8 +44,9 @@ export default function ModulesHeader() {
   }
 
   return (
+    <>
     <header
-      className="sticky top-0 z-50 bg-white border-b border-gray-100 px-6 lg:px-8"
+      className="sticky top-0 z-50 bg-white dark:bg-[#1a1b1e] border-b border-gray-100 dark:border-gray-800 px-6 lg:px-8"
       style={{ height: 72, boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}
     >
       <div className="flex items-center justify-between h-full max-w-[1600px] mx-auto">
@@ -101,7 +104,7 @@ export default function ModulesHeader() {
             <IconBell size={20} stroke={1.5} />
           </ActionIcon>
 
-          <ActionIcon variant="subtle" color="gray" size="lg" radius="xl" aria-label="Configurações">
+          <ActionIcon variant="subtle" color="gray" size="lg" radius="xl" aria-label="Configurações" onClick={() => setPrefsOpen(true)}>
             <IconSettings size={20} stroke={1.5} />
           </ActionIcon>
 
@@ -138,5 +141,7 @@ export default function ModulesHeader() {
         </Group>
       </div>
     </header>
+    <PreferencesDrawer opened={prefsOpen} onClose={() => setPrefsOpen(false)} />
+    </>
   )
 }

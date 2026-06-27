@@ -413,7 +413,7 @@ export default function ModuleSidebar() {
   if (!moduleConfig) return null
 
   return (
-    <nav className="hidden md:flex fixed left-0 top-0 h-screen w-[220px] bg-white border-r border-gray-200 flex-col py-4 z-50 overflow-y-auto">
+    <nav className="hidden md:flex fixed left-0 top-0 h-screen w-[220px] bg-white dark:bg-[#1a1b1e] border-r border-gray-200 dark:border-gray-800 flex-col py-4 z-50 overflow-y-auto">
       <UnstyledButton
         onClick={() => router.push('/modulos')}
         className="flex items-center gap-2 px-4 py-2 mb-2 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"

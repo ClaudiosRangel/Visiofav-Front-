@@ -183,7 +183,7 @@ export default function ModulosPage() {
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#F8FAFC' }}>
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--color-bg-default)' }}>
       {/* Header */}
       <ModulesHeader />
 
@@ -250,27 +250,10 @@ export default function ModulosPage() {
           </div>
 
           {/* Footer */}
-          <footer className="border-t border-gray-100 bg-white px-6 lg:px-10 py-4">
+          <footer className="border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-[#1a1b1e] px-6 lg:px-10 py-4">
             <div className="max-w-[1400px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
               <Text size="xs" c="#9CA3AF">
                 © {new Date().getFullYear()} VIZOR ERP — Todos os direitos reservados.
-              </Text>
-              <Text size="xs" c="#9CA3AF">
-                Front: {(() => {
-                  try {
-                    const d = process.env.NEXT_PUBLIC_BUILD_DATE
-                    if (!d) return '—'
-                    return new Date(d).toLocaleString('pt-BR', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })
-                  } catch {
-                    return '—'
-                  }
-                })()}
               </Text>
             </div>
           </footer>
