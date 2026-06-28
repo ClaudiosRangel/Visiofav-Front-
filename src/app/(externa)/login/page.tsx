@@ -26,6 +26,10 @@ export default function LoginPage() {
       const response = await api.post('/auth/login', data)
       localStorage.setItem('visiofab-wms-token', response.data.token)
       localStorage.setItem('visiofab-wms-user', JSON.stringify(response.data.usuario))
+      // Armazenar refresh token para renovação automática
+      if (response.data.refreshToken) {
+        localStorage.setItem('visiofab-wms-refresh-token', response.data.refreshToken)
+      }
       // Limpar empresa anterior para forçar nova seleção
       localStorage.removeItem('visiofab-wms-empresa-id')
       router.push('/selecionar-empresa')

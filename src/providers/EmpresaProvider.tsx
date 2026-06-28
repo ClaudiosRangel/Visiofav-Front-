@@ -17,6 +17,7 @@ interface EmpresaContextType {
   loading: boolean
   selecionarEmpresa: (empresa: Empresa) => Promise<void>
   trocarEmpresa: () => void
+  logout: () => Promise<void>
 }
 
 const EmpresaContext = createContext<EmpresaContextType | null>(null)
@@ -59,6 +60,9 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
         if (data.token) {
           localStorage.setItem(STORAGE_KEY_TOKEN, data.token)
         }
+        if (data.refreshToken) {
+          localStorage.setItem('visiofab-wms-refresh-token', data.refreshToken)
+        }
 
         // Buscar módulos com o novo token
         const modulosResp = await api.get(`/empresas/${emp.id}/modulos`)
@@ -82,8 +86,25 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
     router.push('/selecionar-empresa')
   }, [router])
 
+  // ── Segurança: Logout limpa todos os tokens ──
+  const logout = useCallback(async () => {
+    try {
+      await api.post('/auth/logout', {
+        refreshToken: localStorage.getItem('visiofab-wms-refresh-token'),
+      })
+    } catch { /* silenciar — limpar localmente mesmo se API falhar */ }
+
+    localStorage.removeItem(STORAGE_KEY_TOKEN)
+    localStorage.removeItem(STORAGE_KEY_EMPRESA)
+    localStorage.removeItem('visiofab-wms-user')
+    localStorage.removeItem('visiofab-wms-refresh-token')
+    setEmpresa(null)
+    setModulos([])
+    router.push('/login')
+  }, [router])
+
   return (
-    <EmpresaContext.Provider value={{ empresa, modulos, loading, selecionarEmpresa, trocarEmpresa }}>
+    <EmpresaContext.Provider value={{ empresa, modulos, loading, selecionarEmpresa, trocarEmpresa, logout }}>
       {children}
     </EmpresaContext.Provider>
   )
