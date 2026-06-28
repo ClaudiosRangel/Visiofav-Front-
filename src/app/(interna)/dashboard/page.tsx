@@ -53,7 +53,8 @@ export default function DashboardPage() {
       })
       setAlertas(data.alertas ?? [])
     } catch {
-      setError(true)
+      // Only show error if we have no data at all
+      if (!kpis) setError(true)
     } finally {
       setLoading(false)
     }

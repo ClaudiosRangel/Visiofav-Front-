@@ -349,7 +349,7 @@ function detectModule(pathname: string): string | null {
   if (pathname.startsWith('/configurador/forma-armazenagem')) return 'wms'
   if (pathname.startsWith('/configurador/ambiente-armazenagem')) return 'wms'
   if (pathname.startsWith('/configurador')) return 'configurador'
-  if (pathname.startsWith('/wms') || pathname.startsWith('/recebimento') || pathname.startsWith('/expedicao') || pathname.startsWith('/picking') || pathname.startsWith('/movimentacao') || pathname.startsWith('/inventario') || pathname.startsWith('/estoque') || pathname.startsWith('/gestao') || pathname.startsWith('/dashboard')) return 'wms'
+  if (pathname.startsWith('/wms') || pathname.startsWith('/recebimento') || pathname.startsWith('/expedicao') || pathname.startsWith('/picking') || pathname.startsWith('/movimentacao') || pathname.startsWith('/inventario') || pathname.startsWith('/estoque') || pathname.startsWith('/gestao')) return 'wms'
   return null
 }
 

@@ -27,11 +27,10 @@ export default function ModulesHeader() {
         const parsed = JSON.parse(user)
         setUserName(parsed.nome || '')
         const parts = (parsed.nome || 'U').split(' ')
-        setUserInitials(
-          parts.length >= 2
+        const initials = parts.length >= 2
             ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
-            : parts[0][0]?.toUpperCase() || 'U'
-        )
+            : parts[0]?.substring(0, 2).toUpperCase() || 'U'
+        setUserInitials(initials.substring(0, 2))
       } catch {}
     }
   }, [])
