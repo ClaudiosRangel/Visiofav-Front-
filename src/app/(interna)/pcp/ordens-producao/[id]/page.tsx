@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Title, Stack, Card, Group, Badge, Text, Table, Tabs, Button, Loader, Center, Divider, Timeline } from '@mantine/core'
-import { IconArrowLeft, IconPackage, IconRoute, IconClipboardCheck, IconTruck, IconPalette } from '@tabler/icons-react'
+import { IconArrowLeft, IconPackage, IconRoute, IconClipboardCheck, IconTruck, IconPalette, IconFileTypePdf } from '@tabler/icons-react'
 import { useRouter, useParams } from 'next/navigation'
 import { api } from '@/lib/api'
 
@@ -80,6 +80,21 @@ export default function DetalheOpPage() {
         <Badge color={STATUS_COLORS[op.status]} size="lg">{op.status}</Badge>
         <Badge color={PRIORIDADE_COLORS[op.prioridade]} variant="light">{op.prioridade}</Badge>
         <Text size="sm" c="dimmed">{op.percentualConcluido}% concluído</Text>
+        {op.origemImportacao === 'PDF_GPRINT' && (
+          <Button
+            size="xs"
+            variant="light"
+            color="red"
+            leftSection={<IconFileTypePdf size={14} />}
+            onClick={() => {
+              const token = localStorage.getItem('visiofab-wms-token')
+              const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
+              window.open(`${apiUrl}/pcp/op-pdf/${id}?token=${token}`, '_blank')
+            }}
+          >
+            Ver PDF
+          </Button>
+        )}
       </Group>
 
       {/* Botões de transição de status */}
