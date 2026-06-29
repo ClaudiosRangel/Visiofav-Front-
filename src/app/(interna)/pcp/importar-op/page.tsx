@@ -138,8 +138,8 @@ export default function ImportarOpPdfPage() {
     // Centros
     const ctrs: CentroParaCriar[] = data.dadosExtraidos.etapas.map((et, i) => {
       const sug = data.sugestoes.centros.find(c => c.indice === i)
-      // Código = descrição completa da etapa transformada em código (de/para usa descrição completa)
-      const codigoPadrao = et.descricao.substring(0, 30).toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9\-]/g, '')
+      // Código = descrição completa da etapa transformada em código (max 20 chars - limite do backend)
+      const codigoPadrao = et.descricao.substring(0, 20).toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9\-]/g, '')
       return {
         indice: i, descricao: et.descricao, maquina: sug?.sugestao?.descricao || et.maquina || et.descricao,
         maquinaOriginal: et.maquina || et.descricao,
@@ -215,9 +215,27 @@ export default function ImportarOpPdfPage() {
           centrosVinculados.push({ indice: ctr.indice, centroProducaoId: ctr.centroIdVinculado, nomeEditado: ctr.maquina, tipoMaquina: ctr.tipoMaquina || undefined })
         } else if (ctr.criar) {
           try {
-            const res = await api.post('/centros-producao', { codigo: ctr.codigo, descricao: ctr.maquina, tipo: ctr.tipo, tipoMaquina: ctr.tipoMaquina || undefined })
+            const res = await api.post('/centros-producao', { codigo: ctr.codigo.substring(0, 20), descricao: ctr.maquina, tipo: ctr.tipo, tipoMaquina: ctr.tipoMaquina || undefined })
             centrosVinculados.push({ indice: ctr.indice, centroProducaoId: res.data.id, nomeEditado: ctr.maquina, tipoMaquina: ctr.tipoMaquina || undefined })
-          } catch { /* ignora erro individual */ }
+          } catch (err: any) {
+            // Se código já existe (409), buscar o centro existente e usar
+            if (err?.response?.status === 409) {
+              try {
+                const busca = await api.get('/centros-producao', { params: { busca: ctr.codigo.substring(0, 20), limit: 1 } })
+                if (busca.data?.data?.[0]) {
+                  centrosVinculados.push({ indice: ctr.indice, centroProducaoId: busca.data.data[0].id, nomeEditado: ctr.maquina, tipoMaquina: ctr.tipoMaquina || undefined })
+                } else {
+                  // Fallback: enviar nomeEditado para o backend criar via confirmação
+                  centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: ctr.maquina, tipoMaquina: ctr.tipoMaquina || undefined })
+                }
+              } catch {
+                centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: ctr.maquina, tipoMaquina: ctr.tipoMaquina || undefined })
+              }
+            } else {
+              // Outro erro: enviar nomeEditado para o backend criar via confirmação
+              centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: ctr.maquina, tipoMaquina: ctr.tipoMaquina || undefined })
+            }
+          }
         } else {
           // Item desmarcado: não enviar nomeEditado para que o backend não crie centro/etapa
           centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: '', tipoMaquina: undefined })
