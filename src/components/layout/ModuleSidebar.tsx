@@ -18,7 +18,7 @@ import {
   // Integração
   IconKey, IconWebhook, IconUpload,
   // PCP
-  IconAssembly, IconListDetails, IconCalendarEvent, IconRoute, IconSitemap, IconTool, IconClock, IconPalette,
+  IconAssembly, IconListDetails, IconCalendarEvent, IconRoute, IconSitemap, IconTool, IconClock, IconPalette, IconLink,
   // Configurador
   IconBuilding,
 } from '@tabler/icons-react'
@@ -298,6 +298,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       { icon: IconHome, label: 'Dashboard', href: '/pcp/dashboard' },
       { icon: IconListDetails, label: 'Ordens de Produção', href: '/pcp/ordens-producao' },
       { icon: IconUpload, label: 'Importar OP (PDF)', href: '/pcp/importar-op' },
+      { icon: IconLink, label: 'De/Para (Vínculos)', href: '/pcp/de-para' },
       { icon: IconAssembly, label: 'Kanban', href: '/pcp/kanban' },
       { icon: IconCalendarEvent, label: 'Programação', href: '/pcp/programacao' },
       { icon: IconClipboardCheck, label: 'Apontamentos', href: '/pcp/apontamentos' },

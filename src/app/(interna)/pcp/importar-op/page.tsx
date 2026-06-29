@@ -87,6 +87,14 @@ export default function ImportarOpPdfPage() {
   const [produtoForm, setProdutoForm] = useState({ codigo: '', nome: '', unidade: 'UN' })
   const [materiais, setMateriais] = useState<MaterialParaCriar[]>([])
   const [centros, setCentros] = useState<CentroParaCriar[]>([])
+  const [centrosDisponiveis, setCentrosDisponiveis] = useState<Array<{ id: string; codigo: string; descricao: string; tipoMaquina: string | null }>>([])
+
+  // Carregar centros disponíveis para o combobox
+  useEffect(() => {
+    api.get('/centros-producao', { params: { limit: 100 } })
+      .then(res => setCentrosDisponiveis(res.data?.data || []))
+      .catch(() => {})
+  }, [])
 
   // ─── Upload ──────────────────────────────────────────────────────────────
 
@@ -99,14 +107,14 @@ export default function ImportarOpPdfPage() {
       formData.append('file', arquivo)
       const res = await api.post('/pcp/importar-op-pdf', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
       setPreview(res.data)
-      inicializarWizard(res.data)
+      await inicializarWizard(res.data)
       setEtapaGlobal('preview')
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Erro ao processar PDF', color: 'red' })
     } finally { setLoading(false) }
   }
 
-  function inicializarWizard(data: ImportacaoPreview) {
+  async function inicializarWizard(data: ImportacaoPreview) {
     // Cliente
     if (data.sugestoes.cliente) {
       setClienteId(data.sugestoes.cliente.id)
@@ -136,16 +144,41 @@ export default function ImportarOpPdfPage() {
     })
     setMateriais(mats)
     // Centros
+    // Buscar próximo código sequencial disponível
+    let proximoCodigo = 1
+    try {
+      const centrosExistentes = await api.get('/centros-producao', { params: { limit: 100 } })
+      if (centrosExistentes.data?.data?.length > 0) {
+        const codigosNumericos = centrosExistentes.data.data
+          .map((c: any) => parseInt(c.codigo))
+          .filter((n: number) => !isNaN(n))
+        if (codigosNumericos.length > 0) {
+          proximoCodigo = Math.max(...codigosNumericos) + 1
+        }
+      }
+    } catch {}
+
     const ctrs: CentroParaCriar[] = data.dadosExtraidos.etapas.map((et, i) => {
       const sug = data.sugestoes.centros.find(c => c.indice === i)
-      // Código = descrição completa da etapa transformada em código (max 20 chars - limite do backend)
-      const codigoPadrao = et.descricao.substring(0, 20).toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9\-]/g, '')
-      return {
-        indice: i, descricao: et.descricao, maquina: sug?.sugestao?.descricao || et.maquina || et.descricao,
-        maquinaOriginal: et.maquina || et.descricao,
-        criar: !sug?.sugestao, codigo: sug?.sugestao?.codigo || codigoPadrao,
-        tipo: 'MAQUINA', centroIdVinculado: sug?.sugestao?.id || null,
-        tipoMaquina: sug?.sugestao?.tipoMaquina || null,
+      if (sug?.sugestao) {
+        // De/Para encontrou: preencher com dados do centro existente
+        return {
+          indice: i, descricao: et.descricao, maquina: sug.sugestao.descricao,
+          maquinaOriginal: et.maquina || et.descricao,
+          criar: false, codigo: sug.sugestao.codigo,
+          tipo: 'MAQUINA', centroIdVinculado: sug.sugestao.id,
+          tipoMaquina: sug.sugestao.tipoMaquina || null,
+        }
+      } else {
+        // Sem de/para: campo Máquina em BRANCO, código sequencial
+        const codigo = String(proximoCodigo++)
+        return {
+          indice: i, descricao: et.descricao, maquina: '',
+          maquinaOriginal: et.maquina || et.descricao,
+          criar: true, codigo,
+          tipo: 'MAQUINA', centroIdVinculado: null,
+          tipoMaquina: null,
+        }
       }
     })
     setCentros(ctrs)
@@ -429,14 +462,49 @@ export default function ImportarOpPdfPage() {
               </Group>
               <Text size="xs" c="dimmed">Você pode editar o nome da máquina. O sistema salvará o de-para para importações futuras.</Text>
               <Table striped highlightOnHover>
-                <Table.Thead><Table.Tr><Table.Th>Criar</Table.Th><Table.Th>Etapa</Table.Th><Table.Th>Máquina</Table.Th><Table.Th>Código</Table.Th><Table.Th>Tipo Máquina</Table.Th><Table.Th>Status</Table.Th></Table.Tr></Table.Thead>
+                <Table.Thead><Table.Tr><Table.Th>Criar</Table.Th><Table.Th>Etapa</Table.Th><Table.Th>Máquina</Table.Th><Table.Th>Vincular existente</Table.Th><Table.Th>Código</Table.Th><Table.Th>Tipo Máquina</Table.Th><Table.Th>Status</Table.Th></Table.Tr></Table.Thead>
                 <Table.Tbody>
                   {centros.map((ctr, i) => (
                     <Table.Tr key={i}>
                       <Table.Td>{ctr.centroIdVinculado ? '—' : <Checkbox checked={ctr.criar} onChange={(e) => { const novo = [...centros]; novo[i].criar = e.target.checked; setCentros(novo) }} />}</Table.Td>
                       <Table.Td>{ctr.descricao}</Table.Td>
-                      <Table.Td><TextInput size="xs" value={ctr.maquina} onChange={(e) => { const novo = [...centros]; novo[i].maquina = e.target.value; setCentros(novo) }} style={{ width: 220 }} /></Table.Td>
-                      <Table.Td>{ctr.centroIdVinculado ? '—' : <TextInput size="xs" value={ctr.codigo} onChange={(e) => { const novo = [...centros]; novo[i].codigo = e.target.value; setCentros(novo) }} style={{ width: 140 }} />}</Table.Td>
+                      <Table.Td><TextInput size="xs" value={ctr.maquina} placeholder="Descrição da máquina" onChange={(e) => { const novo = [...centros]; novo[i].maquina = e.target.value; setCentros(novo) }} style={{ width: 220 }} /></Table.Td>
+                      <Table.Td>
+                        {!ctr.centroIdVinculado && centrosDisponiveis.length > 0 && (
+                          <Select
+                            size="xs"
+                            placeholder="Ou vincular..."
+                            clearable
+                            data={centrosDisponiveis.map(c => ({ value: c.id, label: `${c.codigo} - ${c.descricao}` }))}
+                            value={null}
+                            onChange={(v) => {
+                              if (v) {
+                                const centroSel = centrosDisponiveis.find(c => c.id === v)
+                                if (centroSel) {
+                                  const novo = [...centros]
+                                  novo[i].centroIdVinculado = centroSel.id
+                                  novo[i].maquina = centroSel.descricao
+                                  novo[i].codigo = centroSel.codigo
+                                  novo[i].tipoMaquina = centroSel.tipoMaquina
+                                  novo[i].criar = false
+                                  setCentros(novo)
+                                }
+                              }
+                            }}
+                            style={{ width: 180 }}
+                          />
+                        )}
+                        {ctr.centroIdVinculado && (
+                          <Button size="xs" variant="subtle" color="red" onClick={() => {
+                            const novo = [...centros]
+                            novo[i].centroIdVinculado = null
+                            novo[i].maquina = ''
+                            novo[i].criar = true
+                            setCentros(novo)
+                          }}>Desvincular</Button>
+                        )}
+                      </Table.Td>
+                      <Table.Td>{ctr.centroIdVinculado ? <Text size="xs" c="dimmed">{ctr.codigo}</Text> : <TextInput size="xs" value={ctr.codigo} onChange={(e) => { const novo = [...centros]; novo[i].codigo = e.target.value; setCentros(novo) }} style={{ width: 80 }} />}</Table.Td>
                       <Table.Td>
                         <Select
                           size="xs"
