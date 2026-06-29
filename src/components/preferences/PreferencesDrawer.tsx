@@ -21,7 +21,7 @@ import {
   IconKeyboard,
   IconInfoCircle,
 } from '@tabler/icons-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { usePreferences } from '@/providers/PreferencesProvider'
 import { useTheme } from '@/providers/ThemeProvider'
@@ -39,6 +39,23 @@ export default function PreferencesDrawer({ opened, onClose }: PreferencesDrawer
   const { modulos } = useEmpresa()
   const [logoutConfirm, setLogoutConfirm] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [backBuildDate, setBackBuildDate] = useState('—')
+
+  useEffect(() => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
+    const baseUrl = apiUrl.replace(/\/api$/, '')
+    fetch(`${baseUrl}/api/health`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.buildDate) {
+          setBackBuildDate(new Date(data.buildDate).toLocaleString('pt-BR', {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit',
+          }))
+        }
+      })
+      .catch(() => setBackBuildDate('—'))
+  }, [])
 
   function handleLogout() {
     localStorage.removeItem('visiofab-wms-token')
@@ -212,7 +229,8 @@ export default function PreferencesDrawer({ opened, onClose }: PreferencesDrawer
             </Group>
             <Stack gap={2}>
               <Text size="xs" c="dimmed">Versão: 1.0.0</Text>
-              <Text size="xs" c="dimmed">Build: {buildDate}</Text>
+              <Text size="xs" c="dimmed">Front: {buildDate}</Text>
+              <Text size="xs" c="dimmed">Back: {backBuildDate}</Text>
               <Text size="xs" c="dimmed">Suporte: suporte@vizorerp.com.br</Text>
             </Stack>
           </div>

@@ -138,10 +138,12 @@ export default function ImportarOpPdfPage() {
     // Centros
     const ctrs: CentroParaCriar[] = data.dadosExtraidos.etapas.map((et, i) => {
       const sug = data.sugestoes.centros.find(c => c.indice === i)
+      // Código = descrição completa da etapa transformada em código (de/para usa descrição completa)
+      const codigoPadrao = et.descricao.substring(0, 30).toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9\-]/g, '')
       return {
-        indice: i, descricao: et.descricao, maquina: et.maquina || et.descricao,
+        indice: i, descricao: et.descricao, maquina: sug?.sugestao?.descricao || et.maquina || et.descricao,
         maquinaOriginal: et.maquina || et.descricao,
-        criar: !sug?.sugestao, codigo: sug?.sugestao?.codigo || (et.maquina || et.descricao).substring(0, 15).toUpperCase().replace(/\s/g, '-'),
+        criar: !sug?.sugestao, codigo: sug?.sugestao?.codigo || codigoPadrao,
         tipo: 'MAQUINA', centroIdVinculado: sug?.sugestao?.id || null,
         tipoMaquina: sug?.sugestao?.tipoMaquina || null,
       }
