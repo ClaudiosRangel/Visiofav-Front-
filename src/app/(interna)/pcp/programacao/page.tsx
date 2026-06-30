@@ -616,6 +616,7 @@ export default function ProgramacaoPage() {
             <Table.Thead>
               <Table.Tr style={{ fontSize: '11px' }}>
                 <Table.Th>OS</Table.Th>
+                <Table.Th>Cliente</Table.Th>
                 <Table.Th>Produto</Table.Th>
                 <Table.Th>Qtd</Table.Th>
                 <Table.Th>Cartão</Table.Th>
@@ -631,7 +632,8 @@ export default function ProgramacaoPage() {
               {aguardandoCartaoFiltrado.map((item: any) => (
                 <Table.Tr key={item.opNumero}>
                   <Table.Td fw={700}>{item.opNumero}</Table.Td>
-                  <Table.Td>{item.descricao}</Table.Td>
+                  <Table.Td>{item.cliente || '—'}</Table.Td>
+                  <Table.Td>{item.produto || '—'}</Table.Td>
                   <Table.Td>{item.quantidade?.toLocaleString('pt-BR')} {item.unidade}</Table.Td>
                   <Table.Td>
                     <Text size="sm">{item.materialPrincipal || '—'}</Text>
