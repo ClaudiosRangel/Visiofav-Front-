@@ -70,6 +70,7 @@ export default function ProgramacaoPage() {
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState<string | null>(null)
   const [filtroPrioridade, setFiltroPrioridade] = useState<string | null>(null)
+  const [filtroGrupo, setFiltroGrupo] = useState<string | null>(null)
   const [filtroDataRange, setFiltroDataRange] = useState<[Date | null, Date | null]>([null, null])
   // Modais
   const [modalApontar, setModalApontar] = useState<{ etapaId: string; opNumero: number; descricao: string } | null>(null)
@@ -500,7 +501,10 @@ export default function ProgramacaoPage() {
   const centrosFiltrados = (activeTab === 'todos'
     ? painel.centros
     : painel.centros.filter((c: any) => getCategoriaCentro(c.centro.tipoMaquina) === activeTab)
-  ).map((c: any) => {
+  ).filter((c: any) => {
+    if (filtroGrupo) return c.centro.id === filtroGrupo
+    return true
+  }).map((c: any) => {
     let etapas = c.etapas
     if (busca) {
       const buscaLower = busca.toLowerCase()
@@ -526,7 +530,7 @@ export default function ProgramacaoPage() {
     return { ...c, etapas }
   }).filter((c: any) => {
     // Só ocultar grupos vazios quando há filtro de busca/status/prioridade/data ativo
-    if (busca || filtroStatus || filtroPrioridade || filtroDataRange[0] || filtroDataRange[1]) {
+    if (busca || filtroStatus || filtroPrioridade || filtroGrupo || filtroDataRange[0] || filtroDataRange[1]) {
       return c.etapas.length > 0
     }
     return true // Sem filtro: mostrar todos os grupos (inclusive vazios)
@@ -605,6 +609,16 @@ export default function ProgramacaoPage() {
           clearable
           size="sm"
           style={{ minWidth: 140 }}
+        />
+        <Select
+          placeholder="Grupo"
+          data={(painel?.centros || []).map((c: any) => ({ value: c.centro.id, label: c.centro.descricao }))}
+          value={filtroGrupo}
+          onChange={setFiltroGrupo}
+          clearable
+          searchable
+          size="sm"
+          style={{ minWidth: 180 }}
         />
       </Group>
 
