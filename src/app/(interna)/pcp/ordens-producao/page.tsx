@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Title, Stack, Table, Badge, Group, Button, TextInput, Select, Pagination, ActionIcon, Text, Loader, Center } from '@mantine/core'
-import { IconPlus, IconSearch, IconEye, IconTrash } from '@tabler/icons-react'
+import { useEffect, useState, useRef } from 'react'
+import { Title, Stack, Table, Badge, Group, Button, TextInput, Select, Pagination, ActionIcon, Text, Loader, Center, Tooltip } from '@mantine/core'
+import { IconPlus, IconSearch, IconEye, IconTrash, IconFileTypePdf, IconUpload } from '@tabler/icons-react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
@@ -34,6 +34,9 @@ export default function OrdensProducaoPage() {
   const [page, setPage] = useState(1)
   const [busca, setBusca] = useState('')
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
+  const [pdfStatus, setPdfStatus] = useState<Record<string, boolean>>({})
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploadTargetOpId, setUploadTargetOpId] = useState<string | null>(null)
 
   async function carregarOps() {
     setLoading(true)
@@ -44,10 +47,35 @@ export default function OrdensProducaoPage() {
       const res = await api.get('/ordens-producao', { params })
       setData(res.data.data)
       setTotal(res.data.total)
+
+      // Verificar status do PDF para cada OP
+      const ids = res.data.data.map((op: any) => op.id)
+      if (ids.length > 0) {
+        const pdfRes = await api.post('/ordens-producao/pdf-status', { ids })
+        setPdfStatus(pdfRes.data)
+      }
     } catch (err) {
       console.error(err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handlePdfUpload(file: File) {
+    if (!uploadTargetOpId) return
+    const formData = new FormData()
+    formData.append('file', file)
+    try {
+      await api.put(`/ordens-producao/${uploadTargetOpId}/pdf`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      notifications.show({ title: 'PDF salvo', message: 'PDF vinculado à OP com sucesso', color: 'green' })
+      setPdfStatus((prev) => ({ ...prev, [uploadTargetOpId!]: true }))
+    } catch (err: any) {
+      notifications.show({ title: 'Erro no upload', message: err?.response?.data?.message || 'Falha ao enviar PDF', color: 'red' })
+    } finally {
+      setUploadTargetOpId(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -126,6 +154,41 @@ export default function OrdensProducaoPage() {
                       <ActionIcon variant="subtle" onClick={() => router.push(`/pcp/ordens-producao/${op.id}`)} title="Visualizar">
                         <IconEye size={18} />
                       </ActionIcon>
+                      <Tooltip label={pdfStatus[op.id] ? 'PDF disponível — clique para ver' : 'PDF não encontrado — clique para enviar'}>
+                        <ActionIcon
+                          variant="subtle"
+                          color={pdfStatus[op.id] ? 'green' : 'gray'}
+                          onClick={() => {
+                            if (pdfStatus[op.id]) {
+                              // Visualizar PDF
+                              api.get(`/ordens-producao/${op.id}/pdf`, { responseType: 'blob' }).then((res) => {
+                                const blob = new Blob([res.data], { type: 'application/pdf' })
+                                window.open(URL.createObjectURL(blob), '_blank')
+                              }).catch(() => {
+                                notifications.show({ title: 'PDF não disponível', message: 'Erro ao abrir o PDF', color: 'orange' })
+                              })
+                            } else {
+                              // Abrir file picker para upload
+                              setUploadTargetOpId(op.id)
+                              fileInputRef.current?.click()
+                            }
+                          }}
+                        >
+                          <IconFileTypePdf size={18} />
+                        </ActionIcon>
+                      </Tooltip>
+                      <Tooltip label="Enviar/substituir PDF">
+                        <ActionIcon
+                          variant="subtle"
+                          color="blue"
+                          onClick={() => {
+                            setUploadTargetOpId(op.id)
+                            fileInputRef.current?.click()
+                          }}
+                        >
+                          <IconUpload size={18} />
+                        </ActionIcon>
+                      </Tooltip>
                       {!['CONCLUIDA', 'CANCELADA'].includes(op.status) && op.percentualConcluido === 0 && (
                         <ActionIcon variant="subtle" color="red" onClick={() => excluirOp(op.id, op.referenciaExterna || op.numero)} title="Excluir OP">
                           <IconTrash size={18} />
@@ -143,6 +206,18 @@ export default function OrdensProducaoPage() {
           </Group>
         </>
       )}
+
+      {/* Input escondido para upload de PDF */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) handlePdfUpload(file)
+        }}
+      />
     </Stack>
   )
 }
