@@ -913,11 +913,9 @@ export default function ProgramacaoPage() {
                     /* ===== MODELO CORTADEIRA ===== */
                     <Table striped highlightOnHover mt="xs" style={{ tableLayout: 'auto', fontSize: '11px' }}>
                       <Table.Thead>
-                        <Table.Tr style={{ fontSize: '11px' }}>
+                        <Table.Tr style={{ fontSize: '10px' }}>
                           <Table.Th style={{ width: 30 }}></Table.Th>
-                          <Table.Th>OS</Table.Th>
-                          <Table.Th>Cliente</Table.Th>
-                          <Table.Th>Produto</Table.Th>
+                          <Table.Th style={{ minWidth: 200 }}>OS / Cliente / Produto</Table.Th>
                           <Table.Th>Qtd</Table.Th>
                           <Table.Th>Tiragem</Table.Th>
                           <Table.Th>Entrega</Table.Th>
@@ -932,9 +930,14 @@ export default function ProgramacaoPage() {
                       <Table.Tbody>
                         {centro.etapas.map((etapa: any) => (
                           <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa)} highlighted={highlightedEtapa === etapa.id}>
-                            <Table.Td fw={700}>{etapa.opNumero}</Table.Td>
-                            <Table.Td><Text size="sm" fw={600}>{etapa.clienteNome || '—'}</Text></Table.Td>
-                            <Table.Td><Text size="sm" style={{ wordBreak: 'break-word' }}>{etapa.produtoNome || '—'}</Text></Table.Td>
+                            <Table.Td style={{ minWidth: 200 }}>
+                              <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
+                                {etapa.opNumero} — {etapa.clienteNome || '—'}
+                              </Text>
+                              <Text size="xs" fw={600} c="dimmed" style={{ lineHeight: 1.2 }}>
+                                {etapa.produtoNome || '—'}
+                              </Text>
+                            </Table.Td>
                             <Table.Td>{etapa.quantidade.toLocaleString('pt-BR')}</Table.Td>
                             <Table.Td>{etapa.tiragem ? etapa.tiragem.toLocaleString('pt-BR') : '—'}</Table.Td>
                             <Table.Td>
@@ -1000,11 +1003,13 @@ export default function ProgramacaoPage() {
                     ) : (
                     /* ===== MODELO IMPRESSÃO / ACABAMENTO ===== */
                     <Table striped highlightOnHover mt="xs" style={{ tableLayout: 'auto', fontSize: '11px' }}>
+                      {(() => {
+                        const temApontamento = centro.etapas.some((e: any) => e.quantidadeProduzida > 0 || e.quantidadePerda > 0)
+                        return (<>
                       <Table.Thead>
-                        <Table.Tr style={{ fontSize: '11px' }}>
+                        <Table.Tr style={{ fontSize: '10px' }}>
                           <Table.Th style={{ width: 30 }}></Table.Th>
-                          <Table.Th>OP</Table.Th>
-                          <Table.Th>Cliente / Produto</Table.Th>
+                          <Table.Th style={{ minWidth: 200 }}>OP / Cliente / Produto</Table.Th>
                           <Table.Th>Tipo OP</Table.Th>
                           <Table.Th>Tir.</Table.Th>
                           <Table.Th>Material</Table.Th>
@@ -1012,9 +1017,9 @@ export default function ProgramacaoPage() {
                           <Table.Th>Fmt.</Table.Th>
                           <Table.Th>KG</Table.Th>
                           <Table.Th>Qtd</Table.Th>
-                          <Table.Th>Prod.</Table.Th>
-                          <Table.Th>Perda</Table.Th>
-                          <Table.Th>%</Table.Th>
+                          {temApontamento && <Table.Th>Prod.</Table.Th>}
+                          {temApontamento && <Table.Th>Perda</Table.Th>}
+                          {temApontamento && <Table.Th>%</Table.Th>}
                           <Table.Th>Entrega</Table.Th>
                           <Table.Th>Prio.</Table.Th>
                           <Table.Th>Status</Table.Th>
@@ -1030,13 +1035,14 @@ export default function ProgramacaoPage() {
                       <Table.Tbody>
                         {centro.etapas.map((etapa: any) => (
                           <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa)} highlighted={highlightedEtapa === etapa.id}>
-                            <Table.Td fw={600}>
-                              {etapa.opNumero}
+                            <Table.Td style={{ minWidth: 200 }}>
+                              <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
+                                {etapa.opNumero} — {etapa.clienteNome || etapa.observacoes?.match(/\[Cliente\]\s*(.+)/)?.[1] || '—'}
+                              </Text>
+                              <Text size="xs" fw={600} c="dimmed" style={{ lineHeight: 1.2 }}>
+                                {etapa.produtoNome || etapa.observacoes?.match(/\[Produto\]\s*(.+)/)?.[1] || ''}
+                              </Text>
                               {etapa.materialEncomendado && <Text size="xs" c="red" fw={700}>* Aguardando restante cartão</Text>}
-                            </Table.Td>
-                            <Table.Td title={`${etapa.clienteNome || ''} — ${etapa.produtoNome || ''}`}>
-                              <Text size="sm" fw={600} style={{ wordBreak: 'break-word', lineHeight: 1.2 }}>{etapa.clienteNome || etapa.observacoes?.match(/\[Cliente\]\s*(.+)/)?.[1] || '—'}</Text>
-                              <Text size="xs" c="dimmed" style={{ wordBreak: 'break-word', lineHeight: 1.2 }}>{etapa.produtoNome || etapa.observacoes?.match(/\[Produto\]\s*(.+)/)?.[1] || ''}</Text>
                             </Table.Td>
                             <Table.Td><Text size="xs" fw={600} c={etapa.tipoOp?.includes('NOVO') ? 'green' : etapa.tipoOp?.includes('REPETI') ? 'blue' : etapa.tipoOp?.includes('ALTERA') ? 'orange' : etapa.tipoOp?.includes('PILOTO') ? 'violet' : 'gray'} style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>{etapa.tipoOp || '—'}</Text></Table.Td>
                             <Table.Td>{etapa.tiragem ? etapa.tiragem.toLocaleString('pt-BR') : '—'}</Table.Td>
@@ -1045,9 +1051,9 @@ export default function ProgramacaoPage() {
                             <Table.Td>{etapa.formato || '—'}</Table.Td>
                             <Table.Td>{etapa.pesoKg ? `${etapa.pesoKg.toLocaleString('pt-BR')} kg` : '—'}</Table.Td>
                             <Table.Td>{etapa.quantidade.toLocaleString('pt-BR')} {etapa.unidade}</Table.Td>
-                            <Table.Td fw={600} c="green">{etapa.quantidadeProduzida.toLocaleString('pt-BR')}</Table.Td>
-                            <Table.Td>{etapa.quantidadePerda > 0 ? <Text c="red" size="sm">{etapa.quantidadePerda}</Text> : '—'}</Table.Td>
-                            <Table.Td w={100}><Progress value={etapa.percentual} size="lg" color={etapa.percentual >= 100 ? 'green' : 'blue'} /><Text size="xs" ta="center">{etapa.percentual}%</Text></Table.Td>
+                            {temApontamento && <Table.Td fw={600} c="green">{etapa.quantidadeProduzida.toLocaleString('pt-BR')}</Table.Td>}
+                            {temApontamento && <Table.Td>{etapa.quantidadePerda > 0 ? <Text c="red" size="sm">{etapa.quantidadePerda}</Text> : '—'}</Table.Td>}
+                            {temApontamento && <Table.Td w={100}><Progress value={etapa.percentual} size="lg" color={etapa.percentual >= 100 ? 'green' : 'blue'} /><Text size="xs" ta="center">{etapa.percentual}%</Text></Table.Td>}
                             <Table.Td style={{ minWidth: 100 }}>
                               {etapa.dataEntrega ? (
                                 <Group gap={4} wrap="nowrap">
@@ -1150,6 +1156,8 @@ export default function ProgramacaoPage() {
                           </SortableRow>
                         ))}
                       </Table.Tbody>
+                      </>)
+                      })()}
                     </Table>
                     )}
                   </ScrollArea>
