@@ -1,123 +1,176 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import {
-  Button, Card, Group, Text, Table, Badge, ActionIcon, Tooltip,
-  LoadingOverlay, Pagination, Modal, Code,
-} from '@mantine/core'
-import { IconRefresh, IconEye, IconX, IconFileText } from '@tabler/icons-react'
+import { Button, Group } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
+import { ListagemFiscal, type ColumnDef, type FilterConfig } from '@/components/fiscal/ListagemFiscal'
+import { StatusBadge, FISCAL_STATUS_COLORS } from '@/components/fiscal/StatusBadge'
+import { ModalCancelamento } from '@/components/fiscal/ModalCancelamento'
+import { ModalCartaCorrecao } from '@/components/fiscal/ModalCartaCorrecao'
+import { useNfe } from '@/data/hooks/fiscal/useNfe'
 
-const statusColors: Record<string, string> = { PENDENTE: 'gray', AUTORIZADA: 'green', REJEITADA: 'red', CANCELADA: 'orange' }
+interface NfeItem {
+  id: string
+  numero: number
+  serie: number
+  chaveAcesso: string | null
+  destRazao: string | null
+  valorTotal: number
+  status: string
+  dataEmissao: string
+}
+
+const columns: ColumnDef<NfeItem>[] = [
+  { key: 'numero', label: 'Número' },
+  { key: 'serie', label: 'Série' },
+  {
+    key: 'chaveAcesso',
+    label: 'Chave de Acesso',
+    render: (value: string | null) => value ? `${value.substring(0, 25)}...` : '—',
+  },
+  { key: 'destRazao', label: 'Destinatário', render: (value: string | null) => value ?? '—' },
+  {
+    key: 'valorTotal',
+    label: 'Valor',
+    render: (value: number) =>
+      value != null
+        ? value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+        : '—',
+  },
+  {
+    key: 'status',
+    label: 'Status',
+    render: (value: string) => <StatusBadge status={value} />,
+  },
+  {
+    key: 'dataEmissao',
+    label: 'Data Emissão',
+    render: (value: string) =>
+      value ? new Date(value).toLocaleDateString('pt-BR') : '—',
+  },
+]
+
+const filters: FilterConfig[] = [
+  {
+    key: 'status',
+    label: 'Status',
+    type: 'select',
+    options: [
+      { value: 'PENDENTE', label: 'Pendente' },
+      { value: 'AUTORIZADA', label: 'Autorizada' },
+      { value: 'REJEITADA', label: 'Rejeitada' },
+      { value: 'CANCELADA', label: 'Cancelada' },
+      { value: 'DENEGADA', label: 'Denegada' },
+      { value: 'CONTINGENCIA', label: 'Contingência' },
+    ],
+  },
+  {
+    key: 'destRazao',
+    label: 'Destinatário',
+    type: 'text',
+  },
+]
 
 export default function NfePage() {
-  useModuloGuard('VENDAS')
+  useModuloGuard('FISCAL')
   useEffect(() => { document.title = 'Vizor - Fiscal - NF-e' }, [])
-  const queryClient = useQueryClient()
-  const [page, setPage] = useState(1)
-  const [xmlModal, setXmlModal] = useState<string | null>(null)
-  const limit = 20
 
-  const { data: response, isLoading, refetch } = useQuery<any>({
-    queryKey: ['nfe', { page, limit }],
-    queryFn: async () => { const { data } = await api.get('/nfe', { params: { page, limit } }); return data },
-  })
+  const { useCancelar, useCartaCorrecao } = useNfe()
+  const cancelarMutation = useCancelar()
+  const cartaCorrecaoMutation = useCartaCorrecao()
 
-  const cancelar = useMutation({
-    mutationFn: async (id: string) => {
-      const justificativa = prompt('Justificativa para cancelamento (mín. 15 caracteres):')
-      if (!justificativa || justificativa.length < 15) throw new Error('Justificativa deve ter no mínimo 15 caracteres')
-      const { data } = await api.post(`/nfe/${id}/cancelar`, { justificativa })
-      return data
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['nfe'] }); notifications.show({ title: 'Sucesso', message: 'NF-e cancelada', color: 'green' }) },
-    onError: (err: any) => { notifications.show({ title: 'Erro', message: err?.response?.data?.message || err.message, color: 'red' }) },
-  })
+  const [cancelarItemId, setCancelarItemId] = useState<string | null>(null)
+  const [cceItemId, setCceItemId] = useState<string | null>(null)
 
-  const gerarXml = useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await api.post(`/nfe/${id}/gerar-xml`)
-      return data
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['nfe'] }); notifications.show({ title: '✅ XML gerado', message: 'XML da NF-e gerado com sucesso', color: 'green' }) },
-    onError: (err: any) => { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao gerar XML', color: 'red' }) },
-  })
-
-  const verXml = async (id: string) => {
-    try {
-      const { data } = await api.get(`/nfe/${id}`)
-      setXmlModal(data.xmlEnviado || 'XML não disponível')
-    } catch { setXmlModal('Erro ao carregar XML') }
+  function handleCancelar(justificativa: string) {
+    if (!cancelarItemId) return
+    cancelarMutation.mutate(
+      { id: cancelarItemId, justificativa },
+      {
+        onSuccess: () => {
+          notifications.show({ title: 'Sucesso', message: 'NF-e cancelada com sucesso', color: 'green' })
+          setCancelarItemId(null)
+        },
+        onError: (err: any) => {
+          notifications.show({
+            title: 'Erro',
+            message: err?.response?.data?.message || 'Erro ao cancelar NF-e',
+            color: 'red',
+          })
+        },
+      },
+    )
   }
 
-  const items = response?.data || []
-  const total = response?.total || 0
-  const totalPages = Math.ceil(total / limit)
+  function handleCartaCorrecao(textoCorrecao: string) {
+    if (!cceItemId) return
+    cartaCorrecaoMutation.mutate(
+      { id: cceItemId, textoCorrecao },
+      {
+        onSuccess: () => {
+          notifications.show({ title: 'Sucesso', message: 'Carta de Correção enviada com sucesso', color: 'green' })
+          setCceItemId(null)
+        },
+        onError: (err: any) => {
+          notifications.show({
+            title: 'Erro',
+            message: err?.response?.data?.message || 'Erro ao enviar Carta de Correção',
+            color: 'red',
+          })
+        },
+      },
+    )
+  }
 
   return (
-    <div>
-      <Text size="xs" c="dimmed" mb={4}>Início / Fiscal / NF-e</Text>
-      <Text size="xl" fw={600} mb="lg">Notas Fiscais Eletrônicas</Text>
+    <>
+      <ListagemFiscal<NfeItem>
+        queryKey={['fiscal', 'nfe']}
+        endpoint="/fiscal/nfe"
+        columns={columns}
+        filters={filters}
+        title="Notas Fiscais Eletrônicas (NF-e)"
+        breadcrumb="Início / Fiscal / NF-e"
+        createButton={{ label: 'Nova NF-e', href: '/fiscal/nfe/nova' }}
+        statusColors={FISCAL_STATUS_COLORS}
+        actions={(item) =>
+          item.status === 'AUTORIZADA' ? (
+            <Group gap={4}>
+              <Button
+                size="compact-xs"
+                variant="subtle"
+                color="red"
+                onClick={() => setCancelarItemId(item.id)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="compact-xs"
+                variant="subtle"
+                color="teal"
+                onClick={() => setCceItemId(item.id)}
+              >
+                Carta de Correção
+              </Button>
+            </Group>
+          ) : null
+        }
+      />
 
-      <Card pos="relative">
-        <LoadingOverlay visible={isLoading} />
-        <Group justify="flex-end" mb="md">
-          <Button variant="default" leftSection={<IconRefresh size={16} />} onClick={() => refetch()}>Atualizar</Button>
-        </Group>
+      <ModalCancelamento
+        opened={!!cancelarItemId}
+        onClose={() => setCancelarItemId(null)}
+        onConfirm={handleCancelar}
+        loading={cancelarMutation.isPending}
+      />
 
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Número</Table.Th>
-              <Table.Th>Série</Table.Th>
-              <Table.Th>Chave de Acesso</Table.Th>
-              <Table.Th>Tipo</Table.Th>
-              <Table.Th>Pedido</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th>Ambiente</Table.Th>
-              <Table.Th className="w-32">Ações</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {items.map((item: any) => (
-              <Table.Tr key={item.id}>
-                <Table.Td fw={500}>{item.numero}</Table.Td>
-                <Table.Td>{item.serie}</Table.Td>
-                <Table.Td><Text size="xs" className="font-mono">{item.chaveAcesso?.substring(0, 20)}...</Text></Table.Td>
-                <Table.Td><Badge variant="light">{item.tipoNfe}</Badge></Table.Td>
-                <Table.Td>{item.vendaEfetivada?.pedidoVenda?.numero ? `#${item.vendaEfetivada.pedidoVenda.numero}` : '—'}</Table.Td>
-                <Table.Td><Badge color={statusColors[item.status] || 'gray'}>{item.status}</Badge></Table.Td>
-                <Table.Td><Badge variant="light" color={item.ambiente === 1 ? 'red' : 'blue'}>{item.ambiente === 1 ? 'Produção' : 'Homologação'}</Badge></Table.Td>
-                <Table.Td>
-                  <Group gap={4}>
-                    {item.status === 'PENDENTE' && (
-                      <Tooltip label="Gerar XML"><ActionIcon variant="subtle" color="blue" onClick={() => gerarXml.mutate(item.id)} loading={gerarXml.isPending}><IconFileText size={18} /></ActionIcon></Tooltip>
-                    )}
-                    <Tooltip label="Ver DANFE"><ActionIcon variant="subtle" color="teal" onClick={async () => {
-                      try {
-                        const { data } = await api.get(`/nfe/${item.id}/danfe`, { responseType: 'text' })
-                        const w = window.open('', '_blank')
-                        if (w) { w.document.write(data); w.document.close() }
-                      } catch { notifications.show({ title: 'Erro', message: 'Falha ao carregar DANFE', color: 'red' }) }
-                    }}><IconFileText size={18} /></ActionIcon></Tooltip>
-                    <Tooltip label="Ver XML"><ActionIcon variant="subtle" color="gray" onClick={() => verXml(item.id)}><IconEye size={18} /></ActionIcon></Tooltip>
-                    {item.status === 'AUTORIZADA' && <Tooltip label="Cancelar"><ActionIcon variant="subtle" color="red" onClick={() => cancelar.mutate(item.id)}><IconX size={18} /></ActionIcon></Tooltip>}
-                  </Group>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-            {!isLoading && items.length === 0 && <Table.Tr><Table.Td colSpan={8} className="text-center py-8 text-zinc-500">Nenhuma NF-e emitida</Table.Td></Table.Tr>}
-          </Table.Tbody>
-        </Table>
-        {totalPages > 1 && <Group justify="center" mt="md"><Pagination total={totalPages} value={page} onChange={setPage} /></Group>}
-      </Card>
-
-      <Modal opened={!!xmlModal} onClose={() => setXmlModal(null)} title="XML da NF-e" size="xl" centered>
-        <Code block className="text-xs max-h-96 overflow-auto">{xmlModal}</Code>
-      </Modal>
-    </div>
+      <ModalCartaCorrecao
+        opened={!!cceItemId}
+        onClose={() => setCceItemId(null)}
+        onConfirm={handleCartaCorrecao}
+        loading={cartaCorrecaoMutation.isPending}
+      />
+    </>
   )
 }

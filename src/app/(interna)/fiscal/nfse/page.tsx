@@ -5,22 +5,26 @@ import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { ListagemFiscal, type ColumnDef } from '@/components/fiscal/ListagemFiscal'
 import { StatusBadge, FISCAL_STATUS_COLORS } from '@/components/fiscal/StatusBadge'
 
-interface CteItem {
+interface NfseItem {
   id: string
   numero: number
-  serie: number
   tomadorRazao: string | null
-  valorTotal: number
+  descricaoServico: string | null
+  valorServicos: number
   status: string
   dataEmissao: string
 }
 
-const columns: ColumnDef<CteItem>[] = [
+const columns: ColumnDef<NfseItem>[] = [
   { key: 'numero', label: 'Número' },
-  { key: 'serie', label: 'Série' },
   { key: 'tomadorRazao', label: 'Tomador', render: (value: string | null) => value ?? '—' },
   {
-    key: 'valorTotal',
+    key: 'descricaoServico',
+    label: 'Serviço',
+    render: (value: string | null) => value ?? '—',
+  },
+  {
+    key: 'valorServicos',
     label: 'Valor',
     render: (value: number) =>
       value != null
@@ -40,18 +44,18 @@ const columns: ColumnDef<CteItem>[] = [
   },
 ]
 
-export default function CtePage() {
+export default function NfsePage() {
   useModuloGuard('FISCAL')
-  useEffect(() => { document.title = 'Vizor - Fiscal - CT-e' }, [])
+  useEffect(() => { document.title = 'Vizor - Fiscal - NFS-e' }, [])
 
   return (
-    <ListagemFiscal<CteItem>
-      queryKey={['fiscal', 'cte']}
-      endpoint="/fiscal/cte"
+    <ListagemFiscal<NfseItem>
+      queryKey={['fiscal', 'nfse']}
+      endpoint="/fiscal/nfse"
       columns={columns}
-      title="Conhecimento de Transporte Eletrônico (CT-e)"
-      breadcrumb="Início / Fiscal / CT-e"
-      createButton={{ label: 'Novo CT-e', href: '/fiscal/cte/nova' }}
+      title="Nota Fiscal de Serviço Eletrônica (NFS-e)"
+      breadcrumb="Início / Fiscal / NFS-e"
+      createButton={{ label: 'Nova NFS-e', href: '/fiscal/nfse/nova' }}
       statusColors={FISCAL_STATUS_COLORS}
     />
   )

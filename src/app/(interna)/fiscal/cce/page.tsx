@@ -10,6 +10,7 @@ import {
   IconCopy, IconCheckbox, IconAlertTriangle, IconSend,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
+import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { api } from '@/lib/api'
 
 interface CCeItem {
@@ -45,6 +46,7 @@ const statusConfig: Record<string, { color: string; icon: any; label: string }> 
 }
 
 export default function CcePage() {
+  useModuloGuard('FISCAL')
   const [items, setItems] = useState<CCeItem[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string | null>(null)

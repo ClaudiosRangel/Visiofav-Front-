@@ -483,6 +483,117 @@ export default function ProgramacaoPage() {
     }
   }
 
+  function imprimirRelatorio() {
+    if (!painel) return
+    const centrosParaImprimir = centrosFiltrados.filter((c: any) => c.etapas.length > 0)
+    if (centrosParaImprimir.length === 0) {
+      notifications.show({ title: 'Nada para imprimir', message: 'Nenhuma OS encontrada nos filtros atuais', color: 'orange' })
+      return
+    }
+
+    let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Programação de Produção</title>
+    <style>
+      body { font-family: Arial, sans-serif; font-size: 11px; margin: 10mm; }
+      h1 { text-align: center; font-size: 16px; margin: 0 0 5px; text-transform: uppercase; }
+      h2 { text-align: center; font-size: 14px; margin: 20px 0 8px; font-weight: bold; border-bottom: 2px solid #000; padding-bottom: 4px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+      th { background: #f0f0f0; border: 1px solid #ccc; padding: 3px 5px; font-size: 10px; text-align: left; white-space: nowrap; }
+      td { border: 1px solid #ddd; padding: 3px 5px; font-size: 10px; vertical-align: top; }
+      .total-row { font-weight: bold; background: #ffffcc; }
+      .total-row td { border-top: 2px solid #000; }
+      .right { text-align: right; }
+      .center { text-align: center; }
+      .bold { font-weight: bold; }
+      @media print { @page { size: landscape; margin: 8mm; } }
+    </style></head><body>`
+
+    centrosParaImprimir.forEach((centro: any, idx: number) => {
+      const isCortadeira = getCategoriaCentro(centro.centro.tipoMaquina) === 'cortadeira'
+
+      html += `<h2>${centro.centro.descricao.toUpperCase()}</h2>`
+
+      if (isCortadeira) {
+        // Modelo Cortadeira: OS, Cliente, Produto, Qtd, Tiragem, Entrega, Cartão, Gramatura, Formato, KG
+        html += `<table>
+          <thead><tr>
+            <th>OS</th><th>Cliente</th><th>Produto</th><th class="right">Qtd</th><th class="right">Tiragem</th>
+            <th>Entrega</th><th>Cartão</th><th>Gramatura</th><th>Formato</th><th class="right">KG</th>
+          </tr></thead><tbody>`
+
+        let totalTiragem = 0
+        for (const e of centro.etapas) {
+          const tiragem = e.tiragem || 0
+          totalTiragem += tiragem
+          html += `<tr>
+            <td class="bold">${e.opNumero}</td>
+            <td>${e.clienteNome || '—'}</td>
+            <td>${e.produtoNome || '—'}</td>
+            <td class="right">${e.quantidade.toLocaleString('pt-BR')}</td>
+            <td class="right">${tiragem ? tiragem.toLocaleString('pt-BR') : '—'}</td>
+            <td>${e.dataEntrega ? new Date(e.dataEntrega).toLocaleDateString('pt-BR') : '—'}</td>
+            <td>${e.materialPrincipal || '—'}</td>
+            <td>${e.gramatura || '—'}</td>
+            <td>${e.formato || '—'}</td>
+            <td class="right">${e.pesoKg ? e.pesoKg.toLocaleString('pt-BR') : '—'}</td>
+          </tr>`
+        }
+        html += `<tr class="total-row">
+          <td colspan="4" class="right">Total:</td>
+          <td class="right">${totalTiragem.toLocaleString('pt-BR')}</td>
+          <td colspan="5"></td>
+        </tr></tbody></table>`
+      } else {
+        // Modelo Impressão/Acabamento: OS, Cliente, Serviço/Produto, Tipo OP, Qtd, Tiragem, Entrega, Matriz, Faca/Material, Gramatura, Formato, KG
+        html += `<table>
+          <thead><tr>
+            <th>OS</th><th>Cliente</th><th>Produto</th><th>Tipo OP</th>
+            <th class="right">Qtd</th><th class="right">Tiragem</th><th>Entrega</th>
+            <th>Material</th><th>Gramatura</th><th>Formato</th><th>Matriz</th><th class="right">KG</th>
+          </tr></thead><tbody>`
+
+        let totalTiragem = 0
+        for (const e of centro.etapas) {
+          const tiragem = e.tiragem || 0
+          totalTiragem += tiragem
+          html += `<tr>
+            <td class="bold">${e.opNumero}</td>
+            <td>${e.clienteNome || '—'}</td>
+            <td>${e.produtoNome || '—'}</td>
+            <td>${e.tipoOp || '—'}</td>
+            <td class="right">${e.quantidade.toLocaleString('pt-BR')}</td>
+            <td class="right">${tiragem ? tiragem.toLocaleString('pt-BR') : '—'}</td>
+            <td>${e.dataEntrega ? new Date(e.dataEntrega).toLocaleDateString('pt-BR') : '—'}</td>
+            <td>${e.materialPrincipal || '—'}</td>
+            <td>${e.gramatura || '—'}</td>
+            <td>${e.formato || '—'}</td>
+            <td>${e.matriz || '—'}</td>
+            <td class="right">${e.pesoKg ? e.pesoKg.toLocaleString('pt-BR') : '—'}</td>
+          </tr>`
+        }
+        html += `<tr class="total-row">
+          <td colspan="5" class="right">Total:</td>
+          <td class="right">${totalTiragem.toLocaleString('pt-BR')}</td>
+          <td colspan="6"></td>
+        </tr></tbody></table>`
+      }
+
+      html += `<div style="font-size:9px;color:#666;margin-top:2px;">${centro.etapas.length} OS(s) pendentes</div>`
+    })
+
+    html += `<div style="margin-top:20px;font-size:9px;color:#999;text-align:center;">Impresso em ${new Date().toLocaleString('pt-BR')}</div>`
+    html += '</body></html>'
+
+    const printWindow = window.open('', '_blank')
+    if (printWindow) {
+      printWindow.document.write(html)
+      printWindow.document.close()
+      setTimeout(() => {
+        printWindow.print()
+        printWindow.close()
+      }, 500)
+    }
+  }
+
   if (loading) return <Center py="xl"><Loader /></Center>
   if (!painel) return <Text c="red" ta="center">Erro ao carregar painel</Text>
 
@@ -512,7 +623,9 @@ export default function ProgramacaoPage() {
         String(e.opNumero).includes(busca) ||
         e.descricao?.toLowerCase().includes(buscaLower) ||
         e.observacoes?.toLowerCase().includes(buscaLower) ||
-        e.materialPrincipal?.toLowerCase().includes(buscaLower)
+        e.materialPrincipal?.toLowerCase().includes(buscaLower) ||
+        e.clienteNome?.toLowerCase().includes(buscaLower) ||
+        e.produtoNome?.toLowerCase().includes(buscaLower)
       )
     }
     if (filtroStatus) {
@@ -550,7 +663,7 @@ export default function ProgramacaoPage() {
             <Tabs.Tab value="acabamento">Acabamento</Tabs.Tab>
           </Tabs.List>
         </Tabs>
-        <Button size="xs" variant="light" leftSection={<IconPrinter size={14} />} onClick={() => window.print()} className="no-print">
+        <Button size="xs" variant="light" leftSection={<IconPrinter size={14} />} onClick={() => imprimirRelatorio()} className="no-print">
           Imprimir
         </Button>
         <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => {
@@ -774,14 +887,100 @@ export default function ProgramacaoPage() {
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => handleDragEnd(centro.centro.id, event)}>
                 <SortableContext items={centro.etapas.map((e: any) => e.id)} strategy={verticalListSortingStrategy}>
                   <ScrollArea>
+                    {getCategoriaCentro(centro.centro.tipoMaquina) === 'cortadeira' ? (
+                    /* ===== MODELO CORTADEIRA ===== */
+                    <Table striped highlightOnHover mt="xs" style={{ tableLayout: 'auto', fontSize: '11px' }}>
+                      <Table.Thead>
+                        <Table.Tr style={{ fontSize: '11px' }}>
+                          <Table.Th style={{ width: 30 }}></Table.Th>
+                          <Table.Th>OS</Table.Th>
+                          <Table.Th>Cliente</Table.Th>
+                          <Table.Th>Produto</Table.Th>
+                          <Table.Th>Qtd</Table.Th>
+                          <Table.Th>Tiragem</Table.Th>
+                          <Table.Th>Entrega</Table.Th>
+                          <Table.Th>Cartão</Table.Th>
+                          <Table.Th>Gramatura</Table.Th>
+                          <Table.Th>Formato</Table.Th>
+                          <Table.Th>KG</Table.Th>
+                          <Table.Th>Acomp.</Table.Th>
+                          <Table.Th>Ações</Table.Th>
+                        </Table.Tr>
+                      </Table.Thead>
+                      <Table.Tbody>
+                        {centro.etapas.map((etapa: any) => (
+                          <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa)} highlighted={highlightedEtapa === etapa.id}>
+                            <Table.Td fw={700}>{etapa.opNumero}</Table.Td>
+                            <Table.Td><Text size="sm" fw={600}>{etapa.clienteNome || '—'}</Text></Table.Td>
+                            <Table.Td><Text size="sm" style={{ wordBreak: 'break-word' }}>{etapa.produtoNome || '—'}</Text></Table.Td>
+                            <Table.Td>{etapa.quantidade.toLocaleString('pt-BR')}</Table.Td>
+                            <Table.Td>{etapa.tiragem ? etapa.tiragem.toLocaleString('pt-BR') : '—'}</Table.Td>
+                            <Table.Td>
+                              {etapa.dataEntrega ? (
+                                <Text size="sm" style={{ cursor: 'pointer' }} onClick={() => setModalPostData({ opId: etapa.opId, opNumero: etapa.opNumero, dataAtual: etapa.dataEntrega })}>
+                                  {new Date(etapa.dataEntrega).toLocaleDateString('pt-BR')}
+                                </Text>
+                              ) : '—'}
+                            </Table.Td>
+                            <Table.Td><Text size="sm" style={{ wordBreak: 'break-word' }}>{etapa.materialPrincipal || '—'}</Text></Table.Td>
+                            <Table.Td>{etapa.gramatura || '—'}</Table.Td>
+                            <Table.Td>{etapa.formato || '—'}</Table.Td>
+                            <Table.Td>{etapa.pesoKg ? etapa.pesoKg.toLocaleString('pt-BR') : '—'}</Table.Td>
+                            <Table.Td style={{ minWidth: 130 }}>
+                              {editingObs?.id === etapa.id ? (
+                                <TextInput
+                                  size="xs"
+                                  value={editingObs.value}
+                                  onChange={(e) => setEditingObs({ id: etapa.id, value: e.currentTarget.value })}
+                                  onBlur={() => salvarObservacao(etapa.id, editingObs.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') salvarObservacao(etapa.id, editingObs.value); if (e.key === 'Escape') setEditingObs(null) }}
+                                  autoFocus
+                                  placeholder="Status..."
+                                />
+                              ) : (
+                                <Text
+                                  size="sm"
+                                  style={{ cursor: 'pointer', minHeight: 20 }}
+                                  onClick={() => setEditingObs({ id: etapa.id, value: etapa.observacaoOperador || '' })}
+                                  c={etapa.observacaoOperador ? undefined : 'dimmed'}
+                                >
+                                  {etapa.observacaoOperador || 'Clique para editar'}
+                                </Text>
+                              )}
+                            </Table.Td>
+                            <Table.Td>
+                              <Group gap={2} wrap="nowrap">
+                                <ActionIcon color="gray" variant="light" size="sm" onClick={() => verPdfOp(etapa.opId)} title="Ver PDF da OP">
+                                  <IconFileText size={14} />
+                                </ActionIcon>
+                                <ActionIcon color="indigo" variant="light" size="sm" onClick={() => setModalMover({ etapaId: etapa.id, opNumero: etapa.opNumero, centroAtualId: centro.centro.id, centroDescricao: centro.centro.descricao })} title="Mover para outro grupo">
+                                  <IconArrowRight size={14} />
+                                </ActionIcon>
+                                {etapa.status === 'PENDENTE' && (
+                                  <ActionIcon color="green" variant="light" size="sm" onClick={() => iniciarEtapa(etapa.id)} title="Iniciar">
+                                    <IconPlayerPlay size={14} />
+                                  </ActionIcon>
+                                )}
+                                {(etapa.isDesmembramento || etapa.isManual) && etapa.status === 'PENDENTE' && (
+                                  <ActionIcon color="red" variant="light" size="sm" onClick={() => excluirEtapa(etapa.id, etapa.isDesmembramento)} title={etapa.isDesmembramento ? 'Reverter desmembramento' : 'Excluir lançamento manual'}>
+                                    <IconX size={14} />
+                                  </ActionIcon>
+                                )}
+                              </Group>
+                            </Table.Td>
+                          </SortableRow>
+                        ))}
+                      </Table.Tbody>
+                    </Table>
+                    ) : (
+                    /* ===== MODELO IMPRESSÃO / ACABAMENTO ===== */
                     <Table striped highlightOnHover mt="xs" style={{ tableLayout: 'auto', fontSize: '11px' }}>
                       <Table.Thead>
                         <Table.Tr style={{ fontSize: '11px' }}>
                           <Table.Th style={{ width: 30 }}></Table.Th>
                           <Table.Th>OP</Table.Th>
-                          <Table.Th>Cliente</Table.Th>
-                          <Table.Th>Produto</Table.Th>
-                          <Table.Th>Operação</Table.Th>
+                          <Table.Th>Cliente / Produto</Table.Th>
+                          <Table.Th>Tipo OP</Table.Th>
                           <Table.Th>Tir.</Table.Th>
                           <Table.Th>Material</Table.Th>
                           <Table.Th>Gram.</Table.Th>
@@ -794,6 +993,7 @@ export default function ProgramacaoPage() {
                           <Table.Th>Entrega</Table.Th>
                           <Table.Th>Prio.</Table.Th>
                           <Table.Th>Status</Table.Th>
+                          <Table.Th>Matriz</Table.Th>
                           <Table.Th>Acomp.</Table.Th>
                           <Table.Th>Ações</Table.Th>
                         </Table.Tr>
@@ -805,9 +1005,11 @@ export default function ProgramacaoPage() {
                               {etapa.opNumero}
                               {etapa.materialEncomendado && <Text size="xs" c="red" fw={700}>* Aguardando restante cartão</Text>}
                             </Table.Td>
-                            <Table.Td title={etapa.clienteNome || etapa.observacoes?.match(/\[Cliente\]\s*(.+)/)?.[1] || ''}><Text size="sm" style={{ wordBreak: 'break-word' }}>{etapa.clienteNome || etapa.observacoes?.match(/\[Cliente\]\s*(.+)/)?.[1] || '—'}</Text></Table.Td>
-                            <Table.Td title={etapa.produtoNome || etapa.observacoes?.match(/\[Produto\]\s*(.+)/)?.[1] || ''}><Text size="sm" style={{ wordBreak: 'break-word' }}>{etapa.produtoNome || etapa.observacoes?.match(/\[Produto\]\s*(.+)/)?.[1] || '—'}</Text></Table.Td>
-                            <Table.Td><Text size="sm" style={{ wordBreak: 'break-word' }}>{etapa.descricao}</Text></Table.Td>
+                            <Table.Td title={`${etapa.clienteNome || ''} — ${etapa.produtoNome || ''}`}>
+                              <Text size="sm" fw={600} style={{ wordBreak: 'break-word', lineHeight: 1.2 }}>{etapa.clienteNome || etapa.observacoes?.match(/\[Cliente\]\s*(.+)/)?.[1] || '—'}</Text>
+                              <Text size="xs" c="dimmed" style={{ wordBreak: 'break-word', lineHeight: 1.2 }}>{etapa.produtoNome || etapa.observacoes?.match(/\[Produto\]\s*(.+)/)?.[1] || ''}</Text>
+                            </Table.Td>
+                            <Table.Td><Text size="xs" fw={600} c={etapa.tipoOp?.includes('NOVO') ? 'green' : etapa.tipoOp?.includes('REPETI') ? 'blue' : etapa.tipoOp?.includes('ALTERA') ? 'orange' : etapa.tipoOp?.includes('PILOTO') ? 'violet' : 'gray'} style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>{etapa.tipoOp || '—'}</Text></Table.Td>
                             <Table.Td>{etapa.tiragem ? etapa.tiragem.toLocaleString('pt-BR') : '—'}</Table.Td>
                             <Table.Td><Text size="sm" style={{ wordBreak: 'break-word' }}>{etapa.materialPrincipal || '—'}</Text></Table.Td>
                             <Table.Td>{etapa.gramatura || '—'}</Table.Td>
@@ -830,11 +1032,7 @@ export default function ProgramacaoPage() {
                               ) : '—'}
                             </Table.Td>
                             <Table.Td>
-                              <Badge
-                                color={PRIORIDADE_COLORS[etapa.prioridade]}
-                                size="sm"
-                                variant={etapa.prioridade === 'URGENTE' ? 'filled' : 'light'}
-                                style={{ cursor: 'pointer' }}
+                              <Text size="xs" fw={600} c={PRIORIDADE_COLORS[etapa.prioridade]} style={{ whiteSpace: 'nowrap', fontSize: '10px', cursor: 'pointer' }}
                                 onClick={() => {
                                   const opcoes = ['BAIXA', 'NORMAL', 'ALTA', 'URGENTE']
                                   const atual = opcoes.indexOf(etapa.prioridade)
@@ -844,9 +1042,10 @@ export default function ProgramacaoPage() {
                                 title="Clique para alterar prioridade"
                               >
                                 {etapa.prioridade}
-                              </Badge>
+                              </Text>
                             </Table.Td>
-                            <Table.Td style={{ minWidth: 90 }}><Badge color={STATUS_COLORS[etapa.status]} size="sm" style={{ whiteSpace: 'nowrap' }}>{etapa.status === 'EM_ANDAMENTO' ? 'ANDAMENTO' : etapa.status}</Badge></Table.Td>
+                            <Table.Td><Text size="xs" fw={600} c={STATUS_COLORS[etapa.status]} style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>{etapa.status === 'EM_ANDAMENTO' ? 'EM ANDAMENTO' : etapa.status}</Text></Table.Td>
+                            <Table.Td><Text size="xs" fw={500}>{etapa.matriz || '—'}</Text></Table.Td>
                             <Table.Td style={{ minWidth: 150 }}>
                               {editingObs?.id === etapa.id ? (
                                 <TextInput
@@ -916,6 +1115,7 @@ export default function ProgramacaoPage() {
                         ))}
                       </Table.Tbody>
                     </Table>
+                    )}
                   </ScrollArea>
                 </SortableContext>
               </DndContext>

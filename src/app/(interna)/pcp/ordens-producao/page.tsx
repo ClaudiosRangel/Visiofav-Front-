@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { Title, Stack, Table, Badge, Group, Button, TextInput, Select, Pagination, ActionIcon, Text, Loader, Center } from '@mantine/core'
-import { IconPlus, IconSearch, IconEye } from '@tabler/icons-react'
+import { IconPlus, IconSearch, IconEye, IconTrash } from '@tabler/icons-react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
+import { notifications } from '@mantine/notifications'
 
 const STATUS_COLORS: Record<string, string> = {
   RASCUNHO: 'gray',
@@ -47,6 +48,17 @@ export default function OrdensProducaoPage() {
       console.error(err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function excluirOp(opId: string, opNumero: string | number) {
+    if (!confirm(`Excluir OP #${opNumero}?\n\nEsta ação remove a OP e todas as suas etapas da programação.\nSó é possível excluir OPs que não foram iniciadas e não possuem apontamentos.`)) return
+    try {
+      await api.delete(`/ordens-producao/${opId}`)
+      notifications.show({ title: 'OP excluída', message: `OP #${opNumero} removida com sucesso da programação`, color: 'green' })
+      carregarOps()
+    } catch (err: any) {
+      notifications.show({ title: 'Não é possível excluir', message: err?.response?.data?.message || 'Falha ao excluir OP', color: 'red' })
     }
   }
 
@@ -110,9 +122,16 @@ export default function OrdensProducaoPage() {
                   <Table.Td>{op.dataEntregaPrevista ? new Date(op.dataEntregaPrevista).toLocaleDateString('pt-BR') : '-'}</Table.Td>
                   <Table.Td>{op.percentualConcluido}%</Table.Td>
                   <Table.Td>
-                    <ActionIcon variant="subtle" onClick={() => router.push(`/pcp/ordens-producao/${op.id}`)}>
-                      <IconEye size={18} />
-                    </ActionIcon>
+                    <Group gap={4} wrap="nowrap">
+                      <ActionIcon variant="subtle" onClick={() => router.push(`/pcp/ordens-producao/${op.id}`)} title="Visualizar">
+                        <IconEye size={18} />
+                      </ActionIcon>
+                      {!['CONCLUIDA', 'CANCELADA'].includes(op.status) && op.percentualConcluido === 0 && (
+                        <ActionIcon variant="subtle" color="red" onClick={() => excluirOp(op.id, op.referenciaExterna || op.numero)} title="Excluir OP">
+                          <IconTrash size={18} />
+                        </ActionIcon>
+                      )}
+                    </Group>
                   </Table.Td>
                 </Table.Tr>
               ))}

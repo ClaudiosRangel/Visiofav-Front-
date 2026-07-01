@@ -11,7 +11,7 @@ import {
   // Financeiro
   IconCreditCard, IconWallet,
   // Fiscal
-  IconFileInvoice, IconTruck,
+  IconFileInvoice, IconTruck, IconCalculator, IconSearch, IconHash,
   // WMS
   IconHome, IconPackage, IconClipboardCheck, IconBarcode, IconBuildingWarehouse, IconArrowsExchange as IconMovim, IconSettings,
   IconEye, IconDatabase, IconAlertCircle,
@@ -92,9 +92,47 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
   fiscal: {
     title: 'Fiscal',
     entries: [
-      { icon: IconFileInvoice, label: 'NF-e', href: '/fiscal/nfe' },
-      { icon: IconTruck, label: 'CT-e', href: '/fiscal/cte' },
-      { icon: IconSettings, label: 'Tributação', href: '/configurador/tributacao' },
+      { icon: IconHome, label: 'Dashboard', href: '/fiscal/dashboard' },
+      {
+        label: 'Documentos', icon: IconFileInvoice, items: [
+          { icon: IconFileInvoice, label: 'NF-e', href: '/fiscal/nfe' },
+          { icon: IconReceipt, label: 'NFC-e', href: '/fiscal/nfce' },
+          { icon: IconTruck, label: 'CT-e', href: '/fiscal/cte' },
+          { icon: IconTruck, label: 'MDF-e', href: '/fiscal/mdfe' },
+          { icon: IconFileText, label: 'NFS-e', href: '/fiscal/nfse' },
+        ],
+      },
+      {
+        label: 'Motor Tributário', icon: IconCalculator, items: [
+          { icon: IconCalculator, label: 'Regras', href: '/fiscal/motor-tributario' },
+          { icon: IconSearch, label: 'Simular', href: '/fiscal/motor-tributario/simular' },
+        ],
+      },
+      {
+        label: 'Cadastros', icon: IconDatabase, items: [
+          { icon: IconHash, label: 'NCM', href: '/fiscal/cadastros/ncm' },
+          { icon: IconHash, label: 'CFOP', href: '/fiscal/cadastros/cfop' },
+          { icon: IconHash, label: 'CEST', href: '/fiscal/cadastros/cest' },
+          { icon: IconHash, label: 'CST/CSOSN', href: '/fiscal/cadastros/cst-csosn' },
+          { icon: IconFileText, label: 'Natureza Operação', href: '/fiscal/cadastros/natureza-operacao' },
+        ],
+      },
+      {
+        label: 'Obrigações', icon: IconClipboardCheck, items: [
+          { icon: IconFileText, label: 'SPED', href: '/fiscal/sped' },
+          { icon: IconChartBar, label: 'Apuração', href: '/fiscal/apuracao' },
+          { icon: IconReceipt, label: 'GNRE', href: '/fiscal/gnre' },
+        ],
+      },
+      {
+        label: 'Utilitários', icon: IconSettings, items: [
+          { icon: IconKey, label: 'Certificados', href: '/fiscal/certificados' },
+          { icon: IconAlertCircle, label: 'Contingência', href: '/fiscal/contingencia' },
+          { icon: IconUpload, label: 'Importação XML', href: '/fiscal/importacao-xml' },
+          { icon: IconTruckDelivery, label: 'Manifesto Dest.', href: '/fiscal/manifesto-destinatario' },
+          { icon: IconEye, label: 'Auditoria', href: '/fiscal/auditoria' },
+        ],
+      },
     ],
   },
   wms: {
