@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Title, Stack, Table, Group, Badge, Text, Loader, Center, Collapse, UnstyledButton, Card, ScrollArea, Button, Modal, NumberInput, Select, Textarea, Progress, ActionIcon, Tabs, TextInput } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
-import { IconChevronDown, IconChevronRight, IconPlayerPlay, IconPlayerPause, IconCheck, IconClipboardCheck, IconAlertTriangle, IconCut, IconGripVertical, IconSearch, IconFileText, IconPlus, IconArrowRight, IconX, IconPrinter } from '@tabler/icons-react'
+import { IconChevronDown, IconChevronRight, IconPlayerPlay, IconPlayerPause, IconCheck, IconClipboardCheck, IconAlertTriangle, IconCut, IconGripVertical, IconSearch, IconFileText, IconPlus, IconArrowRight, IconX, IconPrinter, IconRefresh } from '@tabler/icons-react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -362,6 +362,22 @@ export default function ProgramacaoPage() {
       window.open(url, '_blank')
     } catch (err: any) {
       notifications.show({ title: 'PDF não disponível', message: 'PDF não encontrado para esta OP', color: 'orange' })
+    }
+  }
+
+  async function reextrairPdf(opId: string, opNumero: string | number) {
+    try {
+      const res = await api.post('/pcp/programacao/reextrair-pdf', { opId })
+      const { matriz, formato, tipoOp } = res.data
+      const partes = [tipoOp && `Tipo: ${tipoOp}`, matriz && `Matriz: ${matriz}`, formato && `Formato: ${formato}`].filter(Boolean)
+      notifications.show({
+        title: `OP #${opNumero} atualizada`,
+        message: partes.length > 0 ? partes.join(' | ') : 'Nenhuma informação nova encontrada no PDF',
+        color: partes.length > 0 ? 'green' : 'orange',
+      })
+      carregar()
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao re-extrair PDF', color: 'red' })
     }
   }
 
@@ -953,6 +969,9 @@ export default function ProgramacaoPage() {
                                 <ActionIcon color="gray" variant="light" size="sm" onClick={() => verPdfOp(etapa.opId)} title="Ver PDF da OP">
                                   <IconFileText size={14} />
                                 </ActionIcon>
+                                <ActionIcon color="cyan" variant="light" size="sm" onClick={() => reextrairPdf(etapa.opId, etapa.opNumero)} title="Re-extrair Matriz/Formato do PDF">
+                                  <IconRefresh size={14} />
+                                </ActionIcon>
                                 <ActionIcon color="indigo" variant="light" size="sm" onClick={() => setModalMover({ etapaId: etapa.id, opNumero: etapa.opNumero, centroAtualId: centro.centro.id, centroDescricao: centro.centro.descricao })} title="Mover para outro grupo">
                                   <IconArrowRight size={14} />
                                 </ActionIcon>
@@ -1072,6 +1091,9 @@ export default function ProgramacaoPage() {
                               <Group gap={2} wrap="nowrap">
                                 <ActionIcon color="gray" variant="light" size="sm" onClick={() => verPdfOp(etapa.opId)} title="Ver PDF da OP">
                                   <IconFileText size={14} />
+                                </ActionIcon>
+                                <ActionIcon color="cyan" variant="light" size="sm" onClick={() => reextrairPdf(etapa.opId, etapa.opNumero)} title="Re-extrair Matriz/Formato do PDF">
+                                  <IconRefresh size={14} />
                                 </ActionIcon>
                                 <ActionIcon color="indigo" variant="light" size="sm" onClick={() => setModalMover({ etapaId: etapa.id, opNumero: etapa.opNumero, centroAtualId: centro.centro.id, centroDescricao: centro.centro.descricao })} title="Mover para outro grupo">
                                   <IconArrowRight size={14} />
