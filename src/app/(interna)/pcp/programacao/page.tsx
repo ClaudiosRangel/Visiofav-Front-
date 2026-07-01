@@ -564,7 +564,9 @@ export default function ProgramacaoPage() {
           <thead><tr>
             <th>OS</th><th>Cliente</th><th>Produto</th><th>Tipo OP</th>
             <th class="right">Qtd</th><th class="right">Tiragem</th><th>Entrega</th>
-            <th>Material</th><th>Gramatura</th><th>Formato</th><th>Matriz</th><th class="right">KG</th>
+            <th>Material</th><th>Gramatura</th><th>Formato</th><th>Matriz</th>
+            <th class="center">Cores</th><th>Pantone 1</th><th>Pantone 2</th><th>Pantone 3</th>
+            <th class="right">KG</th>
           </tr></thead><tbody>`
 
         let totalTiragem = 0
@@ -583,13 +585,17 @@ export default function ProgramacaoPage() {
             <td>${e.gramatura || '—'}</td>
             <td>${e.formato || '—'}</td>
             <td>${e.matriz || '—'}</td>
+            <td class="center">${e.qtdCores || '—'}</td>
+            <td>${e.pantone01 || '—'}</td>
+            <td>${e.pantone02 || '—'}</td>
+            <td>${e.pantone03 || '—'}</td>
             <td class="right">${e.pesoKg ? e.pesoKg.toLocaleString('pt-BR') : '—'}</td>
           </tr>`
         }
         html += `<tr class="total-row">
           <td colspan="5" class="right">Total:</td>
           <td class="right">${totalTiragem.toLocaleString('pt-BR')}</td>
-          <td colspan="6"></td>
+          <td colspan="10"></td>
         </tr></tbody></table>`
       }
 
@@ -1013,6 +1019,10 @@ export default function ProgramacaoPage() {
                           <Table.Th>Prio.</Table.Th>
                           <Table.Th>Status</Table.Th>
                           <Table.Th>Matriz</Table.Th>
+                          <Table.Th>Cores</Table.Th>
+                          <Table.Th>Pantone 1</Table.Th>
+                          <Table.Th>Pantone 2</Table.Th>
+                          <Table.Th>Pantone 3</Table.Th>
                           <Table.Th>Acomp.</Table.Th>
                           <Table.Th>Ações</Table.Th>
                         </Table.Tr>
@@ -1065,6 +1075,10 @@ export default function ProgramacaoPage() {
                             </Table.Td>
                             <Table.Td><Text size="xs" fw={600} c={STATUS_COLORS[etapa.status]} style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>{etapa.status === 'EM_ANDAMENTO' ? 'EM ANDAMENTO' : etapa.status}</Text></Table.Td>
                             <Table.Td><Text size="xs" fw={500}>{etapa.matriz || '—'}</Text></Table.Td>
+                            <Table.Td><Text size="xs" fw={600} c="indigo">{etapa.qtdCores || '—'}</Text></Table.Td>
+                            <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone01 || '—'}</Text></Table.Td>
+                            <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone02 || '—'}</Text></Table.Td>
+                            <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone03 || '—'}</Text></Table.Td>
                             <Table.Td style={{ minWidth: 150 }}>
                               {editingObs?.id === etapa.id ? (
                                 <TextInput
