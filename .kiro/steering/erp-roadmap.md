@@ -25,164 +25,262 @@ O VisioFab está evoluindo de um WMS especializado para um **ERP completo** foca
 - **Contra Omie**: Fiscal mais robusto + contábil + WMS (já tem vantagem)
 - **Contra TOTVS/Sankhya**: Não compete em 100% das features, mas fiscal e financeiro sólidos + UX moderna
 
+---
+
 ## Módulos — Ordem de Implementação
 
 ### Prioridade 1 (Sem isso não vende ERP no Brasil)
 
 | # | Módulo | Status | Spec Backend | Spec Frontend |
 |---|--------|--------|--------------|---------------|
-| 1 | **Fiscal** | ✅ Frontend completo, Backend implementado | `erp-modulo-fiscal` | `erp-modulo-fiscal-frontend` |
-| 2 | **Financeiro** | 🔲 Não iniciado | — | — |
-| 3 | **Cadastros Completos** | 🔲 Não iniciado | — | — |
+| 1 | **Fiscal** | ✅ Completo | `erp-modulo-fiscal` + `erp-fiscal-completar` | `erp-modulo-fiscal-frontend` |
+| 2 | **Financeiro** | ⚠️ Básico (contas a pagar/receber) | — | — |
+| 3 | **Cadastros Completos** | ⚠️ Parcial | — | — |
 
 ### Prioridade 2 (Diferencial competitivo)
 
-| # | Módulo | Status |
-|---|--------|--------|
-| 4 | **Vendas (Atacado + Varejo)** | Parcial (pedidos existem, falta PDV, força de vendas, comissões avançadas) |
-| 5 | **Compras com MRP** | Parcial (pedido de compra existe, falta MRP, cotação, aprovações) |
-| 6 | **PDV integrado** | 🔲 Não iniciado |
-| 7 | **Força de vendas mobile** | 🔲 Não iniciado |
-| 8 | **Régua de cobrança** | 🔲 Não iniciado |
+| # | Módulo | Status | Detalhe |
+|---|--------|--------|---------|
+| 4 | **Vendas Completo** | ⚠️ Parcial | Pedido + efetivação + NF-e ok. Falta PDV, orçamento, parcial, bonificação |
+| 5 | **Compras Completo** | ⚠️ Parcial | Pedido + efetivação + XML ok. Falta cotação, MRP, aprovação |
+| 6 | **Devolução** | ⚠️ Parcial | Devolução compra + logística reversa ok. Falta devolução venda fiscal |
+| 7 | **Transferência** | ⚠️ Básico | Transferência estoque ok. Falta NF-e de transferência |
+| 8 | **Régua de cobrança** | 🔲 Não iniciado | — |
 
 ### Prioridade 3 (Amadurecimento)
 
 | # | Módulo | Status |
 |---|--------|--------|
-| 9 | **Contábil** | 🔲 Não iniciado (estratégia: exportar para Domínio/Fortes) |
+| 9 | **Contábil** | 🔲 (estratégia: exportar para Domínio/Fortes) |
 | 10 | **BI/Dashboards** | Parcial (alguns KPIs existem) |
 | 11 | **Integrações** | 🔲 Marketplaces, e-commerce, Open Finance |
 | 12 | **CRM integrado** | 🔲 Pipeline de vendas |
 
-## O que já existe (implementado)
+---
 
-### WMS (Completo e sofisticado)
-- Recebimento com conferência (cego/parcial)
-- Endereçamento inteligente (shelf life, capacidade, nível)
-- Picking (wave, batch, zone)
-- Roteirização e montagem de carga
-- Cross-docking
-- Abastecimento de picking
-- Controle de pátio e doca
-- Agenda de agendamento
-- Etiquetas (GS1-128)
-- KPIs em tempo real
+## Estado Atual Detalhado por Módulo
 
-### Módulo Fiscal (Backend + Frontend)
-- Motor tributário (regras NCM × CFOP × UF × regime com fallback hierárquico)
-- NF-e (emissão, cancelamento, CC-e, inutilização)
-- NFC-e, CT-e, MDF-e, NFS-e
-- SPED (geração EFD ICMS/IPI, Contribuições, ECD, ECF, Reinf)
-- Apuração de impostos (ICMS, ICMS-ST, PIS/COFINS, IPI)
-- Certificados digitais A1
-- Contingência (fila + retransmissão automática)
-- GNRE
-- Importação de XML
-- Manifesto do destinatário
+### 📦 Módulo de Vendas
+
+#### O que JÁ existe (implementado no backend)
+
+| Funcionalidade | Endpoint | Status |
+|----------------|----------|--------|
+| Pedido de venda (CRUD) | `POST/GET/PUT /api/pedido-venda` | ✅ |
+| Confirmar pedido | `PATCH /api/pedido-venda/:id/confirmar` | ✅ |
+| Cancelar pedido | `PATCH /api/pedido-venda/:id/cancelar` | ✅ |
+| Efetivar venda (emite NF-e) | `POST /api/vendas/efetivar` | ✅ |
+| Listar vendas efetivadas | `GET /api/vendas` | ✅ |
+| Status de entrega | `PATCH /api/vendas/:id/entrega` | ✅ |
+| Relatório comissões | `GET /api/vendas/comissoes` | ✅ |
+| Vendedor (CRUD + inativar) | `/api/vendedor` | ✅ |
+| Tabela de preço + condições | `/api/tabela-preco` | ✅ |
+| Contas a receber automáticas | Gerado na efetivação | ✅ |
+| Integração fiscal (NF-e automática) | Via `vendaFiscalService` | ✅ |
+| Contingência SEFAZ | Efetiva com flag contingência | ✅ |
+
+#### O que FALTA para módulo completo (padrão Totvs/Omie/Sankhya)
+
+| Funcionalidade | Prioridade | Descrição |
+|----------------|-----------|-----------|
+| **PDV (Ponto de Venda)** | Alta | Caixa, abertura/fechamento, sangria, suprimento, NFC-e no balcão, impressão cupom |
+| **Orçamento/Proposta** | Alta | Orçamento com validade, aprovação cliente, conversão em pedido, PDF para envio |
+| **Faturamento parcial** | Alta | Faturar apenas parte dos itens de um pedido (backorder) |
+| **Desconto por campanha/cupom** | Média | Motor de descontos: percentual, valor fixo, escalonado, por quantidade |
+| **Tabela de preço com vigência** | Média | Data início/fim, preço por cliente/grupo, hierarquia de prioridade |
+| **Força de vendas** | Média | Meta por vendedor/equipe, dashboard de performance, ranking, premiação |
+| **Devolução de venda** | Alta | NF-e de entrada referenciando a NF-e de saída, estorno financeiro, reentrada estoque |
+| **Bonificação** | Baixa | Item grátis vinculado a regra de quantidade/valor |
+| **Venda sob encomenda** | Baixa | Make-to-order: pedido reserva produção antes de faturar |
+| **Venda consignada** | Baixa | Remessa consignação → retorno ou faturamento posterior |
+| **Comissão avançada** | Média | Comissão por faixa, produto, região; comissão sobre recebimento |
+| **Relatórios vendas** | Alta | Curva ABC, ticket médio, inadimplência, vendas por período/vendedor/cliente |
+| **Workflow de aprovação** | Média | Desconto acima de X% exige aprovação do gerente |
+| **Integração e-commerce** | Baixa | Receber pedidos de marketplaces/loja virtual |
+
+---
+
+### 🛒 Módulo de Compras
+
+#### O que JÁ existe (implementado no backend)
+
+| Funcionalidade | Endpoint | Status |
+|----------------|----------|--------|
+| Pedido de compra (CRUD) | `POST/GET/PUT /api/pedido-compra` | ✅ |
+| Confirmar pedido | `PATCH /api/pedido-compra/:id/confirmar` | ✅ |
+| Cancelar pedido | `PATCH /api/pedido-compra/:id/cancelar` | ✅ |
+| Efetivar compra (com/sem XML) | `POST /api/compras/efetivar` | ✅ |
+| Importar XML fornecedor | `POST /api/compras/importar-xml` | ✅ |
+| Preview XML | `POST /api/compras/preview-xml` | ✅ |
+| Auto-criar fornecedor/produto do XML | Na importação | ✅ |
+| Contas a pagar automáticas | Gerado na efetivação | ✅ |
+| Integração fiscal (DocumentoFiscal entrada) | Via `compraFiscalService` | ✅ |
+| Validação XML + duplicidade | CNPJ + nNF + série | ✅ |
+| Devolução de compra | `POST /api/compras/:id/devolver` | ✅ |
+| Transferência entre empresas | `POST /api/compras/transferir` | ✅ |
+| De-para fornecedor/produto | `/api/depara-fornecedor` | ✅ |
+
+#### O que FALTA para módulo completo
+
+| Funcionalidade | Prioridade | Descrição |
+|----------------|-----------|-----------|
+| **Cotação / Solicitação de compra** | Alta | Solicitar cotação a N fornecedores, comparar preços, selecionar melhor |
+| **MRP (Planejamento de Necessidades)** | Alta | Sugestão automática baseada em estoque mínimo, demanda, lead time |
+| **Workflow de aprovação** | Alta | Aprovação por alçada (valor, centro de custo, gestor) |
+| **Follow-up de entregas** | Média | Acompanhamento de prazos, alertas de atraso, replanejamento |
+| **Avaliação de fornecedor** | Média | Nota por prazo, qualidade, preço; ranking automático |
+| **Acordo comercial** | Média | Condições negociadas: prazo, desconto progressivo, volume mínimo |
+| **NF-e de devolução ao fornecedor** | Alta | Emissão de NF-e de saída com finalidade=4 (devolução) referenciando a NF-e de entrada |
+| **Recebimento parcial** | Média | Receber apenas parte dos itens, manter pedido aberto para restante |
+| **Compra de serviço** | Baixa | Pedido sem movimentação de estoque (serviço, consultoria) |
+| **Importação (exterior)** | Baixa | DI, LI, despesas de importação, rateio |
+| **Relatórios compras** | Alta | Volume por fornecedor, saving, evolução preços, lead time médio |
+
+---
+
+### ↩️ Módulo de Devolução
+
+#### O que JÁ existe (implementado no backend)
+
+| Funcionalidade | Local | Status |
+|----------------|-------|--------|
+| Devolução de compra (parcial/total) | `POST /api/compras/:id/devolver` | ✅ |
+| Estorno financeiro automático | Conta a pagar negativa | ✅ |
+| Logística reversa (RA) | `/api/logistica-reversa/ra` | ✅ |
+| Recebimento da devolução | `POST /ra/:id/receber` | ✅ |
+| Inspeção de itens | `POST /ra/:id/inspecionar` | ✅ |
+| Disposição (reestoque/descarte/reparo) | `POST /ra/:id/dispor` | ✅ |
+| Motivos configuráveis | `GET/POST /motivos` | ✅ |
+| NF-e de crédito (nota de crédito) | Via `logisticaReversaService` | ✅ |
+
+#### O que FALTA
+
+| Funcionalidade | Prioridade | Descrição |
+|----------------|-----------|-----------|
+| **Devolução de venda completa (fiscal)** | Alta | Emitir NF-e de entrada (finalidade=4) referenciando a NF-e de saída original |
+| **Estorno financeiro de venda** | Alta | Cancelar/estornar contas a receber vinculadas, gerar crédito ao cliente |
+| **Reentrada estoque automática** | Alta | Ao receber devolução de venda: incrementar estoque automaticamente |
+| **Troca (devolução + nova venda)** | Média | Workflow de troca: recebe item devolvido e emite novo pedido com crédito |
+| **Garantia** | Baixa | Controle de prazo de garantia por produto/lote vendido |
+| **Dashboard devoluções** | Média | Taxa de devolução, motivos mais frequentes, custo operacional |
+
+---
+
+### 🔄 Módulo de Transferência
+
+#### O que JÁ existe (implementado no backend)
+
+| Funcionalidade | Local | Status |
+|----------------|-------|--------|
+| Transferência de estoque entre empresas | `POST /api/compras/transferir` | ✅ |
+| Validação de saldo disponível | Deduz reservado | ✅ |
+| Upsert estoque destino | Cria se não existe | ✅ |
+| Registro de transferência | `TransferenciaEstoque` + itens | ✅ |
+
+#### O que FALTA
+
+| Funcionalidade | Prioridade | Descrição |
+|----------------|-----------|-----------|
+| **NF-e de transferência** | Alta | Emissão de NF-e com CFOP 5152/6152 (transferência mercadoria) |
+| **NF-e de remessa para industrialização** | Média | CFOP 5901/6901 (enviar para beneficiamento) |
+| **NF-e de retorno de industrialização** | Média | CFOP 5902/6902 (receber de volta) |
+| **Controle de filiais** | Média | Visão consolidada multi-empresa, saldo unificado |
+| **Transferência entre depósitos** | Alta | Dentro da mesma empresa (sem NF-e), de CD para loja |
+| **Transferência com romaneio** | Baixa | Documento de transporte vinculado à transferência |
+| **Relatório de movimentação** | Média | Histórico de transferências, custos de movimentação |
+
+---
+
+## Módulo Fiscal (✅ Completo)
+
+### Endpoints existentes em `/api/fiscal/`:
+- Motor tributário (CRUD + simulação com fallback)
+- NF-e (emissão, cancelamento, CC-e, inutilização, DANFE PDF)
+- NFC-e (emissão modelo 65, contingência offline)
+- CT-e (emissão modelo 57, cancelamento, CC-e, DACTE)
+- MDF-e (emissão modelo 58, encerramento)
+- NFS-e (adaptadores multi-prefeitura)
+- SPED (geração + histórico)
+- Apuração (ICMS, ICMS-ST, PIS/COFINS, IPI)
+- Certificados digitais (upload A1, validação)
+- Contingência (fila, retransmissão automática, status SEFAZ)
+- GNRE (geração, pagamento)
+- Importação XML (upload, de-para, gerar entrada)
+- Manifesto destinatário
 - Auditoria fiscal
+- Dashboard métricas
 
-### Vendas (Parcial)
-- Pedidos de venda
-- Tabelas de preço
-- Vendas efetivadas
-- Entregas
-- Comissões (básico)
+---
 
-### Compras (Parcial)
-- Pedidos de compra
-- Importação XML NF-e
-- Compras efetivadas
-- Devoluções
-- Transferências
+## Módulo Financeiro (⚠️ Básico)
 
-### Financeiro (Básico)
-- Contas a pagar
-- Contas a receber
+### O que JÁ existe
 
-### Cadastros (Básico)
-- Clientes
-- Fornecedores
-- Produtos
-- Transportadoras
+| Funcionalidade | Endpoint | Status |
+|----------------|----------|--------|
+| Contas a receber (CRUD + recebimento) | `/api/conta-receber` | ✅ |
+| Contas a pagar (CRUD + pagamento) | `/api/conta-pagar` | ✅ |
+| Geração automática de parcelas (vendas) | Na efetivação | ✅ |
+| Geração automática de parcelas (compras) | Na efetivação | ✅ |
+| Estorno por devolução de compra | Conta negativa | ✅ |
 
-## Próximo Módulo a Implementar: Financeiro
+### O que FALTA para módulo completo
 
-### Escopo do Módulo Financeiro
+| Funcionalidade | Prioridade | Descrição |
+|----------------|-----------|-----------|
+| **CNAB 240/400** | Alta | Remessa/retorno bancário (Itaú, Bradesco, BB, Santander, Sicoob) |
+| **Boleto registrado** | Alta | Geração PDF, registro bancário, baixa automática por retorno |
+| **PIX API** | Alta | Cobrança por QRCode estático/dinâmico, webhook de confirmação |
+| **DDA (Débito Direto Autorizado)** | Média | Receber títulos a pagar do banco automaticamente |
+| **OFX / Extrato bancário** | Média | Importar extrato para conciliação |
+| **Conciliação bancária** | Alta | Match automático extrato vs. contas, baixa em lote |
+| **Fluxo de caixa** | Alta | Projeção por período, multi-conta, visão realizado vs. previsto |
+| **Multi-conta bancária** | Alta | Cadastro de contas, saldo por conta, transferência entre contas |
+| **Borderô** | Média | Agrupar títulos para envio ao banco em lote |
+| **Rateio centro de custo** | Média | Dividir despesa entre centros de custo/projeto |
+| **Cheques** | Baixa | Emissão, custódia, compensação, cheque devolvido |
+| **Conciliação de cartões** | Média | Importar vendas de adquirentes, conferir taxas, antecipação |
+| **Contratos recorrentes** | Média | Mensalidade, aluguel — gerar parcelas automaticamente |
+| **Régua de cobrança** | Alta | Notificações automáticas: email/SMS antes e após vencimento |
+| **Aging (análise de vencimento)** | Média | Relatório por faixa de atraso (30/60/90/120+ dias) |
+| **Provisão** | Baixa | Reconhecer despesas futuras antes do pagamento efetivo |
 
-**Integração Bancária:**
-- CNAB 240/400 (remessa e retorno para todos bancos principais)
-- PIX via API (QR code dinâmico, cobrança, baixa automática)
-- DDA (Débito Direto Autorizado)
-- Conciliação bancária automática (OFX + matching inteligente)
+---
 
-**Contas a Pagar:**
-- Provisão e fluxo de caixa
-- Borderô de pagamento em lote
-- Adiantamento a fornecedor
-- Rateio por centro de custo / projeto
+## Próximos Passos Sugeridos (ordem de impacto)
 
-**Contas a Receber:**
-- Boleto registrado com todos os bancos (emissão + retorno)
-- Aging / inadimplência
-- Régua de cobrança automatizada (email, SMS, WhatsApp)
-- Score de crédito do cliente
+| Ordem | Spec a Criar | Impacto |
+|-------|-------------|---------|
+| 1 | `erp-financeiro-completo` | Sem financeiro robusto, não sustenta operação real |
+| 2 | `erp-vendas-completo` | PDV + orçamento + devolução de venda = operação comercial completa |
+| 3 | `erp-compras-completo` | Cotação + MRP + aprovação = gestão de suprimentos profissional |
+| 4 | `erp-devolucao-venda` | NF-e de devolução + estorno = compliance fiscal |
+| 5 | `erp-transferencia-fiscal` | NF-e de transferência = operação multi-filial regularizada |
 
-**Tesouraria:**
-- Fluxo de caixa projetado vs. realizado
-- Multi-conta bancária
-- Controle de cheques (custódia, compensação, devolução)
-- Conciliação de cartões (TEF × operadora × liquidação)
+---
 
-**Contratos:**
-- Gestão de contratos recorrentes (mensalidade, aluguel)
-- Faturamento automático recorrente
+## Padrões de Desenvolvimento
 
-## Gaps Conhecidos por Módulo
+### Backend
+1. Cada módulo vive em `src/modules/{modulo}/`
+2. Rotas Fastify com prefixo `/api/{modulo}/`
+3. Validação com Zod em todas as rotas
+4. Middleware `moduloGuard` para controle de acesso por módulo
+5. Prisma migrations para schema do banco
+6. Testes com vitest
+7. Integração fiscal via services (`vendaFiscalService`, `compraFiscalService`)
+8. XML builders como funções puras (testáveis isoladamente)
 
-### Fiscal (para completar)
-- NFC-e com integração SAT/MFe
-- NFS-e multi-município (webservices diferentes por prefeitura)
-- SPED Fiscal completo (registros de ajuste, ressarcimento ST)
-- SPED Reinf / DCTF-Web
-- GNRE automática para ST interestadual
-
-### Vendas (para completar)
-- PDV/Frente de caixa (TEF, SAT, impressora fiscal)
-- Força de vendas mobile (catálogo, pedido offline)
-- Hub de integração com marketplaces
-- Venda consignada
-- Comissionamento avançado (escalonado, por meta, split)
-- Controle de crédito com score e bloqueio automático
-- Tabelas de preço com vigência, região e canal
-- Workflow de aprovação de desconto
-
-### Compras (para completar)
-- MRP (cálculo de necessidade baseado em demanda/estoque mínimo)
-- Mapa de cotação com scoring automático
-- Workflow de aprovação (por alçada/valor)
-- Avaliação de desempenho de fornecedor
-- Compra para importação (desembaraço)
-- Contratos de fornecimento com reajuste
-
-### Cadastros (para completar)
-- Consulta automática CNPJ (API Receita Federal / BrasilAPI)
-- Consulta SINTEGRA/SUFRAMA
-- Score de crédito configurável
-- Grupo econômico com consolidação
-- Múltiplos endereços tipados (entrega, cobrança, fiscal)
-- Anexos de documentos
-- Integração SPC/Serasa
-
-## Regras de Desenvolvimento
-
-1. **Um spec por módulo** — cada módulo tem seu próprio spec (requirements → design → tasks)
-2. **Backend primeiro** — implementar API antes do frontend
-3. **Padrões existentes** — seguir os mesmos patterns do projeto (useCrudGenerico, ListagemFiscal, FormularioEmissao, etc.)
-4. **Incremental** — cada módulo constrói sobre o anterior
-5. **Testes** — property tests com fast-check para lógica de negócio crítica
+### Frontend
+1. App Router do Next.js 15 (`app/{modulo}/page.tsx`)
+2. Componentes Mantine 7 (DataTable, Forms, Modals)
+3. Hooks customizados com React Query (`useQuery`, `useMutation`)
+4. Axios como client HTTP
+5. Pattern: `useCrudGenerico` para CRUD padrão
+6. Testes: Vitest (unit) + Playwright (E2E)
 
 ## Referências de Specs Existentes
 
-- Backend Fiscal: `c:\Source\VisioFab.Wms.Back\.kiro\specs\erp-modulo-fiscal\`
-- Frontend Fiscal: `c:\Source\VisioFab.Wms.Front\.kiro\specs\erp-modulo-fiscal-frontend\`
-- WMS specs: múltiplos em `c:\Source\VisioFab.Wms.Back\.kiro\specs\`
+- Backend Fiscal: `.kiro/specs/erp-modulo-fiscal/` e `.kiro/specs/erp-fiscal-completar/`
+- Frontend Fiscal: `.kiro/specs/erp-modulo-fiscal-frontend/`
+- WMS specs: múltiplos em `.kiro/specs/wms-*`
