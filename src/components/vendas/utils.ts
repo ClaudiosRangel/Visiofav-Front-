@@ -57,36 +57,44 @@ export function isItemEditable(item: Pick<ItemPedidoVenda, 'quantidadeFaturada'>
   return false
 }
 
-// === Field-to-Section Mapping (for Accordion auto-open on error) ===
-export const FIELD_TO_SECTION: Record<string, string> = {
-  clienteId: 'dados-gerais',
-  vendedorId: 'dados-gerais',
-  tabelaPrecoId: 'dados-gerais',
-  condicaoPagId: 'dados-gerais',
-  prioridade: 'dados-gerais',
-  origemPedido: 'dados-gerais',
-  numeroPedidoCliente: 'dados-gerais',
-  dataValidade: 'dados-gerais',
-  orcamentoOrigemId: 'dados-gerais',
-  dataEntrega: 'entrega-transporte',
-  transportadoraId: 'entrega-transporte',
-  modalidadeFrete: 'entrega-transporte',
-  enderecoEntrega: 'entrega-transporte',
+// === Field-to-Tab Mapping (for auto-navigation to tab with error) ===
+export const FIELD_TO_TAB: Record<string, string> = {
+  clienteId: 'cabecalho',
+  vendedorId: 'cabecalho',
+  tabelaPrecoId: 'cabecalho',
+  condicaoPagId: 'cabecalho',
+  prioridade: 'cabecalho',
+  origemPedido: 'cabecalho',
+  numeroPedidoCliente: 'cabecalho',
+  dataValidade: 'cabecalho',
+  orcamentoOrigemId: 'cabecalho',
+  dataEntrega: 'entrega',
+  transportadoraId: 'entrega',
+  modalidadeFrete: 'entrega',
+  enderecoEntrega: 'entrega',
   tipoDesconto: 'financeiro',
   descontoGeral: 'financeiro',
   tipoAcrescimo: 'financeiro',
   acrescimoGeral: 'financeiro',
-  itens: 'itens-pedido',
+  itens: 'itens',
   observacao: 'observacoes',
   observacaoNota: 'observacoes',
 }
 
-export function getFirstErrorSection(errors: Record<string, any>): string | null {
+/** @deprecated Use FIELD_TO_TAB — kept for backward compatibility */
+export const FIELD_TO_SECTION = FIELD_TO_TAB
+
+export function getFirstErrorTab(errors: Record<string, any>): string | null {
   for (const field of Object.keys(errors)) {
-    const section = FIELD_TO_SECTION[field]
-    if (section) return section
+    const tab = FIELD_TO_TAB[field]
+    if (tab) return tab
   }
   return null
+}
+
+/** @deprecated Use getFirstErrorTab — kept for backward compatibility */
+export function getFirstErrorSection(errors: Record<string, any>): string | null {
+  return getFirstErrorTab(errors)
 }
 
 // === Modalidade Frete Labels ===

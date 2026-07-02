@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import {
   Button, Card, Group, Text, Table, Badge, LoadingOverlay, Modal, Textarea,
+  SimpleGrid, Paper, Tabs, Divider,
 } from '@mantine/core'
-import { IconArrowLeft, IconCheck, IconX, IconFileInvoice } from '@tabler/icons-react'
+import { IconArrowLeft, IconCheck, IconX, IconFileInvoice, IconPackage, IconTruck, IconCash, IconNotes, IconHistory } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { useQueryClient } from '@tanstack/react-query'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
@@ -95,183 +96,259 @@ export default function DetalhePedidoVendaPage() {
   return (
     <div>
       <Text size="xs" c="dimmed" mb={4}>Vendas / Pedidos / #{pedido.numero}</Text>
-      <Group mb="lg">
-        <Button variant="subtle" leftSection={<IconArrowLeft size={16} />} onClick={() => router.push('/vendas/pedidos')}>Voltar</Button>
-        <Text size="xl" fw={600}>Pedido de Venda #{pedido.numero}</Text>
-        <Badge color={statusColors[pedido.status] || 'gray'} size="lg">{pedido.status}</Badge>
+
+      {/* ═══ HEADER (estilo ERP) ═══ */}
+      <Group justify="space-between" mb="md">
+        <Group>
+          <Button variant="subtle" leftSection={<IconArrowLeft size={16} />} onClick={() => router.push('/vendas/pedidos')}>Voltar</Button>
+          <Text size="xl" fw={600}>Pedido #{pedido.numero}</Text>
+          <Badge color={statusColors[pedido.status] || 'gray'} size="lg">{pedido.status}</Badge>
+          <BadgePrioridade prioridade={pedido.prioridade} />
+        </Group>
+
+        {/* Actions no header (estilo Sankhya) */}
+        <Group>
+          {pedido.status === 'RASCUNHO' && (
+            <>
+              <Button variant="light" onClick={() => router.push(`/vendas/pedidos/novo?editId=${id}`)}>Editar</Button>
+              <Button color="blue" leftSection={<IconCheck size={16} />} onClick={handleConfirmar}>Confirmar</Button>
+            </>
+          )}
+          {pedido.status === 'CONFIRMADO' && (
+            <>
+              <Button color="orange" variant="light" leftSection={<IconFileInvoice size={16} />} onClick={() => setFaturarModalOpen(true)}>
+                Faturar Parcial
+              </Button>
+              <Button color="green" leftSection={<IconCheck size={16} />} onClick={() => { if (confirm('Efetivar venda? Isso irá gerar contas a receber e enviar para separação no WMS.')) efetivar.mutate() }} loading={efetivar.isPending}>
+                Efetivar Venda
+              </Button>
+            </>
+          )}
+          {['RASCUNHO', 'CONFIRMADO'].includes(pedido.status) && (
+            <Button color="red" variant="light" leftSection={<IconX size={16} />} onClick={() => setCancelModal(true)}>Cancelar</Button>
+          )}
+        </Group>
       </Group>
 
-      {/* Card: Dados do Pedido */}
-      <Card mb="md">
-        <Text fw={500} mb="sm">Dados do Pedido</Text>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div><Text size="sm" c="dimmed">Cliente</Text><Text fw={500}>{pedido.cliente?.nomeFantasia || pedido.cliente?.razaoSocial}</Text></div>
-          <div><Text size="sm" c="dimmed">Vendedor</Text><Text>{pedido.vendedor?.nome || '—'}</Text></div>
-          <div><Text size="sm" c="dimmed">Tabela de Preço</Text><Text>{pedido.tabelaPreco?.nome || '—'}</Text></div>
-          <div><Text size="sm" c="dimmed">Valor Total</Text><Text fw={600} size="lg">{formatCurrency(pedido.valorTotal)}</Text></div>
-          <div><Text size="sm" c="dimmed">Prioridade</Text><BadgePrioridade prioridade={pedido.prioridade} /></div>
-          <div><Text size="sm" c="dimmed">Origem</Text><Badge variant="light" size="sm">{pedido.origemPedido}</Badge></div>
+      {/* ═══ CABEÇALHO COMPACTO — Dados-chave sempre visíveis ═══ */}
+      <Card withBorder mb="md" p="md">
+        <SimpleGrid cols={{ base: 2, sm: 4, lg: 6 }}>
+          <div>
+            <Text size="xs" c="dimmed">Cliente</Text>
+            <Text fw={500} size="sm">{pedido.cliente?.nomeFantasia || pedido.cliente?.razaoSocial}</Text>
+          </div>
+          <div>
+            <Text size="xs" c="dimmed">Vendedor</Text>
+            <Text size="sm">{pedido.vendedor?.nome || '—'}</Text>
+          </div>
+          <div>
+            <Text size="xs" c="dimmed">Tabela de Preço</Text>
+            <Text size="sm">{pedido.tabelaPreco?.nome || '—'}</Text>
+          </div>
+          <div>
+            <Text size="xs" c="dimmed">Origem</Text>
+            <Badge variant="light" size="sm">{pedido.origemPedido}</Badge>
+          </div>
           {pedido.numeroPedidoCliente && (
-            <div><Text size="sm" c="dimmed">Nº Pedido Cliente</Text><Text>{pedido.numeroPedidoCliente}</Text></div>
+            <div>
+              <Text size="xs" c="dimmed">Nº Pedido Cliente</Text>
+              <Text size="sm">{pedido.numeroPedidoCliente}</Text>
+            </div>
           )}
           {pedido.dataValidade && (
-            <div><Text size="sm" c="dimmed">Data Validade</Text><Text>{formatDate(pedido.dataValidade)}</Text></div>
+            <div>
+              <Text size="xs" c="dimmed">Data Validade</Text>
+              <Text size="sm">{formatDate(pedido.dataValidade)}</Text>
+            </div>
           )}
-        </div>
+        </SimpleGrid>
         {pedido.prioridade === 'URGENTE' && pedido.dataLimiteAtendimento && (
-          <div className="mt-4">
+          <div style={{ marginTop: 12 }}>
             <Badge color="red" variant="filled" size="lg">
-              Limite de Atendimento (SLA): {formatDate(pedido.dataLimiteAtendimento)}
+              SLA: {formatDate(pedido.dataLimiteAtendimento)}
             </Badge>
           </div>
         )}
       </Card>
 
-      {/* Card: Entrega e Transporte */}
-      <Card mb="md">
-        <Text fw={500} mb="sm">Entrega e Transporte</Text>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div><Text size="sm" c="dimmed">Data de Entrega</Text><Text>{formatDate(pedido.dataEntrega)}</Text></div>
-          <div><Text size="sm" c="dimmed">Transportadora</Text><Text>{pedido.transportadora?.razaoSocial || '—'}</Text></div>
-          <div><Text size="sm" c="dimmed">Modalidade de Frete</Text><Text>{getModalidadeFreteLabel(pedido.modalidadeFrete)}</Text></div>
-          {pedido.enderecoEntrega && (
-            <div className="md:col-span-4">
-              <Text size="sm" c="dimmed">Endereço de Entrega</Text>
-              <Text>{formatarEnderecoEntrega(pedido.enderecoEntrega)}</Text>
-            </div>
-          )}
-        </div>
+      {/* ═══ CORPO — Tabs (Itens | Entrega | Financeiro | Observações | Histórico) ═══ */}
+      <Card withBorder mb="md" p={0}>
+        <Tabs defaultValue="itens">
+          <Tabs.List>
+            <Tabs.Tab value="itens" leftSection={<IconPackage size={16} />}>
+              Itens ({pedido.itens?.length || 0})
+            </Tabs.Tab>
+            <Tabs.Tab value="entrega" leftSection={<IconTruck size={16} />}>
+              Entrega / Transporte
+            </Tabs.Tab>
+            <Tabs.Tab value="financeiro" leftSection={<IconCash size={16} />}>
+              Financeiro
+            </Tabs.Tab>
+            {(pedido.observacao || pedido.observacaoNota) && (
+              <Tabs.Tab value="observacoes" leftSection={<IconNotes size={16} />}>
+                Observações
+              </Tabs.Tab>
+            )}
+            {pedido.vendasEfetivadas && pedido.vendasEfetivadas.length > 0 && (
+              <Tabs.Tab value="historico" leftSection={<IconHistory size={16} />}>
+                Faturamentos ({pedido.vendasEfetivadas.length})
+              </Tabs.Tab>
+            )}
+          </Tabs.List>
+
+          <div style={{ padding: '16px' }}>
+            {/* Tab: Itens */}
+            <Tabs.Panel value="itens">
+              <Table striped highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Produto</Table.Th>
+                    <Table.Th>Unidade</Table.Th>
+                    <Table.Th>Qtd</Table.Th>
+                    <Table.Th>Preço Unit.</Table.Th>
+                    <Table.Th>Preço Final</Table.Th>
+                    <Table.Th>Desc Valor</Table.Th>
+                    <Table.Th>Frete</Table.Th>
+                    <Table.Th>Seguro</Table.Th>
+                    <Table.Th>Outras Desp.</Table.Th>
+                    <Table.Th>Faturado</Table.Th>
+                    <Table.Th>Total</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {(pedido.itens || []).map((item) => (
+                    <Table.Tr key={item.id}>
+                      <Table.Td fw={500}>{item.produto?.nome || item.produtoId}</Table.Td>
+                      <Table.Td>{item.unidade || item.produto?.unidade || '—'}</Table.Td>
+                      <Table.Td>{Number(item.quantidade)}</Table.Td>
+                      <Table.Td>{formatCurrency(item.precoUnitario)}</Table.Td>
+                      <Table.Td>{formatCurrency(item.precoFinal)}</Table.Td>
+                      <Table.Td>{formatCurrency(item.descontoValor)}</Table.Td>
+                      <Table.Td>{formatCurrency(item.frete)}</Table.Td>
+                      <Table.Td>{formatCurrency(item.seguro)}</Table.Td>
+                      <Table.Td>{formatCurrency(item.outrasDespesas)}</Table.Td>
+                      <Table.Td>
+                        <Badge color={getProgressColor(item.quantidadeFaturada, item.quantidade)} size="sm">
+                          {item.quantidadeFaturada}/{item.quantidade}
+                        </Badge>
+                      </Table.Td>
+                      <Table.Td fw={600}>{formatCurrency(item.valorTotal)}</Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Tabs.Panel>
+
+            {/* Tab: Entrega e Transporte */}
+            <Tabs.Panel value="entrega">
+              <SimpleGrid cols={{ base: 1, sm: 3 }}>
+                <div><Text size="sm" c="dimmed">Data de Entrega</Text><Text>{formatDate(pedido.dataEntrega)}</Text></div>
+                <div><Text size="sm" c="dimmed">Transportadora</Text><Text>{pedido.transportadora?.razaoSocial || '—'}</Text></div>
+                <div><Text size="sm" c="dimmed">Modalidade de Frete</Text><Text>{getModalidadeFreteLabel(pedido.modalidadeFrete)}</Text></div>
+              </SimpleGrid>
+              {pedido.enderecoEntrega && (
+                <div style={{ marginTop: 16 }}>
+                  <Text size="sm" c="dimmed">Endereço de Entrega Alternativo</Text>
+                  <Text>{formatarEnderecoEntrega(pedido.enderecoEntrega)}</Text>
+                </div>
+              )}
+            </Tabs.Panel>
+
+            {/* Tab: Financeiro */}
+            <Tabs.Panel value="financeiro">
+              <SimpleGrid cols={{ base: 2, sm: 4 }}>
+                <div><Text size="sm" c="dimmed">Tipo Desconto</Text><Text>{pedido.tipoDesconto || '—'}</Text></div>
+                <div><Text size="sm" c="dimmed">Desconto Geral</Text><Text>{pedido.descontoGeral != null ? (pedido.tipoDesconto === 'PERCENTUAL' ? `${pedido.descontoGeral}%` : formatCurrency(pedido.descontoGeral)) : '—'}</Text></div>
+                <div><Text size="sm" c="dimmed">Tipo Acréscimo</Text><Text>{pedido.tipoAcrescimo || '—'}</Text></div>
+                <div><Text size="sm" c="dimmed">Acréscimo Geral</Text><Text>{pedido.acrescimoGeral != null ? formatCurrency(pedido.acrescimoGeral) : '—'}</Text></div>
+              </SimpleGrid>
+            </Tabs.Panel>
+
+            {/* Tab: Observações */}
+            {(pedido.observacao || pedido.observacaoNota) && (
+              <Tabs.Panel value="observacoes">
+                {pedido.observacao && (
+                  <div style={{ marginBottom: 12 }}>
+                    <Text size="sm" c="dimmed">Observação Interna</Text>
+                    <Text>{pedido.observacao}</Text>
+                  </div>
+                )}
+                {pedido.observacaoNota && (
+                  <div>
+                    <Text size="sm" c="dimmed">Observação para Nota Fiscal</Text>
+                    <Text>{pedido.observacaoNota}</Text>
+                  </div>
+                )}
+              </Tabs.Panel>
+            )}
+
+            {/* Tab: Histórico de Faturamentos */}
+            {pedido.vendasEfetivadas && pedido.vendasEfetivadas.length > 0 && (
+              <Tabs.Panel value="historico">
+                <Table striped>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Data Efetivação</Table.Th>
+                      <Table.Th>Valor Total</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {pedido.vendasEfetivadas.map((venda) => (
+                      <Table.Tr key={venda.id}>
+                        <Table.Td>{formatDate(venda.dataEfetivacao)}</Table.Td>
+                        <Table.Td>{formatCurrency(venda.valorTotal)}</Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </Tabs.Panel>
+            )}
+          </div>
+        </Tabs>
       </Card>
 
-      {/* Card: Financeiro */}
-      <Card mb="md">
-        <Text fw={500} mb="sm">Financeiro</Text>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div><Text size="sm" c="dimmed">Tipo Desconto</Text><Text>{pedido.tipoDesconto || '—'}</Text></div>
-          <div><Text size="sm" c="dimmed">Desconto Geral</Text><Text>{pedido.descontoGeral != null ? (pedido.tipoDesconto === 'PERCENTUAL' ? `${pedido.descontoGeral}%` : formatCurrency(pedido.descontoGeral)) : '—'}</Text></div>
-          <div><Text size="sm" c="dimmed">Tipo Acréscimo</Text><Text>{pedido.tipoAcrescimo || '—'}</Text></div>
-          <div><Text size="sm" c="dimmed">Acréscimo Geral</Text><Text>{pedido.acrescimoGeral != null ? formatCurrency(pedido.acrescimoGeral) : '—'}</Text></div>
-        </div>
-      </Card>
-
-      {/* Card: Itens */}
-      <Card mb="md">
-        <Text fw={500} mb="sm">Itens ({pedido.itens?.length || 0})</Text>
-        <Table striped>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Produto</Table.Th>
-              <Table.Th>Unidade</Table.Th>
-              <Table.Th>Quantidade</Table.Th>
-              <Table.Th>Preço Unit.</Table.Th>
-              <Table.Th>Preço Final</Table.Th>
-              <Table.Th>Desc Valor</Table.Th>
-              <Table.Th>Frete</Table.Th>
-              <Table.Th>Seguro</Table.Th>
-              <Table.Th>Outras Desp.</Table.Th>
-              <Table.Th>Qtd Faturada</Table.Th>
-              <Table.Th>Total</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {(pedido.itens || []).map((item) => (
-              <Table.Tr key={item.id}>
-                <Table.Td fw={500}>{item.produto?.nome || item.produtoId}</Table.Td>
-                <Table.Td>{item.unidade || item.produto?.unidade || '—'}</Table.Td>
-                <Table.Td>{Number(item.quantidade)}</Table.Td>
-                <Table.Td>{formatCurrency(item.precoUnitario)}</Table.Td>
-                <Table.Td>{formatCurrency(item.precoFinal)}</Table.Td>
-                <Table.Td>{formatCurrency(item.descontoValor)}</Table.Td>
-                <Table.Td>{formatCurrency(item.frete)}</Table.Td>
-                <Table.Td>{formatCurrency(item.seguro)}</Table.Td>
-                <Table.Td>{formatCurrency(item.outrasDespesas)}</Table.Td>
-                <Table.Td>
-                  <Badge color={getProgressColor(item.quantidadeFaturada, item.quantidade)} size="sm">
-                    {item.quantidadeFaturada}/{item.quantidade}
-                  </Badge>
-                </Table.Td>
-                <Table.Td fw={500}>{formatCurrency(item.valorTotal)}</Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-        <Group justify="flex-end" mt="md">
-          <Text size="lg" fw={600}>Total: {formatCurrency(pedido.valorTotal)}</Text>
-        </Group>
-      </Card>
-
-      {/* Card: Observações (somente se presente) */}
-      {(pedido.observacao || pedido.observacaoNota) && (
-        <Card mb="md">
-          <Text fw={500} mb="sm">Observações</Text>
-          {pedido.observacao && (
-            <div className="mb-2">
-              <Text size="sm" c="dimmed">Observação Interna</Text>
-              <Text>{pedido.observacao}</Text>
-            </div>
-          )}
-          {pedido.observacaoNota && (
-            <div>
-              <Text size="sm" c="dimmed">Observação para Nota Fiscal</Text>
-              <Text>{pedido.observacaoNota}</Text>
-            </div>
-          )}
-        </Card>
-      )}
-
-      {/* Card: Histórico de Faturamentos (somente se há vendas efetivadas) */}
-      {pedido.vendasEfetivadas && pedido.vendasEfetivadas.length > 0 && (
-        <Card mb="md">
-          <Text fw={500} mb="sm">Histórico de Faturamentos</Text>
-          <Table striped>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Data Efetivação</Table.Th>
-                <Table.Th>Valor Total</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {pedido.vendasEfetivadas.map((venda) => (
-                <Table.Tr key={venda.id}>
-                  <Table.Td>{formatDate(venda.dataEfetivacao)}</Table.Td>
-                  <Table.Td>{formatCurrency(venda.valorTotal)}</Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Card>
-      )}
+      {/* ═══ RODAPÉ TOTALIZADOR — Sempre visível (estilo Sankhya/TOTVS) ═══ */}
+      <Paper withBorder p="md" radius="md">
+        <SimpleGrid cols={{ base: 2, sm: 4 }}>
+          <div>
+            <Text size="xs" c="dimmed">Itens</Text>
+            <Text fw={600}>{pedido.itens?.length || 0}</Text>
+          </div>
+          <div>
+            <Text size="xs" c="dimmed">Desconto</Text>
+            <Text fw={600} c="red">
+              {pedido.descontoGeral && Number(pedido.descontoGeral) > 0
+                ? (pedido.tipoDesconto === 'PERCENTUAL' ? `${pedido.descontoGeral}%` : formatCurrency(pedido.descontoGeral))
+                : '—'}
+            </Text>
+          </div>
+          <div>
+            <Text size="xs" c="dimmed">Acréscimo</Text>
+            <Text fw={600} c="teal">
+              {pedido.acrescimoGeral && Number(pedido.acrescimoGeral) > 0
+                ? formatCurrency(pedido.acrescimoGeral)
+                : '—'}
+            </Text>
+          </div>
+          <div>
+            <Text size="xs" c="dimmed">Total do Pedido</Text>
+            <Text fw={700} size="xl" c="blue">
+              {formatCurrency(pedido.valorTotal)}
+            </Text>
+          </div>
+        </SimpleGrid>
+      </Paper>
 
       {/* Motivo cancelamento */}
       {pedido.motivoCancelamento && (
-        <Card mb="md"><Text fw={500} mb="sm">Motivo do Cancelamento</Text><Text>{pedido.motivoCancelamento}</Text></Card>
+        <Card withBorder mt="md"><Text fw={500} mb="sm">Motivo do Cancelamento</Text><Text>{pedido.motivoCancelamento}</Text></Card>
       )}
 
-      {/* Actions */}
-      <Group justify="flex-end">
-        {pedido.status === 'RASCUNHO' && (
-          <>
-            <Button variant="light" onClick={() => router.push(`/vendas/pedidos/novo?editId=${id}`)}>Editar Itens</Button>
-            <Button color="blue" leftSection={<IconCheck size={16} />} onClick={handleConfirmar}>Confirmar</Button>
-          </>
-        )}
-        {pedido.status === 'CONFIRMADO' && (
-          <>
-            <Button color="orange" variant="light" leftSection={<IconFileInvoice size={16} />} onClick={() => setFaturarModalOpen(true)}>
-              Faturar Parcial
-            </Button>
-            <Button color="green" leftSection={<IconCheck size={16} />} onClick={() => { if (confirm('Efetivar venda? Isso irá gerar contas a receber e enviar para separação no WMS.')) efetivar.mutate() }} loading={efetivar.isPending}>
-              Efetivar Venda
-            </Button>
-          </>
-        )}
-        {pedido.status === 'EM_SEPARACAO' && (
+      {pedido.status === 'EM_SEPARACAO' && (
+        <Group justify="center" mt="md">
           <Badge color="orange" size="lg">Aguardando separação no WMS</Badge>
-        )}
-        {['RASCUNHO', 'CONFIRMADO'].includes(pedido.status) && (
-          <Button color="red" variant="light" leftSection={<IconX size={16} />} onClick={() => setCancelModal(true)}>Cancelar Pedido</Button>
-        )}
-      </Group>
+        </Group>
+      )}
 
       {/* Modal Cancelar */}
       <Modal opened={cancelModal} onClose={() => { setCancelModal(false); setMotivo('') }} title="Cancelar Pedido" centered>
