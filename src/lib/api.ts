@@ -20,6 +20,48 @@ function processQueue(error: Error | null, token: string | null) {
   failedQueue = []
 }
 
+// === Token Keep-Alive: renova proativamente enquanto o usuário estiver ativo ===
+let keepAliveInterval: ReturnType<typeof setInterval> | null = null
+let lastActivity = Date.now()
+
+function startTokenKeepAlive() {
+  if (typeof window === 'undefined') return
+  if (keepAliveInterval) return // Já está rodando
+
+  // Detectar atividade do usuário
+  const updateActivity = () => { lastActivity = Date.now() }
+  window.addEventListener('mousemove', updateActivity, { passive: true })
+  window.addEventListener('keydown', updateActivity, { passive: true })
+  window.addEventListener('click', updateActivity, { passive: true })
+  window.addEventListener('touchstart', updateActivity, { passive: true })
+
+  // A cada 4 minutos, se houve atividade nos últimos 5 min, renova token
+  keepAliveInterval = setInterval(async () => {
+    const inatividade = Date.now() - lastActivity
+    if (inatividade > 5 * 60 * 1000) return // Mais de 5 min sem uso — não renova
+
+    const refreshToken = localStorage.getItem('visiofab-wms-refresh-token')
+    if (!refreshToken) return
+
+    try {
+      const { data } = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'}/auth/refresh`,
+        { refreshToken },
+        { withCredentials: true }
+      )
+      if (data.token) localStorage.setItem('visiofab-wms-token', data.token)
+      if (data.refreshToken) localStorage.setItem('visiofab-wms-refresh-token', data.refreshToken)
+    } catch {
+      // Silencioso — o interceptor de 401 cuida se falhar
+    }
+  }, 4 * 60 * 1000) // A cada 4 minutos
+}
+
+// Iniciar keep-alive no carregamento do módulo
+if (typeof window !== 'undefined') {
+  startTokenKeepAlive()
+}
+
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     // Backward compatibility: enviar token via header (mobile, localStorage)

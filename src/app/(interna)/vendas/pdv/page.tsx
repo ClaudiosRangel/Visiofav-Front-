@@ -260,6 +260,23 @@ export default function PdvPage() {
     }
   }, [loadingCaixa, errorCaixa, caixa])
 
+  // --- Recover existing sale if caixa has one in progress ---
+  useEffect(() => {
+    if (!caixa?.id || vendaId) return
+    // Check if there's an active sale in this caixa
+    api.get(`/pdv/caixa/${caixa.id}/vendas`).then(({ data: vendas }) => {
+      const vendaAberta = (vendas || []).find((v: any) => v.status === 'EM_ANDAMENTO')
+      if (vendaAberta) {
+        setVendaId(vendaAberta.id)
+        notifications.show({
+          title: 'Venda recuperada',
+          message: `Venda #${vendaAberta.numero} em andamento foi recuperada`,
+          color: 'blue',
+        })
+      }
+    }).catch(() => { /* ignore */ })
+  }, [caixa?.id, vendaId])
+
   // --- Styles ---
   const styles = {
     page: {
