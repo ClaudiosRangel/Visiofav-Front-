@@ -15,6 +15,8 @@ import {
   IconChevronDown,
   IconChevronRight,
   IconTrash,
+  IconDownload,
+  IconUpload,
 } from '@tabler/icons-react'
 import { useEmpresa } from '@/providers/EmpresaProvider'
 import { useState } from 'react'
@@ -53,9 +55,11 @@ interface ModulesSidebarProps {
   onToggle: () => void
   isAdmin?: boolean
   onCleanup?: () => void
+  onBackup?: () => void
+  onRestore?: () => void
 }
 
-export default function ModulesSidebar({ collapsed, onToggle, isAdmin, onCleanup }: ModulesSidebarProps) {
+export default function ModulesSidebar({ collapsed, onToggle, isAdmin, onCleanup, onBackup, onRestore }: ModulesSidebarProps) {
   const { empresa } = useEmpresa()
   const router = useRouter()
   const [configOpen, setConfigOpen] = useState(false)
@@ -112,6 +116,12 @@ export default function ModulesSidebar({ collapsed, onToggle, isAdmin, onCleanup
             <SidebarItem icon={IconSettings} label="Notificações" onClick={() => router.push('/configuracoes/notificacoes')} />
             {isAdmin && (
               <SidebarItem icon={IconTrash} label="Limpar Dados" onClick={onCleanup} color="#EF4444" />
+            )}
+            {isAdmin && (
+              <SidebarItem icon={IconDownload} label="Fazer Backup" onClick={onBackup} color="#3B82F6" />
+            )}
+            {isAdmin && (
+              <SidebarItem icon={IconUpload} label="Restaurar Backup" onClick={onRestore} color="#8B5CF6" />
             )}
           </Stack>
         </Collapse>

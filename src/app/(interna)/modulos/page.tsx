@@ -172,6 +172,40 @@ export default function ModulosPage() {
     }
   }
 
+  // === BACKUP ===
+  async function handleBackup() {
+    try {
+      const response = await api.get('/admin/backup', { responseType: 'blob' })
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/json' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `backup-visiofab-${new Date().toISOString().split('T')[0]}.json`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+      notifications.show({ title: 'Backup realizado', message: 'Arquivo salvo na sua máquina', color: 'green', position: 'top-right' })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro no backup', message: err?.response?.data?.message || 'Falha ao gerar backup', color: 'red', position: 'top-right' })
+    }
+  }
+
+  // === RESTAURAR ===
+  async function handleRestaurar(file: File) {
+    try {
+      const text = await file.text()
+      const backup = JSON.parse(text)
+      if (!backup?._meta?.versao) {
+        notifications.show({ title: 'Arquivo inválido', message: 'Este não é um arquivo de backup válido do VisioFab', color: 'red', position: 'top-right' })
+        return
+      }
+      const { data } = await api.post('/admin/restaurar', backup)
+      notifications.show({ title: 'Restauração concluída', message: data.message || 'Dados restaurados com sucesso', color: 'green', position: 'top-right' })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro na restauração', message: err?.response?.data?.message || 'Falha ao restaurar', color: 'red', position: 'top-right' })
+    }
+  }
+
   if (modulosVisiveis.length === 0) {
     return (
       <Center h="60vh">
@@ -194,6 +228,17 @@ export default function ModulosPage() {
           onToggle={() => setSidebarOpen(!sidebarOpen)}
           isAdmin={isAdmin}
           onCleanup={handleOpenCleanup}
+          onBackup={handleBackup}
+          onRestore={() => {
+            const input = document.createElement('input')
+            input.type = 'file'
+            input.accept = '.json'
+            input.onchange = (e) => {
+              const file = (e.target as HTMLInputElement).files?.[0]
+              if (file) handleRestaurar(file)
+            }
+            input.click()
+          }}
         />
 
         {/* Toggle sidebar button (mobile) */}
