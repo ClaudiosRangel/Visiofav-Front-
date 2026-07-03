@@ -12,8 +12,8 @@ import {
   Transition,
   Loader,
 } from '@mantine/core'
-import { IconSend, IconX, IconSparkles } from '@tabler/icons-react'
-import { useVizorChat, type ChatMessage, type AIResponse } from '@/data/hooks/ai/useVizorAI'
+import { IconSend, IconX, IconSparkles, IconPaperclip } from '@tabler/icons-react'
+import { useVizorChat, useVizorUpload, type ChatMessage, type AIResponse } from '@/data/hooks/ai/useVizorAI'
 
 const MAX_MESSAGES = 50
 
@@ -24,8 +24,10 @@ export default function ChatWidget() {
   const [sugestoes, setSugestoes] = useState<string[]>([])
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const chat = useVizorChat()
+  const upload = useVizorUpload()
 
   // Keyboard shortcut: Ctrl+K / Cmd+K
   useEffect(() => {
@@ -96,6 +98,40 @@ export default function ChatWidget() {
       handleSend()
     }
   }
+
+  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Show file as user message
+    const userMsg: ChatMessage = { role: 'user', content: `📎 ${file.name}` }
+    setMessages(prev => [...prev, userMsg].slice(-MAX_MESSAGES))
+    setSugestoes([])
+
+    try {
+      const response: AIResponse = await upload.mutateAsync(file)
+
+      const assistantMsg: ChatMessage = { role: 'assistant', content: response.resposta }
+      setMessages(prev => [...prev, assistantMsg].slice(-MAX_MESSAGES))
+
+      if (response.sugestoes?.length) {
+        setSugestoes(response.sugestoes)
+      }
+
+      if (response.acao?.tipo === 'NAVEGAR' && response.acao.rota) {
+        // Don't auto-navigate on upload, just suggest
+      }
+    } catch {
+      const errorMsg: ChatMessage = {
+        role: 'assistant',
+        content: 'Erro ao processar arquivo, tente novamente.',
+      }
+      setMessages(prev => [...prev, errorMsg].slice(-MAX_MESSAGES))
+    }
+
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }, [upload])
 
   return (
     <>
@@ -215,7 +251,7 @@ export default function ChatWidget() {
               ))}
 
               {/* Typing indicator */}
-              {chat.isPending && (
+              {(chat.isPending || upload.isPending) && (
                 <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 8 }}>
                   <div
                     style={{
@@ -263,13 +299,30 @@ export default function ChatWidget() {
                 borderTop: '1px solid #333',
               }}
             >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xml"
+                style={{ display: 'none' }}
+                onChange={handleFileUpload}
+              />
+              <ActionIcon
+                variant="subtle"
+                color="gray"
+                size="lg"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={chat.isPending || upload.isPending}
+                aria-label="Enviar arquivo XML"
+              >
+                <IconPaperclip size={18} />
+              </ActionIcon>
               <TextInput
                 ref={inputRef}
                 placeholder="Digite sua pergunta..."
                 value={input}
                 onChange={(e) => setInput(e.currentTarget.value)}
                 onKeyDown={handleKeyDown}
-                disabled={chat.isPending}
+                disabled={chat.isPending || upload.isPending}
                 size="sm"
                 style={{ flex: 1 }}
                 styles={{
@@ -285,7 +338,7 @@ export default function ChatWidget() {
                 color="teal"
                 size="lg"
                 onClick={() => handleSend()}
-                disabled={chat.isPending || !input.trim()}
+                disabled={chat.isPending || upload.isPending || !input.trim()}
                 aria-label="Enviar mensagem"
               >
                 <IconSend size={18} />

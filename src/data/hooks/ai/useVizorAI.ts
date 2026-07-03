@@ -35,4 +35,17 @@ export function useSugestoesAI(pagina?: string) {
   })
 }
 
+export function useVizorUpload() {
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      const { data } = await api.post('/ai/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return data as AIResponse
+    },
+  })
+}
+
 export type { ChatMessage, AIResponse }
