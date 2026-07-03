@@ -7,7 +7,7 @@ import {
   // Compras
   IconFileText, IconTruckDelivery, IconArrowBack, IconArrowsExchange, IconUsers, IconBuildingStore,
   // Vendas
-  IconReceipt, IconCash, IconTags, IconChartBar, IconUserCircle,
+  IconReceipt, IconCash, IconTags, IconChartBar, IconUserCircle, IconFileDescription, IconReportAnalytics,
   // Financeiro
   IconCreditCard, IconWallet,
   // Fiscal
@@ -76,10 +76,13 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconTags, label: 'Tabelas de Preço', href: '/vendas/tabelas-preco' },
         ],
       },
+      { icon: IconFileDescription, label: 'Orçamentos', href: '/vendas/orcamentos' },
       { icon: IconReceipt, label: 'Pedidos de Venda', href: '/vendas/pedidos' },
       { icon: IconCash, label: 'Vendas Efetivadas', href: '/vendas/vendas-efetivadas' },
+      { icon: IconArrowBack, label: 'Devoluções', href: '/vendas/devolucoes' },
       { icon: IconTruckDelivery, label: 'Entregas', href: '/vendas/entregas' },
       { icon: IconChartBar, label: 'Comissões', href: '/vendas/comissoes' },
+      { icon: IconReportAnalytics, label: 'Relatórios', href: '/vendas/relatorios' },
     ],
   },
   financeiro: {
