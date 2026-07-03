@@ -7,7 +7,7 @@ import {
   // Compras
   IconFileText, IconTruckDelivery, IconArrowBack, IconArrowsExchange, IconUsers, IconBuildingStore,
   // Vendas
-  IconReceipt, IconCash, IconTags, IconChartBar, IconUserCircle, IconFileDescription, IconReportAnalytics,
+  IconReceipt, IconCash, IconTags, IconChartBar, IconUserCircle, IconFileDescription, IconReportAnalytics, IconCheck,
   // Financeiro
   IconCreditCard, IconWallet,
   // Fiscal
@@ -83,6 +83,13 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       { icon: IconTruckDelivery, label: 'Entregas', href: '/vendas/entregas' },
       { icon: IconChartBar, label: 'Comissões', href: '/vendas/comissoes' },
       { icon: IconReportAnalytics, label: 'Relatórios', href: '/vendas/relatorios' },
+      { icon: IconTags, label: 'Campanhas', href: '/vendas/campanhas' },
+      { icon: IconChartBar, label: 'Metas Vendedores', href: '/vendas/metas' },
+      { icon: IconCheck, label: 'Aprovações', href: '/vendas/aprovacoes' },
+      { icon: IconPackage, label: 'Bonificações', href: '/vendas/bonificacoes' },
+      { icon: IconClock, label: 'Encomendas', href: '/vendas/encomendas' },
+      { icon: IconArrowsExchange, label: 'Consignadas', href: '/vendas/consignadas' },
+      { icon: IconBuildingStore, label: 'E-commerce', href: '/vendas/ecommerce' },
     ],
   },
   financeiro: {
