@@ -41,11 +41,12 @@ O VisioFab está evoluindo de um WMS especializado para um **ERP completo** foca
 
 | # | Módulo | Status | Detalhe |
 |---|--------|--------|---------|
-| 4 | **Vendas Completo** | 🔨 Em andamento | Pedido completo ✅. Próximos: Orçamento → Devolução Venda → Relatórios → PDV (por último, UX especial) |
+| 4 | **Vendas Completo** | ✅ **COMPLETO** | Todos 13 itens + PDV + IA implementados |
 | 5 | **Compras Completo** | ⚠️ Parcial | Pedido + efetivação + XML ok. Falta cotação, MRP, aprovação |
-| 6 | **Devolução** | ⚠️ Parcial | Devolução compra + logística reversa ok. Falta devolução venda fiscal |
+| 6 | **Devolução** | ✅ Completo | Devolução compra + venda (NF-e finNFe=4) + estorno + estoque |
 | 7 | **Transferência** | ⚠️ Básico | Transferência estoque ok. Falta NF-e de transferência |
 | 8 | **Régua de cobrança** | 🔲 Não iniciado | — |
+| 9 | **Vizor AI** | ✅ **IMPLEMENTADO** | Chat + function calling + upload XML + onboarding + 30 tools |
 
 ### Prioridade 3 (Amadurecimento)
 
@@ -81,28 +82,45 @@ O VisioFab está evoluindo de um WMS especializado para um **ERP completo** foca
 
 #### O que FALTA para módulo completo (padrão Totvs/Omie/Sankhya)
 
-##### Sprint atual — Vendas Completo (em ordem de execução)
+##### ✅ Módulo de Vendas — COMPLETO (implementado nesta sprint)
 
-| # | Funcionalidade | Status | Spec |
-|---|---|---|---|
-| 1 | **Orçamento/Proposta** | 🔨 A fazer agora | Orçamento com validade, aprovação, conversão em pedido, PDF |
-| 2 | **Devolução de venda** | 🔨 A fazer agora | NF-e entrada ref. saída, estorno financeiro, reentrada estoque |
-| 3 | **Relatórios de vendas** | 🔨 A fazer agora | Curva ABC, ticket médio, vendas por período/vendedor/cliente |
-| 4 | **PDV (Ponto de Venda)** | 🎯 Por último (design especial) | Caixa, NFC-e, sangria/suprimento, UX diferenciada e chamativa |
+| # | Funcionalidade | Status |
+|---|---|---|
+| 1 | Orçamento/Proposta (CRUD + workflow + PDF + conversão pedido) | ✅ |
+| 2 | Devolução de venda (NF-e finalidade=4 + estorno + reentrada estoque) | ✅ |
+| 3 | Relatórios (KPIs, por período, vendedor, cliente, curva ABC) | ✅ |
+| 4 | PDV (dark-mode fullscreen, caixa, sangria, busca produto F3, atalhos teclado) | ✅ |
+| 5 | Desconto por campanha/cupom | ✅ |
+| 6 | Tabela de preço com vigência | ✅ |
+| 7 | Força de vendas (metas) | ✅ |
+| 8 | Bonificação | ✅ |
+| 9 | Venda sob encomenda | ✅ |
+| 10 | Venda consignada | ✅ |
+| 11 | Comissão avançada | ✅ |
+| 12 | Workflow de aprovação | ✅ |
+| 13 | Integração e-commerce | ✅ |
 
-##### Backlog restante (após sprint atual)
+##### 🤖 Vizor AI — Chat Widget (implementado)
 
-| Funcionalidade | Prioridade | Descrição |
-|----------------|-----------|-----------|
-| **Desconto por campanha/cupom** | Média | Motor de descontos: percentual, valor fixo, escalonado, por quantidade |
-| **Tabela de preço com vigência** | Média | Data início/fim, preço por cliente/grupo, hierarquia de prioridade |
-| **Força de vendas** | Média | Meta por vendedor/equipe, dashboard de performance, ranking, premiação |
-| **Bonificação** | Baixa | Item grátis vinculado a regra de quantidade/valor |
-| **Venda sob encomenda** | Baixa | Make-to-order: pedido reserva produção antes de faturar |
-| **Venda consignada** | Baixa | Remessa consignação → retorno ou faturamento posterior |
-| **Comissão avançada** | Média | Comissão por faixa, produto, região; comissão sobre recebimento |
-| **Workflow de aprovação** | Média | Desconto acima de X% exige aprovação do gerente |
-| **Integração e-commerce** | Baixa | Receber pedidos de marketplaces/loja virtual |
+| Funcionalidade | Status |
+|---|---|
+| Chat flutuante em todas as páginas (Ctrl+K) | ✅ |
+| Upload de XML no chat (ícone clips) | ✅ |
+| Sugestões clicáveis (chips) | ✅ |
+| Navegação automática por comando da IA | ✅ |
+| Onboarding automático ao primeiro acesso | ✅ |
+| Typing indicator durante processamento | ✅ |
+
+##### 🔧 Infraestrutura (implementado)
+
+| Funcionalidade | Status |
+|---|---|
+| Token keep-alive (renova a cada 4min enquanto ativo) | ✅ |
+| PDV: recuperação de venda após relogin | ✅ |
+| PDV: busca produto por nome (modal F3) | ✅ |
+| Layout estilo ERP (Sankhya/TOTVS) no pedido de venda | ✅ |
+| Backup: botão download JSON no menu lateral | ✅ |
+| Restaurar: botão upload JSON no menu lateral | ✅ |
 
 ---
 
