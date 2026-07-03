@@ -5,10 +5,11 @@ import {
   Button, Card, Group, Text, Table, Badge, LoadingOverlay,
   SimpleGrid, Paper, Modal, Textarea,
 } from '@mantine/core'
-import { IconArrowLeft, IconSend, IconCheck, IconX, IconTransform } from '@tabler/icons-react'
+import { IconArrowLeft, IconSend, IconCheck, IconX, IconTransform, IconFileTypePdf } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { useRouter, useParams } from 'next/navigation'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
+import { api } from '@/lib/api'
 import {
   useOrcamento, useEnviarOrcamento, useAprovarOrcamento,
   useReprovarOrcamento, useConverterOrcamento,
@@ -48,6 +49,15 @@ export default function DetalheOrcamentoPage() {
           <Badge color={statusColors[orc.status] || 'gray'} size="lg">{orc.status}</Badge>
         </Group>
         <Group>
+          {/* PDF */}
+          <Button variant="default" leftSection={<IconFileTypePdf size={16} />} onClick={async () => {
+            try {
+              const response = await api.get(`/orcamentos/${id}/pdf`, { responseType: 'blob' })
+              const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
+              window.open(url, '_blank')
+            } catch { notifications.show({ title: 'Erro', message: 'Falha ao gerar PDF', color: 'red' }) }
+          }}>PDF</Button>
+
           {orc.status === 'ABERTO' && (
             <Button color="blue" leftSection={<IconSend size={16} />} onClick={() => enviar.mutate(id, { onSuccess: () => notifications.show({ title: 'Sucesso', message: 'Enviado', color: 'green' }) })} loading={enviar.isPending}>Enviar</Button>
           )}
