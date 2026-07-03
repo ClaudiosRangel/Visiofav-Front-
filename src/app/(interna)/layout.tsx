@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation'
 import ModuleSidebar from '@/components/layout/ModuleSidebar'
 import Header from '@/components/layout/Header'
+import ChatWidget from '@/components/ai/ChatWidget'
 
 // Páginas sem sidebar (tela limpa ou layout próprio)
 const NO_SIDEBAR_PAGES = ['/selecionar-empresa', '/modulos']
@@ -21,12 +22,13 @@ export default function InternaLayout({ children }: { children: React.ReactNode 
 
   if (!showSidebar) {
     if (pathname === '/modulos') {
-      return <>{children}</>
+      return <>{children}<ChatWidget /></>
     }
     return (
       <div className="min-h-screen flex flex-col">
         <Header />
         <main className="flex-1">{children}</main>
+        <ChatWidget />
       </div>
     )
   }
@@ -37,6 +39,7 @@ export default function InternaLayout({ children }: { children: React.ReactNode 
       <div className="min-h-screen flex flex-col">
         <Header />
         <main className="p-4 md:p-6 flex-1 overflow-x-hidden">{children}</main>
+        <ChatWidget />
       </div>
     )
   }
@@ -49,6 +52,7 @@ export default function InternaLayout({ children }: { children: React.ReactNode 
         <Header />
         <main className="p-4 md:p-6 flex-1 overflow-x-hidden">{children}</main>
       </div>
+      <ChatWidget />
     </div>
   )
 }
