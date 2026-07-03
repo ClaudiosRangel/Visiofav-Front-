@@ -8,9 +8,11 @@ import {
 import {
   IconCash, IconCreditCard, IconQrcode, IconTrash,
   IconPlayerStop, IconReceipt, IconPlus, IconLogout,
-  IconArrowDown, IconArrowUp,
+  IconArrowDown, IconArrowUp, IconSearch,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '@/lib/api'
 import {
   useCaixaAtual, useAbrirCaixa, useFecharCaixa,
   useIniciarVenda, useAdicionarItem, useRemoverItem,
@@ -65,6 +67,8 @@ export default function PdvPage() {
   const [showAbrirCaixaModal, setShowAbrirCaixaModal] = useState(false)
   const [showFecharCaixaModal, setShowFecharCaixaModal] = useState(false)
   const [showMovimentacaoModal, setShowMovimentacaoModal] = useState(false)
+  const [showBuscarProdutoModal, setShowBuscarProdutoModal] = useState(false)
+  const [buscaProduto, setBuscaProduto] = useState('')
   const [valorAbertura, setValorAbertura] = useState<number>(0)
   const [numeroCaixa, setNumeroCaixa] = useState<number>(1)
   const [valorFechamento, setValorFechamento] = useState<number>(0)
@@ -85,6 +89,22 @@ export default function PdvPage() {
   const cancelarVenda = useCancelarVenda()
   const movimentacao = useMovimentacaoCaixa()
   const { data: vendaDetalhe } = useDetalheVenda(vendaId || '')
+
+  // Product search
+  const { data: produtosData } = useQuery<any>({
+    queryKey: ['produtos-pdv-busca', buscaProduto],
+    queryFn: async () => {
+      const { data } = await api.get('/produtos', { params: { limit: 50, status: 'true', busca: buscaProduto || undefined } })
+      return data
+    },
+    enabled: showBuscarProdutoModal,
+    staleTime: 1000 * 30,
+  })
+  const produtosFiltrados = (produtosData?.data || []).filter((p: any) => {
+    if (!buscaProduto.trim()) return true
+    const termo = buscaProduto.toLowerCase()
+    return p.nome?.toLowerCase().includes(termo) || p.codigo?.toLowerCase().includes(termo) || p.cEAN?.includes(termo)
+  })
 
   const itens: VendaItem[] = vendaDetalhe?.itens || []
   const subtotal = itens.reduce((acc: number, i: VendaItem) => acc + i.valorTotal, 0)
@@ -224,9 +244,10 @@ export default function PdvPage() {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'F1') { e.preventDefault(); handleNovaVenda() }
       if (e.key === 'F2') { e.preventDefault(); if (vendaId && itens.length > 0) setShowFinalizarModal(true) }
+      if (e.key === 'F3') { e.preventDefault(); if (vendaId) setShowBuscarProdutoModal(true) }
       if (e.key === 'F4') { e.preventDefault(); handleCancelarVenda() }
       if (e.key === 'F8') { e.preventDefault(); setShowMovimentacaoModal(true) }
-      if (e.key === 'Escape') { setShowFinalizarModal(false); setShowMovimentacaoModal(false) }
+      if (e.key === 'Escape') { setShowFinalizarModal(false); setShowMovimentacaoModal(false); setShowBuscarProdutoModal(false) }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -453,20 +474,34 @@ export default function PdvPage() {
 
         {/* RIGHT: Action Panel */}
         <div style={styles.sidePanel}>
-          {/* Input */}
-          <TextInput
-            ref={inputRef}
-            placeholder="Código de barras / SKU"
-            size="lg"
-            value={codigoInput}
-            onChange={(e) => setCodigoInput(e.currentTarget.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleAdicionarItem() }}
-            disabled={!vendaId}
-            styles={{
-              input: { backgroundColor: '#1a1b1e', color: '#fff', border: '1px solid #373a40', fontSize: '18px' },
-            }}
-            mb="sm"
-          />
+          {/* Input + Search button */}
+          <Group gap="xs" mb="sm">
+            <TextInput
+              ref={inputRef}
+              placeholder="Código de barras / SKU"
+              size="lg"
+              value={codigoInput}
+              onChange={(e) => setCodigoInput(e.currentTarget.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleAdicionarItem() }}
+              disabled={!vendaId}
+              styles={{
+                input: { backgroundColor: '#1a1b1e', color: '#fff', border: '1px solid #373a40', fontSize: '18px' },
+                root: { flex: 1 },
+              }}
+            />
+            <Tooltip label="Buscar produto por nome (F3)">
+              <Button
+                size="lg"
+                variant="light"
+                color="yellow"
+                onClick={() => setShowBuscarProdutoModal(true)}
+                disabled={!vendaId}
+                style={{ padding: '0 14px' }}
+              >
+                <IconSearch size={22} />
+              </Button>
+            </Tooltip>
+          </Group>
           <Button
             fullWidth
             size="md"
@@ -608,6 +643,7 @@ export default function PdvPage() {
       <div style={styles.footer}>
         <Text size="xs" c="dimmed">F1 = Nova Venda</Text>
         <Text size="xs" c="dimmed">F2 = Finalizar</Text>
+        <Text size="xs" c="dimmed">F3 = Buscar Produto</Text>
         <Text size="xs" c="dimmed">F4 = Cancelar</Text>
         <Text size="xs" c="dimmed">F8 = Sangria/Suprimento</Text>
         <Text size="xs" c="dimmed">Enter = Adicionar Item</Text>
@@ -735,6 +771,75 @@ export default function PdvPage() {
           >
             Registrar {tipoMovimentacao === 'SANGRIA' ? 'Sangria' : 'Suprimento'}
           </Button>
+        </Stack>
+      </Modal>
+
+      {/* Buscar Produto Modal */}
+      <Modal
+        opened={showBuscarProdutoModal}
+        onClose={() => { setShowBuscarProdutoModal(false); setBuscaProduto(''); inputRef.current?.focus() }}
+        title="🔍 Buscar Produto"
+        size="lg"
+        centered
+        styles={{ content: { backgroundColor: '#25262b' }, header: { backgroundColor: '#25262b', color: '#fff' } }}
+      >
+        <Stack gap="md">
+          <TextInput
+            placeholder="Digite o nome, código ou EAN do produto..."
+            size="md"
+            value={buscaProduto}
+            onChange={(e) => setBuscaProduto(e.currentTarget.value)}
+            autoFocus
+            styles={{ input: { backgroundColor: '#1a1b1e', color: '#fff', border: '1px solid #373a40' } }}
+          />
+          <ScrollArea h={350}>
+            <Stack gap={4}>
+              {produtosFiltrados.slice(0, 30).map((p: any) => (
+                <Paper
+                  key={p.id}
+                  p="sm"
+                  radius="sm"
+                  style={{
+                    backgroundColor: '#2c2e33',
+                    cursor: 'pointer',
+                    border: '1px solid transparent',
+                  }}
+                  onClick={() => {
+                    if (!vendaId) return
+                    adicionarItem.mutate(
+                      { vendaId, produtoId: p.id, quantidade: 1 },
+                      {
+                        onSuccess: () => {
+                          setShowBuscarProdutoModal(false)
+                          setBuscaProduto('')
+                          notifications.show({ title: 'Item adicionado', message: p.nome, color: 'green' })
+                          inputRef.current?.focus()
+                        },
+                        onError: (err: any) => {
+                          notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Erro', color: 'red' })
+                        },
+                      }
+                    )
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = '#51cf66' }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'transparent' }}
+                >
+                  <Group justify="space-between">
+                    <div>
+                      <Text size="sm" c="white" fw={500}>{p.nome}</Text>
+                      <Text size="xs" c="dimmed">Cód: {p.codigo}{p.cEAN ? ` | EAN: ${p.cEAN}` : ''}</Text>
+                    </div>
+                    <Text size="md" c="green" fw={600}>
+                      {Number(p.precoBase).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </Text>
+                  </Group>
+                </Paper>
+              ))}
+              {produtosFiltrados.length === 0 && (
+                <Text ta="center" c="dimmed" mt="lg">Nenhum produto encontrado</Text>
+              )}
+            </Stack>
+          </ScrollArea>
         </Stack>
       </Modal>
     </div>
