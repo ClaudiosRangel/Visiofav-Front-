@@ -76,6 +76,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconTags, label: 'Tabelas de Preço', href: '/vendas/tabelas-preco' },
         ],
       },
+      { icon: IconCash, label: 'PDV (Caixa)', href: '/vendas/pdv' },
       { icon: IconFileDescription, label: 'Orçamentos', href: '/vendas/orcamentos' },
       { icon: IconReceipt, label: 'Pedidos de Venda', href: '/vendas/pedidos' },
       { icon: IconCash, label: 'Vendas Efetivadas', href: '/vendas/vendas-efetivadas' },
