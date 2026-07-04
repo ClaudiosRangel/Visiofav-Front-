@@ -16,7 +16,7 @@ import {
   IconHome, IconPackage, IconClipboardCheck, IconBarcode, IconBuildingWarehouse, IconArrowsExchange as IconMovim, IconSettings,
   IconEye, IconDatabase, IconAlertCircle,
   // Integração
-  IconKey, IconWebhook, IconUpload,
+  IconKey, IconWebhook, IconUpload, IconCloudDownload,
   // PCP
   IconAssembly, IconListDetails, IconCalendarEvent, IconRoute, IconSitemap, IconTool, IconClock, IconPalette, IconLink,
   // Configurador
@@ -140,6 +140,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconKey, label: 'Certificados', href: '/fiscal/certificados' },
           { icon: IconAlertCircle, label: 'Contingência', href: '/fiscal/contingencia' },
           { icon: IconUpload, label: 'Importação XML', href: '/fiscal/importacao-xml' },
+          { icon: IconCloudDownload, label: 'Notas do Fornecedor (DFe)', href: '/fiscal/distribuicao-dfe' },
           { icon: IconTruckDelivery, label: 'Manifesto Dest.', href: '/fiscal/manifesto-destinatario' },
           { icon: IconEye, label: 'Auditoria', href: '/fiscal/auditoria' },
         ],
