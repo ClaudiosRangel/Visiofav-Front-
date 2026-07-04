@@ -13,9 +13,39 @@ import {
   Loader,
 } from '@mantine/core'
 import { IconSend, IconX, IconSparkles, IconPaperclip } from '@tabler/icons-react'
+import ReactMarkdown from 'react-markdown'
 import { useVizorChat, useVizorUpload, type ChatMessage, type AIResponse } from '@/data/hooks/ai/useVizorAI'
 
 const MAX_MESSAGES = 50
+
+// Componente de renderização Markdown com estilo dark-mode compacto para o chat
+function MarkdownMessage({ content }: { content: string }) {
+  return (
+    <div style={{ fontSize: 13, lineHeight: 1.5 }}>
+      <ReactMarkdown
+        components={{
+          h1: ({ children }) => <div style={{ fontSize: 15, fontWeight: 700, marginTop: 6, marginBottom: 6 }}>{children}</div>,
+          h2: ({ children }) => <div style={{ fontSize: 14, fontWeight: 700, marginTop: 8, marginBottom: 4 }}>{children}</div>,
+          h3: ({ children }) => <div style={{ fontSize: 13, fontWeight: 600, marginTop: 6, marginBottom: 4 }}>{children}</div>,
+          p: ({ children }) => <p style={{ margin: '4px 0' }}>{children}</p>,
+          strong: ({ children }) => <strong style={{ fontWeight: 700, color: '#ffffff' }}>{children}</strong>,
+          em: ({ children }) => <em>{children}</em>,
+          ul: ({ children }) => <ul style={{ margin: '4px 0', paddingLeft: 18 }}>{children}</ul>,
+          ol: ({ children }) => <ol style={{ margin: '4px 0', paddingLeft: 18 }}>{children}</ol>,
+          li: ({ children }) => <li style={{ marginBottom: 3 }}>{children}</li>,
+          code: ({ children }) => <code style={{ background: 'rgba(255,255,255,0.1)', padding: '1px 5px', borderRadius: 4, fontSize: 12 }}>{children}</code>,
+          hr: () => <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.15)', margin: '8px 0' }} />,
+          table: ({ children }) => <table style={{ borderCollapse: 'collapse', width: '100%', margin: '6px 0', fontSize: 12 }}>{children}</table>,
+          th: ({ children }) => <th style={{ border: '1px solid rgba(255,255,255,0.2)', padding: '4px 6px', textAlign: 'left', background: 'rgba(255,255,255,0.05)' }}>{children}</th>,
+          td: ({ children }) => <td style={{ border: '1px solid rgba(255,255,255,0.15)', padding: '4px 6px' }}>{children}</td>,
+          a: ({ children, href }) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#4ade80', textDecoration: 'underline' }}>{children}</a>,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  )
+}
 
 export default function ChatWidget() {
   const [open, setOpen] = useState(false)
@@ -183,8 +213,9 @@ export default function ChatWidget() {
               position: 'fixed',
               bottom: 24,
               right: 24,
-              width: 400,
-              height: 500,
+              width: 440,
+              height: 600,
+              maxHeight: 'calc(100vh - 48px)',
               zIndex: 9999,
               display: 'flex',
               flexDirection: 'column',
@@ -242,8 +273,8 @@ export default function ChatWidget() {
                 >
                   <div
                     style={{
-                      maxWidth: '80%',
-                      padding: '8px 12px',
+                      maxWidth: msg.role === 'user' ? '80%' : '92%',
+                      padding: msg.role === 'user' ? '8px 12px' : '10px 14px',
                       borderRadius: 12,
                       background: msg.role === 'user' ? '#2d9d5a' : '#2a2a3a',
                       color: '#fff',
@@ -252,7 +283,7 @@ export default function ChatWidget() {
                       wordBreak: 'break-word',
                     }}
                   >
-                    {msg.content}
+                    {msg.role === 'assistant' ? <MarkdownMessage content={msg.content} /> : msg.content}
                   </div>
                 </div>
               ))}
