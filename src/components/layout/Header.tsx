@@ -31,7 +31,16 @@ export default function Header() {
         <ActionIcon variant="subtle" color="gray" size="lg" className="md:hidden" onClick={() => router.push('/modulos')}>
           <IconMenu2 size={20} />
         </ActionIcon>
-        <Text size="sm" c="primary" fw={600}>Vizor ERP</Text>
+        <Text
+          size="sm"
+          c="primary"
+          fw={600}
+          className="cursor-pointer hover:underline"
+          onClick={() => router.push('/modulos')}
+          title="Voltar para Módulos"
+        >
+          Vizor ERP
+        </Text>
         {empresa && (
           <>
             <Text size="sm" c="dimmed" className="hidden sm:block">|</Text>
