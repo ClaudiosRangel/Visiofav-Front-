@@ -48,24 +48,16 @@ export default function ChatWidget() {
     }
   }, [messages, chat.isPending])
 
-  // Focus input when panel opens + auto-onboarding check
+  // Focus input when panel opens + welcome message (local, sem LLM)
   const [onboardingChecked, setOnboardingChecked] = useState(false)
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 100)
-      // First time opening: check if system needs onboarding
+      // First time: show welcome message locally (no API call to avoid timeout)
       if (!onboardingChecked && messages.length === 0) {
         setOnboardingChecked(true)
-        chat.mutateAsync({ mensagem: 'Olá, verifique a configuração da empresa e me diga se preciso configurar algo.' })
-          .then((response) => {
-            const assistantMsg: ChatMessage = { role: 'assistant', content: response.resposta }
-            setMessages([assistantMsg])
-            if (response.sugestoes?.length) setSugestoes(response.sugestoes)
-          })
-          .catch(() => {
-            setMessages([{ role: 'assistant', content: 'Olá! Sou o Vizor AI. Como posso ajudar?' }])
-            setSugestoes(['Quanto vendemos esse mês?', 'Consultar estoque', 'Abrir relatórios'])
-          })
+        setMessages([{ role: 'assistant', content: 'Olá! 👋 Sou o **Vizor AI**. Posso te ajudar a navegar, criar pedidos, consultar estoque, importar XML e muito mais. O que precisa?' }])
+        setSugestoes(['Quanto vendemos esse mês?', 'Consultar estoque', 'Abrir relatórios', 'Importar XML'])
       }
     }
   }, [open])
