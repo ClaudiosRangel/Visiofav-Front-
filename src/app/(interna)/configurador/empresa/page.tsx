@@ -19,8 +19,9 @@ import { IntegracaoTabContent } from './IntegracaoTabContent'
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(u => ({ value: u, label: u }))
 
 const REGIMES_TRIBUTARIOS = [
-  { value: '1', label: '1 - Simples Nacional' },
-  { value: '3', label: '3 - Lucro Real / Presumido' },
+  { value: '1', label: '1 - Simples Nacional / MEI (Microempresa)' },
+  { value: '2', label: '2 - Lucro Presumido' },
+  { value: '3', label: '3 - Lucro Real' },
 ]
 
 const AMBIENTES_NFE = [

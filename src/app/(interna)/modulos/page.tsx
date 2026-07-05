@@ -186,7 +186,23 @@ export default function ModulosPage() {
       window.URL.revokeObjectURL(url)
       notifications.show({ title: 'Backup realizado', message: 'Arquivo salvo na sua máquina', color: 'green', position: 'top-right' })
     } catch (err: any) {
-      notifications.show({ title: 'Erro no backup', message: err?.response?.data?.message || 'Falha ao gerar backup', color: 'red', position: 'top-right' })
+      // responseType 'blob' faz com que o corpo de erro do backend também venha
+      // como Blob, então err.response.data.message fica undefined. Precisamos
+      // ler o Blob como texto para extrair a mensagem real do backend.
+      let msg = 'Falha ao gerar backup'
+      const errorBlob = err?.response?.data
+      if (errorBlob instanceof Blob) {
+        try {
+          const text = await errorBlob.text()
+          const parsed = JSON.parse(text)
+          msg = parsed?.message || msg
+        } catch {
+          // corpo não era JSON válido — mantém mensagem genérica
+        }
+      } else if (err?.response?.data?.message) {
+        msg = err.response.data.message
+      }
+      notifications.show({ title: 'Erro no backup', message: msg, color: 'red', position: 'top-right' })
     }
   }
 
