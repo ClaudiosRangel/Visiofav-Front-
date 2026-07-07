@@ -22,9 +22,11 @@ interface Props {
   fornecedorId?: string
   fornecedorCnpj?: string
   defaultDate?: Date
+  /** Se informado, cancela este agendamento anterior ao confirmar o novo (fluxo "Alterar Agendamento") */
+  agendamentoAtualId?: string
 }
 
-export default function AgendamentoDocaModal({ opened, onClose, onAgendado, pedidoCompraId, fornecedorId, fornecedorCnpj, defaultDate }: Props) {
+export default function AgendamentoDocaModal({ opened, onClose, onAgendado, pedidoCompraId, fornecedorId, fornecedorCnpj, defaultDate, agendamentoAtualId }: Props) {
   const queryClient = useQueryClient()
   const [selectedDate, setSelectedDate] = useState<Date>(defaultDate || new Date())
   const [selectedDoca, setSelectedDoca] = useState<string | null>(null)
@@ -41,7 +43,7 @@ export default function AgendamentoDocaModal({ opened, onClose, onAgendado, pedi
     enabled: opened,
   })
 
-  // Criar agendamento
+  // Criar agendamento (e cancelar o anterior, se estiver alterando um existente)
   const criarAgenda = useMutation({
     mutationFn: async () => {
       if (!selectedDoca || !selectedSlotStart || !selectedSlotEnd) throw new Error('Selecione doca e horário')
@@ -54,11 +56,18 @@ export default function AgendamentoDocaModal({ opened, onClose, onAgendado, pedi
         fornecedorId: fornecedorId || undefined,
         fornecedorCnpj: fornecedorCnpj || undefined,
       })
+      // Ao alterar um agendamento existente, cancela o anterior para não
+      // deixar duplicado (um na data antiga e outro na nova)
+      if (agendamentoAtualId) {
+        await api.patch(`/agenda-wms/${agendamentoAtualId}/status`, { status: 'CANCELADO' })
+      }
       return data
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['agenda-grade'] })
       queryClient.invalidateQueries({ queryKey: ['agenda-wms'] })
+      queryClient.invalidateQueries({ queryKey: ['compra-detalhe'] })
+      queryClient.invalidateQueries({ queryKey: ['pedido-compra'] })
       notifications.show({ title: '✅ Agendado', message: `Doca reservada ${selectedSlotStart} - ${selectedSlotEnd}`, color: 'green' })
       onAgendado(data.id)
       resetSelection()

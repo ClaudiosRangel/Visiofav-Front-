@@ -246,6 +246,7 @@ export default function CompraEfetivadaDetalhePage() {
         }}
         pedidoCompraId={compra.pedidoCompraId}
         fornecedorId={pedido?.fornecedorId}
+        agendamentoAtualId={agendamento?.id}
       />
     </div>
   )

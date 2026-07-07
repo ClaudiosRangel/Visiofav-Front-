@@ -17,7 +17,7 @@ import {
   LoadingOverlay,
 } from '@mantine/core'
 import { DateInput } from '@mantine/dates'
-import { IconArrowLeft, IconPlus, IconTrash, IconCheck, IconX } from '@tabler/icons-react'
+import { IconArrowLeft, IconPlus, IconTrash, IconCheck, IconX, IconCalendar, IconEdit } from '@tabler/icons-react'
 import { useForm, Controller, useFieldArray } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -26,6 +26,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { useRouter, useParams } from 'next/navigation'
+import AgendamentoDocaModal from '@/components/wms/AgendamentoDocaModal'
 
 const statusColors: Record<string, string> = {
   RASCUNHO: 'gray',
@@ -61,6 +62,7 @@ export default function DetalhePedidoCompraPage() {
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
   const [motivo, setMotivo] = useState('')
   const [isEditing, setIsEditing] = useState(false)
+  const [agendaModalOpen, setAgendaModalOpen] = useState(false)
 
   const { data: pedido, isLoading } = useQuery<any>({
     queryKey: ['pedido-compra', id],
@@ -326,6 +328,44 @@ export default function DetalhePedidoCompraPage() {
             </Card>
           )}
 
+          <Card mb="md">
+            <Group justify="space-between" mb="sm">
+              <Text fw={500}>Agendamento de Recebimento</Text>
+              {pedido.status !== 'CANCELADO' && (
+                <Button
+                  size="xs"
+                  variant="light"
+                  leftSection={pedido.agendamento ? <IconEdit size={14} /> : <IconCalendar size={14} />}
+                  onClick={() => setAgendaModalOpen(true)}
+                >
+                  {pedido.agendamento ? 'Alterar Agendamento' : 'Agendar Recebimento'}
+                </Button>
+              )}
+            </Group>
+            {pedido.agendamento ? (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <Text size="xs" c="dimmed">Data</Text>
+                  <Text fw={500}>{new Date(pedido.agendamento.dataPrevista).toLocaleDateString('pt-BR')}</Text>
+                </div>
+                <div>
+                  <Text size="xs" c="dimmed">Horário</Text>
+                  <Text fw={500}>{pedido.agendamento.horaInicio || '—'} - {pedido.agendamento.horaFim || '—'}</Text>
+                </div>
+                <div>
+                  <Text size="xs" c="dimmed">Doca</Text>
+                  <Text fw={500}>{pedido.agendamento.doca?.descricao || '—'}</Text>
+                </div>
+                <div>
+                  <Text size="xs" c="dimmed">Status</Text>
+                  <Badge color={pedido.agendamento.status === 'RECEBIDO' ? 'green' : 'blue'}>{pedido.agendamento.status}</Badge>
+                </div>
+              </div>
+            ) : (
+              <Text c="dimmed" size="sm">Nenhum agendamento vinculado a este pedido</Text>
+            )}
+          </Card>
+
           <Group justify="flex-end">
             {isRascunho && (
               <>
@@ -555,6 +595,19 @@ export default function DetalhePedidoCompraPage() {
           </Button>
         </Group>
       </Modal>
+
+      {/* Modal Agendamento */}
+      <AgendamentoDocaModal
+        opened={agendaModalOpen}
+        onClose={() => setAgendaModalOpen(false)}
+        onAgendado={() => {
+          queryClient.invalidateQueries({ queryKey: ['pedido-compra', id] })
+          setAgendaModalOpen(false)
+        }}
+        pedidoCompraId={pedido.id}
+        fornecedorId={pedido.fornecedorId}
+        agendamentoAtualId={pedido.agendamento?.id}
+      />
     </div>
   )
 }
