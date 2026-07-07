@@ -150,7 +150,7 @@ export default function CompraEfetivadaDetalhePage() {
                 <SimpleGrid cols={{ base: 1, sm: 3 }}>
                   <div>
                     <Text size="xs" c="dimmed">Data</Text>
-                    <Text fw={500}>{new Date(agendamento.dataPrevista).toLocaleDateString('pt-BR')}</Text>
+                    <Text fw={500}>{agendamento.dataPrevista.slice(8, 10)}/{agendamento.dataPrevista.slice(5, 7)}/{agendamento.dataPrevista.slice(0, 4)}</Text>
                   </div>
                   <div>
                     <Text size="xs" c="dimmed">Horário</Text>

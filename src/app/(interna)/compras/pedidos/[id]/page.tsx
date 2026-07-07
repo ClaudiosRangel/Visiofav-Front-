@@ -346,7 +346,7 @@ export default function DetalhePedidoCompraPage() {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                   <Text size="xs" c="dimmed">Data</Text>
-                  <Text fw={500}>{new Date(pedido.agendamento.dataPrevista).toLocaleDateString('pt-BR')}</Text>
+                  <Text fw={500}>{pedido.agendamento.dataPrevista.slice(8, 10)}/{pedido.agendamento.dataPrevista.slice(5, 7)}/{pedido.agendamento.dataPrevista.slice(0, 4)}</Text>
                 </div>
                 <div>
                   <Text size="xs" c="dimmed">Horário</Text>
