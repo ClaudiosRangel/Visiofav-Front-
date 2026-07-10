@@ -8,12 +8,13 @@ import {
 import { DateInput } from '@mantine/dates'
 import {
   IconRefresh, IconCheck, IconPlus, IconCalendar, IconTruck,
-  IconClock, IconArrowRight, IconX, IconEdit, IconPrinter,
+  IconClock, IconArrowRight, IconX, IconEdit, IconPrinter, IconAlertTriangle,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
+import { deveExibirAlertaDivergencia } from '@/utils/transporteWms'
 
 const statusColors: Record<string, string> = {
   AGENDADO: 'blue', CONFIRMADO: 'cyan', ESPERA: 'orange',
@@ -327,9 +328,20 @@ export default function AgendaWmsPage() {
                       <Table.Td>{ag.notaEntrada?.numero ? <Text size="sm" fw={500} className="font-mono">NF {ag.notaEntrada.numero}{ag.notaEntrada.serie ? `/${ag.notaEntrada.serie}` : ''}</Text> : <Text size="sm" c="dimmed">—</Text>}</Table.Td>
                       <Table.Td>{ag.pedido ? `#${ag.pedido.numero}` : '—'}</Table.Td>
                       <Table.Td>
-                        {ag.motorista && <Text size="sm">{ag.motorista}</Text>}
-                        {ag.placa && <Text size="xs" c="dimmed" className="font-mono">{ag.placa}</Text>}
-                        {!ag.motorista && !ag.placa && '—'}
+                        <Group gap={4} wrap="nowrap">
+                          <div>
+                            {ag.motorista && <Text size="sm">{ag.motorista}</Text>}
+                            {ag.placa && <Text size="xs" c="dimmed" className="font-mono">{ag.placa}</Text>}
+                            {!ag.motorista && !ag.placa && <Text size="sm" c="dimmed">—</Text>}
+                          </div>
+                          {deveExibirAlertaDivergencia(ag.divergenciaTransporte) && (
+                            <Tooltip label={ag.divergenciaTransporte} multiline w={280}>
+                              <ThemeIcon color="orange" variant="light" size="sm" ml={4}>
+                                <IconAlertTriangle size={12} />
+                              </ThemeIcon>
+                            </Tooltip>
+                          )}
+                        </Group>
                       </Table.Td>
                       <Table.Td>
                         {ag.qtdCaixas ? `${ag.qtdCaixas} cx` : ''}

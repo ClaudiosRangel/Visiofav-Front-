@@ -21,7 +21,16 @@ export function usePerfilGuard(perfil: string) {
 
   useEffect(() => {
     const decoded = decodeToken()
-    if (!decoded) return
+    if (!decoded) {
+      // Falha ao decodificar o token / determinar o perfil: mantém o usuário na página atual
+      // (fail-open, sem redirecionamento) e informa que a permissão não pôde ser verificada.
+      notifications.show({
+        title: 'Erro',
+        message: 'Não foi possível verificar a permissão de acesso',
+        color: 'red',
+      })
+      return
+    }
     // SUPER_ADMIN has access to everything
     if (decoded.perfil === 'SUPER_ADMIN') return
     if (decoded.perfil !== perfil) {

@@ -8,13 +8,16 @@ import {
 import {
   IconTruck, IconClock, IconCheck, IconRefresh, IconSearch,
   IconDoorEnter, IconDoorExit, IconPlus, IconAlertCircle,
-  IconClipboardCheck, IconArrowRight,
+  IconClipboardCheck, IconArrowRight, IconAlertTriangle,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 import PendenciasLogisticasButton from '@/components/wms/PendenciasLogisticasButton'
+import { deveExibirAlertaDivergencia } from '@/utils/transporteWms'
+import { useAutorizarEntrada } from '@/hooks/useAutorizarEntrada'
+import ModalSenhaSupervisor from '@/components/wms/ModalSenhaSupervisor'
 
 const statusColors: Record<string, string> = {
   AGENDADO: 'blue', ESPERA: 'orange', CONFIRMADO: 'cyan',
@@ -75,18 +78,13 @@ export default function PortariaPage() {
     onError: (err: any) => { notifications.show({ title: 'Erro', message: err?.response?.data?.message || err.message, color: 'red' }) },
   })
 
-  // Autorizar entrada (CONFIRMADO → NA_DOCA)
-  const autorizarEntrada = useMutation({
-    mutationFn: async (agId: string) => {
-      const { data } = await api.post(`/portaria/autorizar-entrada/${agId}`)
-      return data
-    },
-    onSuccess: () => {
+  // Autorizar entrada (CONFIRMADO → NA_DOCA), com fluxo de senha de Supervisor
+  const { autorizar, confirmarComCredenciais, modalAberto, fecharModal, isPending: autorizandoEntrada } = useAutorizarEntrada({
+    onInvalidateQueries: () => {
       queryClient.invalidateQueries({ queryKey: ['portaria-agendamentos'] })
-      setValidacao(null); setPlacaBusca('')
-      notifications.show({ title: '✅ Entrada autorizada', message: 'Veículo encaminhado para a doca', color: 'green' })
+      setValidacao(null)
+      setPlacaBusca('')
     },
-    onError: (err: any) => { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' }) },
   })
 
   // Registrar saída
@@ -174,9 +172,20 @@ export default function PortariaPage() {
         <Table.Td>{ag.fornecedor?.nomeFantasia || ag.fornecedor?.razaoSocial || '—'}</Table.Td>
         <Table.Td>{ag.pedido ? `#${ag.pedido.numero}` : '—'}</Table.Td>
         <Table.Td>
-          {ag.motorista && <Text size="sm">{ag.motorista}</Text>}
-          {ag.placa && <Text size="xs" c="dimmed" className="font-mono">{ag.placa}</Text>}
-          {!ag.motorista && !ag.placa && <Text size="sm" c="dimmed">—</Text>}
+          <Group gap={4} wrap="nowrap">
+            <div>
+              {ag.motorista && <Text size="sm">{ag.motorista}</Text>}
+              {ag.placa && <Text size="xs" c="dimmed" className="font-mono">{ag.placa}</Text>}
+              {!ag.motorista && !ag.placa && <Text size="sm" c="dimmed">—</Text>}
+            </div>
+            {deveExibirAlertaDivergencia(ag.divergenciaTransporte) && (
+              <Tooltip label={ag.divergenciaTransporte} multiline w={280}>
+                <ThemeIcon color="orange" variant="light" size="sm" ml={4}>
+                  <IconAlertTriangle size={12} />
+                </ThemeIcon>
+              </Tooltip>
+            )}
+          </Group>
         </Table.Td>
         <Table.Td>{ag.doca?.descricao || '—'}</Table.Td>
         <Table.Td>
@@ -195,7 +204,7 @@ export default function PortariaPage() {
             )}
             {ag.status === 'CONFIRMADO' && (
               <Tooltip label="Autorizar entrada">
-                <ActionIcon variant="light" color="green" onClick={() => autorizarEntrada.mutate(ag.id)}>
+                <ActionIcon variant="light" color="green" loading={autorizandoEntrada} onClick={() => autorizar(ag.id)}>
                   <IconDoorEnter size={18} />
                 </ActionIcon>
               </Tooltip>
@@ -271,8 +280,8 @@ export default function PortariaPage() {
                 <Group>
                   {validacao.podeEntrar && (
                     <Button color="green" leftSection={<IconDoorEnter size={18} />}
-                      onClick={() => autorizarEntrada.mutate(validacao.agendamentoId)}
-                      loading={autorizarEntrada.isPending}>
+                      onClick={() => autorizar(validacao.agendamentoId)}
+                      loading={autorizandoEntrada}>
                       Autorizar Entrada
                     </Button>
                   )}
@@ -439,6 +448,9 @@ export default function PortariaPage() {
           <Button onClick={() => entradaAvulsa.mutate()} loading={entradaAvulsa.isPending} disabled={!avulsoPlaca || !avulsoMotorista}>Registrar</Button>
         </Group>
       </Modal>
+
+      {/* Modal Senha do Supervisor (autorizar entrada) */}
+      <ModalSenhaSupervisor opened={modalAberto} onClose={fecharModal} onConfirm={confirmarComCredenciais} />
     </div>
   )
 }

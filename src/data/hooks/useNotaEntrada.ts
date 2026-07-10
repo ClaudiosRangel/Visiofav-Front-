@@ -3,7 +3,8 @@ import { api } from '@/lib/api'
 
 interface NotaEntrada {
   id: string; numero: number; serie?: string; fornecedor?: string; fornecedorDoc?: string
-  transportadora?: string; dataEmissao?: string; dataEntrada?: string; tipo: string; status: string
+  transportadora?: string; transportadoraUf?: string | null; transportadoraRntc?: string | null
+  dataEmissao?: string; dataEntrada?: string; tipo: string; status: string
   itens?: Array<Record<string, unknown>>; conferencias?: Array<Record<string, unknown>>
 }
 

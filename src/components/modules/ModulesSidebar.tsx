@@ -17,11 +17,14 @@ import {
   IconTrash,
   IconDownload,
   IconUpload,
+  IconHash,
 } from '@tabler/icons-react'
 import { useEmpresa } from '@/providers/EmpresaProvider'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import ThemeToggle from '@/components/preferences/ThemeToggle'
+import { getUserPerfil } from '@/hooks/usePerfilGuard'
+import { deveExibirLinkSeedFiscal } from '@/data/hooks/fiscal/useSeedFiscal'
 
 interface SidebarItemProps {
   icon: React.ElementType
@@ -63,6 +66,7 @@ export default function ModulesSidebar({ collapsed, onToggle, isAdmin, onCleanup
   const { empresa } = useEmpresa()
   const router = useRouter()
   const [configOpen, setConfigOpen] = useState(false)
+  const perfilAtual = getUserPerfil()
 
   if (collapsed) return null
 
@@ -114,6 +118,9 @@ export default function ModulesSidebar({ collapsed, onToggle, isAdmin, onCleanup
             <SidebarItem icon={IconSettings} label="Parâmetros" onClick={() => router.push('/configuracoes/parametros')} />
             <SidebarItem icon={IconSettings} label="Email/SMTP" onClick={() => router.push('/configuracoes/email')} />
             <SidebarItem icon={IconSettings} label="Notificações" onClick={() => router.push('/configuracoes/notificacoes')} />
+            {deveExibirLinkSeedFiscal(perfilAtual) && (
+              <SidebarItem icon={IconHash} label="Seed Fiscal" onClick={() => router.push('/configuracoes/fiscal/seed')} />
+            )}
             {isAdmin && (
               <SidebarItem icon={IconTrash} label="Limpar Dados" onClick={onCleanup} color="#EF4444" />
             )}

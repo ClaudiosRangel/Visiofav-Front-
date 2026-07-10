@@ -14,7 +14,7 @@ import {
   IconFileInvoice, IconTruck, IconCalculator, IconSearch, IconHash,
   // WMS
   IconHome, IconPackage, IconClipboardCheck, IconBarcode, IconBuildingWarehouse, IconArrowsExchange as IconMovim, IconSettings,
-  IconEye, IconDatabase, IconAlertCircle,
+  IconEye, IconDatabase, IconAlertCircle, IconHistory,
   // Integração
   IconKey, IconWebhook, IconUpload, IconCloudDownload,
   // PCP
@@ -24,6 +24,7 @@ import {
 } from '@tabler/icons-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useEmpresaAtual, deveExibirLinkKardex } from '@/hooks/useEmpresaAtual'
 
 interface NavItem {
   icon: React.ElementType
@@ -457,11 +458,27 @@ export default function ModuleSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const moduleName = detectModule(pathname)
+  const { usaWms } = useEmpresaAtual()
 
   if (!moduleName) return null
 
   const moduleConfig = MODULE_MENUS[moduleName]
   if (!moduleConfig) return null
+
+  // Requirements 9.1, 9.2 — o link para a Tela_Kardex só aparece no grupo "Estoque" do
+  // módulo WMS quando a empresa autenticada não usa WMS (deveExibirLinkKardex).
+  const entries: MenuEntry[] = moduleName === 'wms'
+    ? moduleConfig.entries.map((entry): MenuEntry => {
+      if (isGroup(entry) && entry.label === 'Estoque' && deveExibirLinkKardex(usaWms)) {
+        const group: NavGroup = {
+          ...entry,
+          items: [...entry.items, { icon: IconHistory, label: 'Kardex', href: '/estoque/kardex' }],
+        }
+        return group
+      }
+      return entry
+    })
+    : moduleConfig.entries
 
   return (
     <nav className="hidden md:flex fixed left-0 top-0 h-screen w-[220px] bg-white dark:bg-[#1a1b1e] border-r border-gray-200 dark:border-gray-800 flex-col py-4 z-50 overflow-y-auto">
@@ -480,7 +497,7 @@ export default function ModuleSidebar() {
       </Text>
 
       <Stack gap={2} className="flex-1 px-2">
-        {moduleConfig.entries.map((entry, idx) =>
+        {entries.map((entry, idx) =>
           isGroup(entry) ? (
             <NavGroupComponent key={entry.label} group={entry} pathname={pathname} />
           ) : (

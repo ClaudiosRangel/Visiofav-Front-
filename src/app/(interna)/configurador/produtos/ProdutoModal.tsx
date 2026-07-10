@@ -1,16 +1,17 @@
 'use client'
 
-import { Modal, TextInput, Button, Group, Select, NumberInput, Tabs, Text, Divider, Image, FileButton, ActionIcon, Stack, Tooltip, Badge, Table, LoadingOverlay, Card, Switch } from '@mantine/core'
+import { Modal, TextInput, Button, Group, Select, NumberInput, Tabs, Text, Divider, Image, FileButton, ActionIcon, Stack, Tooltip, Badge, Table, LoadingOverlay, Card, Switch, Alert } from '@mantine/core'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useState } from 'react'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { IconPhoto, IconTrash, IconUpload, IconInfoCircle } from '@tabler/icons-react'
+import { IconPhoto, IconTrash, IconUpload, IconInfoCircle, IconAlertCircle } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { mapearModosBloqueio } from '@/lib/mapearModosBloqueio'
 import { BloqueioConferenciaSection } from './BloqueioConferenciaSection'
+import { deveExibirAlertaEnriquecimentoSku } from '@/utils/produtoSku'
 
 const UNIDADES = [
   { value: 'UN', label: 'UN - Unidade' }, { value: 'CX', label: 'CX - Caixa' },
@@ -204,6 +205,14 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
   return (
     <Modal opened={opened} onClose={onClose} title={isEditing ? 'Editar Produto' : 'Novo Produto'} size="xl" centered closeOnClickOutside={false}>
       <form onSubmit={handleSubmit(onSubmit)}>
+        {/* ===== ALERTA DE ENRIQUECIMENTO DE SKU — sempre visível, independente da aba selecionada ===== */}
+        {deveExibirAlertaEnriquecimentoSku(produtoCompleto?.motivoFalhaEnriquecimentoSku) && (
+          <Alert icon={<IconAlertCircle size={16} />} color="orange" variant="light" mb="md">
+            O SKU deste produto não foi enriquecido automaticamente: {produtoCompleto.motivoFalhaEnriquecimentoSku}.
+            Verifique os dados logísticos na aba &quot;Estoque / Lotes&quot;.
+          </Alert>
+        )}
+
         {/* ===== CABEÇALHO FIXO — sempre visível acima das abas ===== */}
         <div className="flex items-start gap-4 p-3 border border-gray-200 rounded-md mb-4">
           {isEditing && (

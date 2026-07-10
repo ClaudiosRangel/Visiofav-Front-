@@ -9,6 +9,7 @@ import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { useRouter } from 'next/navigation'
 import AgendamentoDocaModal from '@/components/wms/AgendamentoDocaModal'
+import { deveExibirSecaoItensPendentes, type ItemPendenteXml } from '@/utils/produtoSku'
 
 export default function ImportarXmlPage() {
   useModuloGuard('COMPRAS')
@@ -217,6 +218,28 @@ export default function ImportarXmlPage() {
               </Table.Tr>
             </Table.Tbody>
           </Table>
+
+          {deveExibirSecaoItensPendentes(resultado.itensPendentes) && (
+            <Alert icon={<IconAlertCircle size={16} />} color="orange" variant="light" mb="md" title="Itens pendentes de resolução manual">
+              Os itens abaixo não foram incluídos no pedido de compra criado e necessitam de resolução manual:
+              <Table mt="sm">
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Código Fornecedor</Table.Th><Table.Th>Descrição</Table.Th><Table.Th>Motivo</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {resultado.itensPendentes.map((item: ItemPendenteXml, idx: number) => (
+                    <Table.Tr key={idx}>
+                      <Table.Td className="font-mono">{item.cProd}</Table.Td>
+                      <Table.Td>{item.xProd}</Table.Td>
+                      <Table.Td>{item.motivo}</Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Alert>
+          )}
 
           <Group>
             <Button variant="default" onClick={resetAll}>Importar outro XML</Button>

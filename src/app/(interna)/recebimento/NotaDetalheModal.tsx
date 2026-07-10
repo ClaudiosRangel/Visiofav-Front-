@@ -2,6 +2,7 @@
 
 import { Modal, Text, Table, Badge, Group, Tabs, LoadingOverlay } from '@mantine/core'
 import { useNotaEntradaById } from '@/data/hooks/useNotaEntrada'
+import { deveExibirCampoTransporte } from '@/utils/transporteWms'
 
 const statusColor: Record<string, string> = { PENDENTE: 'orange', CONFERIDA: 'blue', ENDERECADA: 'green', CANCELADA: 'red' }
 
@@ -23,6 +24,12 @@ export default function NotaDetalheModal({ notaId, onClose }: Props) {
               <div><Text size="xs" c="dimmed">Tipo</Text><Badge color="primary" variant="light">{nota.tipo}</Badge></div>
               <div><Text size="xs" c="dimmed">Status</Text><Badge color={statusColor[nota.status]} variant="light">{nota.status}</Badge></div>
               <div><Text size="xs" c="dimmed">Entrada</Text><Text>{nota.dataEntrada ? new Date(nota.dataEntrada).toLocaleDateString('pt-BR') : '-'}</Text></div>
+              {deveExibirCampoTransporte(nota.transportadoraUf) && (
+                <div><Text size="xs" c="dimmed">UF Transporte</Text><Text>{nota.transportadoraUf}</Text></div>
+              )}
+              {deveExibirCampoTransporte(nota.transportadoraRntc) && (
+                <div><Text size="xs" c="dimmed">RNTC</Text><Text>{nota.transportadoraRntc}</Text></div>
+              )}
             </Group>
 
             <Tabs defaultValue="itens">
