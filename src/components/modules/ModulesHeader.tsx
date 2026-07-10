@@ -15,7 +15,7 @@ import PreferencesDrawer from '@/components/preferences/PreferencesDrawer'
 
 export default function ModulesHeader() {
   const router = useRouter()
-  const { empresa, trocarEmpresa } = useEmpresa()
+  const { empresa, trocarEmpresa, podeTrocarEmpresa } = useEmpresa()
   const [userName, setUserName] = useState('')
   const [userInitials, setUserInitials] = useState('U')
   const [prefsOpen, setPrefsOpen] = useState(false)
@@ -127,7 +127,7 @@ export default function ModulesHeader() {
                 </Menu.Label>
               )}
               <Menu.Divider />
-              {empresa && (
+              {empresa && podeTrocarEmpresa && (
                 <Menu.Item leftSection={<IconArrowsExchange size={14} />} onClick={trocarEmpresa}>
                   Trocar Empresa
                 </Menu.Item>

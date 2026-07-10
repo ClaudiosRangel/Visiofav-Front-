@@ -8,7 +8,7 @@ import { useEmpresa } from '@/providers/EmpresaProvider'
 
 export default function Header() {
   const router = useRouter()
-  const { empresa, trocarEmpresa } = useEmpresa()
+  const { empresa, trocarEmpresa, podeTrocarEmpresa } = useEmpresa()
   const [userName, setUserName] = useState('')
 
   useEffect(() => {
@@ -54,7 +54,7 @@ export default function Header() {
 
       <Group gap="sm">
         <Badge color="primary" variant="filled" size="sm">ONLINE</Badge>
-        {empresa && (
+        {empresa && podeTrocarEmpresa && (
           <ActionIcon variant="subtle" color="gray" size="lg" title="Trocar empresa" onClick={trocarEmpresa}>
             <IconArrowsExchange size={18} />
           </ActionIcon>
@@ -68,7 +68,7 @@ export default function Header() {
             <Menu.Label>{userName || 'Usuário'}</Menu.Label>
             {empresa && <Menu.Label>Empresa: {empresa.nomeFantasia || empresa.razaoSocial}</Menu.Label>}
             <Menu.Divider />
-            {empresa && (
+            {empresa && podeTrocarEmpresa && (
               <Menu.Item leftSection={<IconArrowsExchange size={14} />} onClick={trocarEmpresa}>Trocar Empresa</Menu.Item>
             )}
             <Menu.Item leftSection={<IconLogout size={14} />} color="red" onClick={handleLogout}>Sair</Menu.Item>

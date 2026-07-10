@@ -2,7 +2,9 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
+import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { podeTrocarEmpresa as calcularPodeTrocarEmpresa } from '@/app/(interna)/selecionar-empresa/selecaoEmpresa.utils'
 
 interface Empresa {
   id: string
@@ -15,6 +17,7 @@ interface EmpresaContextType {
   empresa: Empresa | null
   modulos: string[]
   loading: boolean
+  podeTrocarEmpresa: boolean
   selecionarEmpresa: (empresa: Empresa) => Promise<void>
   trocarEmpresa: () => void
   logout: () => Promise<void>
@@ -30,6 +33,22 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
   const [empresa, setEmpresa] = useState<Empresa | null>(null)
   const [modulos, setModulos] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Reaproveita a mesma queryKey usada pela página de seleção de empresa,
+  // evitando refetch duplicado via cache do TanStack Query (Requirement 1.7).
+  const { data: empresasMinhas, isLoading: isLoadingEmpresasMinhas } = useQuery<unknown[]>({
+    queryKey: ['empresas-minhas'],
+    queryFn: async () => {
+      const { data } = await api.get('/empresas/minhas')
+      return Array.isArray(data) ? data : [data]
+    },
+  })
+
+  // Fail-safe: enquanto a contagem não foi carregada, assume-se que a troca
+  // de empresa é possível (preferimos mostrar o controle a escondê-lo indevidamente).
+  const podeTrocarEmpresaValue = isLoadingEmpresasMinhas
+    ? true
+    : calcularPodeTrocarEmpresa(empresasMinhas?.length ?? 0)
 
   // Carregar empresa salva no localStorage ao montar
   useEffect(() => {
@@ -104,7 +123,17 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
   }, [router])
 
   return (
-    <EmpresaContext.Provider value={{ empresa, modulos, loading, selecionarEmpresa, trocarEmpresa, logout }}>
+    <EmpresaContext.Provider
+      value={{
+        empresa,
+        modulos,
+        loading,
+        podeTrocarEmpresa: podeTrocarEmpresaValue,
+        selecionarEmpresa,
+        trocarEmpresa,
+        logout,
+      }}
+    >
       {children}
     </EmpresaContext.Provider>
   )

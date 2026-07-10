@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import {
-  Card,
   SimpleGrid,
   Text,
   Title,
@@ -15,22 +14,26 @@ import {
   Badge,
   ActionIcon,
   Tooltip,
+  TextInput,
 } from '@mantine/core'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { notifications } from '@mantine/notifications'
-import { IconEdit, IconTrash, IconPlus, IconSettings, IconArrowLeft } from '@tabler/icons-react'
+import { IconEdit, IconTrash, IconPlus, IconSettings, IconArrowLeft, IconSearch } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { useEmpresa } from '@/providers/EmpresaProvider'
 import { getUserPerfil } from '@/hooks/usePerfilGuard'
+import PreferencesDrawer from '@/components/preferences/PreferencesDrawer'
 import EmpresaModal from './EmpresaModal'
-
-interface EmpresaItem {
-  id: string
-  razaoSocial: string
-  nomeFantasia: string
-  cnpj: string
-}
+import CardEmpresa from './CardEmpresa'
+import RodapeAcessoRapido from './RodapeAcessoRapido'
+import {
+  EmpresaItem,
+  deveExibirBarraBusca,
+  deveExibirElementosRedesign,
+  deveSelecionarAutomaticamente,
+  filtrarEmpresasPorBusca,
+} from './selecaoEmpresa.utils'
 
 interface EmpresaAdmin {
   id: string
@@ -63,6 +66,9 @@ export default function SelecionarEmpresaPage() {
   const [modoGerenciar, setModoGerenciar] = useState(false)
   const [modalOpened, setModalOpened] = useState(false)
   const [editData, setEditData] = useState<EmpresaAdmin | undefined>(undefined)
+  const [busca, setBusca] = useState('')
+  const [erroSelecaoAutomatica, setErroSelecaoAutomatica] = useState(false)
+  const [prefsOpened, setPrefsOpened] = useState(false)
 
   const perfil = getUserPerfil()
   const isAdmin = perfil ? ADMIN_PROFILES.includes(perfil) : false
@@ -105,10 +111,27 @@ export default function SelecionarEmpresaPage() {
     },
   })
 
+  const empresasFiltradas = filtrarEmpresasPorBusca(empresas ?? [], busca)
+
   const handleSelecionar = async (emp: EmpresaItem) => {
     await selecionarEmpresa(emp)
     router.push('/modulos')
   }
+
+  useEffect(() => {
+    if (!empresas || erroSelecaoAutomatica) return
+    if (deveSelecionarAutomaticamente(empresas.length)) {
+      handleSelecionar(empresas[0]).catch(() => {
+        setErroSelecaoAutomatica(true)
+        notifications.show({
+          title: 'Erro',
+          message: 'Não foi possível selecionar a empresa automaticamente. Selecione manualmente.',
+          color: 'red',
+        })
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [empresas, erroSelecaoAutomatica])
 
   const handleEditar = (emp: EmpresaAdmin) => {
     setEditData(emp)
@@ -127,6 +150,14 @@ export default function SelecionarEmpresaPage() {
   }
 
   if (isLoading) {
+    return (
+      <Center h="60vh">
+        <Loader size="lg" />
+      </Center>
+    )
+  }
+
+  if (empresas && empresas.length === 1 && !erroSelecaoAutomatica) {
     return (
       <Center h="60vh">
         <Loader size="lg" />
@@ -232,9 +263,51 @@ export default function SelecionarEmpresaPage() {
   // === Selector View (default) ===
   if (!empresas || empresas.length === 0) {
     return (
+      <Stack gap="lg" justify="space-between" mih="100vh">
+        <Stack gap="lg">
+          {isAdmin && (
+            <Group justify="flex-end">
+              <Button
+                variant="light"
+                leftSection={<IconSettings size={16} />}
+                onClick={() => setModoGerenciar(true)}
+              >
+                Gerenciar Empresas
+              </Button>
+            </Group>
+          )}
+          <Center h="60vh">
+            <Text size="lg" c="dimmed">
+              Nenhuma empresa disponível
+            </Text>
+          </Center>
+        </Stack>
+
+        {deveExibirElementosRedesign(modoGerenciar) && (
+          <RodapeAcessoRapido
+            isAdmin={isAdmin}
+            onMeusDados={() => setPrefsOpened(true)}
+            onNovaEmpresa={handleNovaEmpresa}
+            onCentralDeAjuda={() => router.push('/suporte')}
+          />
+        )}
+
+        <EmpresaModal
+          opened={modalOpened}
+          onClose={() => { setModalOpened(false); setEditData(undefined) }}
+          editData={editData}
+        />
+        <PreferencesDrawer opened={prefsOpened} onClose={() => setPrefsOpened(false)} />
+      </Stack>
+    )
+  }
+
+  return (
+    <Stack gap="lg" justify="space-between" mih="100vh">
       <Stack gap="lg">
-        {isAdmin && (
-          <Group justify="flex-end">
+        <Group justify="space-between">
+          <Title order={2}>Selecionar Empresa</Title>
+          {isAdmin && (
             <Button
               variant="light"
               leftSection={<IconSettings size={16} />}
@@ -242,60 +315,46 @@ export default function SelecionarEmpresaPage() {
             >
               Gerenciar Empresas
             </Button>
-          </Group>
+          )}
+        </Group>
+
+        {deveExibirBarraBusca(empresas?.length ?? 0) && deveExibirElementosRedesign(modoGerenciar) && (
+          <TextInput
+            placeholder="Buscar empresa..."
+            leftSection={<IconSearch size={16} />}
+            value={busca}
+            onChange={(e) => setBusca(e.currentTarget.value)}
+          />
         )}
-        <Center h="60vh">
-          <Text size="lg" c="dimmed">
-            Nenhuma empresa disponível
+
+        {busca.trim() !== '' && empresasFiltradas.length === 0 ? (
+          <Text ta="center" c="dimmed" py="xl">
+            Nenhuma empresa encontrada para &quot;{busca}&quot;
           </Text>
-        </Center>
-      </Stack>
-    )
-  }
-
-  return (
-    <Stack gap="lg">
-      <Group justify="space-between">
-        <Title order={2}>Selecionar Empresa</Title>
-        {isAdmin && (
-          <Button
-            variant="light"
-            leftSection={<IconSettings size={16} />}
-            onClick={() => setModoGerenciar(true)}
-          >
-            Gerenciar Empresas
-          </Button>
+        ) : (
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
+            {empresasFiltradas.map((emp) => (
+              <CardEmpresa key={emp.id} empresa={emp} onAcessar={handleSelecionar} />
+            ))}
+          </SimpleGrid>
         )}
-      </Group>
+      </Stack>
 
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
-        {empresas.map((emp) => (
-          <Card
-            key={emp.id}
-            withBorder
-            style={{ cursor: 'pointer' }}
-            onClick={() => handleSelecionar(emp)}
-          >
-            <Text fw={600} size="lg">
-              {emp.razaoSocial}
-            </Text>
-            {emp.nomeFantasia && (
-              <Text size="sm" c="dimmed">
-                {emp.nomeFantasia}
-              </Text>
-            )}
-            <Text size="sm" c="dimmed" mt="xs">
-              CNPJ: {emp.cnpj}
-            </Text>
-          </Card>
-        ))}
-      </SimpleGrid>
+      {deveExibirElementosRedesign(modoGerenciar) && (
+        <RodapeAcessoRapido
+          isAdmin={isAdmin}
+          onMeusDados={() => setPrefsOpened(true)}
+          onNovaEmpresa={handleNovaEmpresa}
+          onCentralDeAjuda={() => router.push('/suporte')}
+        />
+      )}
 
       <EmpresaModal
         opened={modalOpened}
         onClose={() => { setModalOpened(false); setEditData(undefined) }}
         editData={editData}
       />
+      <PreferencesDrawer opened={prefsOpened} onClose={() => setPrefsOpened(false)} />
     </Stack>
   )
 }
