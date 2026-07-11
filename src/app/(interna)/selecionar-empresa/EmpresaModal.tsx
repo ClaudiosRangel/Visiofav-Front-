@@ -1,13 +1,35 @@
 'use client'
 
-import { Modal, TextInput, Button, Group, Select, Tabs, Switch } from '@mantine/core'
+import { Modal, TextInput, Button, Group, Select, Tabs, Switch, Avatar, FileButton, ActionIcon } from '@mantine/core'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { IconBuildingSkyscraper, IconTrash } from '@tabler/icons-react'
 import { api } from '@/lib/api'
+import {
+  inicializarEstadoLogo,
+  validarArquivoLogoClient,
+  mensagemErroLogoClient,
+  determinarLogoParaPayload,
+} from './logoEmpresa.utils'
+
+/**
+ * Requirement 3.1 — converte um `File` aprovado pelo Validador_Logo_Client
+ * em uma string base64 no formato data-URL, usando a Web API nativa
+ * `FileReader`. Não valida o arquivo (isso já ocorreu antes de chamar esta
+ * função) e não lança: rejeita a Promise em caso de erro de leitura.
+ */
+function arquivoParaBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(reader.error ?? new Error('Falha ao ler o arquivo'))
+    reader.readAsDataURL(file)
+  })
+}
 
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(u => ({ value: u, label: u }))
 
@@ -27,6 +49,7 @@ const schema = z.object({
   email: z.string().optional(),
   usaWms: z.boolean().optional(),
   status: z.boolean().optional(),
+  logo: z.string().nullable().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -40,13 +63,17 @@ interface Props {
 export default function EmpresaModal({ opened, onClose, editData }: Props) {
   const queryClient = useQueryClient()
   const isEditing = !!editData
+  const logoFoiTocadoRef = useRef<boolean>(false)
 
   const criar = useMutation({
     mutationFn: async (body: any) => {
       const { data } = await api.post('/empresas', body)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['empresas-admin'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['empresas-admin'] })
+      queryClient.invalidateQueries({ queryKey: ['empresas-minhas'] })
+    },
   })
 
   const atualizar = useMutation({
@@ -54,7 +81,10 @@ export default function EmpresaModal({ opened, onClose, editData }: Props) {
       const { data } = await api.put(`/empresas/${id}`, body)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['empresas-admin'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['empresas-admin'] })
+      queryClient.invalidateQueries({ queryKey: ['empresas-minhas'] })
+    },
   })
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
@@ -79,7 +109,9 @@ export default function EmpresaModal({ opened, onClose, editData }: Props) {
         email: editData.email || '',
         usaWms: editData.usaWms ?? false,
         status: editData.status ?? true,
+        logo: inicializarEstadoLogo(editData?.logo),
       })
+      logoFoiTocadoRef.current = false
     } else {
       reset({
         razaoSocial: '',
@@ -97,16 +129,26 @@ export default function EmpresaModal({ opened, onClose, editData }: Props) {
         email: '',
         usaWms: false,
         status: true,
+        logo: inicializarEstadoLogo(editData?.logo),
       })
+      logoFoiTocadoRef.current = false
     }
   }, [editData, reset, opened])
 
   async function onSubmit(data: FormValues) {
+    const decisaoLogo = determinarLogoParaPayload(
+      data.logo ?? null,
+      isEditing ? 'editar' : 'criar',
+      logoFoiTocadoRef.current,
+    )
+    const { logo, ...resto } = data
+    const body = decisaoLogo.incluirCampo ? { ...resto, logo: decisaoLogo.valor } : resto
+
     try {
       if (isEditing) {
-        await atualizar.mutateAsync({ id: editData.id, ...data })
+        await atualizar.mutateAsync({ id: editData.id, ...body })
       } else {
-        await criar.mutateAsync(data)
+        await criar.mutateAsync(body)
       }
       notifications.show({
         title: 'Sucesso',
@@ -134,25 +176,75 @@ export default function EmpresaModal({ opened, onClose, editData }: Props) {
     >
       <form onSubmit={handleSubmit(onSubmit)}>
         {/* MAIN FIELDS */}
-        <div className="flex flex-col gap-4 mb-4">
-          <Controller name="razaoSocial" control={control} render={({ field }) => (
-            <TextInput
-              label={<>Razão Social <span style={{ color: 'red' }}>*</span></>}
-              error={errors.razaoSocial?.message}
-              {...field}
-            />
+        <div className="flex items-start gap-4 mb-4">
+          <Controller name="logo" control={control} render={({ field }) => (
+            <div className="flex flex-col items-center gap-2">
+              <Avatar src={field.value || undefined} size={80} radius="md">
+                {!field.value && <IconBuildingSkyscraper size={32} />}
+              </Avatar>
+              <Group gap={4}>
+                <FileButton
+                  onChange={async (file) => {
+                    if (!file) return
+                    const resultado = validarArquivoLogoClient(file.type, file.size)
+                    if (!resultado.aprovado) {
+                      notifications.show({
+                        title: 'Arquivo inválido',
+                        message: mensagemErroLogoClient(resultado.motivo),
+                        color: 'red',
+                      })
+                      return
+                    }
+                    try {
+                      const base64 = await arquivoParaBase64(file)
+                      logoFoiTocadoRef.current = true
+                      field.onChange(base64)
+                    } catch {
+                      notifications.show({
+                        title: 'Erro',
+                        message: 'Não foi possível ler o arquivo selecionado.',
+                        color: 'red',
+                      })
+                    }
+                  }}
+                  accept="image/png,image/jpeg"
+                >
+                  {(props) => <Button size="xs" variant="light" {...props}>{field.value ? 'Trocar' : 'Enviar'}</Button>}
+                </FileButton>
+                {field.value && (
+                  <ActionIcon
+                    size="sm" variant="light" color="red"
+                    onClick={() => {
+                      logoFoiTocadoRef.current = true
+                      field.onChange(null)
+                    }}
+                  >
+                    <IconTrash size={14} />
+                  </ActionIcon>
+                )}
+              </Group>
+            </div>
           )} />
-          <Controller name="nomeFantasia" control={control} render={({ field }) => (
-            <TextInput label="Nome Fantasia" {...field} />
-          )} />
-          <Controller name="cnpj" control={control} render={({ field }) => (
-            <TextInput
-              label={<>CNPJ <span style={{ color: 'red' }}>*</span></>}
-              placeholder="00.000.000/0000-00"
-              error={errors.cnpj?.message}
-              {...field}
-            />
-          )} />
+          <div className="flex flex-col gap-4 flex-1">
+            <Controller name="razaoSocial" control={control} render={({ field }) => (
+              <TextInput
+                label={<>Razão Social <span style={{ color: 'red' }}>*</span></>}
+                error={errors.razaoSocial?.message}
+                {...field}
+              />
+            )} />
+            <Controller name="nomeFantasia" control={control} render={({ field }) => (
+              <TextInput label="Nome Fantasia" {...field} />
+            )} />
+            <Controller name="cnpj" control={control} render={({ field }) => (
+              <TextInput
+                label={<>CNPJ <span style={{ color: 'red' }}>*</span></>}
+                placeholder="00.000.000/0000-00"
+                error={errors.cnpj?.message}
+                {...field}
+              />
+            )} />
+          </div>
         </div>
 
         {/* TABS */}
