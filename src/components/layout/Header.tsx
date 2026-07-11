@@ -5,6 +5,7 @@ import { IconBell, IconUser, IconLogout, IconBuildingSkyscraper, IconArrowsExcha
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useEmpresa } from '@/providers/EmpresaProvider'
+import { formatarCnpj } from '@/app/(interna)/selecionar-empresa/selecaoEmpresa.utils'
 
 export default function Header() {
   const router = useRouter()
@@ -39,7 +40,10 @@ export default function Header() {
             <Text size="sm" c="dimmed" className="hidden sm:block">|</Text>
             <Group gap={4} className="hidden sm:flex">
               <IconBuildingSkyscraper size={14} className="text-gray-400" />
-              <Text size="sm" c="dimmed">{empresa.nomeFantasia || empresa.razaoSocial}</Text>
+              <Text size="sm" c="dimmed">
+                {empresa.nomeFantasia || empresa.razaoSocial}
+                {empresa.cnpj && <Text component="span" c="dimmed" ml={4}>({formatarCnpj(empresa.cnpj)})</Text>}
+              </Text>
             </Group>
           </>
         )}

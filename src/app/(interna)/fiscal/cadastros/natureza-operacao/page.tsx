@@ -17,6 +17,7 @@ import { notifications } from '@mantine/notifications'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { ListagemFiscal, type ColumnDef } from '@/components/fiscal/ListagemFiscal'
 import { naturezaOperacaoCrud, type NaturezaOperacao } from '@/data/hooks/fiscal/useCadastrosFiscais'
+import { useCfopOptions } from '@/data/hooks/fiscal/useCfopOptions'
 
 // Valores alinhados a TIPOS_OPERACAO em
 // src/modules/fiscal/cadastros/natureza-operacao.service.ts (backend) — o
@@ -54,6 +55,9 @@ export default function NaturezaOperacaoPage() {
   const criar = naturezaOperacaoCrud.useCriar()
   const atualizar = naturezaOperacaoCrud.useAtualizar()
   const excluir = naturezaOperacaoCrud.useExcluir()
+
+  const { options: cfopEntradaOptions, isLoading: cfopEntradaLoading } = useCfopOptions('ENTRADA')
+  const { options: cfopSaidaOptions, isLoading: cfopSaidaLoading } = useCfopOptions('SAIDA')
 
   function resetForm() {
     setDescricao('')
@@ -208,19 +212,27 @@ export default function NaturezaOperacaoPage() {
             value={tipoOperacao}
             onChange={setTipoOperacao}
           />
-          <TextInput
+          <Select
             label="CFOP Entrada"
-            placeholder="Ex: 1102 (opcional)"
-            value={cfopEntrada}
-            onChange={(e) => setCfopEntrada(e.currentTarget.value)}
-            maxLength={4}
+            placeholder="Selecione o CFOP de entrada (opcional)"
+            data={cfopEntradaOptions}
+            value={cfopEntrada || null}
+            onChange={(v) => setCfopEntrada(v || '')}
+            searchable
+            clearable
+            disabled={cfopEntradaLoading}
+            nothingFoundMessage="Nenhum CFOP de entrada encontrado"
           />
-          <TextInput
+          <Select
             label="CFOP Saída"
-            placeholder="Ex: 5102 (opcional)"
-            value={cfopSaida}
-            onChange={(e) => setCfopSaida(e.currentTarget.value)}
-            maxLength={4}
+            placeholder="Selecione o CFOP de saída (opcional)"
+            data={cfopSaidaOptions}
+            value={cfopSaida || null}
+            onChange={(v) => setCfopSaida(v || '')}
+            searchable
+            clearable
+            disabled={cfopSaidaLoading}
+            nothingFoundMessage="Nenhum CFOP de saída encontrado"
           />
           <Switch
             label="Ativo"
