@@ -8,14 +8,12 @@ import {
   IconSearch,
   IconSettings,
 } from '@tabler/icons-react'
-import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useEmpresa } from '@/providers/EmpresaProvider'
 import PreferencesDrawer from '@/components/preferences/PreferencesDrawer'
 
 export default function ModulesHeader() {
-  const router = useRouter()
-  const { empresa, trocarEmpresa, podeTrocarEmpresa } = useEmpresa()
+  const { empresa, trocarEmpresa, podeTrocarEmpresa, logout } = useEmpresa()
   const [userName, setUserName] = useState('')
   const [userInitials, setUserInitials] = useState('U')
   const [prefsOpen, setPrefsOpen] = useState(false)
@@ -34,13 +32,6 @@ export default function ModulesHeader() {
       } catch {}
     }
   }, [])
-
-  function handleLogout() {
-    localStorage.removeItem('visiofab-wms-token')
-    localStorage.removeItem('visiofab-wms-user')
-    localStorage.removeItem('visiofab-wms-empresa')
-    router.push('/login')
-  }
 
   return (
     <>
@@ -132,7 +123,7 @@ export default function ModulesHeader() {
                   Trocar Empresa
                 </Menu.Item>
               )}
-              <Menu.Item leftSection={<IconLogout size={14} />} color="red" onClick={handleLogout}>
+              <Menu.Item leftSection={<IconLogout size={14} />} color="red" onClick={logout}>
                 Sair
               </Menu.Item>
             </Menu.Dropdown>

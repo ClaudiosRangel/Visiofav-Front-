@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { podeTrocarEmpresa as calcularPodeTrocarEmpresa } from '@/app/(interna)/selecionar-empresa/selecaoEmpresa.utils'
+import { fecharTodasAbasModulo } from '@/lib/abasModulo'
 
 interface Empresa {
   id: string
@@ -112,6 +113,10 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
     // pelo mesmo motivo descrito em selecionarEmpresa — nenhum dado da
     // empresa anterior deve permanecer acessível após a troca.
     queryClient.clear()
+    // Fecha todas as abas de módulo abertas pela empresa anterior — evita
+    // que uma aba deixada aberta continue mostrando dados/ações da empresa
+    // que o usuário acabou de trocar.
+    fecharTodasAbasModulo()
     localStorage.removeItem(STORAGE_KEY_EMPRESA)
     setEmpresa(null)
     setModulos([])
@@ -127,6 +132,9 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
     } catch { /* silenciar — limpar localmente mesmo se API falhar */ }
 
     queryClient.clear()
+    // Fecha todas as abas de módulo abertas — nenhuma aba deve continuar
+    // acessível/exibindo dados depois que o usuário saiu do sistema.
+    fecharTodasAbasModulo()
     localStorage.removeItem(STORAGE_KEY_TOKEN)
     localStorage.removeItem(STORAGE_KEY_EMPRESA)
     localStorage.removeItem('visiofab-wms-user')

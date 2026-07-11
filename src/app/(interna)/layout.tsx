@@ -1,11 +1,12 @@
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
-import { UnstyledButton, Text } from '@mantine/core'
+import { UnstyledButton, Text, Center, Loader } from '@mantine/core'
 import { IconArrowLeft } from '@tabler/icons-react'
 import ModuleSidebar from '@/components/layout/ModuleSidebar'
 import Header from '@/components/layout/Header'
 import ChatWidget from '@/components/ai/ChatWidget'
+import { useRequireAuth } from '@/hooks/useRequireAuth'
 
 // Páginas sem sidebar (tela limpa ou layout próprio)
 const NO_SIDEBAR_PAGES = ['/selecionar-empresa', '/modulos']
@@ -37,6 +38,20 @@ function VoltarModulosBar() {
 export default function InternaLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const showSidebar = !NO_SIDEBAR_PAGES.includes(pathname)
+
+  // ── Segurança: bloqueia a renderização de qualquer página interna
+  // (inclusive dados de listagens/telas) até confirmar que o usuário tem
+  // um token válido no localStorage. Sem isso, navegar direto para uma URL
+  // protegida (ou usar o botão "voltar") depois de sair do sistema exibia
+  // dados mesmo sem autenticação.
+  const autenticado = useRequireAuth()
+  if (!autenticado) {
+    return (
+      <Center h="100vh">
+        <Loader color="primary" />
+      </Center>
+    )
+  }
 
   if (!showSidebar) {
     if (pathname === '/modulos') {

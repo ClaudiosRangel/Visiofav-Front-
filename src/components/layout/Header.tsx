@@ -8,7 +8,7 @@ import { useEmpresa } from '@/providers/EmpresaProvider'
 
 export default function Header() {
   const router = useRouter()
-  const { empresa, trocarEmpresa, podeTrocarEmpresa } = useEmpresa()
+  const { empresa, trocarEmpresa, podeTrocarEmpresa, logout } = useEmpresa()
   const [userName, setUserName] = useState('')
 
   useEffect(() => {
@@ -17,13 +17,6 @@ export default function Header() {
       try { setUserName(JSON.parse(user).nome) } catch {}
     }
   }, [])
-
-  function handleLogout() {
-    localStorage.removeItem('visiofab-wms-token')
-    localStorage.removeItem('visiofab-wms-user')
-    localStorage.removeItem('visiofab-wms-empresa')
-    router.push('/login')
-  }
 
   return (
     <header className="h-14 bg-white dark:bg-[#1a1b1e] border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-3 md:px-6">
@@ -71,7 +64,7 @@ export default function Header() {
             {empresa && podeTrocarEmpresa && (
               <Menu.Item leftSection={<IconArrowsExchange size={14} />} onClick={trocarEmpresa}>Trocar Empresa</Menu.Item>
             )}
-            <Menu.Item leftSection={<IconLogout size={14} />} color="red" onClick={handleLogout}>Sair</Menu.Item>
+            <Menu.Item leftSection={<IconLogout size={14} />} color="red" onClick={logout}>Sair</Menu.Item>
           </Menu.Dropdown>
         </Menu>
       </Group>

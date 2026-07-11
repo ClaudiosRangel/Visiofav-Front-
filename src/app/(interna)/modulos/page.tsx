@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Text, Title, Button, Modal, Checkbox, Group, Stack, Center } from '@mantine/core'
 import {
   IconShoppingCart,
@@ -17,6 +17,7 @@ import { useEmpresa } from '@/providers/EmpresaProvider'
 import { notifications } from '@mantine/notifications'
 import { api } from '@/lib/api'
 import { getUserPerfil } from '@/hooks/usePerfilGuard'
+import { registrarAbaModulo, obterAbaModulo } from '@/lib/abasModulo'
 
 import ModulesHeader from '@/components/modules/ModulesHeader'
 import ModulesSidebar from '@/components/modules/ModulesSidebar'
@@ -101,19 +102,19 @@ export default function ModulosPage() {
   const router = useRouter()
   const { modulos, empresa } = useEmpresa()
 
-  // Rastreia as janelas/abas de módulo já abertas nesta sessão da página, para
-  // que, ao clicar novamente em um módulo com aba já aberta, ela seja fechada
-  // antes de abrir uma nova (evitando abas duplicadas do mesmo módulo).
-  const abasModuloRef = useRef<Map<string, Window>>(new Map())
-
+  // As abas de módulo abertas via window.open() são rastreadas em
+  // src/lib/abasModulo.ts (Map compartilhado, fora do componente) — assim,
+  // ao clicar novamente em um módulo com aba já aberta, ela é fechada antes
+  // de abrir uma nova (evitando abas duplicadas), E o EmpresaProvider
+  // consegue fechar todas essas abas ao fazer logout()/trocarEmpresa().
   function abrirAbaModulo(modulo: string, href: string) {
-    const abaExistente = abasModuloRef.current.get(modulo)
+    const abaExistente = obterAbaModulo(modulo)
     if (abaExistente && !abaExistente.closed) {
       abaExistente.close()
     }
     const novaAba = window.open(href, '_blank')
     if (novaAba) {
-      abasModuloRef.current.set(modulo, novaAba)
+      registrarAbaModulo(modulo, novaAba)
     }
   }
 

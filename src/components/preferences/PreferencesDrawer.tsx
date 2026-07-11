@@ -22,7 +22,6 @@ import {
   IconInfoCircle,
 } from '@tabler/icons-react'
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { usePreferences } from '@/providers/PreferencesProvider'
 import { useTheme } from '@/providers/ThemeProvider'
 import { useEmpresa } from '@/providers/EmpresaProvider'
@@ -33,10 +32,9 @@ interface PreferencesDrawerProps {
 }
 
 export default function PreferencesDrawer({ opened, onClose }: PreferencesDrawerProps) {
-  const router = useRouter()
   const { preferences, updatePreference } = usePreferences()
   const { mode } = useTheme()
-  const { modulos } = useEmpresa()
+  const { modulos, logout } = useEmpresa()
   const [logoutConfirm, setLogoutConfirm] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [backBuildDate, setBackBuildDate] = useState('—')
@@ -58,10 +56,7 @@ export default function PreferencesDrawer({ opened, onClose }: PreferencesDrawer
   }, [])
 
   function handleLogout() {
-    localStorage.removeItem('visiofab-wms-token')
-    localStorage.removeItem('visiofab-wms-user')
-    localStorage.removeItem('visiofab-wms-empresa')
-    router.push('/login')
+    logout()
   }
 
   const buildDate = (() => {
