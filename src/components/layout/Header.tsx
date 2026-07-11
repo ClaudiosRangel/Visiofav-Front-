@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useEmpresa } from '@/providers/EmpresaProvider'
 import { formatarCnpj } from '@/app/(interna)/selecionar-empresa/selecaoEmpresa.utils'
+import { voltarParaModulos } from '@/lib/abasModulo'
 
 export default function Header() {
   const router = useRouter()
@@ -22,7 +23,7 @@ export default function Header() {
   return (
     <header className="h-14 bg-white dark:bg-[#1a1b1e] border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-3 md:px-6">
       <Group gap="sm">
-        <ActionIcon variant="subtle" color="gray" size="lg" className="md:hidden" onClick={() => router.push('/modulos')}>
+        <ActionIcon variant="subtle" color="gray" size="lg" className="md:hidden" onClick={() => voltarParaModulos(router)}>
           <IconMenu2 size={20} />
         </ActionIcon>
         <Text
@@ -30,7 +31,7 @@ export default function Header() {
           c="primary"
           fw={600}
           className="cursor-pointer hover:underline"
-          onClick={() => router.push('/modulos')}
+          onClick={() => voltarParaModulos(router)}
           title="Voltar para Módulos"
         >
           Vizor ERP

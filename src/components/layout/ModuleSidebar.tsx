@@ -25,6 +25,7 @@ import {
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEmpresaAtual, deveExibirLinkKardex } from '@/hooks/useEmpresaAtual'
+import { voltarParaModulos } from '@/lib/abasModulo'
 
 interface NavItem {
   icon: React.ElementType
@@ -483,7 +484,7 @@ export default function ModuleSidebar() {
   return (
     <nav className="hidden md:flex fixed left-0 top-0 h-screen w-[220px] bg-white dark:bg-[#1a1b1e] border-r border-gray-200 dark:border-gray-800 flex-col py-4 z-50 overflow-y-auto">
       <UnstyledButton
-        onClick={() => router.push('/modulos')}
+        onClick={() => voltarParaModulos(router)}
         className="flex items-center gap-2 px-4 py-2 mb-2 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
       >
         <IconArrowLeft size={18} />

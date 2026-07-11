@@ -7,6 +7,7 @@ import ModuleSidebar from '@/components/layout/ModuleSidebar'
 import Header from '@/components/layout/Header'
 import ChatWidget from '@/components/ai/ChatWidget'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { voltarParaModulos } from '@/lib/abasModulo'
 
 // Páginas sem sidebar (tela limpa ou layout próprio)
 const NO_SIDEBAR_PAGES = ['/selecionar-empresa', '/modulos']
@@ -25,7 +26,7 @@ function VoltarModulosBar() {
   return (
     <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-[#1a1b1e] px-4 md:px-6 py-2">
       <UnstyledButton
-        onClick={() => router.push('/modulos')}
+        onClick={() => voltarParaModulos(router)}
         className="flex items-center gap-2 text-gray-500 hover:text-primary transition-colors"
       >
         <IconArrowLeft size={16} />

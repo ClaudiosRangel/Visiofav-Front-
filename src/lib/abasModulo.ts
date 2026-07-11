@@ -34,3 +34,32 @@ export function fecharTodasAbasModulo() {
   })
   abasAbertas.clear()
 }
+
+/**
+ * Navega "de volta" para a tela de Módulos a partir de qualquer página
+ * interna (botão/link "← Módulos" do Header, ModuleSidebar, etc.).
+ *
+ * Cada módulo é aberto em uma aba NOVA do navegador via window.open()
+ * (abrirAbaModulo, em /modulos). Se o botão "← Módulos" apenas navegasse
+ * essa mesma aba para `/modulos` (router.push), a aba do módulo se
+ * transformava em mais uma aba de Módulos — cada clique gerava uma aba nova
+ * de Módulos, acumulando várias abas idênticas abertas.
+ *
+ * Em vez disso: quando esta aba foi aberta via script (tem `window.opener`
+ * ainda aberto — ou seja, é uma aba de módulo), fecha a aba atual e devolve
+ * o foco à aba original de Módulos que a abriu. Só faz `router.push` como
+ * fallback quando não há opener (ex.: usuário acessou a URL diretamente,
+ * atualizou a página, ou o navegador não permite `window.close()`).
+ */
+export function voltarParaModulos(router: { push: (href: string) => void }) {
+  if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
+    try {
+      window.opener.focus()
+      window.close()
+      return
+    } catch {
+      // Fechamento bloqueado pelo navegador — cai no fallback abaixo.
+    }
+  }
+  router.push('/modulos')
+}
