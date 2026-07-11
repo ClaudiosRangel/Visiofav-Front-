@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Text, Title, Button, Modal, Checkbox, Group, Stack, Center } from '@mantine/core'
 import {
   IconShoppingCart,
@@ -100,6 +100,22 @@ export default function ModulosPage() {
 
   const router = useRouter()
   const { modulos, empresa } = useEmpresa()
+
+  // Rastreia as janelas/abas de módulo já abertas nesta sessão da página, para
+  // que, ao clicar novamente em um módulo com aba já aberta, ela seja fechada
+  // antes de abrir uma nova (evitando abas duplicadas do mesmo módulo).
+  const abasModuloRef = useRef<Map<string, Window>>(new Map())
+
+  function abrirAbaModulo(modulo: string, href: string) {
+    const abaExistente = abasModuloRef.current.get(modulo)
+    if (abaExistente && !abaExistente.closed) {
+      abaExistente.close()
+    }
+    const novaAba = window.open(href, '_blank')
+    if (novaAba) {
+      abasModuloRef.current.set(modulo, novaAba)
+    }
+  }
 
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [cleanupOpen, setCleanupOpen] = useState(false)
@@ -299,7 +315,7 @@ export default function ModulosPage() {
                   description={m.description}
                   icon={m.icon}
                   color={m.color}
-                  onClick={() => window.open(m.href, '_blank')}
+                  onClick={() => abrirAbaModulo(m.modulo, m.href)}
                 />
               ))}
               {/* Card promocional */}

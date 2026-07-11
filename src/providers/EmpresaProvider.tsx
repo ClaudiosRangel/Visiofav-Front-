@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { podeTrocarEmpresa as calcularPodeTrocarEmpresa } from '@/app/(interna)/selecionar-empresa/selecaoEmpresa.utils'
 
@@ -30,6 +30,7 @@ const STORAGE_KEY_TOKEN = 'visiofab-wms-token'
 
 export function EmpresaProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [empresa, setEmpresa] = useState<Empresa | null>(null)
   const [modulos, setModulos] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
@@ -74,6 +75,14 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
   const selecionarEmpresa = useCallback(
     async (emp: Empresa) => {
       try {
+        // ── Segurança: limpar TODO o cache do TanStack Query ANTES de trocar
+        // de empresa — evita que dados em cache de uma empresa anterior
+        // (produtos, fornecedores, clientes, etc.) sejam exibidos por engano
+        // após a seleção da nova empresa, já que as queryKeys desses hooks
+        // não incluem o empresaId e o cache poderia servir dados "stale" da
+        // empresa anterior dentro da janela de staleTime/gcTime.
+        queryClient.clear()
+
         // Obter token com empresaId
         const { data } = await api.post(`/empresas/${emp.id}/selecionar`, {})
         if (data.token) {
@@ -95,17 +104,21 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
         throw err
       }
     },
-    [],
+    [queryClient],
   )
 
   const trocarEmpresa = useCallback(() => {
+    // ── Segurança: limpar o cache do TanStack Query ao trocar de empresa,
+    // pelo mesmo motivo descrito em selecionarEmpresa — nenhum dado da
+    // empresa anterior deve permanecer acessível após a troca.
+    queryClient.clear()
     localStorage.removeItem(STORAGE_KEY_EMPRESA)
     setEmpresa(null)
     setModulos([])
     router.push('/selecionar-empresa')
-  }, [router])
+  }, [router, queryClient])
 
-  // ── Segurança: Logout limpa todos os tokens ──
+  // ── Segurança: Logout limpa todos os tokens e o cache do TanStack Query ──
   const logout = useCallback(async () => {
     try {
       await api.post('/auth/logout', {
@@ -113,6 +126,7 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
       })
     } catch { /* silenciar — limpar localmente mesmo se API falhar */ }
 
+    queryClient.clear()
     localStorage.removeItem(STORAGE_KEY_TOKEN)
     localStorage.removeItem(STORAGE_KEY_EMPRESA)
     localStorage.removeItem('visiofab-wms-user')
@@ -120,7 +134,7 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
     setEmpresa(null)
     setModulos([])
     router.push('/login')
-  }, [router])
+  }, [router, queryClient])
 
   return (
     <EmpresaContext.Provider
