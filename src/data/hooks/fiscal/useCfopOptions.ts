@@ -22,19 +22,40 @@ interface CfopListResponse {
  * (`{ value, label }`), com o código e a descrição no label para facilitar
  * a busca (`searchable`).
  */
+/** Limite máximo de `pageSize` aceito por GET /fiscal/cadastros/cfop. */
+const PAGE_SIZE = 100
+
 export function useCfopOptions(tipo: 'ENTRADA' | 'SAIDA') {
-  const { data, isLoading } = useQuery<CfopListResponse>({
+  const { data, isLoading } = useQuery<CfopListItem[]>({
     queryKey: ['fiscal-cfop-options', tipo],
     queryFn: async () => {
-      const { data } = await api.get('/fiscal/cadastros/cfop', {
-        params: { tipo, pageSize: 100 },
+      // A API pagina em blocos de no máximo 100 registros. Como cada tipo
+      // (ENTRADA/SAIDA) tem mais de 250 CFOPs cadastrados — e a listagem é
+      // ordenada por código (1xxx/2xxx/3xxx para entrada, 5xxx/6xxx/7xxx
+      // para saída) — buscar só a primeira página deixava de fora os
+      // âmbitos INTERESTADUAL (2xxx/6xxx) e EXTERIOR (3xxx/7xxx) por
+      // completo, já que a página 1 só contém código iniciados por 1/5.
+      // Por isso é necessário percorrer todas as páginas até esgotá-las.
+      const primeira = await api.get<CfopListResponse>('/fiscal/cadastros/cfop', {
+        params: { tipo, page: 1, pageSize: PAGE_SIZE },
       })
-      return data
+
+      const todos = [...primeira.data.data]
+      const totalPages = primeira.data.totalPages ?? 1
+
+      for (let page = 2; page <= totalPages; page++) {
+        const resp = await api.get<CfopListResponse>('/fiscal/cadastros/cfop', {
+          params: { tipo, page, pageSize: PAGE_SIZE },
+        })
+        todos.push(...resp.data.data)
+      }
+
+      return todos
     },
     staleTime: 1000 * 60 * 5,
   })
 
-  const options = (data?.data || []).map((c) => ({
+  const options = (data || []).map((c) => ({
     value: c.codigo,
     label: `${c.codigo} - ${c.descricao}`,
   }))
