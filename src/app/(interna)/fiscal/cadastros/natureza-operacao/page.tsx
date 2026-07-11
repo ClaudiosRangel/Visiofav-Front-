@@ -18,10 +18,23 @@ import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { ListagemFiscal, type ColumnDef } from '@/components/fiscal/ListagemFiscal'
 import { naturezaOperacaoCrud, type NaturezaOperacao } from '@/data/hooks/fiscal/useCadastrosFiscais'
 
+// Valores alinhados a TIPOS_OPERACAO em
+// src/modules/fiscal/cadastros/natureza-operacao.service.ts (backend) — o
+// backend rejeita qualquer valor fora dessa lista com "Dados inválidos".
 const TIPO_OPERACAO_OPTIONS = [
-  { value: 'ENTRADA', label: 'Entrada' },
-  { value: 'SAIDA', label: 'Saída' },
-  { value: 'AMBOS', label: 'Ambos' },
+  { value: 'VENDA', label: 'Venda' },
+  { value: 'DEVOLUCAO', label: 'Devolução' },
+  { value: 'TRANSFERENCIA', label: 'Transferência' },
+  { value: 'REMESSA', label: 'Remessa' },
+  { value: 'BONIFICACAO', label: 'Bonificação' },
+  { value: 'CONSIGNACAO', label: 'Consignação' },
+  { value: 'INDUSTRIALIZACAO', label: 'Industrialização' },
+  { value: 'IMPORTACAO', label: 'Importação' },
+  { value: 'EXPORTACAO', label: 'Exportação' },
+  { value: 'AMOSTRA_GRATIS', label: 'Amostra Grátis' },
+  { value: 'DEMONSTRACAO', label: 'Demonstração' },
+  { value: 'CONSERTO', label: 'Conserto' },
+  { value: 'OUTRAS', label: 'Outras' },
 ]
 
 export default function NaturezaOperacaoPage() {
@@ -135,8 +148,8 @@ export default function NaturezaOperacaoPage() {
       key: 'tipoOperacao',
       label: 'Tipo',
       render: (value: string) => {
-        const map: Record<string, string> = { ENTRADA: 'Entrada', SAIDA: 'Saída', AMBOS: 'Ambos' }
-        return map[value] || value || '—'
+        const map = new Map(TIPO_OPERACAO_OPTIONS.map((o) => [o.value, o.label]))
+        return map.get(value) || value || '—'
       },
     },
   ]
