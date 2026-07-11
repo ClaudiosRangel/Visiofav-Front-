@@ -87,7 +87,7 @@ const MODULOS_CONFIG = [
 
 const MODULOS_LIMPEZA = [
   { value: 'pcp', label: 'PCP (ordens, apontamentos, roteiros, estruturas)' },
-  { value: 'wms', label: 'WMS (ondas, separações, conferências, inventários, notas)' },
+  { value: 'wms', label: 'WMS (ondas, separações, conferências, inventários, notas, agenda de recebimento)' },
   { value: 'vendas', label: 'Vendas (pedidos, vendas efetivadas)' },
   { value: 'compras', label: 'Compras (pedidos, compras efetivadas, devoluções)' },
   { value: 'financeiro', label: 'Financeiro (contas a pagar e receber)' },

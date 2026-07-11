@@ -1,12 +1,14 @@
-// Módulo compartilhado para rastrear as janelas/abas de módulo abertas via
-// window.open() na tela de seleção de módulos (/modulos).
+// Módulo compartilhado para rastrear janelas/abas abertas via window.open()
+// que devem ter no máximo UMA instância por chave — os módulos abertos a
+// partir da tela de seleção (/modulos) e telas de instância única como o
+// PDV (chave fixa 'PDV', aberta a partir do ModuleSidebar de qualquer módulo).
 //
-// Precisa viver fora do componente ModulosPage (como um Map em nível de
-// módulo, não um useRef local) porque o EmpresaProvider — responsável por
-// logout() e trocarEmpresa() — está em outra parte da árvore de componentes
-// e precisa conseguir fechar essas abas quando o usuário sai do sistema ou
-// troca de empresa, para não deixar dados de uma sessão/empresa anterior
-// acessíveis em abas que ficaram abertas.
+// Precisa viver fora dos componentes (como um Map em nível de módulo, não um
+// useRef local) porque o EmpresaProvider — responsável por logout() e
+// trocarEmpresa() — está em outra parte da árvore de componentes e precisa
+// conseguir fechar essas abas quando o usuário sai do sistema ou troca de
+// empresa, para não deixar dados de uma sessão/empresa anterior acessíveis
+// em abas que ficaram abertas.
 const abasAbertas = new Map<string, Window>()
 
 export function registrarAbaModulo(modulo: string, janela: Window) {
@@ -15,6 +17,24 @@ export function registrarAbaModulo(modulo: string, janela: Window) {
 
 export function obterAbaModulo(modulo: string): Window | undefined {
   return abasAbertas.get(modulo)
+}
+
+/**
+ * Abre (ou foca, se já aberta e não fechada) uma aba de instância única
+ * identificada por `chave`. Usado por telas que devem ter no máximo uma
+ * aba aberta por sessão do navegador, como o PDV — em vez de duplicar
+ * abas a cada clique, reaproveita a existente e a traz para frente.
+ */
+export function abrirOuFocarAba(chave: string, href: string) {
+  const abaExistente = obterAbaModulo(chave)
+  if (abaExistente && !abaExistente.closed) {
+    abaExistente.focus()
+    return
+  }
+  const novaAba = window.open(href, '_blank')
+  if (novaAba) {
+    registrarAbaModulo(chave, novaAba)
+  }
 }
 
 /**

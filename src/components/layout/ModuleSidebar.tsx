@@ -25,12 +25,19 @@ import {
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEmpresaAtual, deveExibirLinkKardex } from '@/hooks/useEmpresaAtual'
-import { voltarParaModulos } from '@/lib/abasModulo'
+import { voltarParaModulos, abrirOuFocarAba } from '@/lib/abasModulo'
 
 interface NavItem {
   icon: React.ElementType
   label: string
   href: string
+  /**
+   * Quando true, o clique não navega na aba atual — em vez disso abre (ou
+   * foca, se já aberta) uma única aba de instância própria, identificada por
+   * `href`. Usado pelo PDV: cada clique em "PDV (Caixa)" no menu deve levar
+   * para a mesma aba do caixa em vez de abrir/duplicar abas novas.
+   */
+  abrirEmAbaUnica?: boolean
 }
 
 interface NavGroup {
@@ -78,7 +85,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconTags, label: 'Tabelas de Preço', href: '/vendas/tabelas-preco' },
         ],
       },
-      { icon: IconCash, label: 'PDV (Caixa)', href: '/vendas/pdv' },
+      { icon: IconCash, label: 'PDV (Caixa)', href: '/vendas/pdv', abrirEmAbaUnica: true },
       { icon: IconFileDescription, label: 'Orçamentos', href: '/vendas/orcamentos' },
       { icon: IconReceipt, label: 'Pedidos de Venda', href: '/vendas/pedidos' },
       { icon: IconCash, label: 'Vendas Efetivadas', href: '/vendas/vendas-efetivadas' },
@@ -408,6 +415,23 @@ function detectModule(pathname: string): string | null {
 
 function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
   const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+
+  if (item.abrirEmAbaUnica) {
+    return (
+      <UnstyledButton
+        onClick={() => abrirOuFocarAba(item.href, item.href)}
+        className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm ${
+          isActive
+            ? 'bg-teal-50 text-teal-700 font-medium'
+            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+        }`}
+      >
+        <item.icon size={16} stroke={1.5} />
+        <Text size="sm">{item.label}</Text>
+      </UnstyledButton>
+    )
+  }
+
   return (
     <UnstyledButton
       component={Link}
