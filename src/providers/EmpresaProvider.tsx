@@ -73,6 +73,31 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // ── Segurança: sincronizar troca/logout de empresa entre abas ──
+  // Cada módulo é aberto em uma aba própria (ver abasModulo.ts), mas
+  // localStorage é compartilhado por TODAS as abas da mesma origem — só o
+  // token (usado pelo interceptor do axios em cada requisição) é atualizado
+  // globalmente ao trocar de empresa. O state React (`empresa`, `modulos`)
+  // de uma aba já aberta ficava com a empresa ANTIGA na tela, enquanto toda
+  // nova requisição feita a partir dessa mesma aba já usava o token da
+  // empresa NOVA — causando o bug de "cadastro na empresa X aparece em Y"
+  // quando o usuário trocava de empresa em uma aba enquanto outra aba de
+  // módulo permanecia aberta com a UI desatualizada.
+  //
+  // O evento `storage` do navegador dispara em todas as OUTRAS abas quando
+  // uma delas altera o localStorage (nunca na aba que fez a alteração) —
+  // por isso é o mecanismo certo aqui: assim que outra aba troca de empresa
+  // ou faz logout, esta aba recarrega a página, garantindo que a UI e o
+  // token fiquem sempre consistentes antes de qualquer nova requisição.
+  useEffect(() => {
+    function handleStorageChange(e: StorageEvent) {
+      if (e.key !== STORAGE_KEY_EMPRESA && e.key !== STORAGE_KEY_TOKEN) return
+      window.location.reload()
+    }
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
+  }, [])
+
   const selecionarEmpresa = useCallback(
     async (emp: Empresa) => {
       try {
