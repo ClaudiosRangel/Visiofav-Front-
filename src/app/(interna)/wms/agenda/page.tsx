@@ -16,8 +16,11 @@ import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { deveExibirAlertaDivergencia } from '@/utils/transporteWms'
 
+// Ordem das chaves reflete o fluxo operacional real (Espera precede
+// Confirmado: o caminhão aguarda autorização de confirmação antes de ser
+// confirmado e seguir para a doca) — usada tanto na legenda quanto no filtro.
 const statusColors: Record<string, string> = {
-  AGENDADO: 'blue', CONFIRMADO: 'cyan', ESPERA: 'orange',
+  AGENDADO: 'blue', ESPERA: 'orange', CONFIRMADO: 'cyan',
   NA_DOCA: 'grape', CONFERINDO: 'yellow', CONFERIDO: 'teal',
   RECEBIDO: 'green', CANCELADO: 'red',
 }
@@ -265,8 +268,8 @@ export default function AgendaWmsPage() {
           <Group>
             <DateInput label="Data" value={selectedDate} onChange={(d) => d && setSelectedDate(d)} valueFormat="DD/MM/YYYY" className="w-40" />
             <Select label="Status" data={[
-              { value: 'AGENDADO', label: 'Agendado' }, { value: 'CONFIRMADO', label: 'Confirmado' },
-              { value: 'ESPERA', label: 'Espera' }, { value: 'NA_DOCA', label: 'Na Doca' },
+              { value: 'AGENDADO', label: 'Agendado' }, { value: 'ESPERA', label: 'Espera' },
+              { value: 'CONFIRMADO', label: 'Confirmado' }, { value: 'NA_DOCA', label: 'Na Doca' },
               { value: 'CONFERINDO', label: 'Conferindo' }, { value: 'RECEBIDO', label: 'Recebido' },
               { value: 'CANCELADO', label: 'Cancelado' },
             ]} value={statusFilter} onChange={setStatusFilter} clearable className="w-40" />

@@ -239,7 +239,7 @@ export default function AgendaDocaPage() {
                     return (
                       <Tooltip
                         key={ag.id}
-                        label={`${STATUS_LABELS[ag.status] || ag.status} | ${ag.transportadora || 'S/N'} | ${ag.placa || ''}`}
+                        label={`${STATUS_LABELS[ag.status] || ag.status} | ${ag.fornecedor || ag.transportadora || 'S/N'} | ${ag.placa || ''}`}
                         position="top"
                       >
                         <div
@@ -266,7 +266,7 @@ export default function AgendaDocaPage() {
                             zIndex: 10,
                           }}
                         >
-                          {ag.transportadora || ag.placa || STATUS_LABELS[ag.status]}
+                          {ag.fornecedor || ag.transportadora || ag.placa || STATUS_LABELS[ag.status]}
                         </div>
                       </Tooltip>
                     )
@@ -334,8 +334,8 @@ export default function AgendaDocaPage() {
               </Badge>
             </Group>
             <Group>
-              <Text size="sm" fw={500}>Transportadora:</Text>
-              <Text size="sm">{detailModal.transportadora || '—'}</Text>
+              <Text size="sm" fw={500}>Fornecedor:</Text>
+              <Text size="sm">{detailModal.fornecedor || detailModal.transportadora || '—'}</Text>
             </Group>
             <Group>
               <Text size="sm" fw={500}>Placa:</Text>
