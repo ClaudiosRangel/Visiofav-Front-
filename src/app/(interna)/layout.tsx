@@ -15,8 +15,15 @@ const NO_SIDEBAR_PAGES = ['/selecionar-empresa', '/modulos']
 // Páginas globais que não pertencem a nenhum módulo (sem ModuleSidebar)
 const GLOBAL_PAGES = ['/dashboard', '/favoritos', '/relatorios', '/indicadores', '/permissoes', '/logs', '/suporte']
 
+// Páginas de tela cheia dentro de um módulo: mantêm o Header, mas não mostram
+// o ModuleSidebar (menu lateral do módulo) — só a barra "← Módulos" — para a
+// própria página ocupar todo o espaço horizontal. Ex.: PDV, que já é aberto
+// em aba própria (ver abasModulo.ts) e tem sua própria UI de tela cheia.
+const FULLSCREEN_PAGES = ['/vendas/pdv']
+
 function isGlobalPage(pathname: string) {
   return GLOBAL_PAGES.some(p => pathname === p || pathname.startsWith(p + '/'))
+    || FULLSCREEN_PAGES.some(p => pathname === p || pathname.startsWith(p + '/'))
     || pathname.startsWith('/configuracoes')
 }
 
