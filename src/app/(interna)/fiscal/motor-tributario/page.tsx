@@ -5,7 +5,6 @@ import {
   Button,
   Group,
   Modal,
-  TextInput,
   NumberInput,
   Select,
   ActionIcon,
@@ -18,6 +17,9 @@ import { notifications } from '@mantine/notifications'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { ListagemFiscal, type ColumnDef } from '@/components/fiscal/ListagemFiscal'
 import { motorTributarioCrud, type RegraTributaria } from '@/data/hooks/fiscal/useCadastrosFiscais'
+import { useCfopOptions } from '@/data/hooks/fiscal/useCfopOptions'
+import { useNcmOptions } from '@/data/hooks/fiscal/useNcmOptions'
+import { useCstOptions, useCsosnOptions } from '@/data/hooks/fiscal/useCstCsosnOptions'
 
 const UF_OPTIONS = [
   'AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT',
@@ -58,8 +60,22 @@ export default function MotorTributarioPage() {
   const atualizar = motorTributarioCrud.useAtualizar()
   const excluir = motorTributarioCrud.useExcluir()
 
+  // Busca de NCM é server-side (>10 mil códigos) — conforme o usuário digita.
+  const [ncmSearch, setNcmSearch] = useState('')
+  const { options: ncmOptions, isLoading: ncmLoading } = useNcmOptions(ncmSearch)
+  // CFOP (qualquer direção — a regra tributária não distingue entrada/saída
+  // no cadastro, o CFOP em si já define a direção), CST/CSOSN carregam a
+  // lista inteira de uma vez (poucas centenas/dezenas de códigos).
+  const { options: cfopOptions, isLoading: cfopLoading } = useCfopOptions()
+  const { options: cstIcmsOptions, isLoading: cstIcmsLoading } = useCstOptions('ICMS')
+  const { options: csosnOptions, isLoading: csosnLoading } = useCsosnOptions()
+  const { options: cstPisOptions, isLoading: cstPisLoading } = useCstOptions('PIS')
+  const { options: cstCofinsOptions, isLoading: cstCofinsLoading } = useCstOptions('COFINS')
+  const { options: cstIpiOptions, isLoading: cstIpiLoading } = useCstOptions('IPI')
+
   function resetForm() {
     setNcm('')
+    setNcmSearch('')
     setCfop('')
     setUfOrigem(null)
     setUfDestino(null)
@@ -85,6 +101,7 @@ export default function MotorTributarioPage() {
   function abrirEditar(regra: RegraTributaria) {
     setEditando(regra)
     setNcm(regra.ncm || '')
+    setNcmSearch(regra.ncm || '')
     setCfop(regra.cfop || '')
     setUfOrigem(regra.ufOrigem || null)
     setUfDestino(regra.ufDestino || null)
@@ -240,19 +257,27 @@ export default function MotorTributarioPage() {
         centered
       >
         <SimpleGrid cols={2} spacing="sm" mb="sm">
-          <TextInput
+          <Select
             label="NCM *"
-            placeholder="00000000"
-            value={ncm}
-            onChange={(e) => setNcm(e.currentTarget.value)}
-            maxLength={8}
+            placeholder="Digite código ou descrição"
+            data={ncmOptions}
+            value={ncm || null}
+            onChange={(v) => setNcm(v || '')}
+            searchable
+            searchValue={ncmSearch}
+            onSearchChange={setNcmSearch}
+            disabled={ncmLoading && ncmOptions.length === 0}
+            nothingFoundMessage={ncmSearch ? 'Nenhum NCM encontrado' : 'Digite para buscar'}
           />
-          <TextInput
+          <Select
             label="CFOP *"
-            placeholder="0000"
-            value={cfop}
-            onChange={(e) => setCfop(e.currentTarget.value)}
-            maxLength={4}
+            placeholder="Selecione"
+            data={cfopOptions}
+            value={cfop || null}
+            onChange={(v) => setCfop(v || '')}
+            searchable
+            disabled={cfopLoading}
+            nothingFoundMessage="Nenhum CFOP encontrado"
           />
           <Select
             label="UF Origem *"
@@ -277,17 +302,27 @@ export default function MotorTributarioPage() {
             value={regimeTributario}
             onChange={setRegimeTributario}
           />
-          <TextInput
+          <Select
             label="CST ICMS"
-            placeholder="Ex: 00, 10, 20..."
-            value={icmsCst}
-            onChange={(e) => setIcmsCst(e.currentTarget.value)}
+            placeholder="Selecione (opcional)"
+            data={cstIcmsOptions}
+            value={icmsCst || null}
+            onChange={(v) => setIcmsCst(v || '')}
+            searchable
+            clearable
+            disabled={cstIcmsLoading}
+            nothingFoundMessage="Nenhum CST de ICMS encontrado"
           />
-          <TextInput
+          <Select
             label="CSOSN"
-            placeholder="Ex: 101, 102..."
-            value={icmsCsosn}
-            onChange={(e) => setIcmsCsosn(e.currentTarget.value)}
+            placeholder="Selecione (opcional)"
+            data={csosnOptions}
+            value={icmsCsosn || null}
+            onChange={(v) => setIcmsCsosn(v || '')}
+            searchable
+            clearable
+            disabled={csosnLoading}
+            nothingFoundMessage="Nenhum CSOSN encontrado"
           />
           <NumberInput
             label="Alíquota ICMS (%)"
@@ -305,11 +340,16 @@ export default function MotorTributarioPage() {
             max={100}
             decimalScale={2}
           />
-          <TextInput
+          <Select
             label="CST PIS"
-            placeholder="Ex: 01, 02..."
-            value={pisCst}
-            onChange={(e) => setPisCst(e.currentTarget.value)}
+            placeholder="Selecione (opcional)"
+            data={cstPisOptions}
+            value={pisCst || null}
+            onChange={(v) => setPisCst(v || '')}
+            searchable
+            clearable
+            disabled={cstPisLoading}
+            nothingFoundMessage="Nenhum CST de PIS encontrado"
           />
           <NumberInput
             label="Alíquota COFINS (%)"
@@ -319,11 +359,16 @@ export default function MotorTributarioPage() {
             max={100}
             decimalScale={2}
           />
-          <TextInput
+          <Select
             label="CST COFINS"
-            placeholder="Ex: 01, 02..."
-            value={cofinsCst}
-            onChange={(e) => setCofinsCst(e.currentTarget.value)}
+            placeholder="Selecione (opcional)"
+            data={cstCofinsOptions}
+            value={cofinsCst || null}
+            onChange={(v) => setCofinsCst(v || '')}
+            searchable
+            clearable
+            disabled={cstCofinsLoading}
+            nothingFoundMessage="Nenhum CST de COFINS encontrado"
           />
           <NumberInput
             label="Alíquota IPI (%)"
@@ -333,11 +378,16 @@ export default function MotorTributarioPage() {
             max={100}
             decimalScale={2}
           />
-          <TextInput
+          <Select
             label="CST IPI"
-            placeholder="Ex: 00, 50..."
-            value={ipiCst}
-            onChange={(e) => setIpiCst(e.currentTarget.value)}
+            placeholder="Selecione (opcional)"
+            data={cstIpiOptions}
+            value={ipiCst || null}
+            onChange={(v) => setIpiCst(v || '')}
+            searchable
+            clearable
+            disabled={cstIpiLoading}
+            nothingFoundMessage="Nenhum CST de IPI encontrado"
           />
         </SimpleGrid>
 
