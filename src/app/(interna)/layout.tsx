@@ -1,13 +1,34 @@
 'use client'
 
+import { useLayoutEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { UnstyledButton, Text, Center, Loader } from '@mantine/core'
 import { IconArrowLeft } from '@tabler/icons-react'
-import ModuleSidebar from '@/components/layout/ModuleSidebar'
+import ModuleSidebar, { detectModule, MODULE_LABELS } from '@/components/layout/ModuleSidebar'
 import Header from '@/components/layout/Header'
 import ChatWidget from '@/components/ai/ChatWidget'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { voltarParaModulos } from '@/lib/abasModulo'
+
+/**
+ * Define "Vizor - <Módulo>" como título padrão da aba do navegador com base
+ * na rota atual, para toda página que ainda não define seu próprio
+ * `document.title` mais específico (a maioria já segue o padrão "Vizor -
+ * <Módulo> - <Página>" via `useEffect`, mas dezenas de telas nunca chamavam
+ * `document.title`, deixando a aba só com o título genérico "Vizor").
+ *
+ * Usa `useLayoutEffect` (não `useEffect`) propositalmente: efeitos de layout
+ * do componente pai (este) disparam antes dos efeitos passivos do componente
+ * filho (a página) na mesma comutação — logo, se a página específica também
+ * define `document.title` via `useEffect`, o valor dela sempre "ganha" por
+ * rodar depois, sem qualquer necessidade de coordenação entre os dois.
+ */
+function useModuleTitleFallback(pathname: string) {
+  useLayoutEffect(() => {
+    const modulo = detectModule(pathname)
+    document.title = modulo ? `Vizor - ${MODULE_LABELS[modulo] ?? modulo}` : 'Vizor'
+  }, [pathname])
+}
 
 // Páginas sem sidebar (tela limpa ou layout próprio)
 const NO_SIDEBAR_PAGES = ['/selecionar-empresa', '/modulos']
@@ -23,8 +44,11 @@ const FULLSCREEN_PAGES = ['/vendas/pdv']
 
 function isGlobalPage(pathname: string) {
   return GLOBAL_PAGES.some(p => pathname === p || pathname.startsWith(p + '/'))
-    || FULLSCREEN_PAGES.some(p => pathname === p || pathname.startsWith(p + '/'))
     || pathname.startsWith('/configuracoes')
+}
+
+function isFullscreenPage(pathname: string) {
+  return FULLSCREEN_PAGES.some(p => pathname === p || pathname.startsWith(p + '/'))
 }
 
 // Barra padrão "← Módulos" — mesmo padrão usado no topo dos menus de módulo (PCP, WMS, etc.)
@@ -46,6 +70,8 @@ function VoltarModulosBar() {
 export default function InternaLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const showSidebar = !NO_SIDEBAR_PAGES.includes(pathname)
+
+  useModuleTitleFallback(pathname)
 
   // ── Segurança: bloqueia a renderização de qualquer página interna
   // (inclusive dados de listagens/telas) até confirmar que o usuário tem
@@ -69,6 +95,20 @@ export default function InternaLayout({ children }: { children: React.ReactNode 
       <div className="min-h-screen flex flex-col">
         <Header />
         <main className="flex-1">{children}</main>
+        <ChatWidget />
+      </div>
+    )
+  }
+
+  // Fullscreen pages (ex.: PDV) — Header + "← Módulos" bar, sem padding/scroll
+  // no <main>: a própria página controla 100% do espaço restante (a tela do
+  // PDV precisa caber sem scroll, com todas as opções visíveis).
+  if (isFullscreenPage(pathname)) {
+    return (
+      <div className="h-screen flex flex-col overflow-hidden">
+        <Header />
+        <VoltarModulosBar />
+        <main className="flex-1 overflow-hidden">{children}</main>
         <ChatWidget />
       </div>
     )

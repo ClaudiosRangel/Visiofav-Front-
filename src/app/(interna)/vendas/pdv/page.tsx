@@ -278,16 +278,24 @@ export default function PdvPage() {
   }, [caixa?.id, vendaId])
 
   // --- Styles ---
+  // A página ocupa 100% do espaço já reservado pelo layout pai (`<main>`
+  // flex-1 dentro do `<div class="h-screen flex flex-col">` de
+  // `(interna)/layout.tsx` para páginas fullscreen) — nunca usa `100vh`
+  // diretamente, pois isso ignorava a altura do Header/barra "← Módulos"
+  // acima e criava scroll na página inteira, empurrando os botões (Finalizar,
+  // Formas de Pagamento etc.) para fora da área visível.
   const styles = {
     page: {
-      minHeight: '100vh',
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column' as const,
       backgroundColor: '#1a1b1e',
       color: '#c1c2c5',
-      padding: '0',
-      margin: '-16px',
       fontFamily: 'inherit',
+      overflow: 'hidden',
     } as React.CSSProperties,
     header: {
+      flex: '0 0 auto',
       backgroundColor: '#25262b',
       padding: '12px 24px',
       display: 'flex',
@@ -296,16 +304,22 @@ export default function PdvPage() {
       borderBottom: '1px solid #373a40',
     } as React.CSSProperties,
     main: {
+      flex: '1 1 auto',
+      minHeight: 0,
       display: 'grid',
       gridTemplateColumns: '1fr 400px',
-      height: 'calc(100vh - 110px)',
       gap: '0',
+      overflow: 'hidden',
     } as React.CSSProperties,
     itemsPanel: {
+      minHeight: 0,
+      display: 'flex',
+      flexDirection: 'column' as const,
       padding: '16px 24px',
-      overflowY: 'auto' as const,
+      overflow: 'hidden',
     } as React.CSSProperties,
     sidePanel: {
+      minHeight: 0,
       backgroundColor: '#25262b',
       padding: '20px',
       display: 'flex',
@@ -314,6 +328,7 @@ export default function PdvPage() {
       overflowY: 'auto' as const,
     } as React.CSSProperties,
     footer: {
+      flex: '0 0 auto',
       backgroundColor: '#25262b',
       padding: '8px 24px',
       borderTop: '1px solid #373a40',
@@ -445,7 +460,7 @@ export default function PdvPage() {
                 <div />
               </div>
 
-              <ScrollArea h="calc(100vh - 240px)" offsetScrollbars>
+              <ScrollArea style={{ flex: 1, minHeight: 0 }} offsetScrollbars>
                 {itens.map((item, idx) => (
                   <div key={item.id} style={styles.itemRow}>
                     <Text size="sm" c="dimmed">{idx + 1}</Text>

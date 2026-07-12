@@ -379,7 +379,20 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
   },
 }
 
-function detectModule(pathname: string): string | null {
+/** Rótulo em português de cada módulo, para compor o título da aba do
+ * navegador ("Vizor - <Módulo>") como fallback nas páginas que ainda não
+ * definem seu próprio `document.title` mais específico — ver `(interna)/layout.tsx`. */
+export const MODULE_LABELS: Record<string, string> = {
+  compras: 'Compras',
+  vendas: 'Vendas',
+  financeiro: 'Financeiro',
+  fiscal: 'Fiscal',
+  wms: 'WMS',
+  configurador: 'Configurador',
+  pcp: 'PCP',
+}
+
+export function detectModule(pathname: string): string | null {
   if (pathname.startsWith('/compras')) return 'compras'
   if (pathname.startsWith('/vendas')) return 'vendas'
   if (pathname.startsWith('/financeiro')) return 'financeiro'
