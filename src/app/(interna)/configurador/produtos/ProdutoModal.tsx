@@ -269,7 +269,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
           </Tabs.List>
 
           {/* ABA GERAL */}
-          <Tabs.Panel value="geral" style={{ minHeight: 560 }}>
+          <Tabs.Panel value="geral">
             <div className="flex flex-col gap-4">
               <div className="grid grid-cols-4 gap-4">
                 <Controller name="unidade" control={control} render={({ field }) => (
@@ -334,7 +334,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
           </Tabs.Panel>
 
           {/* ABA FISCAL */}
-          <Tabs.Panel value="fiscal" style={{ minHeight: 560 }}>
+          <Tabs.Panel value="fiscal">
             <div className="flex flex-col gap-4">
               {/* Classificação Fiscal — fixa, fora do scroll */}
               <Text size="sm" fw={600} c="primary">Classificação Fiscal</Text>
@@ -355,7 +355,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
               )} />
 
               {/* Configurações de impostos — dentro de scroll próprio, sem afetar o tamanho do modal */}
-              <ScrollArea h={280} type="auto" offsetScrollbars>
+              <ScrollArea h={220} type="auto" offsetScrollbars>
                 <div className="flex flex-col gap-4 pr-2">
                   <Divider label="ICMS" labelPosition="left" />
                   <div className="grid grid-cols-3 gap-4">
@@ -399,7 +399,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
 
           {/* ABA ESTOQUE / LOTES */}
           {isEditing && (
-            <Tabs.Panel value="estoque" style={{ minHeight: 560 }}>
+            <Tabs.Panel value="estoque">
               <div className="relative min-h-[120px]">
                 <LoadingOverlay visible={saldosLoading} />
 
