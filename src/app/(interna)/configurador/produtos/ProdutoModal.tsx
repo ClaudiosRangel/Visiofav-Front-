@@ -269,7 +269,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
           </Tabs.List>
 
           {/* ABA GERAL */}
-          <Tabs.Panel value="geral">
+          <Tabs.Panel value="geral" style={{ minHeight: 560 }}>
             <div className="flex flex-col gap-4">
               <div className="grid grid-cols-4 gap-4">
                 <Controller name="unidade" control={control} render={({ field }) => (
@@ -334,7 +334,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
           </Tabs.Panel>
 
           {/* ABA FISCAL */}
-          <Tabs.Panel value="fiscal">
+          <Tabs.Panel value="fiscal" style={{ minHeight: 560 }}>
             <div className="flex flex-col gap-4">
               <Text size="sm" fw={600} c="primary">Classificação Fiscal</Text>
               <div className="grid grid-cols-3 gap-4">
@@ -393,7 +393,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
 
           {/* ABA ESTOQUE / LOTES */}
           {isEditing && (
-            <Tabs.Panel value="estoque">
+            <Tabs.Panel value="estoque" style={{ minHeight: 560 }}>
               <div className="relative min-h-[120px]">
                 <LoadingOverlay visible={saldosLoading} />
 
