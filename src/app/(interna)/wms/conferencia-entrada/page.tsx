@@ -31,8 +31,7 @@ import {
   useConfirmarDistribuicao,
   type DistribuicaoResult,
 } from '@/data/hooks/useEnderecamentoInteligente'
-import DivergenciaLoteValidadePanel from '@/components/wms/DivergenciaLoteValidadePanel'
-import { isFinalizacaoHabilitada } from '@/hooks/useResolverDivergenciaLV'
+import SegundaConferenciaPanel from '@/components/wms/SegundaConferenciaPanel'
 
 const statusColors: Record<string, string> = {
   PENDENTE: 'orange', EM_CONFERENCIA: 'blue', CONFERIDA: 'green', REJEITADA: 'red', ENDERECADA: 'teal',
@@ -1437,13 +1436,13 @@ export default function ConferenciaEntradaPage() {
                   </Table.Tbody>
                 </Table>
 
-                {/* Divergências de Lote/Validade */}
-                {resultado?.divergenciasLoteValidade && resultado.divergenciasLoteValidade.length > 0 && (
+                {/* Segunda Conferência Obrigatória (divergência de lote/validade) */}
+                {resultado?.itensPendentesSegundaConferencia && resultado.itensPendentesSegundaConferencia.length > 0 && (
                   <Card mt="md">
-                    <DivergenciaLoteValidadePanel
-                      divergencias={resultado.divergenciasLoteValidade}
+                    <SegundaConferenciaPanel
                       notaId={conferencia.nota.id}
-                      onResolucaoCompleta={() => conferirTodos.mutate()}
+                      itensPendentes={resultado.itensPendentesSegundaConferencia}
+                      onConcluido={() => conferirTodos.mutate()}
                     />
                   </Card>
                 )}
@@ -1472,7 +1471,7 @@ export default function ConferenciaEntradaPage() {
                     )}
                     <Button color="green" leftSection={<IconCheck size={16} />}
                       onClick={() => aprovarConf.mutate()} loading={aprovarConf.isPending}
-                      disabled={resultado?.divergenciasLoteValidade?.length > 0 && !isFinalizacaoHabilitada(resultado.divergenciasLoteValidade)}>
+                      disabled={resultado?.itensPendentesSegundaConferencia?.length > 0}>
                       {resultado.temDivergencia ? 'Aprovar com Divergência' : 'Aprovar Conferência'}
                     </Button>
                   </Group>
