@@ -1,6 +1,6 @@
 'use client'
 
-import { Modal, TextInput, Button, Group, Select, NumberInput, Tabs, Text, Divider, Image, FileButton, ActionIcon, Stack, Tooltip, Badge, Table, LoadingOverlay, Card, Switch, Alert } from '@mantine/core'
+import { Modal, TextInput, Button, Group, Select, NumberInput, Tabs, Text, Divider, Image, FileButton, ActionIcon, Stack, Tooltip, Badge, Table, LoadingOverlay, Card, Switch, Alert, ScrollArea } from '@mantine/core'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -336,6 +336,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
           {/* ABA FISCAL */}
           <Tabs.Panel value="fiscal" style={{ minHeight: 560 }}>
             <div className="flex flex-col gap-4">
+              {/* Classificação Fiscal — fixa, fora do scroll */}
               <Text size="sm" fw={600} c="primary">Classificação Fiscal</Text>
               <div className="grid grid-cols-3 gap-4">
                 <Controller name="ncm" control={control} render={({ field }) => (
@@ -353,41 +354,46 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
                 <Select label="Origem da Mercadoria" data={ORIGENS} value={String(field.value ?? 0)} onChange={(v) => field.onChange(parseInt(v || '0'))} />
               )} />
 
-              <Divider label="ICMS" labelPosition="left" />
-              <div className="grid grid-cols-3 gap-4">
-                <Controller name="cst" control={control} render={({ field }) => (
-                  <TextInput label="CST ICMS" placeholder="00" maxLength={3} description="Regime Normal" {...field} />
-                )} />
-                <Controller name="csosn" control={control} render={({ field }) => (
-                  <TextInput label="CSOSN" placeholder="102" maxLength={4} description="Simples Nacional" {...field} />
-                )} />
-                <Controller name="aliqICMS" control={control} render={({ field }) => (
-                  <NumberInput label="Alíquota ICMS (%)" min={0} max={100} decimalScale={2} suffix="%" value={field.value} onChange={(v) => field.onChange(typeof v === 'number' ? v : 0)} />
-                )} />
-              </div>
+              {/* Configurações de impostos — dentro de scroll próprio, sem afetar o tamanho do modal */}
+              <ScrollArea h={280} type="auto" offsetScrollbars>
+                <div className="flex flex-col gap-4 pr-2">
+                  <Divider label="ICMS" labelPosition="left" />
+                  <div className="grid grid-cols-3 gap-4">
+                    <Controller name="cst" control={control} render={({ field }) => (
+                      <TextInput label="CST ICMS" placeholder="00" maxLength={3} description="Regime Normal" {...field} />
+                    )} />
+                    <Controller name="csosn" control={control} render={({ field }) => (
+                      <TextInput label="CSOSN" placeholder="102" maxLength={4} description="Simples Nacional" {...field} />
+                    )} />
+                    <Controller name="aliqICMS" control={control} render={({ field }) => (
+                      <NumberInput label="Alíquota ICMS (%)" min={0} max={100} decimalScale={2} suffix="%" value={field.value} onChange={(v) => field.onChange(typeof v === 'number' ? v : 0)} />
+                    )} />
+                  </div>
 
-              <Divider label="IPI" labelPosition="left" />
-              <div className="grid grid-cols-3 gap-4">
-                <Controller name="aliqIPI" control={control} render={({ field }) => (
-                  <NumberInput label="Alíquota IPI (%)" min={0} max={100} decimalScale={2} suffix="%" value={field.value} onChange={(v) => field.onChange(typeof v === 'number' ? v : 0)} />
-                )} />
-              </div>
+                  <Divider label="IPI" labelPosition="left" />
+                  <div className="grid grid-cols-3 gap-4">
+                    <Controller name="aliqIPI" control={control} render={({ field }) => (
+                      <NumberInput label="Alíquota IPI (%)" min={0} max={100} decimalScale={2} suffix="%" value={field.value} onChange={(v) => field.onChange(typeof v === 'number' ? v : 0)} />
+                    )} />
+                  </div>
 
-              <Divider label="PIS / COFINS" labelPosition="left" />
-              <div className="grid grid-cols-4 gap-4">
-                <Controller name="cstPIS" control={control} render={({ field }) => (
-                  <TextInput label="CST PIS" placeholder="01" maxLength={2} {...field} />
-                )} />
-                <Controller name="aliqPIS" control={control} render={({ field }) => (
-                  <NumberInput label="Alíq. PIS (%)" min={0} max={100} decimalScale={2} suffix="%" value={field.value} onChange={(v) => field.onChange(typeof v === 'number' ? v : 0)} />
-                )} />
-                <Controller name="cstCOFINS" control={control} render={({ field }) => (
-                  <TextInput label="CST COFINS" placeholder="01" maxLength={2} {...field} />
-                )} />
-                <Controller name="aliqCOFINS" control={control} render={({ field }) => (
-                  <NumberInput label="Alíq. COFINS (%)" min={0} max={100} decimalScale={2} suffix="%" value={field.value} onChange={(v) => field.onChange(typeof v === 'number' ? v : 0)} />
-                )} />
-              </div>
+                  <Divider label="PIS / COFINS" labelPosition="left" />
+                  <div className="grid grid-cols-4 gap-4">
+                    <Controller name="cstPIS" control={control} render={({ field }) => (
+                      <TextInput label="CST PIS" placeholder="01" maxLength={2} {...field} />
+                    )} />
+                    <Controller name="aliqPIS" control={control} render={({ field }) => (
+                      <NumberInput label="Alíq. PIS (%)" min={0} max={100} decimalScale={2} suffix="%" value={field.value} onChange={(v) => field.onChange(typeof v === 'number' ? v : 0)} />
+                    )} />
+                    <Controller name="cstCOFINS" control={control} render={({ field }) => (
+                      <TextInput label="CST COFINS" placeholder="01" maxLength={2} {...field} />
+                    )} />
+                    <Controller name="aliqCOFINS" control={control} render={({ field }) => (
+                      <NumberInput label="Alíq. COFINS (%)" min={0} max={100} decimalScale={2} suffix="%" value={field.value} onChange={(v) => field.onChange(typeof v === 'number' ? v : 0)} />
+                    )} />
+                  </div>
+                </div>
+              </ScrollArea>
             </div>
           </Tabs.Panel>
 
