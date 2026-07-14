@@ -173,9 +173,11 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onConc
             <Card key={item.itemId} withBorder padding="sm" opacity={status === 'resolvido' ? 0.6 : 1}>
               <Group justify="space-between" mb="xs">
                 <Text fw={500}>{item.descricao}</Text>
-                <Badge color="gray" variant="outline">
-                  {item.tipo === 'LOTE_DIVERGENTE' ? 'Lote' : item.tipo === 'VALIDADE_DIVERGENTE' ? 'Validade' : 'Quantidade'}
-                </Badge>
+                <Group gap={4}>
+                  {item.tipo.includes('QUANTIDADE_DIVERGENTE') && <Badge color="gray" variant="outline">Quantidade</Badge>}
+                  {item.tipo.includes('LOTE_DIVERGENTE') && <Badge color="gray" variant="outline">Lote</Badge>}
+                  {item.tipo.includes('VALIDADE_DIVERGENTE') && <Badge color="gray" variant="outline">Validade</Badge>}
+                </Group>
               </Group>
 
               {config && (
