@@ -2,15 +2,17 @@
 
 import { useState } from 'react'
 import { Card, Badge, Button, Group, Text, Stack, Alert, NumberInput, TextInput, Divider } from '@mantine/core'
-import { IconAlertTriangle, IconLock, IconMail, IconFileText, IconBan, IconCheck } from '@tabler/icons-react'
+import { IconAlertTriangle, IconLock, IconMail, IconFileText, IconBan, IconCheck, IconClockPause } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import ModalSenhaSupervisor from './ModalSenhaSupervisor'
+import ModalMotivoHold from './ModalMotivoHold'
 import {
   useSubmeterSegundaConferencia,
   useAutorizarSenhaSegundaConferencia,
   useRejeitarItemSegundaConferencia,
   type ResultadoItemSegundaConferencia,
 } from '@/hooks/useSegundaConferencia'
+import { useColocarEmHold, type MotivoDivergencia } from '@/hooks/useHoldConferencia'
 
 export interface ItemPendenteSegundaConferencia {
   itemId: string
@@ -33,6 +35,7 @@ const statusConfig: Record<string, { color: string; icon: React.ReactNode; label
   requerSenha: { color: 'yellow', icon: <IconLock size={14} />, label: 'Requer autorização de supervisor' },
   bloqueado: { color: 'red', icon: <IconBan size={14} />, label: 'Bloqueado — reconferência obrigatória' },
   ignorado: { color: 'gray', icon: <IconBan size={14} />, label: 'Ignorado' },
+  hold: { color: 'grape', icon: <IconClockPause size={14} />, label: 'Em espera — enviado para a Fila de Exceções' },
 }
 
 /**
@@ -50,10 +53,13 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onConc
   const [resultado, setResultado] = useState<ResultadoItemSegundaConferencia[] | null>(null)
   const [modalSenhaAberto, setModalSenhaAberto] = useState(false)
   const [itemSenhaSelecionado, setItemSenhaSelecionado] = useState<string | null>(null)
+  const [modalHoldAberto, setModalHoldAberto] = useState(false)
+  const [itemHoldSelecionado, setItemHoldSelecionado] = useState<string | null>(null)
 
   const submeterMutation = useSubmeterSegundaConferencia()
   const autorizarSenhaMutation = useAutorizarSenhaSegundaConferencia()
   const rejeitarItemMutation = useRejeitarItemSegundaConferencia()
+  const colocarEmHoldMutation = useColocarEmHold()
 
   // Itens ainda sem um resultado registrado — precisam ser (re)enviados.
   // Um item volta para este estado após "Corrigir Contagem".
@@ -151,6 +157,26 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onConc
     setQuantidades((prev) => ({ ...prev, [itemId]: undefined as any }))
   }
 
+  function handleAbrirHold(itemId: string) {
+    setItemHoldSelecionado(itemId)
+    setModalHoldAberto(true)
+  }
+
+  async function handleConfirmarHold(dados: { motivo: MotivoDivergencia; motivoDetalhe?: string }) {
+    if (!itemHoldSelecionado) return
+    await colocarEmHoldMutation.mutateAsync({
+      notaId,
+      itemNotaEntradaId: itemHoldSelecionado,
+      motivo: dados.motivo,
+      motivoDetalhe: dados.motivoDetalhe,
+    })
+    notifications.show({ title: 'Item em espera', message: 'Item enviado para a Fila de Exceções', color: 'grape' })
+    setResultado((prev) => {
+      const outros = prev?.filter((r) => r.itemNotaEntradaId !== itemHoldSelecionado) ?? []
+      return [...outros, { itemNotaEntradaId: itemHoldSelecionado, resultado: { status: 'hold' } }]
+    })
+  }
+
   if (itensPendentes.length === 0) return null
 
   return (
@@ -225,14 +251,24 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onConc
                     onClick={() => handleCorrigirContagem(item.itemId)}>
                     Corrigir Contagem
                   </Button>
+                  <Button color="grape" variant="light" size="xs" leftSection={<IconClockPause size={14} />}
+                    onClick={() => handleAbrirHold(item.itemId)}>
+                    Colocar em espera
+                  </Button>
                 </Group>
               )}
 
               {status === 'requerSenha' && (
-                <Button mt="sm" color="yellow" size="xs" leftSection={<IconLock size={14} />}
-                  onClick={() => handleAbrirSenha(item.itemId)}>
-                  Liberar com senha de supervisor
-                </Button>
+                <Group mt="sm">
+                  <Button color="yellow" size="xs" leftSection={<IconLock size={14} />}
+                    onClick={() => handleAbrirSenha(item.itemId)}>
+                    Liberar com senha de supervisor
+                  </Button>
+                  <Button color="grape" variant="light" size="xs" leftSection={<IconClockPause size={14} />}
+                    onClick={() => handleAbrirHold(item.itemId)}>
+                    Colocar em espera
+                  </Button>
+                </Group>
               )}
             </Card>
           )
@@ -254,6 +290,12 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onConc
         opened={modalSenhaAberto}
         onClose={() => setModalSenhaAberto(false)}
         onConfirm={handleConfirmarSupervisor}
+      />
+
+      <ModalMotivoHold
+        opened={modalHoldAberto}
+        onClose={() => setModalHoldAberto(false)}
+        onConfirm={handleConfirmarHold}
       />
     </Card>
   )

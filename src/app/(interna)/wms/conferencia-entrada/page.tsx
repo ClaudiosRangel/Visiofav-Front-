@@ -1417,13 +1417,15 @@ export default function ConferenciaEntradaPage() {
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
-                    {resultado.itens.map((item: any) => (
-                      <Table.Tr key={item.itemId} bg={item.status === 'DIVERGENTE' ? 'red.0' : undefined}>
+                    {resultado.itens.map((item: any) => {
+                      const dentroTolerancia = item.tipoDivergencia === 'TOLERANCIA_ACEITA'
+                      return (
+                      <Table.Tr key={item.itemId} bg={item.status === 'DIVERGENTE' ? 'red.0' : dentroTolerancia ? 'yellow.0' : undefined}>
                         <Table.Td fw={500}>{item.descricao}</Table.Td>
                         <Table.Td>{item.quantidadeNota}</Table.Td>
                         <Table.Td fw={600}>{item.quantidadeConferida}</Table.Td>
                         <Table.Td>
-                          <Text fw={600} c={item.divergencia === 0 ? 'green' : 'red'}>
+                          <Text fw={600} c={item.divergencia === 0 ? 'green' : dentroTolerancia ? 'yellow.8' : 'red'}>
                             {item.divergencia > 0 ? `+${item.divergencia}` : item.divergencia}
                           </Text>
                         </Table.Td>
@@ -1432,6 +1434,11 @@ export default function ConferenciaEntradaPage() {
                           {item.tipoDivergencia === 'FALTA' && <Badge color="red" variant="light">Falta</Badge>}
                           {item.tipoDivergencia === 'LOTE_NAO_INFORMADO' && <Badge color="yellow" variant="light">Lote não informado</Badge>}
                           {item.tipoDivergencia === 'VALIDADE_NAO_INFORMADA' && <Badge color="yellow" variant="light">Validade não informada</Badge>}
+                          {dentroTolerancia && (
+                            <Badge color="yellow" variant="filled">
+                              Aceito na tolerância (±{item.tolerancia?.percentualToleranciaAplicado ?? 0}%)
+                            </Badge>
+                          )}
                           {!item.tipoDivergencia && item.status === 'CONFORME' && <Text c="green">—</Text>}
                           {!item.tipoDivergencia && item.status !== 'CONFORME' && <Text c="dimmed">—</Text>}
                         </Table.Td>
@@ -1441,7 +1448,8 @@ export default function ConferenciaEntradaPage() {
                           </Badge>
                         </Table.Td>
                       </Table.Tr>
-                    ))}
+                      )
+                    })}
                   </Table.Tbody>
                 </Table>
 
