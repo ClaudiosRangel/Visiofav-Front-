@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, Text, Switch, Stack, Button, Group, Divider, Loader } from '@mantine/core'
+import { Card, Text, Switch, Stack, Button, Group, Divider, Loader, NumberInput } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { IconArrowLeft, IconEyeOff, IconPackage, IconClipboardCheck } from '@tabler/icons-react'
+import { IconArrowLeft, IconEyeOff, IconPackage, IconClipboardCheck, IconPercentage } from '@tabler/icons-react'
 import Link from 'next/link'
 import { api } from '@/lib/api'
 
@@ -11,6 +11,7 @@ interface ConfigConferencia {
   conferenciaQuantidadeCega: boolean
   conferenciaLoteCega: boolean
   permiteRecebimentoParcial: boolean
+  toleranciaQuantidadePercentualPadrao: number | null
 }
 
 export default function ConfigConferenciaPage() {
@@ -18,6 +19,7 @@ export default function ConfigConferenciaPage() {
     conferenciaQuantidadeCega: false,
     conferenciaLoteCega: false,
     permiteRecebimentoParcial: false,
+    toleranciaQuantidadePercentualPadrao: null,
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -34,6 +36,7 @@ export default function ConfigConferenciaPage() {
         conferenciaQuantidadeCega: data.conferenciaQuantidadeCega ?? false,
         conferenciaLoteCega: data.conferenciaLoteCega ?? false,
         permiteRecebimentoParcial: data.permiteRecebimentoParcial ?? false,
+        toleranciaQuantidadePercentualPadrao: data.toleranciaQuantidadePercentualPadrao ?? null,
       })
     } catch {
       notifications.show({ title: 'Erro', message: 'Não foi possível carregar configurações', color: 'red' })
@@ -128,6 +131,31 @@ export default function ConfigConferenciaPage() {
               onChange={(e) => setConfig({ ...config, permiteRecebimentoParcial: e.currentTarget.checked })}
               label={config.permiteRecebimentoParcial ? 'Ativa' : 'Inativa'}
               color="teal"
+            />
+          </div>
+
+          <Divider />
+
+          {/* Tolerância de quantidade padrão */}
+          <div>
+            <Group gap="sm" mb={4}>
+              <IconPercentage size={20} className="text-teal-600" />
+              <Text fw={500}>Tolerância de Quantidade (Padrão)</Text>
+            </Group>
+            <Text size="xs" c="dimmed" mb="sm">
+              Percentual de desvio de quantidade aceito automaticamente na conferência
+              de entrada, sem gerar divergência. Aplicado a produtos sem tolerância
+              própria configurada no cadastro do produto.
+            </Text>
+            <NumberInput
+              placeholder="Sem tolerância (0%)"
+              min={0}
+              max={100}
+              decimalScale={2}
+              suffix="%"
+              value={config.toleranciaQuantidadePercentualPadrao ?? ''}
+              onChange={(v) => setConfig({ ...config, toleranciaQuantidadePercentualPadrao: v === '' ? null : Number(v) })}
+              w={220}
             />
           </div>
 
