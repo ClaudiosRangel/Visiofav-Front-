@@ -47,6 +47,7 @@ const produtoSchema = z.object({
   exigeLote: z.boolean().optional(),
   aceitarSenha: z.boolean().optional(),
   aceitarCcePendente: z.boolean().optional(),
+  toleranciaQuantidadePercentual: z.number().min(0).max(100).nullable().optional(),
   // Código de barras
   cEAN: z.string().max(14).optional(),
   // Fiscal
@@ -113,7 +114,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<ProdutoForm>({
     resolver: zodResolver(produtoSchema),
-    defaultValues: { codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, exigeLote: false, aceitarSenha: false, aceitarCcePendente: false, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 },
+    defaultValues: { codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, exigeLote: false, aceitarSenha: false, aceitarCcePendente: false, toleranciaQuantidadePercentual: null, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 },
   })
 
   useEffect(() => {
@@ -136,6 +137,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
         exigeLote: dados.exigeLote ?? false,
         aceitarSenha: bloqueio.aceitarSenha,
         aceitarCcePendente: bloqueio.aceitarCcePendente,
+        toleranciaQuantidadePercentual: dados.toleranciaQuantidadePercentual ?? null,
         cEAN: dados.cEAN || dados.codigoBarra || '',
         ncm: dados.ncm || '',
         cfopEstadual: dados.cfopEstadual || '',
@@ -152,7 +154,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
       })
       setImagemUrl(dados.imagemUrl || null)
     } else {
-      reset({ codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, exigeLote: false, aceitarSenha: false, aceitarCcePendente: false, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 })
+      reset({ codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, exigeLote: false, aceitarSenha: false, aceitarCcePendente: false, toleranciaQuantidadePercentual: null, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 })
       setImagemUrl(null)
     }
   }, [editData, produtoCompleto, reset, opened])

@@ -1,6 +1,6 @@
 'use client'
 
-import { Checkbox, Stack, Text } from '@mantine/core'
+import { Checkbox, Stack, Text, NumberInput, Divider } from '@mantine/core'
 import { IconInfoCircle } from '@tabler/icons-react'
 import { Control, Controller, useWatch } from 'react-hook-form'
 
@@ -53,6 +53,33 @@ export function BloqueioConferenciaSection({ control }: Props) {
           Bloqueio total — reconferência obrigatória quando houver divergência.
         </Text>
       )}
+
+      <Divider my={4} />
+
+      <Text size="sm" fw={600}>Tolerância de Quantidade na Conferência</Text>
+      <Text size="xs" c="dimmed">
+        Percentual de desvio de quantidade aceito automaticamente na conferência de
+        entrada, sem gerar divergência nem exigir segunda conferência. Deixe vazio
+        para usar o padrão da empresa (Configurador → Conferência).
+      </Text>
+
+      <Controller
+        name="toleranciaQuantidadePercentual"
+        control={control}
+        render={({ field }) => (
+          <NumberInput
+            label="Tolerância (%)"
+            placeholder="Usar padrão da empresa"
+            min={0}
+            max={100}
+            decimalScale={2}
+            suffix="%"
+            value={field.value ?? ''}
+            onChange={(v) => field.onChange(v === '' ? null : Number(v))}
+            w={220}
+          />
+        )}
+      />
     </Stack>
   )
 }
