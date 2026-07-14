@@ -21,6 +21,7 @@ export type StatusResultadoSegundaConferencia =
   | 'requerSenha'
   | 'bloqueado'
   | 'ignorado'
+  | 'hold'
 
 export interface ResultadoItemSegundaConferencia {
   itemNotaEntradaId: string
