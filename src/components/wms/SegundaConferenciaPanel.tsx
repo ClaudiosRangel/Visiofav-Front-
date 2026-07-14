@@ -8,6 +8,7 @@ import ModalSenhaSupervisor from './ModalSenhaSupervisor'
 import {
   useSubmeterSegundaConferencia,
   useAutorizarSenhaSegundaConferencia,
+  useRejeitarItemSegundaConferencia,
   type ResultadoItemSegundaConferencia,
 } from '@/hooks/useSegundaConferencia'
 
@@ -25,6 +26,7 @@ interface SegundaConferenciaPanelProps {
 
 const statusConfig: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
   resolvido: { color: 'green', icon: <IconCheck size={14} />, label: 'Resolvido — valores coincidem com a NF-e' },
+  divergenciaQuantidade: { color: 'orange', icon: <IconAlertTriangle size={14} />, label: 'Quantidade divergente novamente' },
   pendenciaCriada: { color: 'blue', icon: <IconFileText size={14} />, label: 'Pendência CC-e criada' },
   emailEnviado: { color: 'blue', icon: <IconMail size={14} />, label: 'E-mail enviado ao setor fiscal' },
   emailFalhou: { color: 'red', icon: <IconMail size={14} />, label: 'Falha ao enviar e-mail' },
@@ -51,19 +53,39 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onConc
 
   const submeterMutation = useSubmeterSegundaConferencia()
   const autorizarSenhaMutation = useAutorizarSenhaSegundaConferencia()
+  const rejeitarItemMutation = useRejeitarItemSegundaConferencia()
+
+  // Itens ainda sem um resultado registrado — precisam ser (re)enviados.
+  // Um item volta para este estado após "Corrigir Contagem".
+  const itensASubmeter = itensPendentes.filter(
+    (item) => !resultado?.some((r) => r.itemNotaEntradaId === item.itemId)
+  )
 
   async function handleSubmeter() {
+    // Quantidade é sempre obrigatória para submeter a segunda conferência
+    const semQuantidade = itensASubmeter.some((item) => quantidades[item.itemId] === undefined)
+    if (semQuantidade) {
+      notifications.show({ title: 'Atenção', message: 'Informe a quantidade conferida para todos os itens', color: 'orange' })
+      return
+    }
     try {
-      const itens = itensPendentes.map((item) => ({
+      const itens = itensASubmeter.map((item) => ({
         itemNotaEntradaId: item.itemId,
         quantidadeConferida: quantidades[item.itemId] ?? 0,
         lote: lotes[item.itemId] || undefined,
         validade: validades[item.itemId] || undefined,
       }))
       const resp = await submeterMutation.mutateAsync({ notaId, itens })
-      setResultado(resp.itens)
+      setResultado((prev) => [...(prev ?? []), ...resp.itens])
 
-      if (resp.divergenciaResolvida && !resp.pendenciaCriada && !resp.emailEnviado && !resp.requerSenha && !resp.bloqueado) {
+      if (
+        resp.divergenciaResolvida &&
+        !resp.divergenciaQuantidade &&
+        !resp.pendenciaCriada &&
+        !resp.emailEnviado &&
+        !resp.requerSenha &&
+        !resp.bloqueado
+      ) {
         notifications.show({ title: 'Segunda conferência concluída', message: 'Valores confirmados — divergência resolvida', color: 'green' })
         onConcluido()
       }
@@ -85,6 +107,50 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onConc
     onConcluido()
   }
 
+  // "Aceitar com divergência" — reenvia o item sinalizando aceite explícito
+  // da divergência de quantidade
+  async function handleAceitarDivergenciaQuantidade(itemId: string) {
+    try {
+      const resp = await submeterMutation.mutateAsync({
+        notaId,
+        itens: [{
+          itemNotaEntradaId: itemId,
+          quantidadeConferida: quantidades[itemId] ?? 0,
+          lote: lotes[itemId] || undefined,
+          validade: validades[itemId] || undefined,
+          aceitarDivergenciaQuantidade: true,
+        }],
+      })
+      setResultado((prev) => {
+        const outros = prev?.filter((r) => r.itemNotaEntradaId !== itemId) ?? []
+        return [...outros, ...resp.itens]
+      })
+      notifications.show({ title: 'Divergência aceita', message: 'Quantidade aceita com divergência', color: 'green' })
+      if (!resp.requerSenha && !resp.bloqueado && !resp.pendenciaCriada && !resp.emailEnviado) {
+        onConcluido()
+      }
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao aceitar divergência', color: 'red' })
+    }
+  }
+
+  async function handleRejeitarItem(itemId: string) {
+    if (!confirm('Rejeitar este item? Ele será marcado como não recebido.')) return
+    try {
+      await rejeitarItemMutation.mutateAsync({ notaId, itemNotaEntradaId: itemId })
+      notifications.show({ title: 'Item rejeitado', message: 'Item marcado como não recebido', color: 'orange' })
+      setResultado((prev) => prev?.map((r) => (r.itemNotaEntradaId === itemId ? { ...r, resultado: { status: 'ignorado', motivo: 'REJEITADO' } } : r)) ?? null)
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao rejeitar item', color: 'red' })
+    }
+  }
+
+  function handleCorrigirContagem(itemId: string) {
+    // Limpa o resultado do item para permitir nova digitação nesta mesma tela
+    setResultado((prev) => prev?.filter((r) => r.itemNotaEntradaId !== itemId) ?? null)
+    setQuantidades((prev) => ({ ...prev, [itemId]: undefined as any }))
+  }
+
   if (itensPendentes.length === 0) return null
 
   return (
@@ -101,13 +167,14 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onConc
           const resultadoItem = resultado?.find((r) => r.itemNotaEntradaId === item.itemId)
           const status = resultadoItem?.resultado.status
           const config = status ? statusConfig[status] : null
+          const aindaDigitando = !resultadoItem
 
           return (
             <Card key={item.itemId} withBorder padding="sm" opacity={status === 'resolvido' ? 0.6 : 1}>
               <Group justify="space-between" mb="xs">
                 <Text fw={500}>{item.descricao}</Text>
                 <Badge color="gray" variant="outline">
-                  {item.tipo === 'LOTE_DIVERGENTE' ? 'Lote' : 'Validade'}
+                  {item.tipo === 'LOTE_DIVERGENTE' ? 'Lote' : item.tipo === 'VALIDADE_DIVERGENTE' ? 'Validade' : 'Quantidade'}
                 </Badge>
               </Group>
 
@@ -117,10 +184,11 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onConc
                 </Badge>
               )}
 
-              {!resultado && (
+              {aindaDigitando && (
                 <Group grow>
                   <NumberInput
                     label="Quantidade conferida"
+                    required
                     value={quantidades[item.itemId] ?? ''}
                     onChange={(v) => setQuantidades((prev) => ({ ...prev, [item.itemId]: Number(v) || 0 }))}
                     min={0}
@@ -139,6 +207,25 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onConc
                 </Group>
               )}
 
+              {status === 'divergenciaQuantidade' && (
+                <Group mt="sm">
+                  <Button color="orange" variant="light" size="xs"
+                    onClick={() => handleAceitarDivergenciaQuantidade(item.itemId)}
+                    loading={submeterMutation.isPending}>
+                    Aceitar com divergência
+                  </Button>
+                  <Button color="red" variant="light" size="xs" leftSection={<IconBan size={14} />}
+                    onClick={() => handleRejeitarItem(item.itemId)}
+                    loading={rejeitarItemMutation.isPending}>
+                    Rejeitar
+                  </Button>
+                  <Button color="gray" variant="light" size="xs"
+                    onClick={() => handleCorrigirContagem(item.itemId)}>
+                    Corrigir Contagem
+                  </Button>
+                </Group>
+              )}
+
               {status === 'requerSenha' && (
                 <Button mt="sm" color="yellow" size="xs" leftSection={<IconLock size={14} />}
                   onClick={() => handleAbrirSenha(item.itemId)}>
@@ -149,7 +236,7 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onConc
           )
         })}
 
-        {!resultado && (
+        {itensASubmeter.length > 0 && (
           <>
             <Divider />
             <Group justify="flex-end">

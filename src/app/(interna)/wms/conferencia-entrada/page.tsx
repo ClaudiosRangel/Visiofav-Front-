@@ -1281,8 +1281,9 @@ export default function ConferenciaEntradaPage() {
                         <Table.Td>
                           <TextInput
                             size="sm"
+                            required={item.exigeLote}
                             value={itensLotes[item.id] || ''}
-                            placeholder="Lote"
+                            placeholder={item.exigeLote ? 'Lote (obrigatório)' : 'Lote'}
                             onChange={(e) => setItensLotes({ ...itensLotes, [item.id]: e.currentTarget.value })}
                             className="w-28"
                           />
@@ -1290,8 +1291,9 @@ export default function ConferenciaEntradaPage() {
                         <Table.Td>
                           <TextInput
                             size="sm"
+                            required={item.exigeLote}
                             value={itensValidades[item.id] || ''}
-                            placeholder="DD/MM/AAAA"
+                            placeholder={item.exigeLote ? 'DD/MM/AAAA (obrigatório)' : 'DD/MM/AAAA'}
                             onChange={(e) => setItensValidades({ ...itensValidades, [item.id]: e.currentTarget.value })}
                             className="w-32"
                           />
@@ -1331,7 +1333,14 @@ export default function ConferenciaEntradaPage() {
                   </Group>
                   <Button color="blue" leftSection={<IconEye size={16} />}
                     onClick={() => conferirTodos.mutate()} loading={conferirTodos.isPending}
-                    disabled={conferencia?.itens?.some((item: any) => {
+                    disabled={!modoColetor && conferencia?.itens?.some((item: any) => {
+                      // Quantidade é sempre obrigatória
+                      if (itensConferidos[item.id] === undefined) return true
+                      // Se o produto exige lote, lote e validade são obrigatórios juntos
+                      if (item.exigeLote) {
+                        if (!itensLotes[item.id]?.trim()) return true
+                        if (!itensValidades[item.id]?.trim()) return true
+                      }
                       const validade = itensValidades[item.id]
                       const shelfMin = item.shelfLifeMinimo
                       return validade && shelfMin ? verificarShelfLife(validade, shelfMin) !== null : false

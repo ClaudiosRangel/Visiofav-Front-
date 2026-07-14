@@ -8,10 +8,13 @@ export interface ItemSegundaConferenciaPayload {
   quantidadeConferida: number
   lote?: string
   validade?: string
+  /** Operador clicou "Aceitar com divergência" para a quantidade desta rodada */
+  aceitarDivergenciaQuantidade?: boolean
 }
 
 export type StatusResultadoSegundaConferencia =
   | 'resolvido'
+  | 'divergenciaQuantidade'
   | 'pendenciaCriada'
   | 'emailEnviado'
   | 'emailFalhou'
@@ -21,11 +24,18 @@ export type StatusResultadoSegundaConferencia =
 
 export interface ResultadoItemSegundaConferencia {
   itemNotaEntradaId: string
-  resultado: { status: StatusResultadoSegundaConferencia; pendenciaId?: string; motivo?: string }
+  resultado: {
+    status: StatusResultadoSegundaConferencia
+    pendenciaId?: string
+    motivo?: string
+    quantidadeNota?: number
+    quantidadeConferida?: number
+  }
 }
 
 export interface RespostaSegundaConferencia {
   divergenciaResolvida: boolean
+  divergenciaQuantidade: boolean
   pendenciaCriada: boolean
   emailEnviado: boolean
   requerSenha: boolean
@@ -44,6 +54,30 @@ export function useSubmeterSegundaConferencia() {
   return useMutation<RespostaSegundaConferencia, Error, { notaId: string; itens: ItemSegundaConferenciaPayload[] }>({
     mutationFn: async ({ notaId, itens }) => {
       const { data } = await api.post(`/conferencia-entrada/segunda-conferencia/${notaId}`, { itens })
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conferencia-notas-pendentes'] })
+    },
+  })
+}
+
+/**
+ * Rejeita (não recebe) um item com divergência de quantidade confirmada na
+ * segunda conferência.
+ */
+export function useRejeitarItemSegundaConferencia() {
+  const queryClient = useQueryClient()
+  return useMutation<
+    { itemNotaEntradaId: string; status: string; mensagem: string },
+    Error,
+    { notaId: string; itemNotaEntradaId: string; observacao?: string }
+  >({
+    mutationFn: async ({ notaId, itemNotaEntradaId, observacao }) => {
+      const { data } = await api.post(`/conferencia-entrada/segunda-conferencia/${notaId}/rejeitar-item`, {
+        itemNotaEntradaId,
+        observacao,
+      })
       return data
     },
     onSuccess: () => {
