@@ -224,13 +224,19 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onConc
                   <TextInput
                     label="Lote"
                     value={lotes[item.itemId] ?? ''}
-                    onChange={(e) => setLotes((prev) => ({ ...prev, [item.itemId]: e.currentTarget.value }))}
+                    onChange={(e) => {
+                      const valor = e.currentTarget.value
+                      setLotes((prev) => ({ ...prev, [item.itemId]: valor }))
+                    }}
                   />
                   <TextInput
                     label="Validade"
                     placeholder="DD/MM/AAAA"
                     value={validades[item.itemId] ?? ''}
-                    onChange={(e) => setValidades((prev) => ({ ...prev, [item.itemId]: e.currentTarget.value }))}
+                    onChange={(e) => {
+                      const valor = e.currentTarget.value
+                      setValidades((prev) => ({ ...prev, [item.itemId]: valor }))
+                    }}
                   />
                 </Group>
               )}
