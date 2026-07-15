@@ -60,6 +60,10 @@ export default function ConferenciaEntradaPage() {
   const [itensLotes, setItensLotes] = useState<Record<string, string>>({})
   const [itensValidades, setItensValidades] = useState<Record<string, string>>({})
   const [resultado, setResultado] = useState<any>(null)
+  // Itens resolvidos na Segunda Conferência (senha/CC-e/e-mail/aceite) — usado
+  // para remover o item da lista de pendências sem precisar rechamar
+  // conferir-todos (que reprocessaria a 1ª conferência do zero).
+  const [itensResolvidosSegunda, setItensResolvidosSegunda] = useState<Set<string>>(new Set())
   const [etapa, setEtapa] = useState<'lista' | 'contagem' | 'resultado'>('lista')
   const [obsModal, setObsModal] = useState(false)
   const [observacao, setObservacao] = useState('')
@@ -245,6 +249,12 @@ export default function ConferenciaEntradaPage() {
     }
   }, [endModoAtivo, endNotaSelecionada, sugestoesResp?.sugestoes])
 
+  // Itens ainda pendentes de segunda conferência — deriva de `resultado`,
+  // removendo os que já foram resolvidos localmente (ver itensResolvidosSegunda)
+  const itensPendentesSegunda = (resultado?.itensPendentesSegundaConferencia ?? []).filter(
+    (i: any) => !itensResolvidosSegunda.has(i.itemId)
+  )
+
   // Compute acompanhamento stats
   const acompanhamentoItens = acompanhamentoData?.itens || conferencia?.itens || []
   const totalItensAcomp = acompanhamentoItens.length
@@ -353,6 +363,7 @@ export default function ConferenciaEntradaPage() {
     },
     onSuccess: (data) => {
       setResultado(data)
+      setItensResolvidosSegunda(new Set())
       setEtapa('resultado')
     },
     onError: (err: any) => { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' }) },
@@ -598,7 +609,7 @@ export default function ConferenciaEntradaPage() {
 
   function resetConferencia() {
     setConferencia(null); setItensConferidos({}); setResultado(null); setEtapa('lista'); setObservacao('')
-    setModoColetor(false); setAcompanhamentoData(null)
+    setModoColetor(false); setAcompanhamentoData(null); setItensResolvidosSegunda(new Set())
   }
 
   // ===== Endereçamento dual-mode helpers =====
@@ -1453,13 +1464,15 @@ export default function ConferenciaEntradaPage() {
                   </Table.Tbody>
                 </Table>
 
-                {/* Segunda Conferência Obrigatória (divergência de lote/validade) */}
-                {resultado?.itensPendentesSegundaConferencia && resultado.itensPendentesSegundaConferencia.length > 0 && (
+                {/* Itens ainda pendentes de segunda conferência — removidos da lista
+                    conforme cada um é resolvido (senha/CC-e/e-mail/aceite/rejeição),
+                    sem precisar reprocessar a 1ª conferência do zero. */}
+                {itensPendentesSegunda.length > 0 && (
                   <Card mt="md">
                     <SegundaConferenciaPanel
                       notaId={conferencia.nota.id}
-                      itensPendentes={resultado.itensPendentesSegundaConferencia}
-                      onConcluido={() => conferirTodos.mutate()}
+                      itensPendentes={itensPendentesSegunda}
+                      onItemResolvido={(itemId) => setItensResolvidosSegunda((prev) => new Set(prev).add(itemId))}
                     />
                   </Card>
                 )}
@@ -1488,7 +1501,7 @@ export default function ConferenciaEntradaPage() {
                     )}
                     <Button color="green" leftSection={<IconCheck size={16} />}
                       onClick={() => aprovarConf.mutate()} loading={aprovarConf.isPending}
-                      disabled={resultado?.itensPendentesSegundaConferencia?.length > 0}>
+                      disabled={itensPendentesSegunda.length > 0}>
                       {resultado.temDivergencia ? 'Aprovar com Divergência' : 'Aprovar Conferência'}
                     </Button>
                   </Group>
