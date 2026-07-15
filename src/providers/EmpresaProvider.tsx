@@ -85,13 +85,16 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
   // módulo permanecia aberta com a UI desatualizada.
   //
   // O evento `storage` do navegador dispara em todas as OUTRAS abas quando
-  // uma delas altera o localStorage (nunca na aba que fez a alteração) —
-  // por isso é o mecanismo certo aqui: assim que outra aba troca de empresa
-  // ou faz logout, esta aba recarrega a página, garantindo que a UI e o
-  // token fiquem sempre consistentes antes de qualquer nova requisição.
+  // uma delas altera o localStorage (nunca na aba que fez a alteração).
+  // IMPORTANTE: só recarrega quando a EMPRESA muda (STORAGE_KEY_EMPRESA) —
+  // o token (STORAGE_KEY_TOKEN) sozinho é atualizado rotineiramente pelo
+  // keep-alive do axios (a cada ~4min, ver lib/api.ts) e por qualquer
+  // refresh automático de sessão; recarregar a página nesses casos derrubava
+  // formulários em andamento (ex.: digitação na segunda conferência) sem
+  // nenhuma troca de empresa de fato ter ocorrido.
   useEffect(() => {
     function handleStorageChange(e: StorageEvent) {
-      if (e.key !== STORAGE_KEY_EMPRESA && e.key !== STORAGE_KEY_TOKEN) return
+      if (e.key !== STORAGE_KEY_EMPRESA) return
       window.location.reload()
     }
     window.addEventListener('storage', handleStorageChange)

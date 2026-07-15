@@ -23,7 +23,8 @@ export interface ItemPendenteSegundaConferencia {
 interface SegundaConferenciaPanelProps {
   notaId: string
   itensPendentes: ItemPendenteSegundaConferencia[]
-  onConcluido: () => void
+  /** Chamado quando um item individual é totalmente resolvido (removido da lista de pendências) */
+  onItemResolvido: (itemId: string) => void
 }
 
 const statusConfig: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
@@ -46,7 +47,7 @@ const statusConfig: Record<string, { color: string; icon: React.ReactNode; label
  * senha de supervisor, pendência CC-e ou e-mail fiscal (conforme configuração
  * do produto e da integração).
  */
-export default function SegundaConferenciaPanel({ notaId, itensPendentes, onConcluido }: SegundaConferenciaPanelProps) {
+export default function SegundaConferenciaPanel({ notaId, itensPendentes, onItemResolvido }: SegundaConferenciaPanelProps) {
   const [quantidades, setQuantidades] = useState<Record<string, number>>({})
   const [lotes, setLotes] = useState<Record<string, string>>({})
   const [validades, setValidades] = useState<Record<string, string>>({})
@@ -84,6 +85,16 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onConc
       const resp = await submeterMutation.mutateAsync({ notaId, itens })
       setResultado((prev) => [...(prev ?? []), ...resp.itens])
 
+      // Itens totalmente resolvidos nesta rodada (não requerem mais nenhuma
+      // ação) são removidos da lista de pendências imediatamente, item a
+      // item — cada item pode ter um destino diferente (um resolvido, outro
+      // aguardando senha), então a decisão é individual, não global.
+      for (const r of resp.itens) {
+        if (r.resultado.status === 'resolvido' || r.resultado.status === 'pendenciaCriada' || r.resultado.status === 'emailEnviado') {
+          onItemResolvido(r.itemNotaEntradaId)
+        }
+      }
+
       if (
         resp.divergenciaResolvida &&
         !resp.divergenciaQuantidade &&
@@ -93,7 +104,6 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onConc
         !resp.bloqueado
       ) {
         notifications.show({ title: 'Segunda conferência concluída', message: 'Valores confirmados — divergência resolvida', color: 'green' })
-        onConcluido()
       }
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao submeter segunda conferência', color: 'red' })
@@ -110,7 +120,7 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onConc
     await autorizarSenhaMutation.mutateAsync({ notaId, itemNotaEntradaId: itemSenhaSelecionado, credenciaisSupervisor: credenciais })
     notifications.show({ title: 'Liberado', message: 'Divergência liberada pelo supervisor', color: 'green' })
     setResultado((prev) => prev?.map((r) => (r.itemNotaEntradaId === itemSenhaSelecionado ? { ...r, resultado: { status: 'resolvido' } } : r)) ?? null)
-    onConcluido()
+    onItemResolvido(itemSenhaSelecionado)
   }
 
   // "Aceitar com divergência" — reenvia o item sinalizando aceite explícito
@@ -132,8 +142,9 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onConc
         return [...outros, ...resp.itens]
       })
       notifications.show({ title: 'Divergência aceita', message: 'Quantidade aceita com divergência', color: 'green' })
-      if (!resp.requerSenha && !resp.bloqueado && !resp.pendenciaCriada && !resp.emailEnviado) {
-        onConcluido()
+      const resolvido = resp.itens.find((i) => i.itemNotaEntradaId === itemId)
+      if (resolvido && ['resolvido', 'pendenciaCriada', 'emailEnviado'].includes(resolvido.resultado.status)) {
+        onItemResolvido(itemId)
       }
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao aceitar divergência', color: 'red' })
@@ -146,6 +157,7 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onConc
       await rejeitarItemMutation.mutateAsync({ notaId, itemNotaEntradaId: itemId })
       notifications.show({ title: 'Item rejeitado', message: 'Item marcado como não recebido', color: 'orange' })
       setResultado((prev) => prev?.map((r) => (r.itemNotaEntradaId === itemId ? { ...r, resultado: { status: 'ignorado', motivo: 'REJEITADO' } } : r)) ?? null)
+      onItemResolvido(itemId)
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao rejeitar item', color: 'red' })
     }
@@ -175,6 +187,7 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onConc
       const outros = prev?.filter((r) => r.itemNotaEntradaId !== itemHoldSelecionado) ?? []
       return [...outros, { itemNotaEntradaId: itemHoldSelecionado, resultado: { status: 'hold' } }]
     })
+    onItemResolvido(itemHoldSelecionado)
   }
 
   if (itensPendentes.length === 0) return null
