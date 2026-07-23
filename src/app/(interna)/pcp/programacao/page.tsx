@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Title, Stack, Table, Group, Badge, Text, Loader, Center, Collapse, UnstyledButton, Card, ScrollArea, Button, Modal, NumberInput, Select, Textarea, Progress, ActionIcon, Tabs, TextInput, SegmentedControl } from '@mantine/core'
+import { Title, Stack, Table, Group, Badge, Text, Loader, Center, Collapse, UnstyledButton, Card, ScrollArea, Button, Modal, NumberInput, Select, Textarea, Progress, ActionIcon, Tabs, TextInput, SegmentedControl, Autocomplete } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
 import { IconChevronDown, IconChevronRight, IconPlayerPlay, IconPlayerPause, IconCheck, IconClipboardCheck, IconAlertTriangle, IconCut, IconGripVertical, IconSearch, IconFileText, IconPlus, IconArrowRight, IconX, IconPrinter, IconRefresh } from '@tabler/icons-react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
@@ -107,7 +107,9 @@ export default function ProgramacaoPage() {
   const [formAvulsaOrigem, setFormAvulsaOrigem] = useState({ opNumero: 0, quantidade: 0, descricao: '' })
   const [opOrigemEncontrada, setOpOrigemEncontrada] = useState<any>(null)
   const [buscandoOpOrigem, setBuscandoOpOrigem] = useState(false)
-  const [formAvulsaLivre, setFormAvulsaLivre] = useState<{ produtoId: string | null; clienteId: string | null; quantidade: number; descricao: string }>({ produtoId: null, clienteId: null, quantidade: 0, descricao: '' })
+  // clienteNome guarda o texto digitado/selecionado; clienteId só é preenchido
+  // quando o nome bate com um cliente cadastrado formalmente (ver handler do Select)
+  const [formAvulsaLivre, setFormAvulsaLivre] = useState<{ produtoId: string | null; clienteId: string | null; clienteNome: string | null; quantidade: number; descricao: string }>({ produtoId: null, clienteId: null, clienteNome: null, quantidade: 0, descricao: '' })
   const [produtosDisponiveis, setProdutosDisponiveis] = useState<any[]>([])
   const [clientesDisponiveis, setClientesDisponiveis] = useState<any[]>([])
   const [salvandoAvulsa, setSalvandoAvulsa] = useState(false)
@@ -530,8 +532,10 @@ export default function ProgramacaoPage() {
         .catch(() => {})
     }
     if (clientesDisponiveis.length === 0) {
-      api.get('/clientes', { params: { limit: 200 } })
-        .then((res) => setClientesDisponiveis((res.data.data || res.data || []).map((c: any) => ({ value: c.id, label: c.nomeFantasia || c.razaoSocial }))))
+      // Combina cadastro formal + nomes extraídos de OPs (a maioria não tem
+      // cliente cadastrado, só o nome em texto vindo do PDF importado)
+      api.get('/ordens-producao/clientes-distintos')
+        .then((res) => setClientesDisponiveis((res.data.data || []).map((c: any) => ({ value: c.nome, label: c.nome, clienteId: c.clienteId }))))
         .catch(() => {})
     }
   }
@@ -562,7 +566,7 @@ export default function ProgramacaoPage() {
     setOpEncontrada(null)
     setFormAvulsaOrigem({ opNumero: 0, quantidade: 0, descricao: '' })
     setOpOrigemEncontrada(null)
-    setFormAvulsaLivre({ produtoId: null, clienteId: null, quantidade: 0, descricao: '' })
+    setFormAvulsaLivre({ produtoId: null, clienteId: null, clienteNome: null, quantidade: 0, descricao: '' })
   }
 
   // OP Avulsa — cria a OP (AV-1, AV-2...) já na fila do centro, herdando de
@@ -582,6 +586,12 @@ export default function ProgramacaoPage() {
 
     const produtoId = modoAvulsa === 'herdar' ? opOrigemEncontrada?.produtoId : formAvulsaLivre.produtoId
     const clienteId = modoAvulsa === 'herdar' ? opOrigemEncontrada?.clienteId : formAvulsaLivre.clienteId
+    // Nome livre do cliente: no modo "herdar", a OP de origem pode não ter
+    // clienteId real, só o nome extraído do PDF (clienteNome computado pelo
+    // backend); no modo "livre", vem do Autocomplete digitado.
+    const clienteNomeLivre = modoAvulsa === 'herdar'
+      ? (!clienteId ? opOrigemEncontrada?.clienteNome : undefined)
+      : (!clienteId ? formAvulsaLivre.clienteNome : undefined)
     const descricao = modoAvulsa === 'herdar' ? formAvulsaOrigem.descricao : formAvulsaLivre.descricao
 
     setSalvandoAvulsa(true)
@@ -590,6 +600,7 @@ export default function ProgramacaoPage() {
         centroProducaoId: modalAdicionarOS.centroId,
         produtoId: produtoId || undefined,
         clienteId: clienteId || undefined,
+        clienteNomeLivre: clienteNomeLivre || undefined,
         quantidade,
         descricao: descricao || undefined,
       })
@@ -1531,14 +1542,15 @@ export default function ProgramacaoPage() {
                     value={formAvulsaLivre.produtoId}
                     onChange={(v) => setFormAvulsaLivre({ ...formAvulsaLivre, produtoId: v })}
                   />
-                  <Select
+                  <Autocomplete
                     label="Cliente (opcional)"
-                    placeholder="Buscar cliente..."
-                    searchable
-                    clearable
-                    data={clientesDisponiveis}
-                    value={formAvulsaLivre.clienteId}
-                    onChange={(v) => setFormAvulsaLivre({ ...formAvulsaLivre, clienteId: v })}
+                    placeholder="Buscar ou digitar nome do cliente..."
+                    data={clientesDisponiveis.map((c) => c.label)}
+                    value={formAvulsaLivre.clienteNome || ''}
+                    onChange={(nome) => {
+                      const encontrado = clientesDisponiveis.find((c) => c.label.toLowerCase() === nome.toLowerCase())
+                      setFormAvulsaLivre({ ...formAvulsaLivre, clienteNome: nome || null, clienteId: encontrado?.clienteId ?? null })
+                    }}
                   />
                   <NumberInput
                     label="Quantidade"
