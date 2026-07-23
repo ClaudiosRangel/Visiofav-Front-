@@ -369,13 +369,21 @@ export default function ProgramacaoPage() {
   async function reextrairPdf(opId: string, opNumero: string | number) {
     try {
       const res = await api.post('/pcp/programacao/reextrair-pdf', { opId })
-      const { matriz, formato, tipoOp } = res.data
-      const partes = [tipoOp && `Tipo: ${tipoOp}`, matriz && `Matriz: ${matriz}`, formato && `Formato: ${formato}`].filter(Boolean)
+      const { matriz, formato, tipoOp, materiaisAtualizados, totalMateriais, avisos } = res.data
+      const partes = [
+        tipoOp && `Tipo: ${tipoOp}`,
+        matriz && `Matriz: ${matriz}`,
+        formato && `Formato: ${formato}`,
+        materiaisAtualizados && `${totalMateriais} material(is) atualizado(s)`,
+      ].filter(Boolean)
       notifications.show({
         title: `OP #${opNumero} atualizada`,
         message: partes.length > 0 ? partes.join(' | ') : 'Nenhuma informação nova encontrada no PDF',
         color: partes.length > 0 ? 'green' : 'orange',
       })
+      if (avisos?.length > 0) {
+        notifications.show({ title: 'Atenção', message: avisos.join(' '), color: 'yellow' })
+      }
       carregar()
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao re-extrair PDF', color: 'red' })
