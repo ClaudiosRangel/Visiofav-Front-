@@ -212,9 +212,10 @@ export default function ProgramacaoPage() {
   }
 
   async function concluirEtapa(etapaId: string) {
+    if (!confirm('Finalizar esta etapa? Ela saírá da fila deste grupo.')) return
     try {
       await api.patch(`/pcp/etapas/${etapaId}/concluir`, {})
-      notifications.show({ title: 'Etapa concluída', message: '', color: 'green' })
+      notifications.show({ title: 'Etapa finalizada', message: '', color: 'green' })
       carregar()
     } catch (err: any) { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' }) }
   }
@@ -988,6 +989,21 @@ export default function ProgramacaoPage() {
                                   <ActionIcon color="green" variant="light" size="sm" onClick={() => iniciarEtapa(etapa.id)} title="Iniciar">
                                     <IconPlayerPlay size={14} />
                                   </ActionIcon>
+                                )}
+                                {etapa.status === 'PAUSADA' && (
+                                  <ActionIcon color="green" variant="light" size="sm" onClick={() => iniciarEtapa(etapa.id)} title="Retomar">
+                                    <IconPlayerPlay size={14} />
+                                  </ActionIcon>
+                                )}
+                                {etapa.status === 'EM_ANDAMENTO' && (
+                                  <>
+                                    <ActionIcon color="orange" variant="light" size="sm" onClick={() => setModalPausar({ etapaId: etapa.id, opNumero: etapa.opNumero })} title="Parar">
+                                      <IconPlayerPause size={14} />
+                                    </ActionIcon>
+                                    <ActionIcon color="green" variant="light" size="sm" onClick={() => concluirEtapa(etapa.id)} title="Finalizar">
+                                      <IconCheck size={14} />
+                                    </ActionIcon>
+                                  </>
                                 )}
                                 {(etapa.isDesmembramento || etapa.isManual) && etapa.status === 'PENDENTE' && (
                                   <ActionIcon color="red" variant="light" size="sm" onClick={() => excluirEtapa(etapa.id, etapa.isDesmembramento)} title={etapa.isDesmembramento ? 'Reverter desmembramento' : 'Excluir lançamento manual'}>
