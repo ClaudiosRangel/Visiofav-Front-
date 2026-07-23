@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Title, Stack, Table, Group, Badge, Text, Loader, Center, Collapse, UnstyledButton, Card, ScrollArea, Button, Modal, NumberInput, Select, Textarea, Progress, ActionIcon, Tabs, TextInput } from '@mantine/core'
+import { Title, Stack, Table, Group, Badge, Text, Loader, Center, Collapse, UnstyledButton, Card, ScrollArea, Button, Modal, NumberInput, Select, Textarea, Progress, ActionIcon, Tabs, TextInput, SegmentedControl } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
 import { IconChevronDown, IconChevronRight, IconPlayerPlay, IconPlayerPause, IconCheck, IconClipboardCheck, IconAlertTriangle, IconCut, IconGripVertical, IconSearch, IconFileText, IconPlus, IconArrowRight, IconX, IconPrinter, IconRefresh } from '@tabler/icons-react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
@@ -28,6 +28,9 @@ function getCategoriaCentro(tipoMaquina: string | null | undefined): string {
 }
 
 function getRowBackground(etapa: any): string | undefined {
+  // OP avulsa tem prioridade visual sobre as cores de status — precisa ser
+  // reconhecida de imediato, independente do estágio da produção.
+  if (etapa.isAvulsa) return 'var(--mantine-color-pink-0)'
   if (etapa.status === 'CONCLUIDA') return 'var(--mantine-color-green-0)'
   if (etapa.status === 'EM_ANDAMENTO') return 'var(--mantine-color-yellow-0)'
   if (etapa.status === 'PAUSADA') return 'var(--mantine-color-orange-0)'
@@ -97,6 +100,17 @@ export default function ProgramacaoPage() {
   const [formAdicionarOS, setFormAdicionarOS] = useState({ opNumero: 0, descricao: '' })
   const [opEncontrada, setOpEncontrada] = useState<any>(null)
   const [buscandoOp, setBuscandoOp] = useState(false)
+  // OP Avulsa: aba do modal (existente vs avulsa) e, dentro de avulsa, o modo
+  // (herdar de uma OP já cadastrada vs escolher produto/cliente livremente)
+  const [tabAdicionarOS, setTabAdicionarOS] = useState<'existente' | 'avulsa'>('existente')
+  const [modoAvulsa, setModoAvulsa] = useState<'herdar' | 'livre'>('herdar')
+  const [formAvulsaOrigem, setFormAvulsaOrigem] = useState({ opNumero: 0, quantidade: 0, descricao: '' })
+  const [opOrigemEncontrada, setOpOrigemEncontrada] = useState<any>(null)
+  const [buscandoOpOrigem, setBuscandoOpOrigem] = useState(false)
+  const [formAvulsaLivre, setFormAvulsaLivre] = useState<{ produtoId: string | null; clienteId: string | null; quantidade: number; descricao: string }>({ produtoId: null, clienteId: null, quantidade: 0, descricao: '' })
+  const [produtosDisponiveis, setProdutosDisponiveis] = useState<any[]>([])
+  const [clientesDisponiveis, setClientesDisponiveis] = useState<any[]>([])
+  const [salvandoAvulsa, setSalvandoAvulsa] = useState(false)
   async function carregar() {
     setLoading(true)
     try {
@@ -508,6 +522,97 @@ export default function ProgramacaoPage() {
     }
   }
 
+  // OP Avulsa — carrega produtos/clientes disponíveis para o modo "livre"
+  function carregarProdutosEClientes() {
+    if (produtosDisponiveis.length === 0) {
+      api.get('/produtos', { params: { limit: 200, status: 'true' } })
+        .then((res) => setProdutosDisponiveis((res.data.data || res.data || []).map((p: any) => ({ value: p.id, label: `${p.codigo} - ${p.nome}` }))))
+        .catch(() => {})
+    }
+    if (clientesDisponiveis.length === 0) {
+      api.get('/clientes', { params: { limit: 200 } })
+        .then((res) => setClientesDisponiveis((res.data.data || res.data || []).map((c: any) => ({ value: c.id, label: c.nomeFantasia || c.razaoSocial }))))
+        .catch(() => {})
+    }
+  }
+
+  // OP Avulsa — modo "herdar": busca a OP de origem pelo número, para copiar produto/cliente
+  async function buscarOpOrigemAvulsa() {
+    if (!formAvulsaOrigem.opNumero) return
+    setBuscandoOpOrigem(true)
+    setOpOrigemEncontrada(null)
+    try {
+      const res = await api.get('/ordens-producao', { params: { numero: formAvulsaOrigem.opNumero, limit: 1 } })
+      const ops = res.data.data || res.data || []
+      if (ops.length > 0) {
+        setOpOrigemEncontrada(ops[0])
+      } else {
+        notifications.show({ title: 'OP não encontrada', message: `Nenhuma OP #${formAvulsaOrigem.opNumero}`, color: 'orange' })
+      }
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: 'Falha ao buscar OP', color: 'red' })
+    } finally { setBuscandoOpOrigem(false) }
+  }
+
+  function fecharModalAdicionarOS() {
+    setModalAdicionarOS(null)
+    setTabAdicionarOS('existente')
+    setModoAvulsa('herdar')
+    setFormAdicionarOS({ opNumero: 0, descricao: '' })
+    setOpEncontrada(null)
+    setFormAvulsaOrigem({ opNumero: 0, quantidade: 0, descricao: '' })
+    setOpOrigemEncontrada(null)
+    setFormAvulsaLivre({ produtoId: null, clienteId: null, quantidade: 0, descricao: '' })
+  }
+
+  // OP Avulsa — cria a OP (AV-1, AV-2...) já na fila do centro, herdando de
+  // uma OP existente ou com produto/cliente escolhidos livremente
+  async function confirmarAdicionarAvulsa() {
+    if (!modalAdicionarOS) return
+
+    const quantidade = modoAvulsa === 'herdar' ? formAvulsaOrigem.quantidade : formAvulsaLivre.quantidade
+    if (!quantidade || quantidade <= 0) {
+      notifications.show({ title: 'Informe a quantidade', message: 'Quantidade deve ser maior que zero', color: 'orange' })
+      return
+    }
+    if (modoAvulsa === 'herdar' && !opOrigemEncontrada) {
+      notifications.show({ title: 'Busque a OP de origem', message: 'Informe o número e clique em Buscar', color: 'orange' })
+      return
+    }
+
+    const produtoId = modoAvulsa === 'herdar' ? opOrigemEncontrada?.produtoId : formAvulsaLivre.produtoId
+    const clienteId = modoAvulsa === 'herdar' ? opOrigemEncontrada?.clienteId : formAvulsaLivre.clienteId
+    const descricao = modoAvulsa === 'herdar' ? formAvulsaOrigem.descricao : formAvulsaLivre.descricao
+
+    setSalvandoAvulsa(true)
+    try {
+      const res = await api.post('/pcp/etapas/adicionar-avulsa', {
+        centroProducaoId: modalAdicionarOS.centroId,
+        produtoId: produtoId || undefined,
+        clienteId: clienteId || undefined,
+        quantidade,
+        descricao: descricao || undefined,
+      })
+      notifications.show({ title: 'OP avulsa criada', message: `${res.data.referenciaAvulsa} adicionada à fila`, color: 'green' })
+      fecharModalAdicionarOS()
+      carregar()
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao criar OP avulsa', color: 'red' })
+    } finally { setSalvandoAvulsa(false) }
+  }
+
+  // OP Avulsa — exclui a qualquer momento (sem as restrições de OP normal)
+  async function excluirOpAvulsa(opId: string, referencia: string) {
+    if (!confirm(`Excluir a OP avulsa ${referencia}? Esta ação não pode ser desfeita.`)) return
+    try {
+      await api.delete(`/pcp/ordens-avulsas/${opId}`)
+      notifications.show({ title: 'OP avulsa excluída', message: referencia, color: 'green' })
+      carregar()
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao excluir', color: 'red' })
+    }
+  }
+
   function imprimirRelatorio() {
     if (!painel) return
     const centrosParaImprimir = centrosFiltrados.filter((c: any) => c.etapas.length > 0)
@@ -905,7 +1010,7 @@ export default function ProgramacaoPage() {
               {centro.resumo.emAndamento > 0 && <Badge color="blue" size="sm">{centro.resumo.emAndamento} em andamento</Badge>}
               {centro.resumo.pausadas > 0 && <Badge color="orange" size="sm">{centro.resumo.pausadas} pausadas</Badge>}
               <Badge color="gray" size="sm">{centro.resumo.pendentes} pendentes</Badge>
-              <ActionIcon color="teal" variant="light" size="sm" onClick={() => setModalAdicionarOS({ centroId: centro.centro.id, centroDescricao: centro.centro.descricao })} title="Adicionar OS">
+              <ActionIcon color="teal" variant="light" size="sm" onClick={() => { setModalAdicionarOS({ centroId: centro.centro.id, centroDescricao: centro.centro.descricao }); carregarProdutosEClientes() }} title="Adicionar OS">
                 <IconPlus size={14} />
               </ActionIcon>
             </Group>
@@ -940,9 +1045,12 @@ export default function ProgramacaoPage() {
                         {centro.etapas.map((etapa: any) => (
                           <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa)} highlighted={highlightedEtapa === etapa.id}>
                             <Table.Td style={{ minWidth: 200 }}>
-                              <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
-                                {etapa.opNumero} — {etapa.clienteNome || '—'}
-                              </Text>
+                              <Group gap={4} wrap="nowrap">
+                                <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
+                                  {etapa.opNumero} — {etapa.clienteNome || '—'}
+                                </Text>
+                                {etapa.isAvulsa && <Badge color="pink" size="xs">AVULSA</Badge>}
+                              </Group>
                               <Text size="xs" fw={600} c="dimmed" style={{ lineHeight: 1.2 }}>
                                 {etapa.produtoNome || '—'}
                               </Text>
@@ -1018,6 +1126,11 @@ export default function ProgramacaoPage() {
                                     <IconX size={14} />
                                   </ActionIcon>
                                 )}
+                                {etapa.isAvulsa && (
+                                  <ActionIcon color="red" variant="light" size="sm" onClick={() => excluirOpAvulsa(etapa.opId, etapa.opNumero)} title="Excluir OP avulsa">
+                                    <IconX size={14} />
+                                  </ActionIcon>
+                                )}
                               </Group>
                             </Table.Td>
                           </SortableRow>
@@ -1060,9 +1173,12 @@ export default function ProgramacaoPage() {
                         {centro.etapas.map((etapa: any) => (
                           <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa)} highlighted={highlightedEtapa === etapa.id}>
                             <Table.Td style={{ minWidth: 200 }}>
-                              <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
-                                {etapa.opNumero} — {etapa.clienteNome || etapa.observacoes?.match(/\[Cliente\]\s*(.+)/)?.[1] || '—'}
-                              </Text>
+                              <Group gap={4} wrap="nowrap">
+                                <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
+                                  {etapa.opNumero} — {etapa.clienteNome || etapa.observacoes?.match(/\[Cliente\]\s*(.+)/)?.[1] || '—'}
+                                </Text>
+                                {etapa.isAvulsa && <Badge color="pink" size="xs">AVULSA</Badge>}
+                              </Group>
                               <Text size="xs" fw={600} c="dimmed" style={{ lineHeight: 1.2 }}>
                                 {etapa.produtoNome || etapa.observacoes?.match(/\[Produto\]\s*(.+)/)?.[1] || ''}
                               </Text>
@@ -1172,6 +1288,11 @@ export default function ProgramacaoPage() {
                                 )}
                                 {(etapa.isDesmembramento || etapa.isManual) && etapa.status === 'PENDENTE' && (
                                   <ActionIcon color="red" variant="light" size="sm" onClick={() => excluirEtapa(etapa.id, etapa.isDesmembramento)} title={etapa.isDesmembramento ? 'Reverter desmembramento' : 'Excluir lançamento manual'}>
+                                    <IconX size={14} />
+                                  </ActionIcon>
+                                )}
+                                {etapa.isAvulsa && (
+                                  <ActionIcon color="red" variant="light" size="sm" onClick={() => excluirOpAvulsa(etapa.opId, etapa.opNumero)} title="Excluir OP avulsa">
                                     <IconX size={14} />
                                   </ActionIcon>
                                 )}
@@ -1296,42 +1417,151 @@ export default function ProgramacaoPage() {
         </Stack>
       </Modal>
 
-      {/* Modal: Adicionar OS manualmente (Feature 5b) */}
-      <Modal opened={!!modalAdicionarOS} onClose={() => { setModalAdicionarOS(null); setOpEncontrada(null); setFormAdicionarOS({ opNumero: 0, descricao: '' }) }} title={`Adicionar OS — ${modalAdicionarOS?.centroDescricao}`} centered>
-        <Stack gap="md">
-          <Group grow align="flex-end">
-            <NumberInput
-              label="Número da OS"
-              placeholder="Ex: 2849"
-              value={formAdicionarOS.opNumero || ''}
-              onChange={(v) => setFormAdicionarOS({ ...formAdicionarOS, opNumero: typeof v === 'number' ? v : 0 })}
-              min={1}
-            />
-            <Button variant="light" onClick={buscarOpParaAdicionar} loading={buscandoOp}>
-              Buscar
-            </Button>
-          </Group>
+      {/* Modal: Adicionar OS manualmente (Feature 5b) + OP Avulsa */}
+      <Modal opened={!!modalAdicionarOS} onClose={fecharModalAdicionarOS} title={`Adicionar OS — ${modalAdicionarOS?.centroDescricao}`} centered size="md">
+        <Tabs value={tabAdicionarOS} onChange={(v) => setTabAdicionarOS(v as any)}>
+          <Tabs.List mb="md">
+            <Tabs.Tab value="existente">OS Existente</Tabs.Tab>
+            <Tabs.Tab value="avulsa">OP Avulsa</Tabs.Tab>
+          </Tabs.List>
 
-          {opEncontrada && (
-            <Card withBorder padding="sm">
-              <Text size="sm" fw={600}>OP #{opEncontrada.numero}</Text>
-              <Text size="xs" c="dimmed">Produto: {opEncontrada.produto?.nome || opEncontrada.produtoId}</Text>
-              <Text size="xs" c="dimmed">Quantidade: {Number(opEncontrada.quantidade).toLocaleString('pt-BR')} {opEncontrada.unidadeMedida}</Text>
-              {opEncontrada.cliente && <Text size="xs" c="dimmed">Cliente: {opEncontrada.cliente.razaoSocial || opEncontrada.clienteId}</Text>}
-            </Card>
-          )}
+          {/* Aba: vincular OS/OP já cadastrada */}
+          <Tabs.Panel value="existente">
+            <Stack gap="md">
+              <Group grow align="flex-end">
+                <NumberInput
+                  label="Número da OS"
+                  placeholder="Ex: 2849"
+                  value={formAdicionarOS.opNumero || ''}
+                  onChange={(v) => setFormAdicionarOS({ ...formAdicionarOS, opNumero: typeof v === 'number' ? v : 0 })}
+                  min={1}
+                />
+                <Button variant="light" onClick={buscarOpParaAdicionar} loading={buscandoOp}>
+                  Buscar
+                </Button>
+              </Group>
 
-          <Textarea
-            label="Descrição da etapa (opcional)"
-            placeholder="Ex: Corte adicional"
-            value={formAdicionarOS.descricao}
-            onChange={(e) => setFormAdicionarOS({ ...formAdicionarOS, descricao: e.currentTarget.value })}
-          />
+              {opEncontrada && (
+                <Card withBorder padding="sm">
+                  <Text size="sm" fw={600}>OP #{opEncontrada.numero}</Text>
+                  <Text size="xs" c="dimmed">Produto: {opEncontrada.produto?.nome || opEncontrada.produtoId}</Text>
+                  <Text size="xs" c="dimmed">Quantidade: {Number(opEncontrada.quantidade).toLocaleString('pt-BR')} {opEncontrada.unidadeMedida}</Text>
+                  {opEncontrada.cliente && <Text size="xs" c="dimmed">Cliente: {opEncontrada.cliente.razaoSocial || opEncontrada.clienteId}</Text>}
+                </Card>
+              )}
 
-          <Button onClick={confirmarAdicionarOS} fullWidth disabled={!opEncontrada} leftSection={<IconPlus size={16} />}>
-            Adicionar à Fila
-          </Button>
-        </Stack>
+              <Textarea
+                label="Descrição da etapa (opcional)"
+                placeholder="Ex: Corte adicional"
+                value={formAdicionarOS.descricao}
+                onChange={(e) => setFormAdicionarOS({ ...formAdicionarOS, descricao: e.currentTarget.value })}
+              />
+
+              <Button onClick={confirmarAdicionarOS} fullWidth disabled={!opEncontrada} leftSection={<IconPlus size={16} />}>
+                Adicionar à Fila
+              </Button>
+            </Stack>
+          </Tabs.Panel>
+
+          {/* Aba: OP Avulsa (AV-1, AV-2...) — sem número de fábrica, pode ser excluída a qualquer momento */}
+          <Tabs.Panel value="avulsa">
+            <Stack gap="md">
+              <Text size="xs" c="dimmed">
+                Cria uma OP sem número de fábrica (referência AV-1, AV-2...), útil para retrabalhos, testes ou
+                lançamentos que não vieram de um PDF. Pode ser excluída a qualquer momento.
+              </Text>
+
+              <SegmentedControl
+                value={modoAvulsa}
+                onChange={(v) => setModoAvulsa(v as any)}
+                data={[
+                  { value: 'herdar', label: 'A partir de uma OP' },
+                  { value: 'livre', label: 'Sem OP existente' },
+                ]}
+                fullWidth
+              />
+
+              {modoAvulsa === 'herdar' ? (
+                <>
+                  <Group grow align="flex-end">
+                    <NumberInput
+                      label="Número da OP de origem"
+                      placeholder="Ex: 2881"
+                      value={formAvulsaOrigem.opNumero || ''}
+                      onChange={(v) => setFormAvulsaOrigem({ ...formAvulsaOrigem, opNumero: typeof v === 'number' ? v : 0 })}
+                      min={1}
+                    />
+                    <Button variant="light" onClick={buscarOpOrigemAvulsa} loading={buscandoOpOrigem}>
+                      Buscar
+                    </Button>
+                  </Group>
+
+                  {opOrigemEncontrada && (
+                    <Card withBorder padding="sm" bg="pink.0">
+                      <Text size="sm" fw={600}>OP #{opOrigemEncontrada.referenciaExterna || opOrigemEncontrada.numero}</Text>
+                      <Text size="xs" c="dimmed">Produto: {opOrigemEncontrada.produtoNome || opOrigemEncontrada.produto?.nome || opOrigemEncontrada.produtoId || 'Não vinculado'}</Text>
+                      <Text size="xs" c="dimmed">Cliente: {opOrigemEncontrada.clienteNome || opOrigemEncontrada.cliente?.razaoSocial || 'Não vinculado'}</Text>
+                      <Text size="xs" c="dimmed">A avulsa herdará este produto e cliente.</Text>
+                    </Card>
+                  )}
+
+                  <NumberInput
+                    label="Quantidade"
+                    placeholder="Quantidade desta OP avulsa"
+                    value={formAvulsaOrigem.quantidade || ''}
+                    onChange={(v) => setFormAvulsaOrigem({ ...formAvulsaOrigem, quantidade: typeof v === 'number' ? v : 0 })}
+                    min={0.01}
+                  />
+
+                  <Textarea
+                    label="Descrição (opcional)"
+                    placeholder="Ex: Retrabalho, teste de material..."
+                    value={formAvulsaOrigem.descricao}
+                    onChange={(e) => setFormAvulsaOrigem({ ...formAvulsaOrigem, descricao: e.currentTarget.value })}
+                  />
+                </>
+              ) : (
+                <>
+                  <Select
+                    label="Produto (opcional)"
+                    placeholder="Buscar produto..."
+                    searchable
+                    clearable
+                    data={produtosDisponiveis}
+                    value={formAvulsaLivre.produtoId}
+                    onChange={(v) => setFormAvulsaLivre({ ...formAvulsaLivre, produtoId: v })}
+                  />
+                  <Select
+                    label="Cliente (opcional)"
+                    placeholder="Buscar cliente..."
+                    searchable
+                    clearable
+                    data={clientesDisponiveis}
+                    value={formAvulsaLivre.clienteId}
+                    onChange={(v) => setFormAvulsaLivre({ ...formAvulsaLivre, clienteId: v })}
+                  />
+                  <NumberInput
+                    label="Quantidade"
+                    placeholder="Quantidade desta OP avulsa"
+                    value={formAvulsaLivre.quantidade || ''}
+                    onChange={(v) => setFormAvulsaLivre({ ...formAvulsaLivre, quantidade: typeof v === 'number' ? v : 0 })}
+                    min={0.01}
+                  />
+                  <Textarea
+                    label="Descrição (opcional)"
+                    placeholder="Ex: Retrabalho, teste de material..."
+                    value={formAvulsaLivre.descricao}
+                    onChange={(e) => setFormAvulsaLivre({ ...formAvulsaLivre, descricao: e.currentTarget.value })}
+                  />
+                </>
+              )}
+
+              <Button onClick={confirmarAdicionarAvulsa} fullWidth color="pink" loading={salvandoAvulsa} leftSection={<IconPlus size={16} />}>
+                Criar OP Avulsa
+              </Button>
+            </Stack>
+          </Tabs.Panel>
+        </Tabs>
       </Modal>
 
       {/* Modal: Postergar Data de Entrega */}
