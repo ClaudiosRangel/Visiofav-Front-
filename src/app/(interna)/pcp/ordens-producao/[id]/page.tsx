@@ -42,10 +42,19 @@ export default function DetalheOpPage() {
 
   async function alterarStatus(novoStatus: string) {
     try {
-      await api.patch(`/ordens-producao/${id}/status`, { status: novoStatus })
-      // Recarrega
-      const res = await api.get(`/ordens-producao/${id}`)
-      setOp(res.data)
+      const res = await api.patch(`/ordens-producao/${id}/status`, { status: novoStatus })
+      // Mescla os campos atualizados (status, datas, etc.) no estado já
+      // carregado, em vez de refazer o GET completo (que reprocessa itens,
+      // etapas, apontamentos, logs e liberações) — evita uma segunda viagem
+      // de rede pesada só para atualizar o badge de status.
+      setOp((prev: any) => ({
+        ...prev,
+        ...res.data,
+        logs: [
+          { id: `temp-${Date.now()}`, statusAnterior: prev.status, statusNovo: novoStatus, criadoEm: new Date().toISOString(), observacao: null },
+          ...(prev.logs || []),
+        ],
+      }))
     } catch (err: any) {
       alert(err?.response?.data?.message || 'Erro ao alterar status')
     }

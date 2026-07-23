@@ -109,7 +109,7 @@ export default function ProgramacaoPage() {
   const [buscandoOpOrigem, setBuscandoOpOrigem] = useState(false)
   // clienteNome guarda o texto digitado/selecionado; clienteId só é preenchido
   // quando o nome bate com um cliente cadastrado formalmente (ver handler do Select)
-  const [formAvulsaLivre, setFormAvulsaLivre] = useState<{ produtoId: string | null; clienteId: string | null; clienteNome: string | null; quantidade: number; descricao: string }>({ produtoId: null, clienteId: null, clienteNome: null, quantidade: 0, descricao: '' })
+  const [formAvulsaLivre, setFormAvulsaLivre] = useState<{ produtoId: string | null; produtoNome: string | null; clienteId: string | null; clienteNome: string | null; quantidade: number; descricao: string }>({ produtoId: null, produtoNome: null, clienteId: null, clienteNome: null, quantidade: 0, descricao: '' })
   const [produtosDisponiveis, setProdutosDisponiveis] = useState<any[]>([])
   const [clientesDisponiveis, setClientesDisponiveis] = useState<any[]>([])
   const [salvandoAvulsa, setSalvandoAvulsa] = useState(false)
@@ -566,7 +566,7 @@ export default function ProgramacaoPage() {
     setOpEncontrada(null)
     setFormAvulsaOrigem({ opNumero: 0, quantidade: 0, descricao: '' })
     setOpOrigemEncontrada(null)
-    setFormAvulsaLivre({ produtoId: null, clienteId: null, clienteNome: null, quantidade: 0, descricao: '' })
+    setFormAvulsaLivre({ produtoId: null, produtoNome: null, clienteId: null, clienteNome: null, quantidade: 0, descricao: '' })
   }
 
   // OP Avulsa — cria a OP (AV-1, AV-2...) já na fila do centro, herdando de
@@ -592,6 +592,9 @@ export default function ProgramacaoPage() {
     const clienteNomeLivre = modoAvulsa === 'herdar'
       ? (!clienteId ? opOrigemEncontrada?.clienteNome : undefined)
       : (!clienteId ? formAvulsaLivre.clienteNome : undefined)
+    // Nome livre do produto: só existe no modo "livre" quando o usuário
+    // digitou um texto que não corresponde a nenhum produto cadastrado.
+    const produtoNomeLivre = modoAvulsa === 'livre' && !produtoId ? formAvulsaLivre.produtoNome : undefined
     const descricao = modoAvulsa === 'herdar' ? formAvulsaOrigem.descricao : formAvulsaLivre.descricao
 
     setSalvandoAvulsa(true)
@@ -599,6 +602,7 @@ export default function ProgramacaoPage() {
       const res = await api.post('/pcp/etapas/adicionar-avulsa', {
         centroProducaoId: modalAdicionarOS.centroId,
         produtoId: produtoId || undefined,
+        produtoNomeLivre: produtoNomeLivre || undefined,
         clienteId: clienteId || undefined,
         clienteNomeLivre: clienteNomeLivre || undefined,
         quantidade,
@@ -1536,14 +1540,15 @@ export default function ProgramacaoPage() {
                 </>
               ) : (
                 <>
-                  <Select
+                  <Autocomplete
                     label="Produto (opcional)"
-                    placeholder="Buscar produto..."
-                    searchable
-                    clearable
-                    data={produtosDisponiveis}
-                    value={formAvulsaLivre.produtoId}
-                    onChange={(v) => setFormAvulsaLivre({ ...formAvulsaLivre, produtoId: v })}
+                    placeholder="Buscar produto cadastrado ou digitar descrição livre..."
+                    data={produtosDisponiveis.map((p) => p.label)}
+                    value={formAvulsaLivre.produtoNome || ''}
+                    onChange={(nome) => {
+                      const encontrado = produtosDisponiveis.find((p) => p.label.toLowerCase() === nome.toLowerCase())
+                      setFormAvulsaLivre({ ...formAvulsaLivre, produtoNome: nome || null, produtoId: encontrado?.value ?? null })
+                    }}
                   />
                   <Autocomplete
                     label="Cliente (opcional)"
