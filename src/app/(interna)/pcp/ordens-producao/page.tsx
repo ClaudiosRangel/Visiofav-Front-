@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Title, Stack, Table, Badge, Group, Button, TextInput, Select, Pagination, ActionIcon, Text, Loader, Center, Tooltip } from '@mantine/core'
+import { Title, Stack, Table, Badge, Group, Button, TextInput, Pagination, ActionIcon, Text, Loader, Center, Tooltip, Tabs } from '@mantine/core'
 import { IconPlus, IconSearch, IconEye, IconTrash, IconFileTypePdf, IconUpload } from '@tabler/icons-react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
@@ -33,7 +33,7 @@ export default function OrdensProducaoPage() {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [busca, setBusca] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<string>('TODAS')
   const [pdfStatus, setPdfStatus] = useState<Record<string, boolean>>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadTargetOpId, setUploadTargetOpId] = useState<string | null>(null)
@@ -42,7 +42,7 @@ export default function OrdensProducaoPage() {
     setLoading(true)
     try {
       const params: any = { page, limit: 20 }
-      if (statusFilter) params.status = statusFilter
+      if (statusFilter !== 'TODAS') params.status = statusFilter
       if (busca) params.numero = busca
       const res = await api.get('/ordens-producao', { params })
       setData(res.data.data)
@@ -110,15 +110,20 @@ export default function OrdensProducaoPage() {
           onKeyDown={(e) => { if (e.key === 'Enter') carregarOps() }}
           w={200}
         />
-        <Select
-          placeholder="Status"
-          clearable
-          data={['RASCUNHO', 'PLANEJADA', 'PROGRAMADA', 'LIBERADA', 'EM_PRODUCAO', 'CONCLUIDA', 'CANCELADA']}
-          value={statusFilter}
-          onChange={setStatusFilter}
-          w={180}
-        />
       </Group>
+
+      <Tabs value={statusFilter} onChange={(v) => { setStatusFilter(v || 'TODAS'); setPage(1) }}>
+        <Tabs.List>
+          <Tabs.Tab value="TODAS">Todas</Tabs.Tab>
+          <Tabs.Tab value="RASCUNHO">Rascunho</Tabs.Tab>
+          <Tabs.Tab value="PLANEJADA">Planejada</Tabs.Tab>
+          <Tabs.Tab value="PROGRAMADA">Programada</Tabs.Tab>
+          <Tabs.Tab value="LIBERADA">Liberada</Tabs.Tab>
+          <Tabs.Tab value="EM_PRODUCAO">Em Produção</Tabs.Tab>
+          <Tabs.Tab value="CONCLUIDA">Concluída</Tabs.Tab>
+          <Tabs.Tab value="CANCELADA">Cancelada</Tabs.Tab>
+        </Tabs.List>
+      </Tabs>
 
       {loading ? (
         <Center py="xl"><Loader /></Center>
