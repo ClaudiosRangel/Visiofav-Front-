@@ -1522,6 +1522,9 @@ export default function ProgramacaoPage() {
                     value={formAvulsaOrigem.quantidade || ''}
                     onChange={(v) => setFormAvulsaOrigem({ ...formAvulsaOrigem, quantidade: typeof v === 'number' ? v : 0 })}
                     min={0.01}
+                    max={99_999_999}
+                    thousandSeparator="."
+                    decimalSeparator=","
                   />
 
                   <Textarea
@@ -1558,6 +1561,9 @@ export default function ProgramacaoPage() {
                     value={formAvulsaLivre.quantidade || ''}
                     onChange={(v) => setFormAvulsaLivre({ ...formAvulsaLivre, quantidade: typeof v === 'number' ? v : 0 })}
                     min={0.01}
+                    max={99_999_999}
+                    thousandSeparator="."
+                    decimalSeparator=","
                   />
                   <Textarea
                     label="Descrição (opcional)"
