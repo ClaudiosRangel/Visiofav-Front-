@@ -131,6 +131,7 @@ export default function OrdensProducaoPage() {
               <Table.Tr>
                 <Table.Th>Nº</Table.Th>
                 <Table.Th>Produto</Table.Th>
+                <Table.Th>Cliente</Table.Th>
                 <Table.Th>Quantidade</Table.Th>
                 <Table.Th>Status</Table.Th>
                 <Table.Th>Prioridade</Table.Th>
@@ -144,6 +145,7 @@ export default function OrdensProducaoPage() {
                 <Table.Tr key={op.id}>
                   <Table.Td fw={600}>{op.referenciaExterna || op.numero}</Table.Td>
                   <Table.Td>{op.produtoNome || op.produtoId?.substring(0, 8)}</Table.Td>
+                  <Table.Td>{op.clienteNome || <Text c="dimmed" span>-</Text>}</Table.Td>
                   <Table.Td>{Number(op.quantidade)} {op.unidadeMedida}</Table.Td>
                   <Table.Td><Badge color={STATUS_COLORS[op.status] || 'gray'}>{op.status}</Badge></Table.Td>
                   <Table.Td><Badge color={PRIORIDADE_COLORS[op.prioridade] || 'gray'} variant="light">{op.prioridade}</Badge></Table.Td>
