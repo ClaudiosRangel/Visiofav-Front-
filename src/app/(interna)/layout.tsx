@@ -4,7 +4,7 @@ import { useLayoutEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { UnstyledButton, Text, Center, Loader } from '@mantine/core'
 import { IconArrowLeft } from '@tabler/icons-react'
-import ModuleSidebar, { detectModule, MODULE_LABELS } from '@/components/layout/ModuleSidebar'
+import ModuleSidebar, { detectModule, MODULE_LABELS, useModuleSidebarCollapsed } from '@/components/layout/ModuleSidebar'
 import Header from '@/components/layout/Header'
 import ChatWidget from '@/components/ai/ChatWidget'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
@@ -70,6 +70,7 @@ function VoltarModulosBar() {
 export default function InternaLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const showSidebar = !NO_SIDEBAR_PAGES.includes(pathname)
+  const { collapsed: sidebarCollapsed } = useModuleSidebarCollapsed()
 
   useModuleTitleFallback(pathname)
 
@@ -130,7 +131,7 @@ export default function InternaLayout({ children }: { children: React.ReactNode 
   return (
     <div className="flex min-h-screen">
       <ModuleSidebar />
-      <div className="flex-1 md:ml-[220px] flex flex-col">
+      <div className={`flex-1 flex flex-col transition-[margin] duration-150 ${sidebarCollapsed ? 'md:ml-[64px]' : 'md:ml-[220px]'}`}>
         <Header />
         <main className="p-4 md:p-6 flex-1 overflow-x-hidden">{children}</main>
       </div>
