@@ -92,6 +92,12 @@ export default function OrdensProducaoPage() {
 
   useEffect(() => { carregarOps() }, [page, statusFilter])
 
+  // Coluna "Qtd Produzida" só aparece quando ao menos uma OP da página atual
+  // já tem produção registrada — mantém a tabela limpa para OPs ainda não
+  // finalizadas (mesmo padrão já usado no painel de Programação para as
+  // colunas Prod./Perda/%).
+  const temQuantidadeProduzida = data.some((op) => Number(op.quantidadeProduzida) > 0)
+
   return (
     <Stack gap="md">
       <Group justify="space-between">
@@ -138,6 +144,10 @@ export default function OrdensProducaoPage() {
                 <Table.Th>Produto</Table.Th>
                 <Table.Th>Cliente</Table.Th>
                 <Table.Th>Quantidade</Table.Th>
+                {/* Qtd Produzida só faz sentido depois que a OP tem produção real
+                    registrada (apontamento e/ou conclusão) — para OPs ainda não
+                    finalizadas a coluna fica oculta, evitando "0" em toda a tabela. */}
+                {temQuantidadeProduzida && <Table.Th>Qtd Produzida</Table.Th>}
                 <Table.Th>Status</Table.Th>
                 <Table.Th>Prioridade</Table.Th>
                 <Table.Th>Entrega</Table.Th>
@@ -152,6 +162,11 @@ export default function OrdensProducaoPage() {
                   <Table.Td>{op.produtoNome || op.produtoId?.substring(0, 8)}</Table.Td>
                   <Table.Td>{op.clienteNome || <Text c="dimmed" span>-</Text>}</Table.Td>
                   <Table.Td>{Number(op.quantidade)} {op.unidadeMedida}</Table.Td>
+                  {temQuantidadeProduzida && (
+                    <Table.Td fw={600} c={Number(op.quantidadeProduzida) > 0 ? 'green' : undefined}>
+                      {Number(op.quantidadeProduzida) > 0 ? `${Number(op.quantidadeProduzida).toLocaleString('pt-BR')} ${op.unidadeMedida}` : '—'}
+                    </Table.Td>
+                  )}
                   <Table.Td><Badge color={STATUS_COLORS[op.status] || 'gray'}>{op.status}</Badge></Table.Td>
                   <Table.Td><Badge color={PRIORIDADE_COLORS[op.prioridade] || 'gray'} variant="light">{op.prioridade}</Badge></Table.Td>
                   <Table.Td>{op.dataEntregaPrevista ? new Date(op.dataEntregaPrevista).toLocaleDateString('pt-BR') : '-'}</Table.Td>
