@@ -26,6 +26,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEmpresaAtual, deveExibirLinkKardex } from '@/hooks/useEmpresaAtual'
 import { voltarParaModulos, abrirOuFocarAba } from '@/lib/abasModulo'
+import { useModuleSidebarCollapsed } from '@/lib/moduleSidebarStore'
 
 interface NavItem {
   icon: React.ElementType
@@ -527,32 +528,6 @@ function NavGroupComponent({ group, pathname, collapsed }: { group: NavGroup; pa
       </Collapse>
     </div>
   )
-}
-
-const COLLAPSE_STORAGE_KEY = 'vizor-module-sidebar-collapsed'
-
-/**
- * Hook exportado para o layout (`(interna)/layout.tsx`) ler o mesmo estado
- * de colapso e ajustar a margem esquerda do conteúdo — o sidebar e o layout
- * pai precisam ficar sincronizados sobre a largura atual (220px ou 64px).
- * Lido do localStorage de forma lazy (via useState initializer) para já vir
- * correto na primeira renderização client-side, evitando "pulo" visual.
- */
-export function useModuleSidebarCollapsed() {
-  const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return window.localStorage.getItem(COLLAPSE_STORAGE_KEY) === '1'
-  })
-
-  const toggle = () => {
-    setCollapsed((prev) => {
-      const next = !prev
-      window.localStorage.setItem(COLLAPSE_STORAGE_KEY, next ? '1' : '0')
-      return next
-    })
-  }
-
-  return { collapsed, toggle }
 }
 
 export default function ModuleSidebar() {
