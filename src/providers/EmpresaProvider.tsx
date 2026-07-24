@@ -12,6 +12,7 @@ interface Empresa {
   razaoSocial: string
   nomeFantasia: string | null
   cnpj: string
+  logo?: string | null
 }
 
 interface EmpresaContextType {
