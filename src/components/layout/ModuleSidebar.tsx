@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { UnstyledButton, Stack, Text, Divider, Collapse } from '@mantine/core'
+import { UnstyledButton, Stack, Text, Divider, Collapse, Tooltip, Menu, ActionIcon } from '@mantine/core'
 import {
-  IconArrowLeft, IconChevronDown, IconChevronRight,
+  IconArrowLeft, IconChevronDown, IconChevronRight, IconChevronLeft,
   // Compras
   IconFileText, IconTruckDelivery, IconArrowBack, IconArrowsExchange, IconUsers, IconBuildingStore,
   // Vendas
@@ -427,46 +427,82 @@ export function detectModule(pathname: string): string | null {
   return null
 }
 
-function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
+function NavLink({ item, pathname, collapsed }: { item: NavItem; pathname: string; collapsed?: boolean }) {
   const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
 
-  if (item.abrirEmAbaUnica) {
-    return (
-      <UnstyledButton
-        onClick={() => abrirOuFocarAba(item.href, item.href)}
-        className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm ${
-          isActive
-            ? 'bg-teal-50 text-teal-700 font-medium'
-            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
-        }`}
-      >
-        <item.icon size={16} stroke={1.5} />
-        <Text size="sm">{item.label}</Text>
-      </UnstyledButton>
-    )
-  }
+  const className = `flex items-center rounded-md transition-colors text-sm ${
+    collapsed ? 'justify-center w-11 h-11 mx-auto' : 'gap-3 px-3 py-2'
+  } ${
+    isActive
+      ? 'bg-teal-50 text-teal-700 font-medium'
+      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+  }`
+
+  const content = (
+    <>
+      <item.icon size={collapsed ? 20 : 16} stroke={1.5} />
+      {!collapsed && <Text size="sm">{item.label}</Text>}
+    </>
+  )
+
+  const button = item.abrirEmAbaUnica ? (
+    <UnstyledButton onClick={() => abrirOuFocarAba(item.href, item.href)} className={className}>
+      {content}
+    </UnstyledButton>
+  ) : (
+    <UnstyledButton component={Link} href={item.href} className={className}>
+      {content}
+    </UnstyledButton>
+  )
+
+  if (!collapsed) return button
 
   return (
-    <UnstyledButton
-      component={Link}
-      href={item.href}
-      className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm ${
-        isActive
-          ? 'bg-teal-50 text-teal-700 font-medium'
-          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
-      }`}
-    >
-      <item.icon size={16} stroke={1.5} />
-      <Text size="sm">{item.label}</Text>
-    </UnstyledButton>
+    <Tooltip label={item.label} position="right" withArrow>
+      {button}
+    </Tooltip>
   )
 }
 
-function NavGroupComponent({ group, pathname }: { group: NavGroup; pathname: string }) {
+function NavGroupComponent({ group, pathname, collapsed }: { group: NavGroup; pathname: string; collapsed?: boolean }) {
   const hasActiveChild = group.items.some(
     (item) => pathname === item.href || pathname.startsWith(item.href + '/'),
   )
   const [opened, setOpened] = useState(hasActiveChild)
+
+  // Menu recolhido: sem espaço para expandir a lista inline — cada grupo
+  // ("Cadastros" etc.) vira um flyout (Menu do Mantine) que abre para a
+  // direita ao clicar no ícone, mantendo os subitens acessíveis.
+  if (collapsed) {
+    return (
+      <Menu position="right-start" withArrow shadow="md" trigger="click-hover">
+        <Menu.Target>
+          <UnstyledButton
+            className={`flex items-center justify-center w-11 h-11 mx-auto rounded-md transition-colors ${
+              hasActiveChild ? 'bg-teal-50 text-teal-700' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+            }`}
+          >
+            <Tooltip label={group.label} position="right" withArrow>
+              <group.icon size={20} stroke={1.5} />
+            </Tooltip>
+          </UnstyledButton>
+        </Menu.Target>
+        <Menu.Dropdown>
+          <Menu.Label>{group.label}</Menu.Label>
+          {group.items.map((item) => (
+            <Menu.Item
+              key={item.href}
+              component={Link}
+              href={item.href}
+              leftSection={<item.icon size={14} stroke={1.5} />}
+            >
+              {item.label}
+            </Menu.Item>
+          ))}
+        </Menu.Dropdown>
+      </Menu>
+    )
+  }
 
   return (
     <div>
@@ -493,11 +529,38 @@ function NavGroupComponent({ group, pathname }: { group: NavGroup; pathname: str
   )
 }
 
+const COLLAPSE_STORAGE_KEY = 'vizor-module-sidebar-collapsed'
+
+/**
+ * Hook exportado para o layout (`(interna)/layout.tsx`) ler o mesmo estado
+ * de colapso e ajustar a margem esquerda do conteúdo — o sidebar e o layout
+ * pai precisam ficar sincronizados sobre a largura atual (220px ou 64px).
+ * Lido do localStorage de forma lazy (via useState initializer) para já vir
+ * correto na primeira renderização client-side, evitando "pulo" visual.
+ */
+export function useModuleSidebarCollapsed() {
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return window.localStorage.getItem(COLLAPSE_STORAGE_KEY) === '1'
+  })
+
+  const toggle = () => {
+    setCollapsed((prev) => {
+      const next = !prev
+      window.localStorage.setItem(COLLAPSE_STORAGE_KEY, next ? '1' : '0')
+      return next
+    })
+  }
+
+  return { collapsed, toggle }
+}
+
 export default function ModuleSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const moduleName = detectModule(pathname)
   const { usaWms } = useEmpresaAtual()
+  const { collapsed, toggle } = useModuleSidebarCollapsed()
 
   if (!moduleName) return null
 
@@ -520,30 +583,62 @@ export default function ModuleSidebar() {
     : moduleConfig.entries
 
   return (
-    <nav className="hidden md:flex fixed left-0 top-0 h-screen w-[220px] bg-white dark:bg-[#1a1b1e] border-r border-gray-200 dark:border-gray-800 flex-col py-4 z-50 overflow-y-auto">
-      <UnstyledButton
-        onClick={() => voltarParaModulos(router)}
-        className="flex items-center gap-2 px-4 py-2 mb-2 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
-      >
-        <IconArrowLeft size={18} />
-        <Text size="sm">Módulos</Text>
-      </UnstyledButton>
+    <nav
+      className={`hidden md:flex fixed left-0 top-0 h-screen bg-white dark:bg-[#1a1b1e] border-r border-gray-200 dark:border-gray-800 flex-col py-4 z-50 overflow-y-auto transition-[width] duration-150 ${
+        collapsed ? 'w-[64px]' : 'w-[220px]'
+      }`}
+    >
+      {collapsed ? (
+        <Tooltip label="Módulos" position="right" withArrow>
+          <UnstyledButton
+            onClick={() => voltarParaModulos(router)}
+            className="flex items-center justify-center w-11 h-11 mx-auto mb-2 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors rounded-md"
+          >
+            <IconArrowLeft size={18} />
+          </UnstyledButton>
+        </Tooltip>
+      ) : (
+        <UnstyledButton
+          onClick={() => voltarParaModulos(router)}
+          className="flex items-center gap-2 px-4 py-2 mb-2 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
+        >
+          <IconArrowLeft size={18} />
+          <Text size="sm">Módulos</Text>
+        </UnstyledButton>
+      )}
 
       <Divider mb="sm" />
 
-      <Text size="xs" fw={700} c="primary" className="px-4 mb-3" tt="uppercase">
-        {moduleConfig.title}
-      </Text>
+      {!collapsed && (
+        <Text size="xs" fw={700} c="primary" className="px-4 mb-3" tt="uppercase">
+          {moduleConfig.title}
+        </Text>
+      )}
 
       <Stack gap={2} className="flex-1 px-2">
         {entries.map((entry, idx) =>
           isGroup(entry) ? (
-            <NavGroupComponent key={entry.label} group={entry} pathname={pathname} />
+            <NavGroupComponent key={entry.label} group={entry} pathname={pathname} collapsed={collapsed} />
           ) : (
-            <NavLink key={entry.href} item={entry} pathname={pathname} />
+            <NavLink key={entry.href} item={entry} pathname={pathname} collapsed={collapsed} />
           ),
         )}
       </Stack>
+
+      <Divider mt="sm" />
+
+      <Tooltip label={collapsed ? 'Expandir menu' : 'Recolher menu'} position="right" withArrow>
+        <ActionIcon
+          onClick={toggle}
+          variant="subtle"
+          color="gray"
+          size="lg"
+          className={collapsed ? 'mx-auto mt-2' : 'ml-auto mr-2 mt-2'}
+          aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+        >
+          {collapsed ? <IconChevronRight size={18} /> : <IconChevronLeft size={18} />}
+        </ActionIcon>
+      </Tooltip>
     </nav>
   )
 }
