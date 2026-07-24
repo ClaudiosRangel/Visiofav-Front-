@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Title, Stack, Card, Group, Badge, Text, Table, Tabs, Button, Loader, Center, Divider, Timeline } from '@mantine/core'
-import { IconArrowLeft, IconPackage, IconRoute, IconClipboardCheck, IconTruck, IconPalette, IconFileTypePdf } from '@tabler/icons-react'
+import { Title, Stack, Card, Group, Badge, Text, Table, Tabs, Button, Loader, Center, Divider, Timeline, NumberInput, ActionIcon, Tooltip } from '@mantine/core'
+import { IconArrowLeft, IconPackage, IconRoute, IconClipboardCheck, IconTruck, IconPalette, IconFileTypePdf, IconPencil, IconCheck, IconX } from '@tabler/icons-react'
 import { useRouter, useParams } from 'next/navigation'
 import { api } from '@/lib/api'
+import { notifications } from '@mantine/notifications'
 
 const STATUS_COLORS: Record<string, string> = {
   RASCUNHO: 'gray', PLANEJADA: 'blue', PROGRAMADA: 'indigo', LIBERADA: 'cyan', EM_PRODUCAO: 'orange', CONCLUIDA: 'green', CANCELADA: 'red',
@@ -20,6 +21,12 @@ export default function DetalheOpPage() {
   const [variacoes, setVariacoes] = useState<any[]>([])
   const [programacoes, setProgramacoes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  // Edição manual da quantidade produzida — usado principalmente em OPs
+  // antigas que foram concluídas antes de existir a propagação automática
+  // da quantidade apontada nas etapas (ficaram com %Concluído travado em 0%).
+  const [editandoQtdProduzida, setEditandoQtdProduzida] = useState(false)
+  const [qtdProduzidaInput, setQtdProduzidaInput] = useState<number | ''>(0)
+  const [salvandoQtdProduzida, setSalvandoQtdProduzida] = useState(false)
 
   useEffect(() => { document.title = 'PCP - Detalhe OP' }, [])
 
@@ -39,6 +46,21 @@ export default function DetalheOpPage() {
 
   if (loading) return <Center py="xl"><Loader /></Center>
   if (!op) return <Text c="red" ta="center" py="xl">OP não encontrada</Text>
+
+  async function salvarQtdProduzida() {
+    const valor = typeof qtdProduzidaInput === 'number' ? qtdProduzidaInput : 0
+    setSalvandoQtdProduzida(true)
+    try {
+      const res = await api.patch(`/ordens-producao/${id}/quantidade-produzida`, { quantidadeProduzida: valor })
+      setOp((prev: any) => ({ ...prev, ...res.data }))
+      setEditandoQtdProduzida(false)
+      notifications.show({ title: 'Quantidade produzida atualizada', message: `${res.data.percentualConcluido}% concluído`, color: 'green' })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar', color: 'red' })
+    } finally {
+      setSalvandoQtdProduzida(false)
+    }
+  }
 
   async function alterarStatus(novoStatus: string) {
     try {
@@ -125,6 +147,45 @@ export default function DetalheOpPage() {
         <Group grow>
           <div><Text size="xs" c="dimmed">Produto</Text><Text fw={600}>{op.produtoNome || op.produtoId}</Text></div>
           <div><Text size="xs" c="dimmed">Quantidade</Text><Text fw={600}>{Number(op.quantidade)} {op.unidadeMedida}{Number(op.quantidadeExcedente) > 0 ? ` (+${Number(op.quantidadeExcedente)} excedente)` : ''}</Text></div>
+          <div>
+            <Text size="xs" c="dimmed">Quantidade Produzida</Text>
+            {editandoQtdProduzida ? (
+              <Group gap={4} wrap="nowrap">
+                <NumberInput
+                  size="xs"
+                  value={qtdProduzidaInput}
+                  onChange={(v) => setQtdProduzidaInput(typeof v === 'number' ? v : '')}
+                  min={0}
+                  autoFocus
+                  w={110}
+                  disabled={salvandoQtdProduzida}
+                  onKeyDown={(e) => { if (e.key === 'Enter') salvarQtdProduzida(); if (e.key === 'Escape') setEditandoQtdProduzida(false) }}
+                />
+                <ActionIcon size="sm" color="green" variant="light" onClick={salvarQtdProduzida} loading={salvandoQtdProduzida} title="Salvar">
+                  <IconCheck size={14} />
+                </ActionIcon>
+                <ActionIcon size="sm" color="gray" variant="light" onClick={() => setEditandoQtdProduzida(false)} disabled={salvandoQtdProduzida} title="Cancelar">
+                  <IconX size={14} />
+                </ActionIcon>
+              </Group>
+            ) : (
+              <Group gap={4} wrap="nowrap">
+                <Text fw={600} c={Number(op.quantidadeProduzida) > 0 ? 'green' : undefined}>
+                  {Number(op.quantidadeProduzida) > 0 ? `${Number(op.quantidadeProduzida).toLocaleString('pt-BR')} ${op.unidadeMedida}` : '—'}
+                </Text>
+                <Tooltip label="Registrar/corrigir quantidade produzida">
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    color="gray"
+                    onClick={() => { setQtdProduzidaInput(Number(op.quantidadeProduzida) || 0); setEditandoQtdProduzida(true) }}
+                  >
+                    <IconPencil size={14} />
+                  </ActionIcon>
+                </Tooltip>
+              </Group>
+            )}
+          </div>
           <div><Text size="xs" c="dimmed">Entrega Prevista</Text><Text fw={600}>{op.dataEntregaPrevista ? new Date(op.dataEntregaPrevista).toLocaleDateString('pt-BR') : '—'}</Text></div>
           <div><Text size="xs" c="dimmed">Cliente</Text><Text fw={600}>{op.clienteNome || '—'}</Text></div>
           <div><Text size="xs" c="dimmed">Lote</Text><Text fw={600}>{op.lote || '—'}</Text></div>
