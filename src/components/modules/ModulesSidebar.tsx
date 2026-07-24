@@ -62,6 +62,8 @@ interface ModulesSidebarProps {
   onRestore?: () => void
 }
 
+const LOGO_PADRAO_VIZOR = '/logo.jpeg'
+
 export default function ModulesSidebar({ collapsed, onToggle, isAdmin, onCleanup, onBackup, onRestore }: ModulesSidebarProps) {
   const { empresa } = useEmpresa()
   const router = useRouter()
@@ -70,6 +72,13 @@ export default function ModulesSidebar({ collapsed, onToggle, isAdmin, onCleanup
 
   if (collapsed) return null
 
+  // Empresa com logo cadastrado (data-URL base64, ver logo-validator.ts no
+  // backend) substitui o logo padrão da Vizor. Sem logo cadastrado, mantém o
+  // logo fixo da Vizor — mesmo critério já usado no CardEmpresa da tela de
+  // seleção de empresa (deveExibirLogoNoAvatar).
+  const temLogoPropio = (empresa?.logo ?? '').trim() !== ''
+  const logoSrc = temLogoPropio ? empresa!.logo! : LOGO_PADRAO_VIZOR
+
   return (
     <aside className="fixed left-0 top-[72px] bottom-0 w-[250px] bg-white dark:bg-[#1a1b1e] border-r border-gray-100 dark:border-gray-800 flex flex-col z-40 overflow-y-auto">
       {/* Empresa info */}
@@ -77,7 +86,12 @@ export default function ModulesSidebar({ collapsed, onToggle, isAdmin, onCleanup
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center overflow-hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.jpeg" alt="Logo" className="w-8 h-8 object-contain" />
+            <img
+              src={logoSrc}
+              alt="Logo"
+              className="w-8 h-8 object-contain"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = LOGO_PADRAO_VIZOR }}
+            />
           </div>
           <div className="flex-1 min-w-0">
             <Text size="sm" fw={700} className="truncate text-gray-900">
