@@ -76,7 +76,10 @@ export default function ProgramacaoPage() {
   const [filtroGrupo, setFiltroGrupo] = useState<string | null>(null)
   const [filtroDataRange, setFiltroDataRange] = useState<[Date | null, Date | null]>([null, null])
   // Modais
-  const [modalApontar, setModalApontar] = useState<{ etapaId: string; opNumero: number; descricao: string } | null>(null)
+  // `finalizando`: quando true, o modal foi aberto pelo botão "Finalizar" —
+  // ao salvar, registra o apontamento E conclui a etapa em seguida (a etapa
+  // sai da fila do grupo), em vez de só registrar produção parcial.
+  const [modalApontar, setModalApontar] = useState<{ etapaId: string; opNumero: number; descricao: string; finalizando?: boolean; quantidadeEtapa?: number; jaProduzido?: number } | null>(null)
   const [modalPausar, setModalPausar] = useState<{ etapaId: string; opNumero: number } | null>(null)
   const [modalDesmembrar, setModalDesmembrar] = useState<{ etapaId: string; opNumero: number; quantidade: number; descricao: string } | null>(null)
   const [formApontar, setFormApontar] = useState({ quantidadeProduzida: 0, quantidadePerda: 0, motivoPerda: '', observacao: '' })
@@ -227,25 +230,43 @@ export default function ProgramacaoPage() {
     } catch (err: any) { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' }) }
   }
 
-  async function concluirEtapa(etapaId: string) {
-    if (!confirm('Finalizar esta etapa? Ela saírá da fila deste grupo.')) return
-    try {
-      await api.patch(`/pcp/etapas/${etapaId}/concluir`, {})
-      notifications.show({ title: 'Etapa finalizada', message: '', color: 'green' })
-      carregar()
-    } catch (err: any) { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' }) }
+  // Abre o modal de apontamento em modo "finalizar": o usuário registra a
+  // quantidade produzida final e, ao confirmar, a etapa é apontada e
+  // concluída na sequência (continua saindo da fila do grupo, como antes).
+  function abrirFinalizarEtapa(etapa: any) {
+    setModalApontar({
+      etapaId: etapa.id,
+      opNumero: etapa.opNumero,
+      descricao: etapa.descricao,
+      finalizando: true,
+      quantidadeEtapa: etapa.quantidade,
+      jaProduzido: etapa.quantidadeProduzida || 0,
+    })
+    // Pré-preenche com o saldo restante para produzir, facilitando o caso comum
+    // de "produziu tudo" — o usuário pode ajustar se produziu menos.
+    const restante = Math.max(0, (etapa.quantidade || 0) - (etapa.quantidadeProduzida || 0))
+    setFormApontar({ quantidadeProduzida: restante, quantidadePerda: 0, motivoPerda: '', observacao: '' })
   }
 
   async function enviarApontamento() {
     if (!modalApontar) return
     try {
-      await api.post(`/pcp/etapas/${modalApontar.etapaId}/apontar`, {
-        quantidadeProduzida: formApontar.quantidadeProduzida,
-        quantidadePerda: formApontar.quantidadePerda,
-        motivoPerda: formApontar.motivoPerda || undefined,
-        observacao: formApontar.observacao || undefined,
-      })
-      notifications.show({ title: 'Apontamento registrado', message: `+${formApontar.quantidadeProduzida} produzidas`, color: 'green' })
+      if (formApontar.quantidadeProduzida > 0 || formApontar.quantidadePerda > 0) {
+        await api.post(`/pcp/etapas/${modalApontar.etapaId}/apontar`, {
+          quantidadeProduzida: formApontar.quantidadeProduzida,
+          quantidadePerda: formApontar.quantidadePerda,
+          motivoPerda: formApontar.motivoPerda || undefined,
+          observacao: formApontar.observacao || undefined,
+        })
+      }
+
+      if (modalApontar.finalizando) {
+        await api.patch(`/pcp/etapas/${modalApontar.etapaId}/concluir`, {})
+        notifications.show({ title: 'Etapa finalizada', message: `Quantidade produzida registrada: ${(modalApontar.jaProduzido || 0) + formApontar.quantidadeProduzida}`, color: 'green' })
+      } else {
+        notifications.show({ title: 'Apontamento registrado', message: `+${formApontar.quantidadeProduzida} produzidas`, color: 'green' })
+      }
+
       setModalApontar(null)
       setFormApontar({ quantidadeProduzida: 0, quantidadePerda: 0, motivoPerda: '', observacao: '' })
       carregar()
@@ -1131,7 +1152,7 @@ export default function ProgramacaoPage() {
                                     <ActionIcon color="orange" variant="light" size="sm" onClick={() => setModalPausar({ etapaId: etapa.id, opNumero: etapa.opNumero })} title="Parar">
                                       <IconPlayerPause size={14} />
                                     </ActionIcon>
-                                    <ActionIcon color="green" variant="light" size="sm" onClick={() => concluirEtapa(etapa.id)} title="Finalizar">
+                                    <ActionIcon color="green" variant="light" size="sm" onClick={() => abrirFinalizarEtapa(etapa)} title="Finalizar">
                                       <IconCheck size={14} />
                                     </ActionIcon>
                                   </>
@@ -1296,7 +1317,7 @@ export default function ProgramacaoPage() {
                                     <ActionIcon color="orange" variant="light" size="sm" onClick={() => setModalPausar({ etapaId: etapa.id, opNumero: etapa.opNumero })} title="Pausar">
                                       <IconPlayerPause size={14} />
                                     </ActionIcon>
-                                    <ActionIcon color="green" variant="light" size="sm" onClick={() => concluirEtapa(etapa.id)} title="Concluir">
+                                    <ActionIcon color="green" variant="light" size="sm" onClick={() => abrirFinalizarEtapa(etapa)} title="Concluir">
                                       <IconCheck size={14} />
                                     </ActionIcon>
                                   </>
@@ -1332,19 +1353,32 @@ export default function ProgramacaoPage() {
         </SortableContext>
       </DndContext>
 
-      {/* Modal: Apontar Produção */}
-      <Modal opened={!!modalApontar} onClose={() => setModalApontar(null)} title={`Apontar Produção — OP #${modalApontar?.opNumero}`} centered>
+      {/* Modal: Apontar Produção (também usado ao Finalizar a etapa) */}
+      <Modal opened={!!modalApontar} onClose={() => setModalApontar(null)} title={modalApontar?.finalizando ? `Finalizar Etapa — OP #${modalApontar?.opNumero}` : `Apontar Produção — OP #${modalApontar?.opNumero}`} centered>
         <Stack gap="md">
           <Text size="sm" c="dimmed">{modalApontar?.descricao}</Text>
+          {modalApontar?.finalizando && (
+            <Text size="xs" c="orange">Informe a quantidade produzida antes de finalizar. Ao confirmar, a etapa sai da fila deste grupo.</Text>
+          )}
           <Group grow>
             <NumberInput label="Quantidade Produzida" value={formApontar.quantidadeProduzida} onChange={(v) => setFormApontar({ ...formApontar, quantidadeProduzida: typeof v === 'number' ? v : 0 })} min={0} />
             <NumberInput label="Quantidade Perda" value={formApontar.quantidadePerda} onChange={(v) => setFormApontar({ ...formApontar, quantidadePerda: typeof v === 'number' ? v : 0 })} min={0} />
           </Group>
+          {modalApontar?.finalizando && !!modalApontar?.quantidadeEtapa && (
+            <Group justify="space-between">
+              <Text size="xs" c="dimmed">Total já produzido: {(modalApontar.jaProduzido || 0).toLocaleString('pt-BR')} de {modalApontar.quantidadeEtapa.toLocaleString('pt-BR')}</Text>
+              <Text size="xs" fw={700} c={((modalApontar.jaProduzido || 0) + formApontar.quantidadeProduzida) >= modalApontar.quantidadeEtapa ? 'green' : 'orange'}>
+                {Math.min(100, Math.round((((modalApontar.jaProduzido || 0) + formApontar.quantidadeProduzida) / modalApontar.quantidadeEtapa) * 100))}% concluído
+              </Text>
+            </Group>
+          )}
           {formApontar.quantidadePerda > 0 && (
             <Select label="Motivo da Perda" data={['ACERTO', 'REFUGO', 'DEFEITO', 'APARA']} value={formApontar.motivoPerda} onChange={(v) => setFormApontar({ ...formApontar, motivoPerda: v || '' })} />
           )}
           <Textarea label="Observação" value={formApontar.observacao} onChange={(e) => setFormApontar({ ...formApontar, observacao: e.currentTarget.value })} />
-          <Button onClick={enviarApontamento} fullWidth>Registrar Apontamento</Button>
+          <Button onClick={enviarApontamento} fullWidth color={modalApontar?.finalizando ? 'green' : 'blue'}>
+            {modalApontar?.finalizando ? 'Confirmar e Finalizar' : 'Registrar Apontamento'}
+          </Button>
         </Stack>
       </Modal>
 
