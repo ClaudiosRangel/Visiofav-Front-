@@ -8,7 +8,12 @@ import {
 import {
   IconFileText, IconRefresh, IconArrowRight, IconX, IconPlayerPlay, IconPlayerPause,
   IconCheck, IconChevronDown, IconChevronRight, IconTruck, IconCut, IconClipboardCheck,
+  IconGripVertical,
 } from '@tabler/icons-react'
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { notifications } from '@mantine/notifications'
 
 const STATUS_DOT: Record<string, string> = {
   PENDENTE: '#adb5bd',
@@ -66,6 +71,27 @@ function extrairTipoOpDeObs(obs?: string | null): string | null {
 
 type Selecao = { tipo: 'etapa'; opId: string } | { tipo: 'aguardando'; item: any } | null
 
+/** Linha arrastável da lista mestre — mesmo padrão visual de drag do Grid
+ * (ícone de grip à esquerda), usando dnd-kit para reordenar a fila. */
+function LinhaArrastavel({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition: transition || undefined,
+    opacity: isDragging ? 0.5 : 1,
+  }
+  return (
+    <Box ref={setNodeRef} style={style} {...attributes}>
+      <Group gap={0} wrap="nowrap" align="stretch">
+        <Box {...listeners} style={{ cursor: 'grab', display: 'flex', alignItems: 'center', padding: '0 4px', color: 'var(--mantine-color-gray-5)' }}>
+          <IconGripVertical size={14} />
+        </Box>
+        <Box style={{ flex: 1, minWidth: 0 }}>{children}</Box>
+      </Group>
+    </Box>
+  )
+}
+
 interface Props {
   painel: any
   centrosFiltrados: any[]
@@ -86,6 +112,8 @@ interface Props {
   excluirEtapa: (etapaId: string, isDesmembramento: boolean) => void
   excluirOpAvulsa: (opId: string, referencia: string) => void
   liberarProducao: (opId: string) => void
+  /** Reordena a fila de um centro (mesma rota PATCH /pcp/etapas/reordenar já usada pelo Grid). */
+  reordenarFilaCentro: (centroId: string, etapaIds: string[]) => Promise<void>
 }
 
 /**
@@ -111,10 +139,19 @@ export default function VisaoDetalhadaProgramacao({
   editingObs, setEditingObs, salvarObservacao,
   iniciarEtapa, abrirFinalizarEtapa, setModalPausar, verPdfOp, reextrairPdf,
   setModalMover, setModalDesmembrar, setFormDesmembrar, setModalApontar, excluirEtapa, excluirOpAvulsa, liberarProducao,
+  reordenarFilaCentro,
 }: Props) {
   const [selecao, setSelecao] = useState<Selecao>(null)
   const [especificacaoAberta, setEspecificacaoAberta] = useState(true)
   const [abaCategoria, setAbaCategoria] = useState<string | null>(null)
+  // Ordem otimista da lista mestre (drag-and-drop) — sobrepõe `opsUnicas`
+  // enquanto o usuário reordena, revertendo se a chamada à API falhar.
+  const [ordemOtimista, setOrdemOtimista] = useState<any[] | null>(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor),
+  )
 
   // Índice OP → todas as suas etapas (todos os centros, sem filtro de aba),
   // guardando também o tipoMaquina do centro de cada etapa para categorizar
@@ -137,7 +174,10 @@ export default function VisaoDetalhadaProgramacao({
   }, [painel])
 
   // Lista mestre plana: uma linha por OP (deduplicada), sem cabeçalho de
-  // centro/máquina — preserva a ordem de fila já vinda do backend.
+  // centro/máquina — preserva a ordem de fila já vinda do backend. Cada item
+  // guarda o centro da ETAPA que gerou a entrada (etapa.centroId/centroDescricao)
+  // — necessário para o drag-and-drop: só é possível reordenar a fila entre
+  // OPs do MESMO centro (posicaoFila é armazenada por centro no banco).
   const opsUnicas = useMemo(() => {
     const vistos = new Set<string>()
     const lista: any[] = []
@@ -145,7 +185,7 @@ export default function VisaoDetalhadaProgramacao({
       for (const etapa of centro.etapas) {
         if (vistos.has(etapa.opId)) continue
         vistos.add(etapa.opId)
-        lista.push(etapa)
+        lista.push({ ...etapa, centroId: centro.centro.id, centroDescricaoFila: centro.centro.descricao })
       }
     }
     return lista
@@ -168,8 +208,60 @@ export default function VisaoDetalhadaProgramacao({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opsUnicas, aguardandoCartaoFiltrado])
 
+
   const detalheOp = selecao?.tipo === 'etapa' ? mapaEtapasPorOp.get(selecao.opId) : null
   const baseOp = detalheOp?.base
+
+  // Descarta a ordem otimista sempre que o painel recarrega do backend
+  // (novo apontamento, nova filtragem etc.) — evita a lista "congelar" numa
+  // ordem antiga depois de qualquer outra ação que dispare `carregar()`.
+  useEffect(() => { setOrdemOtimista(null) }, [centrosFiltrados])
+
+  const listaExibida = ordemOtimista || opsUnicas
+
+  async function handleDragEndMestre(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const base = ordemOtimista || opsUnicas
+    const etapaAtiva = base.find((e: any) => e.id === active.id)
+    const etapaDestino = base.find((e: any) => e.id === over.id)
+    if (!etapaAtiva || !etapaDestino) return
+
+    // A posição na fila é armazenada por centro no banco — só é possível
+    // reordenar entre etapas do MESMO centro. Entre centros diferentes,
+    // orienta a usar o botão "Mover" (→) em vez de arrastar.
+    if (etapaAtiva.centroId !== etapaDestino.centroId) {
+      notifications.show({
+        title: 'Não é possível reordenar',
+        message: 'Só é possível arrastar a ordem entre OSs do mesmo grupo/centro. Para trocar de grupo, use o botão "Mover" (→).',
+        color: 'orange',
+      })
+      return
+    }
+
+    const etapasDoCentro = base.filter((e: any) => e.centroId === etapaAtiva.centroId)
+    const oldIndex = etapasDoCentro.findIndex((e: any) => e.id === active.id)
+    const newIndex = etapasDoCentro.findIndex((e: any) => e.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    const novaOrdemDoCentro = arrayMove(etapasDoCentro, oldIndex, newIndex)
+
+    // Reconstrói a lista completa preservando a posição relativa das outras
+    // OSs (de outros centros), só substituindo a sequência do centro afetado.
+    let cursor = 0
+    const novaListaCompleta = base.map((e: any) => {
+      if (e.centroId !== etapaAtiva.centroId) return e
+      return novaOrdemDoCentro[cursor++]
+    })
+
+    setOrdemOtimista(novaListaCompleta)
+
+    try {
+      await reordenarFilaCentro(etapaAtiva.centroId, novaOrdemDoCentro.map((e: any) => e.id))
+    } catch {
+      setOrdemOtimista(null)
+    }
+  }
 
   // Agrupa as etapas da OP selecionada pela mesma categoria usada nas abas
   // do Modelo 1 (Cortadeira/Impressão/Acabamento/Outros).
@@ -228,38 +320,43 @@ export default function VisaoDetalhadaProgramacao({
             </Box>
           )}
 
-          {opsUnicas.length === 0 ? (
+          {listaExibida.length === 0 ? (
             <Text size="sm" c="dimmed" ta="center" py="lg">Nenhuma OS encontrada com os filtros atuais</Text>
           ) : (
-            opsUnicas.map((etapa: any) => {
-              const ativo = selecao?.tipo === 'etapa' && selecao.opId === etapa.opId
-              const destacar = highlightedEtapa === etapa.id
-              return (
-                <UnstyledButton
-                  key={etapa.opId}
-                  onClick={() => setSelecao({ tipo: 'etapa', opId: etapa.opId })}
-                  style={{
-                    display: 'block', width: '100%', padding: '8px 12px',
-                    background: destacar ? 'var(--mantine-color-yellow-2)' : (ativo ? 'var(--mantine-color-teal-0)' : (etapa.isAvulsa ? 'var(--mantine-color-pink-0)' : undefined)),
-                    borderLeft: ativo ? '3px solid var(--mantine-color-teal-6)' : '3px solid transparent',
-                    borderBottom: '1px solid var(--mantine-color-gray-1)',
-                  }}
-                >
-                  <Group justify="space-between" wrap="nowrap" gap={6}>
-                    <Box style={{ minWidth: 0, flex: 1 }}>
-                      <Group gap={4} wrap="nowrap">
-                        <Text size="sm" fw={600} truncate>{etapa.opNumero} — {etapa.clienteNome || '—'}</Text>
-                        {etapa.isAvulsa && <Badge color="pink" size="xs">AVULSA</Badge>}
-                      </Group>
-                      <Text size="xs" c="dimmed" truncate>{etapa.produtoNome || etapa.descricao}</Text>
-                    </Box>
-                    <Text size="9px" fw={700} c={corTipoOp(etapa.tipoOp)} style={{ whiteSpace: 'nowrap' }}>
-                      {etapa.tipoOp || '—'}
-                    </Text>
-                  </Group>
-                </UnstyledButton>
-              )
-            })
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndMestre}>
+              <SortableContext items={listaExibida.map((e: any) => e.id)} strategy={verticalListSortingStrategy}>
+                {listaExibida.map((etapa: any) => {
+                  const ativo = selecao?.tipo === 'etapa' && selecao.opId === etapa.opId
+                  const destacar = highlightedEtapa === etapa.id
+                  return (
+                    <LinhaArrastavel key={etapa.id} id={etapa.id}>
+                      <UnstyledButton
+                        onClick={() => setSelecao({ tipo: 'etapa', opId: etapa.opId })}
+                        style={{
+                          display: 'block', width: '100%', padding: '8px 12px 8px 0',
+                          background: destacar ? 'var(--mantine-color-yellow-2)' : (ativo ? 'var(--mantine-color-teal-0)' : (etapa.isAvulsa ? 'var(--mantine-color-pink-0)' : undefined)),
+                          borderLeft: ativo ? '3px solid var(--mantine-color-teal-6)' : '3px solid transparent',
+                          borderBottom: '1px solid var(--mantine-color-gray-1)',
+                        }}
+                      >
+                        <Group justify="space-between" wrap="nowrap" gap={6}>
+                          <Box style={{ minWidth: 0, flex: 1 }}>
+                            <Group gap={4} wrap="nowrap">
+                              <Text size="sm" fw={600} truncate>{etapa.opNumero} — {etapa.clienteNome || '—'}</Text>
+                              {etapa.isAvulsa && <Badge color="pink" size="xs">AVULSA</Badge>}
+                            </Group>
+                            <Text size="xs" c="dimmed" truncate>{etapa.produtoNome || etapa.descricao}</Text>
+                          </Box>
+                          <Text size="9px" fw={700} c={corTipoOp(etapa.tipoOp)} style={{ whiteSpace: 'nowrap' }}>
+                            {etapa.tipoOp || '—'}
+                          </Text>
+                        </Group>
+                      </UnstyledButton>
+                    </LinhaArrastavel>
+                  )
+                })}
+              </SortableContext>
+            </DndContext>
           )}
         </ScrollArea>
       </Card>
