@@ -945,6 +945,8 @@ export default function ProgramacaoPage() {
           verPdfOp={verPdfOp}
           reextrairPdf={reextrairPdf}
           setModalMover={setModalMover}
+          setModalDesmembrar={setModalDesmembrar}
+          setFormDesmembrar={setFormDesmembrar}
           excluirEtapa={excluirEtapa}
           excluirOpAvulsa={excluirOpAvulsa}
           liberarProducao={liberarProducao}
