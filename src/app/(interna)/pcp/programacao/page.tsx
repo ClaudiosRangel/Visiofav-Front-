@@ -10,6 +10,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
 import { SortableCentroItem } from '@/components/pcp/SortableCentroItem'
+import PainelGruposVazios from '@/components/pcp/PainelGruposVazios'
 import VisaoDetalhadaProgramacao from '@/components/pcp/VisaoDetalhadaProgramacao'
 import { useCentrosOrdenacao } from '@/hooks/useCentrosOrdenacao'
 import { IconLayoutGrid, IconListDetails } from '@tabler/icons-react'
@@ -854,6 +855,14 @@ export default function ProgramacaoPage() {
     return true // Sem filtro: mostrar todos os grupos (inclusive vazios)
   })
 
+  // Grupos/centros sem nenhuma OS na fila — usa `painel.centros` (não
+  // `centrosFiltrados`) de propósito: é informação estrutural do cadastro,
+  // não deve desaparecer só por causa de um filtro de busca/aba ativo.
+  // Mesmo painel (componente compartilhado) exibido também no layout
+  // Detalhado (VisaoDetalhadaProgramacao) — só adiciona algo novo abaixo do
+  // Grid, sem alterar nenhuma lógica/JSX existente do Modelo 1.
+  const centrosVazios = (painel.centros || []).filter((c: any) => c.etapas.length === 0)
+
   return (
     <Stack gap="md">
       <Title order={3}>Painel Operacional — Programação por Centro</Title>
@@ -1436,6 +1445,11 @@ export default function ProgramacaoPage() {
           </div>
         </SortableContext>
       </DndContext>
+
+      <PainelGruposVazios
+        centros={centrosVazios}
+        abrirAdicionarOS={(centroId, centroDescricao) => { setModalAdicionarOS({ centroId, centroDescricao }); carregarProdutosEClientes() }}
+      />
       </>
       )}
 
