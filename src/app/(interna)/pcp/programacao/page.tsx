@@ -10,7 +10,9 @@ import { CSS } from '@dnd-kit/utilities'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
 import { SortableCentroItem } from '@/components/pcp/SortableCentroItem'
+import VisaoDetalhadaProgramacao from '@/components/pcp/VisaoDetalhadaProgramacao'
 import { useCentrosOrdenacao } from '@/hooks/useCentrosOrdenacao'
+import { IconLayoutGrid, IconListDetails } from '@tabler/icons-react'
 
 const PRIORIDADE_COLORS: Record<string, string> = { BAIXA: 'gray', NORMAL: 'blue', ALTA: 'orange', URGENTE: 'red' }
 const STATUS_COLORS: Record<string, string> = { PENDENTE: 'gray', EM_ANDAMENTO: 'blue', PAUSADA: 'orange', CONCLUIDA: 'green' }
@@ -69,6 +71,17 @@ export default function ProgramacaoPage() {
   const [loading, setLoading] = useState(true)
   const [abertos, setAbertos] = useState<Record<string, boolean>>({})
   const [activeTab, setActiveTab] = useState<string>('todos')
+  // Layout da tela: "grid" (tabelas por centro, padrão atual) ou "detalhado"
+  // (lista mestre + painel de detalhe único, evita repetir a mesma OP em
+  // várias linhas/abas). Persistido para lembrar a preferência do usuário.
+  const [layoutView, setLayoutView] = useState<'grid' | 'detalhado'>(() => {
+    if (typeof window === 'undefined') return 'grid'
+    return (localStorage.getItem('pcp-programacao-layout') as 'grid' | 'detalhado') || 'grid'
+  })
+  function alterarLayoutView(valor: 'grid' | 'detalhado') {
+    setLayoutView(valor)
+    localStorage.setItem('pcp-programacao-layout', valor)
+  }
   // Filtros
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState<string | null>(null)
@@ -835,6 +848,16 @@ export default function ProgramacaoPage() {
             <Tabs.Tab value="acabamento">Acabamento</Tabs.Tab>
           </Tabs.List>
         </Tabs>
+        <SegmentedControl
+          size="xs"
+          value={layoutView}
+          onChange={(v) => alterarLayoutView(v as 'grid' | 'detalhado')}
+          className="no-print"
+          data={[
+            { value: 'grid', label: (<Group gap={4} wrap="nowrap"><IconLayoutGrid size={14} /><span>Grid</span></Group>) as any },
+            { value: 'detalhado', label: (<Group gap={4} wrap="nowrap"><IconListDetails size={14} /><span>Detalhado</span></Group>) as any },
+          ]}
+        />
         <Button size="xs" variant="light" leftSection={<IconPrinter size={14} />} onClick={() => imprimirRelatorio()} className="no-print">
           Imprimir
         </Button>
@@ -907,6 +930,27 @@ export default function ProgramacaoPage() {
         />
       </Group>
 
+      {layoutView === 'detalhado' ? (
+        <VisaoDetalhadaProgramacao
+          painel={painel}
+          centrosFiltrados={centrosFiltrados}
+          aguardandoCartaoFiltrado={aguardandoCartaoFiltrado}
+          highlightedEtapa={highlightedEtapa}
+          editingObs={editingObs}
+          setEditingObs={setEditingObs}
+          salvarObservacao={salvarObservacao}
+          iniciarEtapa={iniciarEtapa}
+          abrirFinalizarEtapa={abrirFinalizarEtapa}
+          setModalPausar={setModalPausar}
+          verPdfOp={verPdfOp}
+          reextrairPdf={reextrairPdf}
+          setModalMover={setModalMover}
+          excluirEtapa={excluirEtapa}
+          excluirOpAvulsa={excluirOpAvulsa}
+          liberarProducao={liberarProducao}
+        />
+      ) : (
+      <>
       {/* Seção AGUARDANDO CARTÃO — filtrada por tipoMaquina conforme aba ativa */}
       {mostrarAguardandoCartao && (
         <Card withBorder padding="xs" style={{ borderColor: 'var(--mantine-color-yellow-5)', background: 'var(--mantine-color-yellow-0)' }}>
@@ -1352,6 +1396,8 @@ export default function ProgramacaoPage() {
           </div>
         </SortableContext>
       </DndContext>
+      </>
+      )}
 
       {/* Modal: Apontar Produção (também usado ao Finalizar a etapa) */}
       <Modal opened={!!modalApontar} onClose={() => setModalApontar(null)} title={modalApontar?.finalizando ? `Finalizar Etapa — OP #${modalApontar?.opNumero}` : `Apontar Produção — OP #${modalApontar?.opNumero}`} centered>
