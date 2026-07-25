@@ -199,6 +199,16 @@ export default function ProgramacaoPage() {
     })
   }
 
+  // Reordena a fila de um centro via API — usada pelo drag-and-drop da lista
+  // mestre do layout Detalhado (VisaoDetalhadaProgramacao). O estado otimista
+  // e o rollback em caso de erro são tratados dentro do próprio componente;
+  // aqui só persiste no backend e recarrega o painel ao final para manter
+  // `painel.centros` (fonte de verdade de ambos os layouts) sincronizado.
+  async function reordenarFilaCentro(centroId: string, etapaIds: string[]) {
+    await api.patch('/pcp/etapas/reordenar', { centroProducaoId: centroId, etapaIds })
+    await carregar()
+  }
+
   async function handleDragEnd(centroId: string, event: DragEndEvent) {
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -964,6 +974,7 @@ export default function ProgramacaoPage() {
           excluirEtapa={excluirEtapa}
           excluirOpAvulsa={excluirOpAvulsa}
           liberarProducao={liberarProducao}
+          reordenarFilaCentro={reordenarFilaCentro}
         />
       ) : (
       <>
