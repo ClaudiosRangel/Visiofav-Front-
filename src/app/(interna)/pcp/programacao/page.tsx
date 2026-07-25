@@ -840,18 +840,31 @@ export default function ProgramacaoPage() {
       <Text size="sm" c="dimmed">Controle em tempo real: inicie, aponte produção, registre paradas e conclua etapas.</Text>
 
       <Group justify="space-between" align="flex-end">
-        <Tabs value={activeTab} onChange={(value) => setActiveTab(value || 'todos')} style={{ flex: 1 }}>
-          <Tabs.List>
-            <Tabs.Tab value="todos">Todos</Tabs.Tab>
-            <Tabs.Tab value="cortadeira">Cortadeira</Tabs.Tab>
-            <Tabs.Tab value="impressao">Impressão</Tabs.Tab>
-            <Tabs.Tab value="acabamento">Acabamento</Tabs.Tab>
-          </Tabs.List>
-        </Tabs>
+        {/* No layout Detalhado, o filtro por estágio passa a ser feito DENTRO
+            do painel de detalhe (abas Cortadeira/Impressão/Acabamento por OP
+            selecionada) — as abas do topo ficam redundantes e são ocultadas,
+            travando sempre em "todos". Ao voltar para o Grid, as abas voltam
+            a aparecer normalmente. */}
+        {layoutView === 'grid' ? (
+          <Tabs value={activeTab} onChange={(value) => setActiveTab(value || 'todos')} style={{ flex: 1 }}>
+            <Tabs.List>
+              <Tabs.Tab value="todos">Todos</Tabs.Tab>
+              <Tabs.Tab value="cortadeira">Cortadeira</Tabs.Tab>
+              <Tabs.Tab value="impressao">Impressão</Tabs.Tab>
+              <Tabs.Tab value="acabamento">Acabamento</Tabs.Tab>
+            </Tabs.List>
+          </Tabs>
+        ) : (
+          <div style={{ flex: 1 }} />
+        )}
         <SegmentedControl
           size="xs"
           value={layoutView}
-          onChange={(v) => alterarLayoutView(v as 'grid' | 'detalhado')}
+          onChange={(v) => {
+            const novoValor = v as 'grid' | 'detalhado'
+            alterarLayoutView(novoValor)
+            if (novoValor === 'detalhado') setActiveTab('todos')
+          }}
           className="no-print"
           data={[
             { value: 'grid', label: (<Group gap={4} wrap="nowrap"><IconLayoutGrid size={14} /><span>Grid</span></Group>) as any },
@@ -947,6 +960,7 @@ export default function ProgramacaoPage() {
           setModalMover={setModalMover}
           setModalDesmembrar={setModalDesmembrar}
           setFormDesmembrar={setFormDesmembrar}
+          setModalApontar={setModalApontar}
           excluirEtapa={excluirEtapa}
           excluirOpAvulsa={excluirOpAvulsa}
           liberarProducao={liberarProducao}
