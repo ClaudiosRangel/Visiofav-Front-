@@ -14,6 +14,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { notifications } from '@mantine/notifications'
+import PainelGruposVazios from './PainelGruposVazios'
 
 const STATUS_DOT: Record<string, string> = {
   PENDENTE: '#adb5bd',
@@ -297,7 +298,17 @@ export default function VisaoDetalhadaProgramacao({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selecao])
 
+  // Grupos/centros sem nenhuma OS na fila — usa `painel.centros` (não
+  // `centrosFiltrados`) de propósito: um centro vazio é informação
+  // estrutural do cadastro, não deve desaparecer só porque um filtro de
+  // busca/aba está ativo na lista mestre.
+  const centrosVazios = useMemo(
+    () => (painel?.centros || []).filter((c: any) => c.etapas.length === 0),
+    [painel],
+  )
+
   return (
+    <Stack gap="md">
     <Group align="flex-start" gap="md" wrap="nowrap" style={{ minHeight: 500 }}>
       {/* Coluna principal — lista mestre plana: Nº OP, Cliente, Produto e Tipo OP */}
       <Card withBorder padding={0} style={{ width: 380, flexShrink: 0, overflow: 'hidden' }}>
@@ -676,5 +687,13 @@ export default function VisaoDetalhadaProgramacao({
         )}
       </Card>
     </Group>
+
+    {/* Grupos/centros sem nenhuma OS na fila — informação estrutural do
+        cadastro, exibida abaixo do quadro mestre-detalhe. Não usa filtro de
+        busca/aba (ver `centrosVazios` acima), só desaparece se o centro
+        passar a ter etapas de verdade. Mesmo componente usado no Grid
+        (Modelo 1), para exibir no formato visual idêntico. */}
+    <PainelGruposVazios centros={centrosVazios} abrirAdicionarOS={abrirAdicionarOS} />
+    </Stack>
   )
 }
