@@ -109,6 +109,8 @@ interface Props {
   setModalDesmembrar: (v: { etapaId: string; opNumero: number; quantidade: number; descricao: string }) => void
   setFormDesmembrar: (v: Array<{ centroProducaoId: string; quantidade: number }>) => void
   setModalApontar: (v: { etapaId: string; opNumero: number; descricao: string }) => void
+  setModalPostData: (v: { opId: string; opNumero: number; dataAtual: string }) => void
+  alterarPrioridade: (opId: string, prioridadeAtual: string) => void
   excluirEtapa: (etapaId: string, isDesmembramento: boolean) => void
   excluirOpAvulsa: (opId: string, referencia: string) => void
   liberarProducao: (opId: string) => void
@@ -140,7 +142,8 @@ export default function VisaoDetalhadaProgramacao({
   painel, centrosFiltrados, aguardandoCartaoFiltrado, highlightedEtapa,
   editingObs, setEditingObs, salvarObservacao,
   iniciarEtapa, abrirFinalizarEtapa, setModalPausar, verPdfOp, reextrairPdf,
-  setModalMover, setModalDesmembrar, setFormDesmembrar, setModalApontar, excluirEtapa, excluirOpAvulsa, liberarProducao,
+  setModalMover, setModalDesmembrar, setFormDesmembrar, setModalApontar, setModalPostData, alterarPrioridade,
+  excluirEtapa, excluirOpAvulsa, liberarProducao,
   reordenarFilaCentro, abrirAdicionarOS,
 }: Props) {
   const [selecao, setSelecao] = useState<Selecao>(null)
@@ -578,6 +581,65 @@ export default function VisaoDetalhadaProgramacao({
                               <Progress value={etapa.percentual} size="sm" color={etapa.percentual >= 100 ? 'green' : 'blue'} />
                             </div>
                           </Group>
+
+                          {/* Entrega/Prioridade/Matriz/Cores/Pantones — mesmas colunas do modelo
+                              Impressão/Acabamento do Grid, não existem no modelo Cortadeira. */}
+                          {cat.key !== 'cortadeira' && (
+                            <Group gap="lg" mt={8} wrap="wrap">
+                              <div>
+                                <Text size="10px" c="dimmed">Entrega</Text>
+                                {etapa.dataEntrega ? (
+                                  <Group gap={4} wrap="nowrap">
+                                    <Text
+                                      size="sm"
+                                      fw={600}
+                                      style={{ cursor: 'pointer' }}
+                                      onClick={() => setModalPostData({ opId: etapa.opId, opNumero: etapa.opNumero, dataAtual: etapa.dataEntrega })}
+                                      title="Clique para postergar a entrega"
+                                    >
+                                      {new Date(etapa.dataEntrega).toLocaleDateString('pt-BR')}
+                                    </Text>
+                                    {etapa.vezesPostergada === 0 && <Text size="sm">🟢</Text>}
+                                    {etapa.vezesPostergada === 1 && <Text size="sm">🟡</Text>}
+                                    {etapa.vezesPostergada >= 2 && <Text size="sm">🔴</Text>}
+                                  </Group>
+                                ) : <Text size="sm" fw={600}>—</Text>}
+                              </div>
+                              <div>
+                                <Text size="10px" c="dimmed">Prioridade</Text>
+                                <Text
+                                  size="sm"
+                                  fw={600}
+                                  c={PRIORIDADE_COLORS[etapa.prioridade]}
+                                  style={{ cursor: 'pointer' }}
+                                  onClick={() => alterarPrioridade(etapa.opId, etapa.prioridade)}
+                                  title="Clique para alterar prioridade"
+                                >
+                                  {etapa.prioridade}
+                                </Text>
+                              </div>
+                              <div>
+                                <Text size="10px" c="dimmed">Matriz</Text>
+                                <Text size="sm" fw={600}>{etapa.matriz || '—'}</Text>
+                              </div>
+                              <div>
+                                <Text size="10px" c="dimmed">Cores</Text>
+                                <Text size="sm" fw={600} c="indigo">{etapa.qtdCores || '—'}</Text>
+                              </div>
+                              <div>
+                                <Text size="10px" c="dimmed">Pantone 1</Text>
+                                <Text size="sm" fw={600}>{etapa.pantone01 || '—'}</Text>
+                              </div>
+                              <div>
+                                <Text size="10px" c="dimmed">Pantone 2</Text>
+                                <Text size="sm" fw={600}>{etapa.pantone02 || '—'}</Text>
+                              </div>
+                              <div>
+                                <Text size="10px" c="dimmed">Pantone 3</Text>
+                                <Text size="sm" fw={600}>{etapa.pantone03 || '—'}</Text>
+                              </div>
+                            </Group>
+                          )}
 
                           {editingObs && editingObs.id === etapa.id ? (
                             <TextInput

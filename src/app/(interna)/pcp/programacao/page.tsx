@@ -209,6 +209,16 @@ export default function ProgramacaoPage() {
     await carregar()
   }
 
+  // Cicla a prioridade da OP (BAIXA→NORMAL→ALTA→URGENTE→BAIXA) — mesma lógica
+  // já usada inline no clique da célula "Prio." do modelo Impressão/Acabamento
+  // do Grid, extraída aqui para ser reaproveitada pelo layout Detalhado.
+  function alterarPrioridade(opId: string, prioridadeAtual: string) {
+    const opcoes = ['BAIXA', 'NORMAL', 'ALTA', 'URGENTE']
+    const atual = opcoes.indexOf(prioridadeAtual)
+    const nova = opcoes[(atual + 1) % opcoes.length]
+    api.patch(`/ordens-producao/${opId}`, { prioridade: nova }).then(() => carregar())
+  }
+
   async function handleDragEnd(centroId: string, event: DragEndEvent) {
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -976,6 +986,8 @@ export default function ProgramacaoPage() {
           liberarProducao={liberarProducao}
           reordenarFilaCentro={reordenarFilaCentro}
           abrirAdicionarOS={(centroId, centroDescricao) => { setModalAdicionarOS({ centroId, centroDescricao }); carregarProdutosEClientes() }}
+          setModalPostData={setModalPostData}
+          alterarPrioridade={alterarPrioridade}
         />
       ) : (
       <>
