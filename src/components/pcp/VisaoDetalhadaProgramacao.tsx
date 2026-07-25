@@ -8,7 +8,7 @@ import {
 import {
   IconFileText, IconRefresh, IconArrowRight, IconX, IconPlayerPlay, IconPlayerPause,
   IconCheck, IconChevronDown, IconChevronRight, IconTruck, IconCut, IconClipboardCheck,
-  IconGripVertical,
+  IconGripVertical, IconPlus,
 } from '@tabler/icons-react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -114,6 +114,8 @@ interface Props {
   liberarProducao: (opId: string) => void
   /** Reordena a fila de um centro (mesma rota PATCH /pcp/etapas/reordenar já usada pelo Grid). */
   reordenarFilaCentro: (centroId: string, etapaIds: string[]) => Promise<void>
+  /** Abre o modal "Adicionar OS" para um centro específico — mesma ação do botão "+" do Grid. */
+  abrirAdicionarOS: (centroId: string, centroDescricao: string) => void
 }
 
 /**
@@ -139,7 +141,7 @@ export default function VisaoDetalhadaProgramacao({
   editingObs, setEditingObs, salvarObservacao,
   iniciarEtapa, abrirFinalizarEtapa, setModalPausar, verPdfOp, reextrairPdf,
   setModalMover, setModalDesmembrar, setFormDesmembrar, setModalApontar, excluirEtapa, excluirOpAvulsa, liberarProducao,
-  reordenarFilaCentro,
+  reordenarFilaCentro, abrirAdicionarOS,
 }: Props) {
   const [selecao, setSelecao] = useState<Selecao>(null)
   const [especificacaoAberta, setEspecificacaoAberta] = useState(true)
@@ -274,6 +276,17 @@ export default function VisaoDetalhadaProgramacao({
   }, [detalheOp])
 
   const categoriasPresentes = CATEGORIAS_ORDEM.filter((c) => etapasPorCategoria[c.key]?.length > 0)
+
+  // Resumo (em andamento/pausadas/pendentes) de cada centro, direto de
+  // `painel.centros` — mesmo dado exibido no cabeçalho de cada grupo no
+  // Grid (Modelo 1), agora replicado por etapa dentro das abas do detalhe.
+  const resumoPorCentroId = useMemo(() => {
+    const mapa = new Map<string, { emAndamento: number; pausadas: number; pendentes: number }>()
+    for (const centro of painel?.centros || []) {
+      mapa.set(centro.centro.id, centro.resumo)
+    }
+    return mapa
+  }, [painel])
 
   // Ao trocar a OP selecionada, volta a aba de categoria para a primeira disponível.
   useEffect(() => {
@@ -462,11 +475,29 @@ export default function VisaoDetalhadaProgramacao({
                         <Card key={etapa.id} withBorder padding="sm" radius="sm" style={{ borderLeft: `3px solid ${STATUS_DOT[etapa.status]}` }}>
                           <Group justify="space-between" wrap="nowrap" align="flex-start">
                             <Box style={{ minWidth: 0 }}>
-                              <Text size="sm" fw={600} truncate>{etapa.centroDescricao}</Text>
+                              <Group gap={6} wrap="wrap">
+                                <Text size="sm" fw={600} truncate>{etapa.centroDescricao}</Text>
+                                {/* Resumo da fila do centro (quantas etapas em cada status) — mesma
+                                    informação exibida no cabeçalho de cada grupo no Grid. */}
+                                {(() => {
+                                  const resumo = resumoPorCentroId.get(etapa.centroId)
+                                  if (!resumo) return null
+                                  return (
+                                    <Group gap={4} wrap="nowrap">
+                                      {resumo.emAndamento > 0 && <Badge color="blue" size="xs">{resumo.emAndamento} em andamento</Badge>}
+                                      {resumo.pausadas > 0 && <Badge color="orange" size="xs">{resumo.pausadas} pausadas</Badge>}
+                                      <Badge color="gray" size="xs">{resumo.pendentes} pendentes</Badge>
+                                    </Group>
+                                  )
+                                })()}
+                              </Group>
                               <Badge size="xs" color={STATUS_DOT[etapa.status]} variant="light" mt={2}>{STATUS_LABEL[etapa.status] || etapa.status}</Badge>
                             </Box>
 
                             <Group gap={4} wrap="nowrap">
+                              <Tooltip label="Adicionar OS a este grupo">
+                                <ActionIcon color="teal" variant="light" size="sm" onClick={() => abrirAdicionarOS(etapa.centroId, etapa.centroDescricao)}><IconPlus size={14} /></ActionIcon>
+                              </Tooltip>
                               <Tooltip label="Ver PDF da OP">
                                 <ActionIcon color="gray" variant="light" size="sm" onClick={() => verPdfOp(baseOp.opId)}><IconFileText size={14} /></ActionIcon>
                               </Tooltip>

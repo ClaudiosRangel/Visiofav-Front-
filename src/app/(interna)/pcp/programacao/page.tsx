@@ -975,6 +975,7 @@ export default function ProgramacaoPage() {
           excluirOpAvulsa={excluirOpAvulsa}
           liberarProducao={liberarProducao}
           reordenarFilaCentro={reordenarFilaCentro}
+          abrirAdicionarOS={(centroId, centroDescricao) => { setModalAdicionarOS({ centroId, centroDescricao }); carregarProdutosEClientes() }}
         />
       ) : (
       <>
