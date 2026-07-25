@@ -7,7 +7,7 @@ import {
 } from '@mantine/core'
 import {
   IconFileText, IconRefresh, IconArrowRight, IconX, IconPlayerPlay, IconPlayerPause,
-  IconCheck, IconChevronDown, IconChevronRight, IconTruck, IconCut,
+  IconCheck, IconChevronDown, IconChevronRight, IconTruck, IconCut, IconClipboardCheck,
 } from '@tabler/icons-react'
 
 const STATUS_DOT: Record<string, string> = {
@@ -82,6 +82,7 @@ interface Props {
   setModalMover: (v: { etapaId: string; opNumero: number; centroAtualId: string; centroDescricao: string }) => void
   setModalDesmembrar: (v: { etapaId: string; opNumero: number; quantidade: number; descricao: string }) => void
   setFormDesmembrar: (v: Array<{ centroProducaoId: string; quantidade: number }>) => void
+  setModalApontar: (v: { etapaId: string; opNumero: number; descricao: string }) => void
   excluirEtapa: (etapaId: string, isDesmembramento: boolean) => void
   excluirOpAvulsa: (opId: string, referencia: string) => void
   liberarProducao: (opId: string) => void
@@ -109,7 +110,7 @@ export default function VisaoDetalhadaProgramacao({
   painel, centrosFiltrados, aguardandoCartaoFiltrado, highlightedEtapa,
   editingObs, setEditingObs, salvarObservacao,
   iniciarEtapa, abrirFinalizarEtapa, setModalPausar, verPdfOp, reextrairPdf,
-  setModalMover, setModalDesmembrar, setFormDesmembrar, excluirEtapa, excluirOpAvulsa, liberarProducao,
+  setModalMover, setModalDesmembrar, setFormDesmembrar, setModalApontar, excluirEtapa, excluirOpAvulsa, liberarProducao,
 }: Props) {
   const [selecao, setSelecao] = useState<Selecao>(null)
   const [especificacaoAberta, setEspecificacaoAberta] = useState(true)
@@ -408,6 +409,9 @@ export default function VisaoDetalhadaProgramacao({
                               )}
                               {etapa.status === 'EM_ANDAMENTO' && (
                                 <>
+                                  <Tooltip label="Apontar Produção">
+                                    <ActionIcon color="blue" variant="light" size="sm" onClick={() => setModalApontar({ etapaId: etapa.id, opNumero: etapa.opNumero, descricao: etapa.descricao })}><IconClipboardCheck size={14} /></ActionIcon>
+                                  </Tooltip>
                                   <Tooltip label="Pausar">
                                     <ActionIcon color="orange" variant="light" size="sm" onClick={() => setModalPausar({ etapaId: etapa.id, opNumero: etapa.opNumero })}><IconPlayerPause size={14} /></ActionIcon>
                                   </Tooltip>
