@@ -32,15 +32,19 @@ function getCategoriaCentro(tipoMaquina: string | null | undefined): string {
 function getRowBackground(etapa: any): string | undefined {
   // OP avulsa tem prioridade visual sobre as cores de status — precisa ser
   // reconhecida de imediato, independente do estágio da produção.
-  if (etapa.isAvulsa) return 'var(--mantine-color-pink-0)'
-  if (etapa.status === 'CONCLUIDA') return 'var(--mantine-color-green-0)'
-  if (etapa.status === 'EM_ANDAMENTO') return 'var(--mantine-color-yellow-0)'
-  if (etapa.status === 'PAUSADA') return 'var(--mantine-color-orange-0)'
+  // Usa os tokens "-light" (overlay semi-transparente) em vez dos swatches
+  // sólidos "-0": os swatches são fixos independente do tema, o que deixava
+  // as linhas claras demais no tema escuro. Os tokens "-light" se adaptam
+  // automaticamente entre claro/escuro.
+  if (etapa.isAvulsa) return 'var(--mantine-color-pink-light)'
+  if (etapa.status === 'CONCLUIDA') return 'var(--mantine-color-green-light)'
+  if (etapa.status === 'EM_ANDAMENTO') return 'var(--mantine-color-yellow-light)'
+  if (etapa.status === 'PAUSADA') return 'var(--mantine-color-orange-light)'
   // Atrasada: entrega < hoje e não concluída
   if (etapa.dataEntrega && new Date(etapa.dataEntrega) < new Date() && etapa.status !== 'CONCLUIDA') {
-    return 'var(--mantine-color-red-0)'
+    return 'var(--mantine-color-red-light)'
   }
-  if (etapa.status === 'PENDENTE') return 'var(--mantine-color-gray-0)'
+  if (etapa.status === 'PENDENTE') return 'var(--mantine-color-gray-light)'
   return undefined
 }
 
@@ -50,7 +54,7 @@ function SortableRow({ etapa, children, background, highlighted }: { etapa: { id
     transform: CSS.Transform.toString(transform),
     transition: transition || undefined,
     opacity: isDragging ? 0.5 : 1,
-    background: highlighted ? 'var(--mantine-color-yellow-2)' : (background || undefined),
+    background: highlighted ? 'var(--mantine-color-yellow-light-hover)' : (background || undefined),
     animation: highlighted ? 'flash-highlight 2s ease-out' : undefined,
   }
 
@@ -993,7 +997,7 @@ export default function ProgramacaoPage() {
       <>
       {/* Seção AGUARDANDO CARTÃO — filtrada por tipoMaquina conforme aba ativa */}
       {mostrarAguardandoCartao && (
-        <Card withBorder padding="xs" style={{ borderColor: 'var(--mantine-color-yellow-5)', background: 'var(--mantine-color-yellow-0)' }}>
+        <Card withBorder padding="xs" style={{ borderColor: 'var(--mantine-color-yellow-5)', background: 'var(--mantine-color-yellow-light)' }}>
           <Text fw={700} size="lg" c="orange" mb="xs">AGUARDANDO CARTÃO</Text>
           <Table striped highlightOnHover style={{ minWidth: 800, fontSize: '11px' }}>
             <Table.Thead>
@@ -1768,7 +1772,7 @@ export default function ProgramacaoPage() {
       {/* CSS for flash highlight animation + print styles */}
       <style>{`
         @keyframes flash-highlight {
-          0% { background-color: var(--mantine-color-yellow-3); }
+          0% { background-color: var(--mantine-color-yellow-light-hover); }
           100% { background-color: transparent; }
         }
         @media print {
