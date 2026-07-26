@@ -71,16 +71,18 @@ function extrairTipoOpDeObs(obs?: string | null): string | null {
 
 /** Cor de fundo da linha na lista mestre — cópia local da mesma função
  * (getRowBackground) já usada nas linhas do Modelo 1 (Grid), para manter o
- * mesmo código de cores por status/atraso/avulsa. */
+ * mesmo código de cores por status/atraso/avulsa. Usa os tokens "-light"
+ * (overlay semi-transparente) em vez dos swatches sólidos "-0", para que a
+ * cor se adapte automaticamente ao tema escuro. */
 function getRowBackground(etapa: any): string | undefined {
-  if (etapa.isAvulsa) return 'var(--mantine-color-pink-0)'
-  if (etapa.status === 'CONCLUIDA') return 'var(--mantine-color-green-0)'
-  if (etapa.status === 'EM_ANDAMENTO') return 'var(--mantine-color-yellow-0)'
-  if (etapa.status === 'PAUSADA') return 'var(--mantine-color-orange-0)'
+  if (etapa.isAvulsa) return 'var(--mantine-color-pink-light)'
+  if (etapa.status === 'CONCLUIDA') return 'var(--mantine-color-green-light)'
+  if (etapa.status === 'EM_ANDAMENTO') return 'var(--mantine-color-yellow-light)'
+  if (etapa.status === 'PAUSADA') return 'var(--mantine-color-orange-light)'
   if (etapa.dataEntrega && new Date(etapa.dataEntrega) < new Date() && etapa.status !== 'CONCLUIDA') {
-    return 'var(--mantine-color-red-0)'
+    return 'var(--mantine-color-red-light)'
   }
-  if (etapa.status === 'PENDENTE') return 'var(--mantine-color-gray-0)'
+  if (etapa.status === 'PENDENTE') return 'var(--mantine-color-gray-light)'
   return undefined
 }
 
@@ -330,7 +332,7 @@ export default function VisaoDetalhadaProgramacao({
         <ScrollArea h={640} type="auto">
           {aguardandoCartaoFiltrado.length > 0 && (
             <Box>
-              <Group justify="space-between" px="sm" py={6} style={{ background: 'var(--mantine-color-yellow-0)' }}>
+              <Group justify="space-between" px="sm" py={6} style={{ background: 'var(--mantine-color-yellow-light)' }}>
                 <Text size="xs" fw={700} c="orange">AGUARDANDO CARTÃO</Text>
                 <Badge size="xs" color="orange" variant="light">{aguardandoCartaoFiltrado.length}</Badge>
               </Group>
@@ -343,9 +345,9 @@ export default function VisaoDetalhadaProgramacao({
                     onClick={() => setSelecao({ tipo: 'aguardando', item })}
                     style={{
                       display: 'block', width: '100%', padding: '8px 12px',
-                      background: ativo ? 'var(--mantine-color-orange-1)' : undefined,
+                      background: ativo ? 'var(--mantine-color-orange-light)' : undefined,
                       borderLeft: ativo ? '3px solid var(--mantine-color-orange-6)' : '3px solid transparent',
-                      borderBottom: '1px solid var(--mantine-color-gray-1)',
+                      borderBottom: '1px solid var(--mantine-color-default-border)',
                     }}
                   >
                     <Group justify="space-between" wrap="nowrap" gap={6}>
@@ -371,7 +373,7 @@ export default function VisaoDetalhadaProgramacao({
                 <Box key={centro.centro.id}>
                   <UnstyledButton
                     onClick={() => toggleCentro(centro.centro.id)}
-                    style={{ display: 'block', width: '100%', padding: '8px 12px', background: 'var(--mantine-color-gray-0)', borderBottom: '1px solid var(--mantine-color-gray-2)' }}
+                    style={{ display: 'block', width: '100%', padding: '8px 12px', background: 'var(--mantine-color-default)', borderBottom: '1px solid var(--mantine-color-default-border)' }}
                   >
                     <Group justify="space-between" wrap="nowrap" gap={6}>
                       <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
@@ -396,9 +398,9 @@ export default function VisaoDetalhadaProgramacao({
                                   onClick={() => setSelecao({ tipo: 'etapa', opId: etapa.opId })}
                                   style={{
                                     display: 'block', width: '100%', padding: '8px 12px 8px 0',
-                                    background: destacar ? 'var(--mantine-color-yellow-2)' : (ativo ? 'var(--mantine-color-teal-0)' : getRowBackground(etapa)),
+                                    background: destacar ? 'var(--mantine-color-yellow-light-hover)' : (ativo ? 'var(--mantine-color-teal-light)' : getRowBackground(etapa)),
                                     borderLeft: ativo ? '3px solid var(--mantine-color-teal-6)' : '3px solid transparent',
-                                    borderBottom: '1px solid var(--mantine-color-gray-1)',
+                                    borderBottom: '1px solid var(--mantine-color-default-border)',
                                   }}
                                 >
                                   <Group justify="space-between" wrap="nowrap" gap={6}>
@@ -487,11 +489,19 @@ export default function VisaoDetalhadaProgramacao({
 
             <Divider />
 
-            {/* Especificação — dado único da OP, mostrado uma única vez (não repete por etapa) */}
-            <UnstyledButton onClick={() => setEspecificacaoAberta((v) => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {especificacaoAberta ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
-              <Text size="sm" fw={600}>Detalhes da Especificação</Text>
-            </UnstyledButton>
+            {/* Especificação — dado único da OP, mostrado uma única vez (não repete por etapa).
+                O botão "Ver PDF" fica só aqui no Modelo 2 (Detalhado) — não
+                aparece mais em Ações de cada etapa, para não repetir a ação
+                várias vezes na mesma tela. */}
+            <Group justify="space-between" wrap="nowrap">
+              <UnstyledButton onClick={() => setEspecificacaoAberta((v) => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {especificacaoAberta ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+                <Text size="sm" fw={600}>Detalhes da Especificação</Text>
+              </UnstyledButton>
+              <Tooltip label="Ver PDF da OP">
+                <ActionIcon color="gray" variant="light" size="sm" onClick={() => verPdfOp(baseOp.opId)}><IconFileText size={14} /></ActionIcon>
+              </Tooltip>
+            </Group>
             <Collapse in={especificacaoAberta}>
               <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm">
                 {baseOp.tipoOp && <div><Text size="xs" c="dimmed">Tipo OP</Text><Text size="sm" fw={600} c={corTipoOp(baseOp.tipoOp)}>{baseOp.tipoOp}</Text></div>}
@@ -551,9 +561,6 @@ export default function VisaoDetalhadaProgramacao({
                             <Group gap={4} wrap="nowrap">
                               <Tooltip label="Adicionar OS a este grupo">
                                 <ActionIcon color="teal" variant="light" size="sm" onClick={() => abrirAdicionarOS(etapa.centroId, etapa.centroDescricao)}><IconPlus size={14} /></ActionIcon>
-                              </Tooltip>
-                              <Tooltip label="Ver PDF da OP">
-                                <ActionIcon color="gray" variant="light" size="sm" onClick={() => verPdfOp(baseOp.opId)}><IconFileText size={14} /></ActionIcon>
                               </Tooltip>
                               <Tooltip label="Re-extrair Matriz/Formato do PDF">
                                 <ActionIcon color="cyan" variant="light" size="sm" onClick={() => reextrairPdf(baseOp.opId, baseOp.opNumero)}><IconRefresh size={14} /></ActionIcon>
