@@ -6,7 +6,7 @@ import {
   SimpleGrid, UnstyledButton, TextInput, Collapse, Tabs, Progress,
 } from '@mantine/core'
 import {
-  IconFileText, IconRefresh, IconArrowRight, IconX, IconPlayerPlay, IconPlayerPause,
+  IconFileTypePdf, IconRefresh, IconArrowRight, IconX, IconPlayerPlay, IconPlayerPause,
   IconCheck, IconChevronDown, IconChevronRight, IconTruck, IconCut, IconClipboardCheck,
   IconGripVertical, IconPlus,
 } from '@tabler/icons-react'
@@ -328,7 +328,7 @@ export default function VisaoDetalhadaProgramacao({
       {/* Coluna principal — lista mestre agrupada por centro/máquina, no
           mesmo formato do Modelo 1 (Grid): cada grupo é uma seção
           colapsável, com badge de pendentes e a fila de OS dentro. */}
-      <Card withBorder padding={0} style={{ width: 380, flexShrink: 0, overflow: 'hidden' }}>
+      <Card withBorder padding={0} style={{ width: 500, flexShrink: 0, overflow: 'hidden' }}>
         <ScrollArea h={640} type="auto">
           {aguardandoCartaoFiltrado.length > 0 && (
             <Box>
@@ -439,8 +439,8 @@ export default function VisaoDetalhadaProgramacao({
                 <Text fw={700} size="lg">OS {selecao.item.opNumero} — {selecao.item.cliente || '—'}</Text>
                 <Text size="sm" c="dimmed">{selecao.item.produto || '—'}</Text>
               </div>
-              <ActionIcon variant="light" color="gray" onClick={() => verPdfOp(selecao.item.opId)} title="Ver PDF da OP">
-                <IconFileText size={16} />
+              <ActionIcon variant="light" color="red" onClick={() => verPdfOp(selecao.item.opId)} title="Ver PDF da OP">
+                <IconFileTypePdf size={16} />
               </ActionIcon>
             </Group>
             <Divider label="Aguardando material" labelPosition="left" />
@@ -499,7 +499,7 @@ export default function VisaoDetalhadaProgramacao({
                 <Text size="sm" fw={600}>Detalhes da Especificação</Text>
               </UnstyledButton>
               <Tooltip label="Ver PDF da OP">
-                <ActionIcon color="gray" variant="light" size="sm" onClick={() => verPdfOp(baseOp.opId)}><IconFileText size={14} /></ActionIcon>
+                <ActionIcon color="red" variant="light" size="sm" onClick={() => verPdfOp(baseOp.opId)}><IconFileTypePdf size={14} /></ActionIcon>
               </Tooltip>
             </Group>
             <Collapse in={especificacaoAberta}>
