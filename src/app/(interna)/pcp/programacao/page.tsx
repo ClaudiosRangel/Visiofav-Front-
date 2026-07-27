@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Title, Stack, Table, Group, Badge, Text, Loader, Center, Collapse, UnstyledButton, Card, ScrollArea, Button, Modal, NumberInput, Select, Textarea, Progress, ActionIcon, Tabs, TextInput, SegmentedControl, Autocomplete } from '@mantine/core'
+import { Title, Stack, Table, Group, Badge, Text, Loader, Center, Collapse, UnstyledButton, Card, ScrollArea, Button, Modal, NumberInput, Select, Textarea, Progress, ActionIcon, Tabs, TextInput, SegmentedControl, Autocomplete, Box } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
 import { IconChevronDown, IconChevronRight, IconPlayerPlay, IconPlayerPause, IconCheck, IconClipboardCheck, IconAlertTriangle, IconCut, IconGripVertical, IconSearch, IconFileText, IconPlus, IconArrowRight, IconX, IconPrinter, IconRefresh } from '@tabler/icons-react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
@@ -862,6 +862,17 @@ export default function ProgramacaoPage() {
     <Stack gap="md">
       <Title order={3}>Painel Operacional — Programação por Centro</Title>
       <Text size="sm" c="dimmed">Controle em tempo real: inicie, aponte produção, registre paradas e conclua etapas.</Text>
+
+      {/* Legenda de cores — mesmo código de cores usado em getRowBackground,
+          válido para os dois layouts (Grid e Detalhado). */}
+      <Group gap="md" wrap="wrap">
+        <Group gap={6} wrap="nowrap"><Box style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--mantine-color-gray-light)', border: '1px solid var(--mantine-color-gray-5)' }} /><Text size="xs" c="dimmed">Pendente</Text></Group>
+        <Group gap={6} wrap="nowrap"><Box style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--mantine-color-yellow-light)', border: '1px solid var(--mantine-color-yellow-6)' }} /><Text size="xs" c="dimmed">Em andamento</Text></Group>
+        <Group gap={6} wrap="nowrap"><Box style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--mantine-color-orange-light)', border: '1px solid var(--mantine-color-orange-6)' }} /><Text size="xs" c="dimmed">Pausada</Text></Group>
+        <Group gap={6} wrap="nowrap"><Box style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--mantine-color-green-light)', border: '1px solid var(--mantine-color-green-6)' }} /><Text size="xs" c="dimmed">Concluída</Text></Group>
+        <Group gap={6} wrap="nowrap"><Box style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--mantine-color-red-light)', border: '1px solid var(--mantine-color-red-6)' }} /><Text size="xs" c="dimmed">Atrasada</Text></Group>
+        <Group gap={6} wrap="nowrap"><Box style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--mantine-color-pink-light)', border: '1px solid var(--mantine-color-pink-6)' }} /><Text size="xs" c="dimmed">OP Avulsa</Text></Group>
+      </Group>
 
       <Group justify="space-between" align="flex-end">
         {/* No layout Detalhado, o filtro por estágio passa a ser feito DENTRO
