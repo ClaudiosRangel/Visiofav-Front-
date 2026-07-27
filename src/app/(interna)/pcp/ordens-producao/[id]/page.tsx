@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Title, Stack, Card, Group, Badge, Text, Table, Tabs, Button, Loader, Center, Divider, Timeline, NumberInput, ActionIcon, Tooltip } from '@mantine/core'
-import { IconArrowLeft, IconPackage, IconRoute, IconClipboardCheck, IconTruck, IconPalette, IconFileTypePdf, IconPencil, IconCheck, IconX } from '@tabler/icons-react'
+import { Title, Stack, Card, Group, Badge, Text, Table, Tabs, Button, Loader, Center, Divider, Timeline, NumberInput, ActionIcon, Tooltip, Modal, TextInput, Select } from '@mantine/core'
+import { IconArrowLeft, IconPackage, IconRoute, IconClipboardCheck, IconTruck, IconPalette, IconFileTypePdf, IconPencil, IconCheck, IconX, IconPlus } from '@tabler/icons-react'
 import { useRouter, useParams } from 'next/navigation'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
@@ -27,6 +27,13 @@ export default function DetalheOpPage() {
   const [editandoQtdProduzida, setEditandoQtdProduzida] = useState(false)
   const [qtdProduzidaInput, setQtdProduzidaInput] = useState<number | ''>(0)
   const [salvandoQtdProduzida, setSalvandoQtdProduzida] = useState(false)
+  // Criar etapa manualmente na OP visualizada (aba Etapas)
+  const [modalNovaEtapa, setModalNovaEtapa] = useState(false)
+  const [centrosDisponiveis, setCentrosDisponiveis] = useState<any[]>([])
+  const [formNovaEtapa, setFormNovaEtapa] = useState<{ descricao: string; centroProducaoId: string | null; tempoSetupMinutos: number | ''; tempoOperacaoMinutos: number | ''; tempoEsperaMinutos: number | '' }>({
+    descricao: '', centroProducaoId: null, tempoSetupMinutos: 0, tempoOperacaoMinutos: 0, tempoEsperaMinutos: 0,
+  })
+  const [salvandoNovaEtapa, setSalvandoNovaEtapa] = useState(false)
 
   useEffect(() => { document.title = 'PCP - Detalhe OP' }, [])
 
@@ -59,6 +66,43 @@ export default function DetalheOpPage() {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar', color: 'red' })
     } finally {
       setSalvandoQtdProduzida(false)
+    }
+  }
+
+  function abrirModalNovaEtapa() {
+    setFormNovaEtapa({ descricao: '', centroProducaoId: null, tempoSetupMinutos: 0, tempoOperacaoMinutos: 0, tempoEsperaMinutos: 0 })
+    setModalNovaEtapa(true)
+    if (centrosDisponiveis.length === 0) {
+      api.get('/centros-producao', { params: { limit: 100, status: 'true' } })
+        .then((res) => {
+          const lista = (res.data.data || res.data).map((c: any) => ({ value: c.id, label: `${c.codigo} - ${c.descricao}` }))
+          setCentrosDisponiveis(lista)
+        })
+        .catch(() => notifications.show({ title: 'Erro', message: 'Falha ao carregar centros de produção', color: 'red' }))
+    }
+  }
+
+  async function salvarNovaEtapa() {
+    if (!formNovaEtapa.descricao.trim()) {
+      notifications.show({ title: 'Erro', message: 'Informe a descrição da operação', color: 'red' })
+      return
+    }
+    setSalvandoNovaEtapa(true)
+    try {
+      const res = await api.post(`/ordens-producao/${id}/etapas`, {
+        descricao: formNovaEtapa.descricao.trim(),
+        centroProducaoId: formNovaEtapa.centroProducaoId || undefined,
+        tempoSetupMinutos: typeof formNovaEtapa.tempoSetupMinutos === 'number' ? formNovaEtapa.tempoSetupMinutos : 0,
+        tempoOperacaoMinutos: typeof formNovaEtapa.tempoOperacaoMinutos === 'number' ? formNovaEtapa.tempoOperacaoMinutos : 0,
+        tempoEsperaMinutos: typeof formNovaEtapa.tempoEsperaMinutos === 'number' ? formNovaEtapa.tempoEsperaMinutos : 0,
+      })
+      setOp((prev: any) => ({ ...prev, etapas: [...(prev.etapas || []), res.data] }))
+      notifications.show({ title: 'Etapa criada', message: `"${formNovaEtapa.descricao.trim()}" adicionada à OP`, color: 'green' })
+      setModalNovaEtapa(false)
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao criar etapa', color: 'red' })
+    } finally {
+      setSalvandoNovaEtapa(false)
     }
   }
 
@@ -237,6 +281,17 @@ export default function DetalheOpPage() {
 
         {/* ABA ETAPAS */}
         <Tabs.Panel value="etapas" pt="md">
+          <Group justify="flex-end" mb="sm">
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={<IconPlus size={14} />}
+              onClick={abrirModalNovaEtapa}
+              disabled={['CONCLUIDA', 'CANCELADA'].includes(op.status)}
+            >
+              Nova Etapa
+            </Button>
+          </Group>
           {op.etapas?.length > 0 ? (
             <Table striped highlightOnHover>
               <Table.Thead>
@@ -335,6 +390,56 @@ export default function DetalheOpPage() {
           ) : <Text c="dimmed" ta="center">Nenhum registro</Text>}
         </Tabs.Panel>
       </Tabs>
+
+      {/* Modal: Nova Etapa (criação manual na OP visualizada) */}
+      <Modal opened={modalNovaEtapa} onClose={() => setModalNovaEtapa(false)} title="Nova Etapa" centered>
+        <Stack gap="md">
+          <TextInput
+            label="Operação"
+            placeholder="Ex: Verniz UV, Laminação, Corte manual..."
+            value={formNovaEtapa.descricao}
+            onChange={(e) => setFormNovaEtapa({ ...formNovaEtapa, descricao: e.currentTarget.value })}
+            autoFocus
+            required
+          />
+          <Select
+            label="Centro (opcional)"
+            placeholder="Selecione um centro de produção..."
+            data={centrosDisponiveis}
+            value={formNovaEtapa.centroProducaoId}
+            onChange={(v) => setFormNovaEtapa({ ...formNovaEtapa, centroProducaoId: v })}
+            searchable
+            clearable
+          />
+          <Text size="xs" c="dimmed">
+            Se um centro for selecionado, a etapa entra na fila do Painel de Programação.
+          </Text>
+          <Group grow>
+            <NumberInput
+              label="Setup (min)"
+              value={formNovaEtapa.tempoSetupMinutos}
+              onChange={(v) => setFormNovaEtapa({ ...formNovaEtapa, tempoSetupMinutos: typeof v === 'number' ? v : '' })}
+              min={0}
+            />
+            <NumberInput
+              label="Operação (min)"
+              value={formNovaEtapa.tempoOperacaoMinutos}
+              onChange={(v) => setFormNovaEtapa({ ...formNovaEtapa, tempoOperacaoMinutos: typeof v === 'number' ? v : '' })}
+              min={0}
+            />
+            <NumberInput
+              label="Espera (min)"
+              value={formNovaEtapa.tempoEsperaMinutos}
+              onChange={(v) => setFormNovaEtapa({ ...formNovaEtapa, tempoEsperaMinutos: typeof v === 'number' ? v : '' })}
+              min={0}
+            />
+          </Group>
+          <Group justify="flex-end" mt="sm">
+            <Button variant="default" onClick={() => setModalNovaEtapa(false)} disabled={salvandoNovaEtapa}>Cancelar</Button>
+            <Button onClick={salvarNovaEtapa} loading={salvandoNovaEtapa}>Criar Etapa</Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   )
 }
