@@ -29,14 +29,16 @@ function getCategoriaCentro(tipoMaquina: string | null | undefined): string {
   return 'outros'
 }
 
-function getRowBackground(etapa: any): string | undefined {
+function getRowBackground(etapa: any, usaCoresStatus: boolean = true): string | undefined {
   // OP avulsa tem prioridade visual sobre as cores de status — precisa ser
-  // reconhecida de imediato, independente do estágio da produção.
+  // reconhecida de imediato, independente do estágio da produção, e NÃO é
+  // afetada pela flag "usaCoresStatusProgramacao" (Configuração PCP).
+  if (etapa.isAvulsa) return 'var(--mantine-color-pink-light)'
+  if (!usaCoresStatus) return undefined
   // Usa os tokens "-light" (overlay semi-transparente) em vez dos swatches
   // sólidos "-0": os swatches são fixos independente do tema, o que deixava
   // as linhas claras demais no tema escuro. Os tokens "-light" se adaptam
   // automaticamente entre claro/escuro.
-  if (etapa.isAvulsa) return 'var(--mantine-color-pink-light)'
   if (etapa.status === 'CONCLUIDA') return 'var(--mantine-color-green-light)'
   if (etapa.status === 'EM_ANDAMENTO') return 'var(--mantine-color-yellow-light)'
   if (etapa.status === 'PAUSADA') return 'var(--mantine-color-orange-light)'
@@ -133,6 +135,12 @@ export default function ProgramacaoPage() {
   const [produtosDisponiveis, setProdutosDisponiveis] = useState<any[]>([])
   const [clientesDisponiveis, setClientesDisponiveis] = useState<any[]>([])
   const [salvandoAvulsa, setSalvandoAvulsa] = useState(false)
+  // Configuração de empresa (Configuração PCP) que habilita/desabilita as
+  // cores de status na fila, nos dois layouts (Grid e Detalhado). A cor de
+  // OP Avulsa nunca é afetada por essa flag — ver getRowBackground. Default
+  // true enquanto a configuração real não carrega, para não gerar "flash"
+  // de cores desabilitadas na primeira renderização.
+  const [usaCoresStatus, setUsaCoresStatus] = useState(true)
   async function carregar() {
     setLoading(true)
     try {
@@ -150,6 +158,12 @@ export default function ProgramacaoPage() {
   }
 
   useEffect(() => { carregar() }, [])
+
+  useEffect(() => {
+    api.get('/pcp/configuracao')
+      .then((res) => setUsaCoresStatus(res.data?.configuracao?.usaCoresStatusProgramacao ?? true))
+      .catch(() => {}) // Falha silenciosa: mantém o default (cores habilitadas)
+  }, [])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -864,13 +878,19 @@ export default function ProgramacaoPage() {
       <Text size="sm" c="dimmed">Controle em tempo real: inicie, aponte produção, registre paradas e conclua etapas.</Text>
 
       {/* Legenda de cores — mesmo código de cores usado em getRowBackground,
-          válido para os dois layouts (Grid e Detalhado). */}
+          válido para os dois layouts (Grid e Detalhado). As cores de status
+          podem ser desabilitadas em Configuração PCP (usaCoresStatus) — a de
+          OP Avulsa é sempre exibida, independente dessa flag. */}
       <Group gap="md" wrap="wrap">
-        <Group gap={6} wrap="nowrap"><Box style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--mantine-color-gray-light)', border: '1px solid var(--mantine-color-gray-5)' }} /><Text size="xs" c="dimmed">Pendente</Text></Group>
-        <Group gap={6} wrap="nowrap"><Box style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--mantine-color-yellow-light)', border: '1px solid var(--mantine-color-yellow-6)' }} /><Text size="xs" c="dimmed">Em andamento</Text></Group>
-        <Group gap={6} wrap="nowrap"><Box style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--mantine-color-orange-light)', border: '1px solid var(--mantine-color-orange-6)' }} /><Text size="xs" c="dimmed">Pausada</Text></Group>
-        <Group gap={6} wrap="nowrap"><Box style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--mantine-color-green-light)', border: '1px solid var(--mantine-color-green-6)' }} /><Text size="xs" c="dimmed">Concluída</Text></Group>
-        <Group gap={6} wrap="nowrap"><Box style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--mantine-color-red-light)', border: '1px solid var(--mantine-color-red-6)' }} /><Text size="xs" c="dimmed">Atrasada</Text></Group>
+        {usaCoresStatus && (
+          <>
+            <Group gap={6} wrap="nowrap"><Box style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--mantine-color-gray-light)', border: '1px solid var(--mantine-color-gray-5)' }} /><Text size="xs" c="dimmed">Pendente</Text></Group>
+            <Group gap={6} wrap="nowrap"><Box style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--mantine-color-yellow-light)', border: '1px solid var(--mantine-color-yellow-6)' }} /><Text size="xs" c="dimmed">Em andamento</Text></Group>
+            <Group gap={6} wrap="nowrap"><Box style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--mantine-color-orange-light)', border: '1px solid var(--mantine-color-orange-6)' }} /><Text size="xs" c="dimmed">Pausada</Text></Group>
+            <Group gap={6} wrap="nowrap"><Box style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--mantine-color-green-light)', border: '1px solid var(--mantine-color-green-6)' }} /><Text size="xs" c="dimmed">Concluída</Text></Group>
+            <Group gap={6} wrap="nowrap"><Box style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--mantine-color-red-light)', border: '1px solid var(--mantine-color-red-6)' }} /><Text size="xs" c="dimmed">Atrasada</Text></Group>
+          </>
+        )}
         <Group gap={6} wrap="nowrap"><Box style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--mantine-color-pink-light)', border: '1px solid var(--mantine-color-pink-6)' }} /><Text size="xs" c="dimmed">OP Avulsa</Text></Group>
       </Group>
 
@@ -981,6 +1001,7 @@ export default function ProgramacaoPage() {
       {layoutView === 'detalhado' ? (
         <VisaoDetalhadaProgramacao
           painel={painel}
+          usaCoresStatus={usaCoresStatus}
           centrosFiltrados={centrosFiltrados}
           aguardandoCartaoFiltrado={aguardandoCartaoFiltrado}
           highlightedEtapa={highlightedEtapa}
@@ -1178,7 +1199,7 @@ export default function ProgramacaoPage() {
                       </Table.Thead>
                       <Table.Tbody>
                         {centro.etapas.map((etapa: any) => (
-                          <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa)} highlighted={highlightedEtapa === etapa.id}>
+                          <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa, usaCoresStatus)} highlighted={highlightedEtapa === etapa.id}>
                             <Table.Td style={{ minWidth: 200 }}>
                               <Group gap={4} wrap="nowrap">
                                 <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
@@ -1306,7 +1327,7 @@ export default function ProgramacaoPage() {
                       </Table.Thead>
                       <Table.Tbody>
                         {centro.etapas.map((etapa: any) => (
-                          <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa)} highlighted={highlightedEtapa === etapa.id}>
+                          <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa, usaCoresStatus)} highlighted={highlightedEtapa === etapa.id}>
                             <Table.Td style={{ minWidth: 200 }}>
                               <Group gap={4} wrap="nowrap">
                                 <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
