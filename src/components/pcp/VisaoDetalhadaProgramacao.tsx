@@ -439,8 +439,8 @@ export default function VisaoDetalhadaProgramacao({
                 <Text fw={700} size="lg">OS {selecao.item.opNumero} — {selecao.item.cliente || '—'}</Text>
                 <Text size="sm" c="dimmed">{selecao.item.produto || '—'}</Text>
               </div>
-              <ActionIcon variant="light" color="red" onClick={() => verPdfOp(selecao.item.opId)} title="Ver PDF da OP">
-                <IconFileTypePdf size={16} />
+              <ActionIcon variant="light" color="red" size="lg" onClick={() => verPdfOp(selecao.item.opId)} title="Ver PDF da OP">
+                <IconFileTypePdf size={22} />
               </ActionIcon>
             </Group>
             <Divider label="Aguardando material" labelPosition="left" />
@@ -499,7 +499,7 @@ export default function VisaoDetalhadaProgramacao({
                 <Text size="sm" fw={600}>Detalhes da Especificação</Text>
               </UnstyledButton>
               <Tooltip label="Ver PDF da OP">
-                <ActionIcon color="red" variant="light" size="sm" onClick={() => verPdfOp(baseOp.opId)}><IconFileTypePdf size={14} /></ActionIcon>
+                <ActionIcon color="red" variant="light" size="lg" onClick={() => verPdfOp(baseOp.opId)}><IconFileTypePdf size={22} /></ActionIcon>
               </Tooltip>
             </Group>
             <Collapse in={especificacaoAberta}>
