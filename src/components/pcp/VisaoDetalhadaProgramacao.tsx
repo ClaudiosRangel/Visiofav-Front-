@@ -73,9 +73,14 @@ function extrairTipoOpDeObs(obs?: string | null): string | null {
  * (getRowBackground) já usada nas linhas do Modelo 1 (Grid), para manter o
  * mesmo código de cores por status/atraso/avulsa. Usa os tokens "-light"
  * (overlay semi-transparente) em vez dos swatches sólidos "-0", para que a
- * cor se adapte automaticamente ao tema escuro. */
-function getRowBackground(etapa: any): string | undefined {
+ * cor se adapte automaticamente ao tema escuro.
+ *
+ * `usaCoresStatus` vem da Configuração PCP (flag de empresa) e desabilita
+ * as cores de STATUS quando false — a cor de OP Avulsa (rosa) nunca é
+ * afetada por essa flag, igual ao Grid. */
+function getRowBackground(etapa: any, usaCoresStatus: boolean = true): string | undefined {
   if (etapa.isAvulsa) return 'var(--mantine-color-pink-light)'
+  if (!usaCoresStatus) return undefined
   if (etapa.status === 'CONCLUIDA') return 'var(--mantine-color-green-light)'
   if (etapa.status === 'EM_ANDAMENTO') return 'var(--mantine-color-yellow-light)'
   if (etapa.status === 'PAUSADA') return 'var(--mantine-color-orange-light)'
@@ -111,6 +116,8 @@ function LinhaArrastavel({ id, children }: { id: string; children: React.ReactNo
 
 interface Props {
   painel: any
+  /** Flag da Configuração PCP — habilita/desabilita as cores de status na fila. */
+  usaCoresStatus: boolean
   centrosFiltrados: any[]
   aguardandoCartaoFiltrado: any[]
   highlightedEtapa: string | null
@@ -156,7 +163,7 @@ interface Props {
  * todos os centros por onde ela passa.
  */
 export default function VisaoDetalhadaProgramacao({
-  painel, centrosFiltrados, aguardandoCartaoFiltrado, highlightedEtapa,
+  painel, usaCoresStatus, centrosFiltrados, aguardandoCartaoFiltrado, highlightedEtapa,
   editingObs, setEditingObs, salvarObservacao,
   iniciarEtapa, abrirFinalizarEtapa, setModalPausar, verPdfOp, reextrairPdf,
   setModalMover, setModalDesmembrar, setFormDesmembrar, setModalApontar, setModalPostData, alterarPrioridade,
@@ -398,7 +405,7 @@ export default function VisaoDetalhadaProgramacao({
                                   onClick={() => setSelecao({ tipo: 'etapa', opId: etapa.opId })}
                                   style={{
                                     display: 'block', width: '100%', padding: '8px 12px 8px 0',
-                                    background: destacar ? 'var(--mantine-color-yellow-light-hover)' : (ativo ? 'var(--mantine-color-teal-light)' : getRowBackground(etapa)),
+                                    background: destacar ? 'var(--mantine-color-yellow-light-hover)' : (ativo ? 'var(--mantine-color-teal-light)' : getRowBackground(etapa, usaCoresStatus)),
                                     borderLeft: ativo ? '3px solid var(--mantine-color-teal-6)' : '3px solid transparent',
                                     borderBottom: '1px solid var(--mantine-color-default-border)',
                                   }}
