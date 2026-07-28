@@ -10,6 +10,7 @@ import Header from '@/components/layout/Header'
 import ChatWidget from '@/components/ai/ChatWidget'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { voltarParaModulos } from '@/lib/abasModulo'
+import { confirmarNavegacaoOuBloquear } from '@/lib/navigationGuardStore'
 
 /**
  * Define "Vizor - <Módulo>" como título padrão da aba do navegador com base
@@ -58,7 +59,7 @@ function VoltarModulosBar() {
   return (
     <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-[#1a1b1e] px-4 md:px-6 py-2">
       <UnstyledButton
-        onClick={() => voltarParaModulos(router)}
+        onClick={() => { if (confirmarNavegacaoOuBloquear()) voltarParaModulos(router) }}
         className="flex items-center gap-2 text-gray-500 hover:text-primary transition-colors"
       >
         <IconArrowLeft size={16} />

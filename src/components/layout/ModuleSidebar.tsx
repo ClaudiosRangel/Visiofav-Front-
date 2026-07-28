@@ -27,6 +27,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEmpresaAtual, deveExibirLinkKardex } from '@/hooks/useEmpresaAtual'
 import { voltarParaModulos, abrirOuFocarAba } from '@/lib/abasModulo'
 import { useModuleSidebarCollapsed } from '@/lib/moduleSidebarStore'
+import { confirmarNavegacaoOuBloquear } from '@/lib/navigationGuardStore'
 
 interface NavItem {
   icon: React.ElementType
@@ -451,7 +452,15 @@ function NavLink({ item, pathname, collapsed }: { item: NavItem; pathname: strin
       {content}
     </UnstyledButton>
   ) : (
-    <UnstyledButton component={Link} href={item.href} className={className}>
+    <UnstyledButton
+      component={Link}
+      href={item.href}
+      className={className}
+      // Guarda de navegação: se a página atual tiver uma operação em
+      // andamento (ex.: conferência de entrada iniciada), pede confirmação
+      // antes de deixar o clique no menu lateral navegar para outra tela.
+      onClick={(e) => { if (!confirmarNavegacaoOuBloquear()) e.preventDefault() }}
+    >
       {content}
     </UnstyledButton>
   )
@@ -496,6 +505,7 @@ function NavGroupComponent({ group, pathname, collapsed }: { group: NavGroup; pa
               component={Link}
               href={item.href}
               leftSection={<item.icon size={14} stroke={1.5} />}
+              onClick={(e) => { if (!confirmarNavegacaoOuBloquear()) e.preventDefault() }}
             >
               {item.label}
             </Menu.Item>
@@ -566,7 +576,7 @@ export default function ModuleSidebar() {
       {collapsed ? (
         <Tooltip label="Módulos" position="right" withArrow>
           <UnstyledButton
-            onClick={() => voltarParaModulos(router)}
+            onClick={() => { if (confirmarNavegacaoOuBloquear()) voltarParaModulos(router) }}
             className="flex items-center justify-center w-11 h-11 mx-auto mb-2 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors rounded-md"
           >
             <IconArrowLeft size={18} />
@@ -574,7 +584,7 @@ export default function ModuleSidebar() {
         </Tooltip>
       ) : (
         <UnstyledButton
-          onClick={() => voltarParaModulos(router)}
+          onClick={() => { if (confirmarNavegacaoOuBloquear()) voltarParaModulos(router) }}
           className="flex items-center gap-2 px-4 py-2 mb-2 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
         >
           <IconArrowLeft size={18} />

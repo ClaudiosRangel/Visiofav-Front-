@@ -32,6 +32,7 @@ import {
   type DistribuicaoResult,
 } from '@/data/hooks/useEnderecamentoInteligente'
 import SegundaConferenciaPanel from '@/components/wms/SegundaConferenciaPanel'
+import { ativarGuardaNavegacao, desativarGuardaNavegacao } from '@/lib/navigationGuardStore'
 
 const statusColors: Record<string, string> = {
   PENDENTE: 'orange', EM_CONFERENCIA: 'blue', CONFERIDA: 'green', REJEITADA: 'red', ENDERECADA: 'teal',
@@ -54,6 +55,12 @@ export default function ConferenciaEntradaPage() {
   useEffect(() => { document.title = 'Vizor - WMS - Conferência de Entrada' }, [])
   const queryClient = useQueryClient()
 
+  // Guarda de navegação: uma conferência em andamento (etapas 'contagem' ou
+  // 'resultado', ainda não aprovada nem rejeitada) não deve ser abandonável
+  // silenciosamente pelo menu lateral — pede confirmação antes de navegar.
+  // Desativada automaticamente ao voltar para 'lista' (resetConferencia,
+  // que roda tanto no sucesso de aprovar/rejeitar quanto no botão Cancelar).
+
   // Conferência state
   const [conferencia, setConferencia] = useState<any>(null)
   const [itensConferidos, setItensConferidos] = useState<Record<string, number>>({})
@@ -74,6 +81,31 @@ export default function ConferenciaEntradaPage() {
   const [endFuncIds, setEndFuncIds] = useState<string[]>([])
   const [pendingEndNotaId, setPendingEndNotaId] = useState<string | null>(null)
   const [modoColetor, setModoColetor] = useState(false)
+
+  useEffect(() => {
+    if (etapa === 'lista') {
+      desativarGuardaNavegacao()
+    } else {
+      ativarGuardaNavegacao('Há uma conferência de entrada em andamento, ainda não aprovada. Deseja realmente sair sem concluir?')
+    }
+    // Ao desmontar a página (navegação bem-sucedida ou troca de aba),
+    // garante que a guarda não fique "presa" ativa para a próxima tela.
+    return () => desativarGuardaNavegacao()
+  }, [etapa])
+
+  // Cobre o caso de fechar a aba/recarregar a página diretamente (fora do
+  // menu lateral, que já é interceptado via confirmarNavegacaoOuBloquear) —
+  // navegadores exibem seu próprio diálogo nativo de confirmação quando
+  // beforeunload chama preventDefault, sem depender de window.confirm.
+  useEffect(() => {
+    if (etapa === 'lista') return
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [etapa])
 
   // Acompanhamento (coletor) state
   const [acompanhamentoData, setAcompanhamentoData] = useState<any>(null)
@@ -1278,7 +1310,14 @@ export default function ConferenciaEntradaPage() {
                       <Table.Tr key={item.id}>
                         <Table.Td>{item.item}</Table.Td>
                         <Table.Td className="font-mono">{item.codigoProduto}</Table.Td>
-                        <Table.Td fw={500}>{item.descricao}</Table.Td>
+                        <Table.Td fw={500}>
+                          {item.descricao}
+                          {item.produtoNaoEncontrado && (
+                            <Badge ml={6} color="orange" variant="light" size="sm" title="Código não corresponde a nenhum produto cadastrado — exigência de lote/shelf life/tolerância não será verificada">
+                              Produto não localizado
+                            </Badge>
+                          )}
+                        </Table.Td>
                         <Table.Td>{item.unidade}</Table.Td>
                         <Table.Td>
                           <NumberInput
@@ -1415,6 +1454,20 @@ export default function ConferenciaEntradaPage() {
                   </Alert>
                 )}
 
+                {/* Alerta: itens cujo produto não foi encontrado no cadastro —
+                    exigeLote/shelfLife/tolerância não foram verificados */}
+                {resultado.itens.some((i: any) => i.produtoNaoEncontrado) && (
+                  <Alert icon={<IconAlertCircle size={16} />} color="orange" variant="light" mb="md">
+                    <Text fw={600}>⚠️ Produto não localizado no cadastro!</Text>
+                    <Text size="sm">
+                      Um ou mais itens não correspondem a nenhum produto cadastrado (código do
+                      fornecedor não resolvido para o código interno). Regras de exigência de
+                      lote, shelf life e tolerância de quantidade NÃO puderam ser aplicadas para
+                      esses itens — vincule o produto (De-Para ou EAN) e refaça a conferência.
+                    </Text>
+                  </Alert>
+                )}
+
                 {/* Tabela de resultado */}
                 <Table striped withTableBorder mb="md">
                   <Table.Thead>
@@ -1422,6 +1475,8 @@ export default function ConferenciaEntradaPage() {
                       <Table.Th>Produto</Table.Th>
                       <Table.Th>Qtd Nota</Table.Th>
                       <Table.Th>Qtd Conferida</Table.Th>
+                      <Table.Th>Lote Conferido</Table.Th>
+                      <Table.Th>Validade Conferida</Table.Th>
                       <Table.Th>Divergência</Table.Th>
                       <Table.Th>Tipo</Table.Th>
                       <Table.Th>Status</Table.Th>
@@ -1432,9 +1487,16 @@ export default function ConferenciaEntradaPage() {
                       const dentroTolerancia = item.tipoDivergencia === 'TOLERANCIA_ACEITA'
                       return (
                       <Table.Tr key={item.itemId} bg={item.status === 'DIVERGENTE' ? 'red.0' : dentroTolerancia ? 'yellow.0' : undefined}>
-                        <Table.Td fw={500}>{item.descricao}</Table.Td>
+                        <Table.Td fw={500}>
+                          {item.descricao}
+                          {item.produtoNaoEncontrado && (
+                            <Badge ml={6} color="orange" variant="light" size="sm">Produto não localizado</Badge>
+                          )}
+                        </Table.Td>
                         <Table.Td>{item.quantidadeNota}</Table.Td>
                         <Table.Td fw={600}>{item.quantidadeConferida}</Table.Td>
+                        <Table.Td>{item.loteConferido || <Text c="dimmed">—</Text>}</Table.Td>
+                        <Table.Td>{item.validadeConferida || <Text c="dimmed">—</Text>}</Table.Td>
                         <Table.Td>
                           <Text fw={600} c={item.divergencia === 0 ? 'green' : dentroTolerancia ? 'yellow.8' : 'red'}>
                             {item.divergencia > 0 ? `+${item.divergencia}` : item.divergencia}
@@ -1481,17 +1543,23 @@ export default function ConferenciaEntradaPage() {
                 <Divider mb="md" />
                 <Group justify="space-between">
                   <Group>
+                    {/* "Corrigir Contagem" só faz sentido quando há algo a corrigir —
+                        contagem batendo (sem divergência) desabilita o botão. */}
                     <Button variant="default" leftSection={<IconArrowBack size={16} />}
-                      onClick={() => setEtapa('contagem')}>
+                      onClick={() => setEtapa('contagem')}
+                      disabled={!resultado.temDivergencia}
+                      title={!resultado.temDivergencia ? 'Contagem conforme — nada a corrigir' : undefined}>
                       ← Corrigir Contagem
                     </Button>
-                    {resultado.temDivergencia && (
-                      <Button color="orange" variant="light" leftSection={<IconX size={16} />}
-                        onClick={() => { if (confirm('Rejeitar conferência e voltar para recontagem?')) rejeitarConf.mutate() }}
-                        loading={rejeitarConf.isPending}>
-                        Rejeitar / Recontar
-                      </Button>
-                    )}
+                    {/* "Rejeitar / Recontar" só habilita quando há divergência de
+                        contagem — sem divergência, recontar não tem propósito. */}
+                    <Button color="orange" variant="light" leftSection={<IconX size={16} />}
+                      onClick={() => { if (confirm('Rejeitar conferência e voltar para recontagem?')) rejeitarConf.mutate() }}
+                      loading={rejeitarConf.isPending}
+                      disabled={!resultado.temDivergencia}
+                      title={!resultado.temDivergencia ? 'Contagem conforme — nada a recontar' : undefined}>
+                      Rejeitar / Recontar
+                    </Button>
                   </Group>
                   <Group>
                     {resultado.temDivergencia && (

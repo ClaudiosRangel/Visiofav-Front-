@@ -15,9 +15,10 @@ export interface ItemSegundaConferenciaPayload {
 export type StatusResultadoSegundaConferencia =
   | 'resolvido'
   | 'divergenciaQuantidade'
-  | 'pendenciaCriada'
-  | 'emailEnviado'
-  | 'emailFalhou'
+  // Divergência de lote/validade confirmada e registrada — a notificação
+  // fiscal (pendência CC-e ou e-mail) só é disparada quando a nota for
+  // aprovada (ver campo `notificacaoFiscal` na resposta de /confirmar).
+  | 'divergenciaRegistrada'
   | 'requerSenha'
   | 'bloqueado'
   | 'ignorado'
@@ -27,7 +28,7 @@ export interface ResultadoItemSegundaConferencia {
   itemNotaEntradaId: string
   resultado: {
     status: StatusResultadoSegundaConferencia
-    pendenciaId?: string
+    divergenciaId?: string
     motivo?: string
     quantidadeNota?: number
     quantidadeConferida?: number
@@ -37,8 +38,7 @@ export interface ResultadoItemSegundaConferencia {
 export interface RespostaSegundaConferencia {
   divergenciaResolvida: boolean
   divergenciaQuantidade: boolean
-  pendenciaCriada: boolean
-  emailEnviado: boolean
+  divergenciaRegistrada: boolean
   requerSenha: boolean
   bloqueado: boolean
   itens: ResultadoItemSegundaConferencia[]

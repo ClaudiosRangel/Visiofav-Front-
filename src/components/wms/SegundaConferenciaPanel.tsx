@@ -30,9 +30,9 @@ interface SegundaConferenciaPanelProps {
 const statusConfig: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
   resolvido: { color: 'green', icon: <IconCheck size={14} />, label: 'Resolvido — valores coincidem com a NF-e' },
   divergenciaQuantidade: { color: 'orange', icon: <IconAlertTriangle size={14} />, label: 'Quantidade divergente novamente' },
-  pendenciaCriada: { color: 'blue', icon: <IconFileText size={14} />, label: 'Pendência CC-e criada' },
-  emailEnviado: { color: 'blue', icon: <IconMail size={14} />, label: 'E-mail enviado ao setor fiscal' },
-  emailFalhou: { color: 'red', icon: <IconMail size={14} />, label: 'Falha ao enviar e-mail' },
+  // Divergência registrada, mas a notificação fiscal (pendência CC-e ou
+  // e-mail) ainda NÃO foi enviada — só ocorre quando a nota for aprovada.
+  divergenciaRegistrada: { color: 'blue', icon: <IconFileText size={14} />, label: 'Divergência registrada — notificação fiscal será enviada ao aprovar a nota' },
   requerSenha: { color: 'yellow', icon: <IconLock size={14} />, label: 'Requer autorização de supervisor' },
   bloqueado: { color: 'red', icon: <IconBan size={14} />, label: 'Bloqueado — reconferência obrigatória' },
   ignorado: { color: 'gray', icon: <IconBan size={14} />, label: 'Ignorado' },
@@ -90,7 +90,7 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onItem
       // item — cada item pode ter um destino diferente (um resolvido, outro
       // aguardando senha), então a decisão é individual, não global.
       for (const r of resp.itens) {
-        if (r.resultado.status === 'resolvido' || r.resultado.status === 'pendenciaCriada' || r.resultado.status === 'emailEnviado') {
+        if (r.resultado.status === 'resolvido' || r.resultado.status === 'divergenciaRegistrada') {
           onItemResolvido(r.itemNotaEntradaId)
         }
       }
@@ -98,8 +98,7 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onItem
       if (
         resp.divergenciaResolvida &&
         !resp.divergenciaQuantidade &&
-        !resp.pendenciaCriada &&
-        !resp.emailEnviado &&
+        !resp.divergenciaRegistrada &&
         !resp.requerSenha &&
         !resp.bloqueado
       ) {
@@ -143,7 +142,7 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onItem
       })
       notifications.show({ title: 'Divergência aceita', message: 'Quantidade aceita com divergência', color: 'green' })
       const resolvido = resp.itens.find((i) => i.itemNotaEntradaId === itemId)
-      if (resolvido && ['resolvido', 'pendenciaCriada', 'emailEnviado'].includes(resolvido.resultado.status)) {
+      if (resolvido && ['resolvido', 'divergenciaRegistrada'].includes(resolvido.resultado.status)) {
         onItemResolvido(itemId)
       }
     } catch (err: any) {
