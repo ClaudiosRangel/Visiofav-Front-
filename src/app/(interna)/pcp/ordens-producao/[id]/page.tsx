@@ -238,46 +238,14 @@ export default function DetalheOpPage() {
         {op.observacoes && <Text size="sm" c="dimmed" mt="sm">{op.observacoes}</Text>}
       </Card>
 
-      <Tabs defaultValue="materiais">
+      <Tabs defaultValue="etapas">
         <Tabs.List>
-          <Tabs.Tab value="materiais" leftSection={<IconPackage size={16} />}>Materiais ({op.itens?.length || 0})</Tabs.Tab>
           <Tabs.Tab value="etapas" leftSection={<IconRoute size={16} />}>Etapas ({op.etapas?.length || 0})</Tabs.Tab>
+          <Tabs.Tab value="materiais" leftSection={<IconPackage size={16} />}>Materiais ({op.itens?.length || 0})</Tabs.Tab>
           <Tabs.Tab value="variacoes" leftSection={<IconPalette size={16} />}>Variações ({variacoes.length})</Tabs.Tab>
           <Tabs.Tab value="entregas" leftSection={<IconTruck size={16} />}>Entregas ({programacoes.length})</Tabs.Tab>
           <Tabs.Tab value="historico" leftSection={<IconClipboardCheck size={16} />}>Histórico</Tabs.Tab>
         </Tabs.List>
-
-        {/* ABA MATERIAIS */}
-        <Tabs.Panel value="materiais" pt="md">
-          {op.itens?.length > 0 ? (
-            <Table striped highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Material</Table.Th>
-                  <Table.Th>Quantidade</Table.Th>
-                  <Table.Th>Unidade</Table.Th>
-                  <Table.Th>Liberado</Table.Th>
-                  <Table.Th>Consumido</Table.Th>
-                  <Table.Th>Perda</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {op.itens.map((item: any) => (
-                  <Table.Tr key={item.id}>
-                    <Table.Td>{item.descricaoProduto}</Table.Td>
-                    <Table.Td fw={600}>{Number(item.quantidade)}</Table.Td>
-                    <Table.Td>{item.unidadeMedida}</Table.Td>
-                    <Table.Td>{Number(item.quantidadeLiberada)}</Table.Td>
-                    <Table.Td>{Number(item.quantidadeConsumida)}</Table.Td>
-                    <Table.Td>{Number(item.quantidadePerda) > 0 ? <Badge color="red" size="sm">{Number(item.quantidadePerda)}</Badge> : '0'}</Table.Td>
-                    <Table.Td><Badge size="sm" color={item.status === 'PENDENTE' ? 'gray' : 'green'}>{item.status}</Badge></Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          ) : <Text c="dimmed" ta="center">Nenhum material</Text>}
-        </Tabs.Panel>
 
         {/* ABA ETAPAS */}
         <Tabs.Panel value="etapas" pt="md">
@@ -320,6 +288,38 @@ export default function DetalheOpPage() {
               </Table.Tbody>
             </Table>
           ) : <Text c="dimmed" ta="center">Nenhuma etapa</Text>}
+        </Tabs.Panel>
+
+        {/* ABA MATERIAIS */}
+        <Tabs.Panel value="materiais" pt="md">
+          {op.itens?.length > 0 ? (
+            <Table striped highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Material</Table.Th>
+                  <Table.Th>Quantidade</Table.Th>
+                  <Table.Th>Unidade</Table.Th>
+                  <Table.Th>Liberado</Table.Th>
+                  <Table.Th>Consumido</Table.Th>
+                  <Table.Th>Perda</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {op.itens.map((item: any) => (
+                  <Table.Tr key={item.id}>
+                    <Table.Td>{item.descricaoProduto}</Table.Td>
+                    <Table.Td fw={600}>{Number(item.quantidade)}</Table.Td>
+                    <Table.Td>{item.unidadeMedida}</Table.Td>
+                    <Table.Td>{Number(item.quantidadeLiberada)}</Table.Td>
+                    <Table.Td>{Number(item.quantidadeConsumida)}</Table.Td>
+                    <Table.Td>{Number(item.quantidadePerda) > 0 ? <Badge color="red" size="sm">{Number(item.quantidadePerda)}</Badge> : '0'}</Table.Td>
+                    <Table.Td><Badge size="sm" color={item.status === 'PENDENTE' ? 'gray' : 'green'}>{item.status}</Badge></Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          ) : <Text c="dimmed" ta="center">Nenhum material</Text>}
         </Tabs.Panel>
 
         {/* ABA VARIAÇÕES */}
