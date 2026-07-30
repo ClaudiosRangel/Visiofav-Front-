@@ -120,6 +120,8 @@ export default function ProgramacaoPage() {
   // Feature 5b: Adicionar OS manual
   const [modalAdicionarOS, setModalAdicionarOS] = useState<{ centroId: string; centroDescricao: string } | null>(null)
   const [formAdicionarOS, setFormAdicionarOS] = useState({ opNumero: 0, descricao: '' })
+  // Trava de duplo clique/duplo submit no botão "Adicionar à Fila"
+  const [salvandoAdicionarOS, setSalvandoAdicionarOS] = useState(false)
   const [opEncontrada, setOpEncontrada] = useState<any>(null)
   const [buscandoOp, setBuscandoOp] = useState(false)
   // OP Avulsa: aba do modal (existente vs avulsa) e, dentro de avulsa, o modo
@@ -609,7 +611,12 @@ export default function ProgramacaoPage() {
   }
 
   async function confirmarAdicionarOS() {
-    if (!modalAdicionarOS || !formAdicionarOS.opNumero) return
+    // Guarda contra duplo clique/duplo submit — sem isso, cliques rápidos
+    // repetidos no botão (ou double-submit de rede) criavam duas etapas
+    // idênticas para a mesma OP no mesmo centro (bug real encontrado na
+    // OP 2898, grupo "Serviços Manuais - Produção").
+    if (!modalAdicionarOS || !formAdicionarOS.opNumero || salvandoAdicionarOS) return
+    setSalvandoAdicionarOS(true)
     try {
       await api.post('/pcp/etapas/adicionar-manual', {
         opNumero: formAdicionarOS.opNumero,
@@ -623,6 +630,8 @@ export default function ProgramacaoPage() {
       carregar()
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao adicionar OS', color: 'red' })
+    } finally {
+      setSalvandoAdicionarOS(false)
     }
   }
 
@@ -1660,7 +1669,7 @@ export default function ProgramacaoPage() {
                 onChange={(e) => setFormAdicionarOS({ ...formAdicionarOS, descricao: e.currentTarget.value })}
               />
 
-              <Button onClick={confirmarAdicionarOS} fullWidth disabled={!opEncontrada} leftSection={<IconPlus size={16} />}>
+              <Button onClick={confirmarAdicionarOS} fullWidth disabled={!opEncontrada || salvandoAdicionarOS} loading={salvandoAdicionarOS} leftSection={<IconPlus size={16} />}>
                 Adicionar à Fila
               </Button>
             </Stack>

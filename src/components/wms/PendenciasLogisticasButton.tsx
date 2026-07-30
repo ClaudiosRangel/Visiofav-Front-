@@ -49,10 +49,13 @@ export default function PendenciasLogisticasButton() {
           onClick={() => setModalOpen(true)}
           style={{
             position: 'fixed',
-            // Empilhado acima do botão flutuante do Vizor AI (ChatWidget,
-            // mesmo bottom/right, zIndex 9999) — antes os dois ocupavam a
-            // mesma posição e este ficava escondido atrás do botão da IA.
-            bottom: 92,
+            // Fixo no canto inferior direito. O botão do Vizor AI
+            // (ChatWidget) agora é arrastável e começa no lado esquerdo da
+            // tela (zIndex 9999 também), então normalmente não colide mais
+            // com este — mas como o usuário pode arrastar a IA para
+            // qualquer lugar, evite reduzir o zIndex deste botão abaixo de
+            // 9999 para não ficar escondido se ela for arrastada para cima.
+            bottom: 24,
             right: 24,
             zIndex: 1000,
             width: 56,

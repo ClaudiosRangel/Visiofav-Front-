@@ -12,11 +12,113 @@ import {
   Transition,
   Loader,
 } from '@mantine/core'
-import { IconSend, IconX, IconSparkles, IconPaperclip } from '@tabler/icons-react'
+import { IconSend, IconX, IconSparkles, IconPaperclip, IconGripVertical } from '@tabler/icons-react'
 import ReactMarkdown from 'react-markdown'
 import { useVizorChat, useVizorUpload, type ChatMessage, type AIResponse } from '@/data/hooks/ai/useVizorAI'
 
 const MAX_MESSAGES = 50
+
+// Posição do widget (botão + painel) persistida entre sessões, para o
+// usuário não precisar reposicionar toda vez que recarregar a página.
+const POSICAO_STORAGE_KEY = 'vizor-ai-widget-posicao'
+const MARGEM_TELA = 16
+
+function clampPosicao(pos: { x: number; y: number }, largura: number, altura: number) {
+  if (typeof window === 'undefined') return pos
+  const maxX = Math.max(MARGEM_TELA, window.innerWidth - largura - MARGEM_TELA)
+  const maxY = Math.max(MARGEM_TELA, window.innerHeight - altura - MARGEM_TELA)
+  return {
+    x: Math.min(Math.max(MARGEM_TELA, pos.x), maxX),
+    y: Math.min(Math.max(MARGEM_TELA, pos.y), maxY),
+  }
+}
+
+/**
+ * Posicionamento arrastável do widget Vizor AI (botão flutuante + painel de
+ * chat). Antes o widget ficava fixo no canto inferior direito — em telas
+ * com muita informação (ex: painel de Programação do PCP) ele cobria
+ * botões e dados, sem forma de tirá-lo do caminho. Agora: posição inicial
+ * no lado esquerdo da tela, arrastável (mouse/touch) para qualquer lugar,
+ * com a posição escolhida persistida em localStorage.
+ *
+ * `draggingRef` é a fonte de verdade da lógica (lido/escrito de forma
+ * síncrona dentro dos handlers de pointer, sem depender de re-render).
+ * `arrastandoUI` é só para refletir visualmente (opacidade) durante o
+ * arrasto — não deve ser lido dentro dos handlers, só usado no JSX.
+ */
+function usePosicaoArrastavel(largura: number, altura: number) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  const [arrastandoUI, setArrastandoUI] = useState(false)
+  const draggingRef = useRef(false)
+  const movedRef = useRef(false)
+  const offsetRef = useRef({ x: 0, y: 0 })
+  const startRef = useRef({ x: 0, y: 0 })
+
+  // Inicializa a posição (lado esquerdo, próximo ao rodapé) — só no client,
+  // após montar, para não quebrar SSR (window indisponível no server).
+  useEffect(() => {
+    try {
+      const salva = localStorage.getItem(POSICAO_STORAGE_KEY)
+      if (salva) {
+        setPos(clampPosicao(JSON.parse(salva), largura, altura))
+        return
+      }
+    } catch {
+      // localStorage indisponível (modo privado, etc.) — segue com o padrão
+    }
+    setPos({ x: MARGEM_TELA, y: window.innerHeight - altura - MARGEM_TELA })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Quando o tamanho muda (botão fechado <-> painel aberto), reajusta a
+  // posição para continuar dentro da tela com o novo tamanho.
+  useEffect(() => {
+    setPos((atual) => (atual ? clampPosicao(atual, largura, altura) : atual))
+  }, [largura, altura])
+
+  // Reclampa também ao redimensionar a janela do navegador.
+  useEffect(() => {
+    function aoRedimensionar() {
+      setPos((atual) => (atual ? clampPosicao(atual, largura, altura) : atual))
+    }
+    window.addEventListener('resize', aoRedimensionar)
+    return () => window.removeEventListener('resize', aoRedimensionar)
+  }, [largura, altura])
+
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    setPos((posAtual) => {
+      if (posAtual) offsetRef.current = { x: e.clientX - posAtual.x, y: e.clientY - posAtual.y }
+      return posAtual
+    })
+    draggingRef.current = true
+    movedRef.current = false
+    startRef.current = { x: e.clientX, y: e.clientY }
+    setArrastandoUI(true)
+    ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
+  }, [])
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!draggingRef.current) return
+    const dx = e.clientX - startRef.current.x
+    const dy = e.clientY - startRef.current.y
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) movedRef.current = true
+    setPos(clampPosicao({ x: e.clientX - offsetRef.current.x, y: e.clientY - offsetRef.current.y }, largura, altura))
+  }, [largura, altura])
+
+  const onPointerUp = useCallback(() => {
+    if (!draggingRef.current) return
+    draggingRef.current = false
+    setArrastandoUI(false)
+    setPos((atual) => {
+      if (atual) {
+        try { localStorage.setItem(POSICAO_STORAGE_KEY, JSON.stringify(atual)) } catch {}
+      }
+      return atual
+    })
+  }, [])
+
+  return { pos, arrastandoUI, onPointerDown, onPointerMove, onPointerUp, houveArrasto: () => movedRef.current }
+}
 
 // Componente de renderização Markdown com estilo dark-mode compacto para o chat
 function MarkdownMessage({ content }: { content: string }) {
@@ -47,6 +149,11 @@ function MarkdownMessage({ content }: { content: string }) {
   )
 }
 
+const LARGURA_BOTAO = 56
+const ALTURA_BOTAO = 56
+const LARGURA_PAINEL = 440
+const ALTURA_PAINEL = 600
+
 export default function ChatWidget() {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -58,6 +165,13 @@ export default function ChatWidget() {
   const router = useRouter()
   const chat = useVizorChat()
   const upload = useVizorUpload()
+
+  // Posição arrastável — dimensões diferentes para botão fechado vs painel
+  // aberto, para o clamp de tela considerar o tamanho certo em cada estado.
+  const { pos, arrastandoUI, onPointerDown, onPointerMove, onPointerUp, houveArrasto } = usePosicaoArrastavel(
+    open ? LARGURA_PAINEL : LARGURA_BOTAO,
+    open ? ALTURA_PAINEL : ALTURA_BOTAO,
+  )
 
   // Keyboard shortcut: Ctrl+K / Cmd+K
   useEffect(() => {
@@ -170,63 +284,81 @@ export default function ChatWidget() {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }, [upload])
 
+  // Enquanto a posição inicial não foi calculada (primeiro render, antes do
+  // useEffect rodar no client), não renderiza nada — evita "pulo" visual.
+  if (!pos) return null
+
   return (
     <>
-      {/* Floating button */}
+      {/* Floating button — translúcido (opacidade reduzida, sobe para 1 no
+          hover/arrasto) para não obstruir permanentemente dados/botões por
+          baixo, e arrastável para qualquer posição da tela. */}
       <Transition mounted={!open} transition="pop" duration={200}>
         {(styles) => (
           <button
             style={{
               ...styles,
               position: 'fixed',
-              bottom: 24,
-              right: 24,
-              width: 56,
-              height: 56,
+              left: pos.x,
+              top: pos.y,
+              width: LARGURA_BOTAO,
+              height: ALTURA_BOTAO,
               borderRadius: '50%',
               background: 'linear-gradient(135deg, #2d9d5a, #1a9d8f)',
               border: 'none',
-              cursor: 'pointer',
+              cursor: arrastandoUI ? 'grabbing' : 'grab',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               boxShadow: '0 4px 20px rgba(45, 157, 90, 0.4)',
               zIndex: 9999,
-              transition: 'transform 0.2s',
+              opacity: arrastandoUI ? 1 : 0.55,
+              transition: arrastandoUI ? 'none' : 'opacity 0.2s, transform 0.2s',
+              touchAction: 'none',
             }}
-            onClick={() => setOpen(true)}
-            aria-label="Abrir Vizor AI"
-            onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.1)')}
-            onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onClick={() => {
+              // Só abre o chat se o clique não foi o fim de um arrasto —
+              // sem essa checagem, soltar o botão após arrastar também
+              // dispararia a abertura do painel.
+              if (!houveArrasto()) setOpen(true)
+            }}
+            aria-label="Abrir Vizor AI (arraste para mover)"
+            onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.1)' }}
+            onMouseLeave={(e) => { if (!arrastandoUI) { e.currentTarget.style.opacity = '0.55'; e.currentTarget.style.transform = 'scale(1)' } }}
           >
             <IconSparkles size={28} color="white" />
           </button>
         )}
       </Transition>
 
-      {/* Chat Panel */}
+      {/* Chat Panel — também translúcido e arrastável pelo header. */}
       <Transition mounted={open} transition="slide-up" duration={250}>
         {(styles) => (
           <Paper
             style={{
               ...styles,
               position: 'fixed',
-              bottom: 24,
-              right: 24,
-              width: 440,
-              height: 600,
-              maxHeight: 'calc(100vh - 48px)',
+              left: pos.x,
+              top: pos.y,
+              width: LARGURA_PAINEL,
+              height: ALTURA_PAINEL,
+              maxHeight: 'calc(100vh - 32px)',
               zIndex: 9999,
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
-              background: '#1e1e2e',
+              background: 'rgba(30, 30, 46, 0.92)',
+              backdropFilter: 'blur(6px)',
               border: '1px solid #333',
               boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+              opacity: arrastandoUI ? 0.75 : 1,
             }}
             radius="md"
           >
-            {/* Header */}
+            {/* Header — arrastar por aqui move o painel inteiro */}
             <div
               style={{
                 display: 'flex',
@@ -235,9 +367,15 @@ export default function ChatWidget() {
                 padding: '12px 16px',
                 borderBottom: '1px solid #333',
                 background: '#1a1a2e',
+                cursor: arrastandoUI ? 'grabbing' : 'grab',
+                touchAction: 'none',
               }}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
             >
-              <Text size="sm" fw={600} style={{ color: '#fff' }}>
+              <Text size="sm" fw={600} style={{ color: '#fff', display: 'flex', alignItems: 'center', gap: 6, userSelect: 'none' }}>
+                <IconGripVertical size={14} style={{ opacity: 0.5 }} />
                 🤖 Vizor AI
               </Text>
               <ActionIcon
@@ -245,6 +383,7 @@ export default function ChatWidget() {
                 color="gray"
                 size="sm"
                 onClick={() => setOpen(false)}
+                onPointerDown={(e) => e.stopPropagation()}
                 aria-label="Fechar chat"
               >
                 <IconX size={16} />
