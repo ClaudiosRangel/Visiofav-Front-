@@ -263,8 +263,8 @@ export default function ProgramacaoPage() {
   // e o rollback em caso de erro são tratados dentro do próprio componente;
   // aqui só persiste no backend e recarrega o painel ao final para manter
   // `painel.centros` (fonte de verdade de ambos os layouts) sincronizado.
-  async function reordenarFilaCentro(centroId: string, etapaIds: string[]) {
-    await api.patch('/pcp/etapas/reordenar', { centroProducaoId: centroId, etapaIds })
+  async function reordenarFilaCentro(centroId: string, etapaIds: string[], etapaMovidaId?: string) {
+    await api.patch('/pcp/etapas/reordenar', { centroProducaoId: centroId, etapaIds, etapaMovidaId })
     await carregar()
   }
 
@@ -300,11 +300,14 @@ export default function ProgramacaoPage() {
       return { ...prev, centros }
     })
 
-    // Persist
+    // Persist — active.id é a etapa que o usuário efetivamente arrastou;
+    // só ela é marcada como ordemManual=true no backend (posição fixa,
+    // sobrepõe os critérios automáticos de nº OP → data de entrega).
     try {
       await api.patch('/pcp/etapas/reordenar', {
         centroProducaoId: centroId,
         etapaIds: novaOrdem.map((e: any) => e.id),
+        etapaMovidaId: String(active.id),
       })
     } catch (err: any) {
       notifications.show({ title: 'Erro ao reordenar', message: err?.response?.data?.message || 'Falha ao salvar ordem', color: 'red' })

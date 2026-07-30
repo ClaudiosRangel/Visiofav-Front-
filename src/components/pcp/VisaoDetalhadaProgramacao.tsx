@@ -131,7 +131,7 @@ interface Props {
   excluirOpAvulsa: (opId: string, referencia: string) => void
   liberarProducao: (opId: string) => void
   /** Reordena a fila de um centro (mesma rota PATCH /pcp/etapas/reordenar já usada pelo Grid). */
-  reordenarFilaCentro: (centroId: string, etapaIds: string[]) => Promise<void>
+  reordenarFilaCentro: (centroId: string, etapaIds: string[], etapaMovidaId?: string) => Promise<void>
   /** Abre o modal "Adicionar OS" para um centro específico — mesma ação do botão "+" do Grid. */
   abrirAdicionarOS: (centroId: string, centroDescricao: string) => void
   /** Reordena os GRUPOS/centros entre si (arrastar "Cortadeira Doin" para
@@ -291,8 +291,11 @@ export default function VisaoDetalhadaProgramacao({
     const novaOrdem = arrayMove(centro.etapas, oldIndex, newIndex)
     setOrdemOtimistaPorCentro((prev) => ({ ...prev, [centroId]: novaOrdem }))
 
+    // active.id é a etapa que o usuário efetivamente arrastou — só ela é
+    // marcada como ordemManual=true no backend (posição fixa, sobrepõe os
+    // critérios automáticos de nº OP → data de entrega).
     try {
-      await reordenarFilaCentro(centroId, novaOrdem.map((e: any) => e.id))
+      await reordenarFilaCentro(centroId, novaOrdem.map((e: any) => e.id), String(active.id))
     } catch {
       setOrdemOtimistaPorCentro((prev) => {
         const { [centroId]: _removido, ...resto } = prev
@@ -413,7 +416,18 @@ export default function VisaoDetalhadaProgramacao({
                               {aberto ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
                               <Text size="sm" fw={700} c="teal" truncate>{centro.centro.descricao}</Text>
                             </Group>
-                            <Badge size="xs" color="gray">{centro.etapas.length} pendentes</Badge>
+                            <Group gap={6} wrap="nowrap">
+                              {/* Totalizador de Tiragem do grupo — mesmo cálculo/
+                                  badge já usado no Modelo 1 (Grid), soma da coluna
+                                  Tiragem de todas as etapas visíveis do centro. */}
+                              {(() => {
+                                const totalTiragem = centro.etapas.reduce((acc: number, e: any) => acc + (e.tiragem || 0), 0)
+                                return totalTiragem > 0 ? (
+                                  <Badge color="yellow" variant="light" size="xs">Tiragem: {totalTiragem.toLocaleString('pt-BR')}</Badge>
+                                ) : null
+                              })()}
+                              <Badge size="xs" color="gray">{centro.etapas.length} pendentes</Badge>
+                            </Group>
                           </Group>
                         </UnstyledButton>
                         <Collapse in={aberto}>
