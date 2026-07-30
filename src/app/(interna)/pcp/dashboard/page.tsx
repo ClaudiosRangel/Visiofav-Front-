@@ -10,10 +10,13 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line,
 } from 'recharts'
 
-const CENTRO_COLORS: Record<string, string> = {
-  Cortadeira: '#7c3aed',
-  Impressão: '#0ca678',
-  Acabamento: '#f59f00',
+// Paleta de cores para os gráficos por Tipo de Processo — cadastro dinâmico
+// (PCP → Cadastros → Tipo de Processo), então o número de categorias varia
+// por empresa. Mantém cores fixas para os 5 tipos padrão (mesma paleta de
+// antes) e cicla pela paleta para tipos adicionais cadastrados pelo usuário.
+const PALETA_CORES = ['#7c3aed', '#0ca678', '#f59f00', '#e64980', '#1c7ed6', '#f03e3e', '#2f9e44', '#ae3ec9']
+function corDoCentro(nome: string, indice: number): string {
+  return PALETA_CORES[indice % PALETA_CORES.length]
 }
 
 const MOTIVO_LABELS: Record<string, string> = {
@@ -160,7 +163,7 @@ export default function DashboardPcpPage() {
         </Card>
       )}
 
-      <Divider mt="md" label="Indicadores por Estágio — Cortadeira, Impressão e Acabamento" labelPosition="left" />
+      <Divider mt="md" label="Indicadores por Tipo de Processo" labelPosition="left" />
 
       <Group justify="flex-end">
         <DatePickerInput
@@ -200,8 +203,8 @@ export default function DashboardPcpPage() {
                     <PolarGrid />
                     <PolarAngleAxis dataKey="indicador" tick={{ fontSize: 12 }} />
                     <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
-                    {indicadores.oeePorCentro.map((c: any) => (
-                      <Radar key={c.centro} name={c.centro} dataKey={c.centro} stroke={CENTRO_COLORS[c.centro]} fill={CENTRO_COLORS[c.centro]} fillOpacity={0.15} />
+                    {indicadores.oeePorCentro.map((c: any, i: number) => (
+                      <Radar key={c.centro} name={c.centro} dataKey={c.centro} stroke={corDoCentro(c.centro, i)} fill={corDoCentro(c.centro, i)} fillOpacity={0.15} />
                     ))}
                     <Legend />
                     <Tooltip formatter={(v: any): [string, string] => [`${v}%`, '']} />
@@ -243,8 +246,8 @@ export default function DashboardPcpPage() {
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip />
                   <Legend />
-                  {indicadores.producaoDiaria.map((c: any) => (
-                    <Line key={c.centro} type="monotone" dataKey={c.centro} stroke={CENTRO_COLORS[c.centro]} strokeWidth={2} dot={false} />
+                  {indicadores.producaoDiaria.map((c: any, i: number) => (
+                    <Line key={c.centro} type="monotone" dataKey={c.centro} stroke={corDoCentro(c.centro, i)} strokeWidth={2} dot={false} />
                   ))}
                 </LineChart>
               </ResponsiveContainer>
@@ -254,7 +257,7 @@ export default function DashboardPcpPage() {
           {/* ABA PARETO DE PARADAS — barras por motivo + linha de % acumulado, um gráfico por centro */}
           <Tabs.Panel value="paradas" pt="md">
             <SimpleGrid cols={{ base: 1, lg: 3 }}>
-              {indicadores.paretoParadas.map((c: any) => (
+              {indicadores.paretoParadas.map((c: any, i: number) => (
                 <CardGrafico key={c.centro} titulo={c.centro} subtitulo="Minutos parados por motivo (Pareto)">
                   {c.dados.length === 0 ? (
                     <Center h="100%"><Text size="sm" c="dimmed">Sem paradas registradas no período</Text></Center>
@@ -265,7 +268,7 @@ export default function DashboardPcpPage() {
                         <XAxis dataKey="motivoLabel" tick={{ fontSize: 10 }} interval={0} angle={-20} textAnchor="end" height={50} />
                         <YAxis tick={{ fontSize: 10 }} />
                         <Tooltip formatter={(v: any): [string, string] => [`${v} min`, 'Minutos']} />
-                        <Bar dataKey="valor" fill={CENTRO_COLORS[c.centro]} name="Minutos" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="valor" fill={corDoCentro(c.centro, i)} name="Minutos" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   )}
@@ -277,7 +280,7 @@ export default function DashboardPcpPage() {
           {/* ABA PARETO DE PERDAS — mesmo padrão, por quantidade perdida */}
           <Tabs.Panel value="perdas" pt="md">
             <SimpleGrid cols={{ base: 1, lg: 3 }}>
-              {indicadores.paretoPerdas.map((c: any) => (
+              {indicadores.paretoPerdas.map((c: any, i: number) => (
                 <CardGrafico key={c.centro} titulo={c.centro} subtitulo="Quantidade perdida por motivo (Pareto)">
                   {c.dados.length === 0 ? (
                     <Center h="100%"><Text size="sm" c="dimmed">Sem perdas registradas no período</Text></Center>
@@ -288,7 +291,7 @@ export default function DashboardPcpPage() {
                         <XAxis dataKey="motivoLabel" tick={{ fontSize: 10 }} interval={0} angle={-20} textAnchor="end" height={50} />
                         <YAxis tick={{ fontSize: 10 }} />
                         <Tooltip formatter={(v: any) => v} />
-                        <Bar dataKey="valor" fill={CENTRO_COLORS[c.centro]} name="Quantidade" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="valor" fill={corDoCentro(c.centro, i)} name="Quantidade" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   )}
