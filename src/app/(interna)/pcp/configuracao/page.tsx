@@ -16,6 +16,7 @@ interface ConfiguracaoPcp {
   usaControleUmidade: boolean
   usaZonaSegregada: boolean
   usaCoresStatusProgramacao: boolean
+  integracaoWmsAutomatica: boolean
 }
 
 /** Descrição de cada flag, exibida abaixo do switch — mesmo texto explicativo
@@ -29,6 +30,7 @@ const DESCRICOES: Record<keyof ConfiguracaoPcp, string> = {
   usaControleUmidade: 'Habilita o controle de umidade de materiais sensíveis.',
   usaZonaSegregada: 'Habilita zonas segregadas de armazenagem para materiais específicos.',
   usaCoresStatusProgramacao: 'Habilita as cores de status (pendente, em andamento, pausada, concluída, atrasada) na fila do painel de Programação, nos dois layouts (Grid e Detalhado). A cor de OP Avulsa (rosa) é fixa e não é afetada por esta opção.',
+  integracaoWmsAutomatica: 'Quando ativo, concluir a última etapa de uma Ordem de Produção cria automaticamente uma Nota de Entrada (tipo Produção) no WMS, seguindo o fluxo padrão de Conferência de Entrada → Endereçamento. Desative se preferir lançar a entrada de produção manualmente no WMS. Aplica-se apenas a empresas com o módulo WMS habilitado.',
 }
 
 const LABELS: Record<keyof ConfiguracaoPcp, string> = {
@@ -40,6 +42,7 @@ const LABELS: Record<keyof ConfiguracaoPcp, string> = {
   usaControleUmidade: 'Controle de Umidade',
   usaZonaSegregada: 'Zona Segregada',
   usaCoresStatusProgramacao: 'Cores de Status no Painel de Programação',
+  integracaoWmsAutomatica: 'Integração Automática PCP → WMS',
 }
 
 export default function ConfiguracaoPcpPage() {
@@ -90,6 +93,7 @@ export default function ConfiguracaoPcpPage() {
   if (loading) return <Center py="xl"><Loader /></Center>
 
   const camposDeCores: Array<keyof ConfiguracaoPcp> = ['usaCoresStatusProgramacao']
+  const camposIntegracaoWms: Array<keyof ConfiguracaoPcp> = ['integracaoWmsAutomatica']
   const outrosCampos: Array<keyof ConfiguracaoPcp> = [
     'usaControleBobina', 'usaLoteCorrespondencia', 'usaEstoqueTerceiro',
     'usaPaletizacaoDinamica', 'usaControleApara', 'usaControleUmidade', 'usaZonaSegregada',
@@ -115,6 +119,26 @@ export default function ConfiguracaoPcpPage() {
         </Group>
 
         {config && camposDeCores.map((campo) => (
+          <Stack key={campo} gap={4} mb="md">
+            <Switch
+              label={LABELS[campo]}
+              checked={config[campo]}
+              onChange={(e) => alterar(campo, e.currentTarget.checked)}
+              disabled={salvando === campo}
+              size="md"
+            />
+            <Text size="xs" c="dimmed" ml={44}>{DESCRICOES[campo]}</Text>
+          </Stack>
+        ))}
+      </Card>
+
+      <Card shadow="sm" padding="lg">
+        <Group gap="sm" mb="md">
+          <IconSettings size={20} />
+          <Text fw={600}>Integração com WMS</Text>
+        </Group>
+
+        {config && camposIntegracaoWms.map((campo) => (
           <Stack key={campo} gap={4} mb="md">
             <Switch
               label={LABELS[campo]}

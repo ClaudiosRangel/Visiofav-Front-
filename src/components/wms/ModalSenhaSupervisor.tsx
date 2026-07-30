@@ -15,6 +15,12 @@ export default function ModalSenhaSupervisor({ opened, onClose, onConfirm }: Mod
   const [senha, setSenha] = useState('')
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  // readOnly até o foco: o Chrome ignora autocomplete="off" na maioria dos
+  // casos para credenciais de login, mas respeita `readonly` — removido no
+  // primeiro foco do campo, então o usuário digita normalmente sem o
+  // navegador oferecer autocompletar com uma conta salva.
+  const [usuarioReadOnly, setUsuarioReadOnly] = useState(true)
+  const [senhaReadOnly, setSenhaReadOnly] = useState(true)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -37,6 +43,8 @@ export default function ModalSenhaSupervisor({ opened, onClose, onConfirm }: Mod
     setUsuario('')
     setSenha('')
     setErro(null)
+    setUsuarioReadOnly(true)
+    setSenhaReadOnly(true)
     onClose()
   }
 
@@ -52,11 +60,14 @@ export default function ModalSenhaSupervisor({ opened, onClose, onConfirm }: Mod
 
           {/*
             Autorização de supervisor exige digitação explícita a cada uso —
-            nunca deve vir pré-preenchida pelo autocomplete/gerenciador de
-            senhas do navegador, mesmo que o usuário logado tenha salvo suas
-            próprias credenciais antes. name/autoComplete "falsos" e
-            readOnly+onFocus são o padrão para desencorajar o autofill do
-            Chrome de forma consistente entre navegadores.
+            nunca deve vir pré-preenchida nem sugerir contas salvas do
+            gerenciador de senhas do navegador. autoComplete="off"/"new-password"
+            sozinhos NÃO bastam: o Chrome ignora esses valores para campos que
+            reconhece como login (usuário + senha na mesma tela) e mostra a
+            lista de contas salvas mesmo assim. O padrão que funciona de forma
+            consistente é manter os campos `readOnly` até o primeiro foco —
+            sem foco anterior, o navegador não injeta o dropdown de contas;
+            ao focar, removemos o readOnly e o campo se comporta normalmente.
           */}
           <TextInput
             label="Usuário"
@@ -65,6 +76,8 @@ export default function ModalSenhaSupervisor({ opened, onClose, onConfirm }: Mod
             autoComplete="off"
             data-1p-ignore
             data-lpignore="true"
+            readOnly={usuarioReadOnly}
+            onFocus={() => setUsuarioReadOnly(false)}
             value={usuario}
             onChange={(e) => setUsuario(e.currentTarget.value)}
             required
@@ -78,6 +91,8 @@ export default function ModalSenhaSupervisor({ opened, onClose, onConfirm }: Mod
             autoComplete="new-password"
             data-1p-ignore
             data-lpignore="true"
+            readOnly={senhaReadOnly}
+            onFocus={() => setSenhaReadOnly(false)}
             value={senha}
             onChange={(e) => setSenha(e.currentTarget.value)}
             required

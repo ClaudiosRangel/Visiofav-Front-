@@ -273,11 +273,41 @@ export default function ProgramacaoPage() {
 
   function toggleCentro(id: string) { setAbertos(prev => ({ ...prev, [id]: !prev[id] })) }
 
+  // Atualiza campos de UMA etapa específica dentro de `painel.centros`, sem
+  // recarregar o painel inteiro do backend — usado por ações rápidas
+  // (iniciar/pausar) que não devem causar loading global, recolapsar grupos
+  // que o usuário abriu/fechou manualmente, nem reordenar a fila (a busca
+  // completa do painel pode vir em ordem levemente diferente a cada chamada).
+  // `carregar()` continua sendo usado só onde a ação de fato precisa de dados
+  // recalculados no servidor (nova etapa, conclusão que afeta a fila, etc.).
+  function atualizarEtapaLocal(etapaId: string, patch: Record<string, any>) {
+    setPainel((prev: any) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        centros: prev.centros.map((c: any) => {
+          const etapas = c.etapas.map((e: any) => (e.id === etapaId ? { ...e, ...patch } : e))
+          if (etapas === c.etapas) return c // etapa não pertence a este centro — nada mudou
+          // Recalcula o resumo (badges "X em andamento"/"X pausadas"/"X pendentes"
+          // no cabeçalho do grupo) para refletir a mudança de status, com a
+          // mesma regra usada no backend (GET /programacao/painel).
+          const resumo = {
+            emAndamento: etapas.filter((e: any) => e.status === 'EM_ANDAMENTO').length,
+            pausadas: etapas.filter((e: any) => e.status === 'PAUSADA').length,
+            pendentes: etapas.filter((e: any) => e.status === 'PENDENTE').length,
+            total: etapas.length,
+          }
+          return { ...c, etapas, resumo }
+        }),
+      }
+    })
+  }
+
   async function iniciarEtapa(etapaId: string) {
     try {
       await api.patch(`/pcp/etapas/${etapaId}/iniciar`, {})
       notifications.show({ title: 'Etapa iniciada', message: '', color: 'green' })
-      carregar()
+      atualizarEtapaLocal(etapaId, { status: 'EM_ANDAMENTO' })
     } catch (err: any) { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' }) }
   }
 
@@ -332,9 +362,9 @@ export default function ProgramacaoPage() {
         observacao: formPausar.observacao || undefined,
       })
       notifications.show({ title: 'Etapa pausada', message: formPausar.motivoParada, color: 'orange' })
+      atualizarEtapaLocal(modalPausar.etapaId, { status: 'PAUSADA' })
       setModalPausar(null)
       setFormPausar({ motivoParada: 'ACERTO_MAQUINA', observacao: '' })
-      carregar()
     } catch (err: any) { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' }) }
   }
 
@@ -1024,6 +1054,8 @@ export default function ProgramacaoPage() {
           abrirAdicionarOS={(centroId, centroDescricao) => { setModalAdicionarOS({ centroId, centroDescricao }); carregarProdutosEClientes() }}
           setModalPostData={setModalPostData}
           alterarPrioridade={alterarPrioridade}
+          handleCentroDragEnd={handleCentroDragEnd}
+          centroSensors={sensors}
         />
       ) : (
       <>

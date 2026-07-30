@@ -14,6 +14,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { notifications } from '@mantine/notifications'
+import { SortableCentroItem } from './SortableCentroItem'
 
 const STATUS_DOT: Record<string, string> = {
   PENDENTE: '#adb5bd',
@@ -142,6 +143,13 @@ interface Props {
   reordenarFilaCentro: (centroId: string, etapaIds: string[]) => Promise<void>
   /** Abre o modal "Adicionar OS" para um centro específico — mesma ação do botão "+" do Grid. */
   abrirAdicionarOS: (centroId: string, centroDescricao: string) => void
+  /** Reordena os GRUPOS/centros entre si (arrastar "Cortadeira Doin" para
+   * cima/baixo de "Laminadora Nova", por exemplo) — mesma função e mesma
+   * mutation (`useCentrosOrdenacao`) já usada pelo Modelo 1 (Grid), passada
+   * como prop para não duplicar a lógica de otimismo/rollback. */
+  handleCentroDragEnd: (event: DragEndEvent) => void
+  /** Sensors do dnd-kit para o drag de grupos — mesma instância do Grid. */
+  centroSensors: ReturnType<typeof useSensors>
 }
 
 /**
@@ -169,6 +177,7 @@ export default function VisaoDetalhadaProgramacao({
   setModalMover, setModalDesmembrar, setFormDesmembrar, setModalApontar, setModalPostData, alterarPrioridade,
   excluirEtapa, excluirOpAvulsa, liberarProducao,
   reordenarFilaCentro, abrirAdicionarOS,
+  handleCentroDragEnd, centroSensors,
 }: Props) {
   const [selecao, setSelecao] = useState<Selecao>(null)
   const [especificacaoAberta, setEspecificacaoAberta] = useState(true)
@@ -374,65 +383,75 @@ export default function VisaoDetalhadaProgramacao({
           {centrosComEtapas.length === 0 ? (
             <Text size="sm" c="dimmed" ta="center" py="lg">Nenhuma OS encontrada com os filtros atuais</Text>
           ) : (
-            centrosComEtapas.map((centro: any) => {
-              const aberto = !!abertos[centro.centro.id]
-              return (
-                <Box key={centro.centro.id}>
-                  <UnstyledButton
-                    onClick={() => toggleCentro(centro.centro.id)}
-                    style={{ display: 'block', width: '100%', padding: '8px 12px', background: 'var(--mantine-color-default)', borderBottom: '1px solid var(--mantine-color-default-border)' }}
-                  >
-                    <Group justify="space-between" wrap="nowrap" gap={6}>
-                      <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
-                        {aberto ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
-                        <Text size="sm" fw={700} c="teal" truncate>{centro.centro.descricao}</Text>
-                      </Group>
-                      <Badge size="xs" color="gray">{centro.etapas.length} pendentes</Badge>
-                    </Group>
-                  </UnstyledButton>
-                  <Collapse in={aberto}>
-                    {centro.etapas.length === 0 ? (
-                      <Text size="xs" c="dimmed" ta="center" py="sm">Nenhuma OP na fila</Text>
-                    ) : (
-                      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => handleDragEndCentro(centro.centro.id, event)}>
-                        <SortableContext items={centro.etapas.map((e: any) => e.id)} strategy={verticalListSortingStrategy}>
-                          {centro.etapas.map((etapa: any) => {
-                            const ativo = selecao?.tipo === 'etapa' && selecao.opId === etapa.opId
-                            const destacar = highlightedEtapa === etapa.id
-                            return (
-                              <LinhaArrastavel key={etapa.id} id={etapa.id}>
-                                <UnstyledButton
-                                  onClick={() => setSelecao({ tipo: 'etapa', opId: etapa.opId })}
-                                  style={{
-                                    display: 'block', width: '100%', padding: '8px 12px 8px 0',
-                                    background: destacar ? 'var(--mantine-color-yellow-light-hover)' : (ativo ? 'var(--mantine-color-teal-light)' : getRowBackground(etapa, usaCoresStatus)),
-                                    borderLeft: ativo ? '3px solid var(--mantine-color-teal-6)' : '3px solid transparent',
-                                    borderBottom: '1px solid var(--mantine-color-default-border)',
-                                  }}
-                                >
-                                  <Group justify="space-between" wrap="nowrap" gap={6}>
-                                    <Box style={{ minWidth: 0, flex: 1 }}>
-                                      <Group gap={4} wrap="nowrap">
-                                        <Text size="sm" fw={600} truncate>{etapa.opNumero} — {etapa.clienteNome || '—'}</Text>
-                                        {etapa.isAvulsa && <Badge color="pink" size="xs">AVULSA</Badge>}
-                                      </Group>
-                                      <Text size="xs" c="dimmed" truncate>{etapa.produtoNome || etapa.descricao}</Text>
-                                    </Box>
-                                    <Text size="9px" fw={700} c={corTipoOp(etapa.tipoOp)} style={{ whiteSpace: 'nowrap' }}>
-                                      {etapa.tipoOp || '—'}
-                                    </Text>
-                                  </Group>
-                                </UnstyledButton>
-                              </LinhaArrastavel>
-                            )
-                          })}
-                        </SortableContext>
-                      </DndContext>
-                    )}
-                  </Collapse>
-                </Box>
-              )
-            })
+            // Grupos (centros) arrastáveis entre si — mesma capacidade já
+            // existente no Modelo 1 (Grid): o grip fica à esquerda do
+            // cabeçalho do grupo, fora da área de toggle (expandir/recolher),
+            // para arrastar não conflitar com o clique de abrir/fechar.
+            <DndContext sensors={centroSensors} collisionDetection={closestCenter} onDragEnd={handleCentroDragEnd}>
+              <SortableContext items={centrosComEtapas.map((c: any) => c.centro.id)} strategy={verticalListSortingStrategy}>
+                {centrosComEtapas.map((centro: any) => {
+                  const aberto = !!abertos[centro.centro.id]
+                  return (
+                    <SortableCentroItem key={centro.centro.id} id={centro.centro.id}>
+                      <Box>
+                        <UnstyledButton
+                          onClick={() => toggleCentro(centro.centro.id)}
+                          style={{ display: 'block', width: '100%', padding: '8px 12px', background: 'var(--mantine-color-default)', borderBottom: '1px solid var(--mantine-color-default-border)' }}
+                        >
+                          <Group justify="space-between" wrap="nowrap" gap={6}>
+                            <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+                              {aberto ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+                              <Text size="sm" fw={700} c="teal" truncate>{centro.centro.descricao}</Text>
+                            </Group>
+                            <Badge size="xs" color="gray">{centro.etapas.length} pendentes</Badge>
+                          </Group>
+                        </UnstyledButton>
+                        <Collapse in={aberto}>
+                          {centro.etapas.length === 0 ? (
+                            <Text size="xs" c="dimmed" ta="center" py="sm">Nenhuma OP na fila</Text>
+                          ) : (
+                            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => handleDragEndCentro(centro.centro.id, event)}>
+                              <SortableContext items={centro.etapas.map((e: any) => e.id)} strategy={verticalListSortingStrategy}>
+                                {centro.etapas.map((etapa: any) => {
+                                  const ativo = selecao?.tipo === 'etapa' && selecao.opId === etapa.opId
+                                  const destacar = highlightedEtapa === etapa.id
+                                  return (
+                                    <LinhaArrastavel key={etapa.id} id={etapa.id}>
+                                      <UnstyledButton
+                                        onClick={() => setSelecao({ tipo: 'etapa', opId: etapa.opId })}
+                                        style={{
+                                          display: 'block', width: '100%', padding: '8px 12px 8px 0',
+                                          background: destacar ? 'var(--mantine-color-yellow-light-hover)' : (ativo ? 'var(--mantine-color-teal-light)' : getRowBackground(etapa, usaCoresStatus)),
+                                          borderLeft: ativo ? '3px solid var(--mantine-color-teal-6)' : '3px solid transparent',
+                                          borderBottom: '1px solid var(--mantine-color-default-border)',
+                                        }}
+                                      >
+                                        <Group justify="space-between" wrap="nowrap" gap={6}>
+                                          <Box style={{ minWidth: 0, flex: 1 }}>
+                                            <Group gap={4} wrap="nowrap">
+                                              <Text size="sm" fw={600} truncate>{etapa.opNumero} — {etapa.clienteNome || '—'}</Text>
+                                              {etapa.isAvulsa && <Badge color="pink" size="xs">AVULSA</Badge>}
+                                            </Group>
+                                            <Text size="xs" c="dimmed" truncate>{etapa.produtoNome || etapa.descricao}</Text>
+                                          </Box>
+                                          <Text size="9px" fw={700} c={corTipoOp(etapa.tipoOp)} style={{ whiteSpace: 'nowrap' }}>
+                                            {etapa.tipoOp || '—'}
+                                          </Text>
+                                        </Group>
+                                      </UnstyledButton>
+                                    </LinhaArrastavel>
+                                  )
+                                })}
+                              </SortableContext>
+                            </DndContext>
+                          )}
+                        </Collapse>
+                      </Box>
+                    </SortableCentroItem>
+                  )
+                })}
+              </SortableContext>
+            </DndContext>
           )}
         </ScrollArea>
       </Card>
