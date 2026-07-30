@@ -18,7 +18,7 @@ import {
   // Integração
   IconKey, IconWebhook, IconUpload, IconCloudDownload,
   // PCP
-  IconAssembly, IconListDetails, IconCalendarEvent, IconRoute, IconSitemap, IconTool, IconClock, IconPalette, IconLink,
+  IconAssembly, IconListDetails, IconCalendarEvent, IconRoute, IconSitemap, IconTool, IconClock, IconPalette, IconLink, IconCategory,
   // Configurador
   IconBuilding,
 } from '@tabler/icons-react'
@@ -369,6 +369,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       {
         label: 'Cadastros', icon: IconDatabase, items: [
           { icon: IconTool, label: 'Centros de Produção', href: '/pcp/cadastros/centros' },
+          { icon: IconCategory, label: 'Tipo de Processo', href: '/pcp/cadastros/tipos-processo' },
           { icon: IconTool, label: 'Recursos', href: '/pcp/cadastros/recursos' },
           { icon: IconClock, label: 'Turnos', href: '/pcp/cadastros/turnos' },
           { icon: IconSitemap, label: 'Estruturas (BOM)', href: '/pcp/cadastros/estruturas' },
