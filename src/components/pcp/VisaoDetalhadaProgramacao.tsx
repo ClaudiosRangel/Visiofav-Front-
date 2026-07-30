@@ -126,14 +126,14 @@ interface Props {
   setEditingObs: (v: { id: string; value: string } | null) => void
   salvarObservacao: (etapaId: string, valor: string) => void
   iniciarEtapa: (etapaId: string) => void
-  abrirFinalizarEtapa: (etapa: any) => void
+  abrirFinalizarEtapa: (etapa: any, tipoMaquina?: string | null) => void
   setModalPausar: (v: { etapaId: string; opNumero: number } | null) => void
   verPdfOp: (opId: string) => void
   reextrairPdf: (opId: string, opNumero: string | number) => void
   setModalMover: (v: { etapaId: string; opNumero: number; centroAtualId: string; centroDescricao: string }) => void
   setModalDesmembrar: (v: { etapaId: string; opNumero: number; quantidade: number; descricao: string }) => void
   setFormDesmembrar: (v: Array<{ centroProducaoId: string; quantidade: number }>) => void
-  setModalApontar: (v: { etapaId: string; opNumero: number; descricao: string }) => void
+  setModalApontar: (v: { etapaId: string; opNumero: number; descricao: string; tipoMaquina?: string | null }) => void
   setModalPostData: (v: { opId: string; opNumero: number; dataAtual: string }) => void
   alterarPrioridade: (opId: string, prioridadeAtual: string) => void
   excluirEtapa: (etapaId: string, isDesmembramento: boolean) => void
@@ -625,13 +625,13 @@ export default function VisaoDetalhadaProgramacao({
                               {etapa.status === 'EM_ANDAMENTO' && (
                                 <>
                                   <Tooltip label="Apontar Produção">
-                                    <ActionIcon color="blue" variant="light" size="sm" onClick={() => setModalApontar({ etapaId: etapa.id, opNumero: etapa.opNumero, descricao: etapa.descricao })}><IconClipboardCheck size={14} /></ActionIcon>
+                                    <ActionIcon color="blue" variant="light" size="sm" onClick={() => setModalApontar({ etapaId: etapa.id, opNumero: etapa.opNumero, descricao: etapa.descricao, tipoMaquina: etapa.centroTipoMaquina })}><IconClipboardCheck size={14} /></ActionIcon>
                                   </Tooltip>
                                   <Tooltip label="Pausar">
                                     <ActionIcon color="orange" variant="light" size="sm" onClick={() => setModalPausar({ etapaId: etapa.id, opNumero: etapa.opNumero })}><IconPlayerPause size={14} /></ActionIcon>
                                   </Tooltip>
                                   <Tooltip label="Concluir">
-                                    <ActionIcon color="green" variant="light" size="sm" onClick={() => abrirFinalizarEtapa(etapa)}><IconCheck size={14} /></ActionIcon>
+                                    <ActionIcon color="green" variant="light" size="sm" onClick={() => abrirFinalizarEtapa(etapa, etapa.centroTipoMaquina)}><IconCheck size={14} /></ActionIcon>
                                   </Tooltip>
                                 </>
                               )}

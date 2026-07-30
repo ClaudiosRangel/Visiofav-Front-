@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Title, Stack, Table, Group, Badge, Text, Loader, Center, Collapse, UnstyledButton, Card, ScrollArea, Button, Modal, NumberInput, Select, Textarea, Progress, ActionIcon, Tabs, TextInput, SegmentedControl, Autocomplete, Box } from '@mantine/core'
+import { Title, Stack, Table, Group, Badge, Text, Loader, Center, Collapse, UnstyledButton, Card, ScrollArea, Button, Modal, NumberInput, Select, Textarea, Progress, ActionIcon, Tabs, TextInput, SegmentedControl, Autocomplete, Box, FileButton, Image } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
-import { IconChevronDown, IconChevronRight, IconPlayerPlay, IconPlayerPause, IconCheck, IconClipboardCheck, IconAlertTriangle, IconCut, IconGripVertical, IconSearch, IconFileText, IconPlus, IconArrowRight, IconX, IconPrinter, IconRefresh } from '@tabler/icons-react'
+import { IconChevronDown, IconChevronRight, IconPlayerPlay, IconPlayerPause, IconCheck, IconClipboardCheck, IconAlertTriangle, IconCut, IconGripVertical, IconSearch, IconFileText, IconPlus, IconArrowRight, IconX, IconPrinter, IconRefresh, IconCamera } from '@tabler/icons-react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -19,7 +19,8 @@ const STATUS_COLORS: Record<string, string> = { PENDENTE: 'gray', EM_ANDAMENTO: 
 
 /**
  * Retorna a categoria/aba de um centro com base no campo tipoMaquina (determinístico).
- * Centros com tipoMaquina null retornam 'outros' e aparecem somente na aba "Todos".
+ * Centros com tipoMaquina null retornam 'outros' e aparecem na aba "Outros"
+ * (ex: "Serviços Manuais - Produção", que não tem máquina associada).
  */
 function getCategoriaCentro(tipoMaquina: string | null | undefined): string {
   if (!tipoMaquina) return 'outros'
@@ -27,6 +28,18 @@ function getCategoriaCentro(tipoMaquina: string | null | undefined): string {
   if (tipoMaquina === 'IMPRESSAO') return 'impressao'
   if (['ACABAMENTO', 'COLAGEM', 'VERNIZ'].includes(tipoMaquina)) return 'acabamento'
   return 'outros'
+}
+
+/**
+ * Regra de negócio confirmada pelo usuário: só as máquinas de Colagem/
+ * Coladeira contam a produção em "embalagem" (unidade fechada, unitário) —
+ * todas as outras (Impressão, Cortadeira, demais Acabamentos) contam em
+ * "folhas" (tiragem). Usado no modal de Apontar/Finalizar Etapa para rotular
+ * corretamente o campo de quantidade produzida.
+ */
+function unidadeContagem(tipoMaquina: string | null | undefined): { label: string; placeholder: string } {
+  if (tipoMaquina === 'COLAGEM') return { label: 'Quantidade Produzida (embalagem)', placeholder: 'Un. de embalagem' }
+  return { label: 'Quantidade Produzida (folhas)', placeholder: 'Tiragem em folhas' }
 }
 
 function getRowBackground(etapa: any, usaCoresStatus: boolean = true): string | undefined {
@@ -76,7 +89,13 @@ export default function ProgramacaoPage() {
   const [painel, setPainel] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [abertos, setAbertos] = useState<Record<string, boolean>>({})
-  const [activeTab, setActiveTab] = useState<string>('todos')
+  // Aba "Todos" removida do Modelo 1 (Grid) a pedido do usuário — o valor
+  // 'todos' continua existindo internamente só como sentinela usada pelo
+  // Modelo 2 (Detalhado, que categoriza por OP selecionada dentro do próprio
+  // painel) para pedir a lista de centros SEM filtro. No Grid, o valor
+  // inicial e todos os destinos de navegação são sempre uma aba real
+  // (cortadeira/impressao/acabamento/outros).
+  const [activeTab, setActiveTab] = useState<string>('cortadeira')
   // Layout da tela: "grid" (tabelas por centro, padrão atual) ou "detalhado"
   // (lista mestre + painel de detalhe único, evita repetir a mesma OP em
   // várias linhas/abas). Persistido para lembrar a preferência do usuário.
@@ -98,7 +117,12 @@ export default function ProgramacaoPage() {
   // `finalizando`: quando true, o modal foi aberto pelo botão "Finalizar" —
   // ao salvar, registra o apontamento E conclui a etapa em seguida (a etapa
   // sai da fila do grupo), em vez de só registrar produção parcial.
-  const [modalApontar, setModalApontar] = useState<{ etapaId: string; opNumero: number; descricao: string; finalizando?: boolean; quantidadeEtapa?: number; jaProduzido?: number } | null>(null)
+  // tipoMaquina do centro da etapa — define a unidade de contagem exibida no
+  // modal: máquinas de Colagem/Coladeira contam em "embalagem" (unitário),
+  // as demais em "folhas/tiragem" (regra de negócio confirmada pelo usuário).
+  const [modalApontar, setModalApontar] = useState<{ etapaId: string; opNumero: number; descricao: string; finalizando?: boolean; quantidadeEtapa?: number; jaProduzido?: number; tipoMaquina?: string | null } | null>(null)
+  // Foto anexada pelo operador como evidência da contagem produzida (opcional)
+  const [fotoApontar, setFotoApontar] = useState<File | null>(null)
   const [modalPausar, setModalPausar] = useState<{ etapaId: string; opNumero: number } | null>(null)
   const [modalDesmembrar, setModalDesmembrar] = useState<{ etapaId: string; opNumero: number; quantidade: number; descricao: string } | null>(null)
   const [formApontar, setFormApontar] = useState({ quantidadeProduzida: 0, quantidadePerda: 0, motivoPerda: '', observacao: '' })
@@ -316,7 +340,7 @@ export default function ProgramacaoPage() {
   // Abre o modal de apontamento em modo "finalizar": o usuário registra a
   // quantidade produzida final e, ao confirmar, a etapa é apontada e
   // concluída na sequência (continua saindo da fila do grupo, como antes).
-  function abrirFinalizarEtapa(etapa: any) {
+  function abrirFinalizarEtapa(etapa: any, tipoMaquina?: string | null) {
     setModalApontar({
       etapaId: etapa.id,
       opNumero: etapa.opNumero,
@@ -324,23 +348,38 @@ export default function ProgramacaoPage() {
       finalizando: true,
       quantidadeEtapa: etapa.quantidade,
       jaProduzido: etapa.quantidadeProduzida || 0,
+      tipoMaquina,
     })
     // Pré-preenche com o saldo restante para produzir, facilitando o caso comum
     // de "produziu tudo" — o usuário pode ajustar se produziu menos.
     const restante = Math.max(0, (etapa.quantidade || 0) - (etapa.quantidadeProduzida || 0))
     setFormApontar({ quantidadeProduzida: restante, quantidadePerda: 0, motivoPerda: '', observacao: '' })
+    setFotoApontar(null)
   }
 
   async function enviarApontamento() {
     if (!modalApontar) return
     try {
       if (formApontar.quantidadeProduzida > 0 || formApontar.quantidadePerda > 0) {
-        await api.post(`/pcp/etapas/${modalApontar.etapaId}/apontar`, {
-          quantidadeProduzida: formApontar.quantidadeProduzida,
-          quantidadePerda: formApontar.quantidadePerda,
-          motivoPerda: formApontar.motivoPerda || undefined,
-          observacao: formApontar.observacao || undefined,
-        })
+        if (fotoApontar) {
+          // Com foto: envia multipart/form-data (arquivo + campos juntos).
+          const formData = new FormData()
+          formData.append('quantidadeProduzida', String(formApontar.quantidadeProduzida))
+          formData.append('quantidadePerda', String(formApontar.quantidadePerda))
+          if (formApontar.motivoPerda) formData.append('motivoPerda', formApontar.motivoPerda)
+          if (formApontar.observacao) formData.append('observacao', formApontar.observacao)
+          formData.append('foto', fotoApontar)
+          await api.post(`/pcp/etapas/${modalApontar.etapaId}/apontar`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          })
+        } else {
+          await api.post(`/pcp/etapas/${modalApontar.etapaId}/apontar`, {
+            quantidadeProduzida: formApontar.quantidadeProduzida,
+            quantidadePerda: formApontar.quantidadePerda,
+            motivoPerda: formApontar.motivoPerda || undefined,
+            observacao: formApontar.observacao || undefined,
+          })
+        }
       }
 
       if (modalApontar.finalizando) {
@@ -352,6 +391,7 @@ export default function ProgramacaoPage() {
 
       setModalApontar(null)
       setFormApontar({ quantidadeProduzida: 0, quantidadePerda: 0, motivoPerda: '', observacao: '' })
+      setFotoApontar(null)
       carregar()
     } catch (err: any) { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' }) }
   }
@@ -535,8 +575,8 @@ export default function ProgramacaoPage() {
         setAbertos(prev => ({ ...prev, [centro.centro.id]: true }))
         // Switch to the correct tab
         const categoriaCentro = getCategoriaCentro(centro.centro.tipoMaquina)
-        if (activeTab !== 'todos' && activeTab !== categoriaCentro) {
-          setActiveTab('todos')
+        if (layoutView === 'grid' && activeTab !== categoriaCentro) {
+          setActiveTab(categoriaCentro)
         }
         // Highlight the row
         setHighlightedEtapa(etapa.id)
@@ -864,14 +904,17 @@ export default function ProgramacaoPage() {
     (painel.aguardandoCartao || []).map((item: any) => item.opNumero)
   )
 
-  // Filtra itens aguardandoCartao pelo tipoMaquina da primeira etapa conforme aba ativa
+  // Filtra itens aguardandoCartao pelo tipoMaquina da primeira etapa conforme
+  // aba ativa. No layout Detalhado, activeTab fica travado em 'todos' (a
+  // categorização por aba passa a ser feita dentro do próprio painel de
+  // detalhe, por OP selecionada) — mantido aqui só para esse caso.
   const aguardandoCartaoFiltrado = (painel.aguardandoCartao || []).filter((item: any) => {
-    if (activeTab === 'todos') return true
+    if (layoutView === 'detalhado') return true
     return getCategoriaCentro(item.tipoMaquina) === activeTab
   })
   const mostrarAguardandoCartao = aguardandoCartaoFiltrado.length > 0
 
-  const centrosFiltrados = (activeTab === 'todos'
+  const centrosFiltrados = (layoutView === 'detalhado'
     ? painel.centros
     : painel.centros.filter((c: any) => getCategoriaCentro(c.centro.tipoMaquina) === activeTab)
   ).filter((c: any) => {
@@ -936,16 +979,17 @@ export default function ProgramacaoPage() {
       <Group justify="space-between" align="flex-end">
         {/* No layout Detalhado, o filtro por estágio passa a ser feito DENTRO
             do painel de detalhe (abas Cortadeira/Impressão/Acabamento por OP
-            selecionada) — as abas do topo ficam redundantes e são ocultadas,
-            travando sempre em "todos". Ao voltar para o Grid, as abas voltam
-            a aparecer normalmente. */}
+            selecionada) — as abas do topo ficam redundantes e são ocultadas
+            (centrosFiltrados usa layoutView, não activeTab, nesse caso). Ao
+            voltar para o Grid, as abas voltam a aparecer, mantendo a última
+            aba selecionada. */}
         {layoutView === 'grid' ? (
-          <Tabs value={activeTab} onChange={(value) => setActiveTab(value || 'todos')} style={{ flex: 1 }}>
+          <Tabs value={activeTab} onChange={(value) => setActiveTab(value || 'cortadeira')} style={{ flex: 1 }}>
             <Tabs.List>
-              <Tabs.Tab value="todos">Todos</Tabs.Tab>
               <Tabs.Tab value="cortadeira">Cortadeira</Tabs.Tab>
               <Tabs.Tab value="impressao">Impressão</Tabs.Tab>
               <Tabs.Tab value="acabamento">Acabamento</Tabs.Tab>
+              <Tabs.Tab value="outros">Outros</Tabs.Tab>
             </Tabs.List>
           </Tabs>
         ) : (
@@ -957,7 +1001,6 @@ export default function ProgramacaoPage() {
           onChange={(v) => {
             const novoValor = v as 'grid' | 'detalhado'
             alterarLayoutView(novoValor)
-            if (novoValor === 'detalhado') setActiveTab('todos')
           }}
           className="no-print"
           data={[
@@ -969,8 +1012,10 @@ export default function ProgramacaoPage() {
           Imprimir
         </Button>
         <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => {
-          // Pre-selecionar tipoMaquina com base na aba ativa (Req 7.1–7.4)
-          const preSelectTipo = activeTab !== 'todos' ? activeTab : ''
+          // Pre-selecionar tipoMaquina com base na aba ativa (Req 7.1–7.4).
+          // Aba "Outros" não tem tipoMaquina correspondente — deixa em branco
+          // para seleção manual, igual ao comportamento antigo da aba "Todos".
+          const preSelectTipo = activeTab !== 'outros' ? activeTab : ''
           setFormNovoGrupo({ descricao: '', tipo: preSelectTipo })
           setModalNovoGrupo(true)
         }}>
@@ -1204,6 +1249,15 @@ export default function ProgramacaoPage() {
               )}
             </Group>
             <Group gap="xs">
+              {/* Totalizador de Tiragem do grupo — soma da coluna Tiragem de
+                  todas as etapas visíveis (já filtradas por busca/status/etc,
+                  igual ao total exibido no relatório impresso). */}
+              {(() => {
+                const totalTiragem = centro.etapas.reduce((acc: number, e: any) => acc + (e.tiragem || 0), 0)
+                return totalTiragem > 0 ? (
+                  <Badge color="yellow" variant="light" size="sm">Tiragem: {totalTiragem.toLocaleString('pt-BR')}</Badge>
+                ) : null
+              })()}
               {centro.resumo.emAndamento > 0 && <Badge color="blue" size="sm">{centro.resumo.emAndamento} em andamento</Badge>}
               {centro.resumo.pausadas > 0 && <Badge color="orange" size="sm">{centro.resumo.pausadas} pausadas</Badge>}
               <Badge color="gray" size="sm">{centro.resumo.pendentes} pendentes</Badge>
@@ -1313,7 +1367,7 @@ export default function ProgramacaoPage() {
                                     <ActionIcon color="orange" variant="light" size="sm" onClick={() => setModalPausar({ etapaId: etapa.id, opNumero: etapa.opNumero })} title="Parar">
                                       <IconPlayerPause size={14} />
                                     </ActionIcon>
-                                    <ActionIcon color="green" variant="light" size="sm" onClick={() => abrirFinalizarEtapa(etapa)} title="Finalizar">
+                                    <ActionIcon color="green" variant="light" size="sm" onClick={() => abrirFinalizarEtapa(etapa, centro.centro.tipoMaquina)} title="Finalizar">
                                       <IconCheck size={14} />
                                     </ActionIcon>
                                   </>
@@ -1472,13 +1526,13 @@ export default function ProgramacaoPage() {
                                 )}
                                 {etapa.status === 'EM_ANDAMENTO' && (
                                   <>
-                                    <ActionIcon color="blue" variant="light" size="sm" onClick={() => setModalApontar({ etapaId: etapa.id, opNumero: etapa.opNumero, descricao: etapa.descricao })} title="Apontar Produção">
+                                    <ActionIcon color="blue" variant="light" size="sm" onClick={() => setModalApontar({ etapaId: etapa.id, opNumero: etapa.opNumero, descricao: etapa.descricao, tipoMaquina: centro.centro.tipoMaquina })} title="Apontar Produção">
                                       <IconClipboardCheck size={14} />
                                     </ActionIcon>
                                     <ActionIcon color="orange" variant="light" size="sm" onClick={() => setModalPausar({ etapaId: etapa.id, opNumero: etapa.opNumero })} title="Pausar">
                                       <IconPlayerPause size={14} />
                                     </ActionIcon>
-                                    <ActionIcon color="green" variant="light" size="sm" onClick={() => abrirFinalizarEtapa(etapa)} title="Concluir">
+                                    <ActionIcon color="green" variant="light" size="sm" onClick={() => abrirFinalizarEtapa(etapa, centro.centro.tipoMaquina)} title="Concluir">
                                       <IconCheck size={14} />
                                     </ActionIcon>
                                   </>
@@ -1517,14 +1571,20 @@ export default function ProgramacaoPage() {
       )}
 
       {/* Modal: Apontar Produção (também usado ao Finalizar a etapa) */}
-      <Modal opened={!!modalApontar} onClose={() => setModalApontar(null)} title={modalApontar?.finalizando ? `Finalizar Etapa — OP #${modalApontar?.opNumero}` : `Apontar Produção — OP #${modalApontar?.opNumero}`} centered>
+      <Modal opened={!!modalApontar} onClose={() => { setModalApontar(null); setFotoApontar(null) }} title={modalApontar?.finalizando ? `Finalizar Etapa — OP #${modalApontar?.opNumero}` : `Apontar Produção — OP #${modalApontar?.opNumero}`} centered>
         <Stack gap="md">
           <Text size="sm" c="dimmed">{modalApontar?.descricao}</Text>
           {modalApontar?.finalizando && (
             <Text size="xs" c="orange">Informe a quantidade produzida antes de finalizar. Ao confirmar, a etapa sai da fila deste grupo.</Text>
           )}
           <Group grow>
-            <NumberInput label="Quantidade Produzida" value={formApontar.quantidadeProduzida} onChange={(v) => setFormApontar({ ...formApontar, quantidadeProduzida: typeof v === 'number' ? v : 0 })} min={0} />
+            <NumberInput
+              label={unidadeContagem(modalApontar?.tipoMaquina).label}
+              placeholder={unidadeContagem(modalApontar?.tipoMaquina).placeholder}
+              value={formApontar.quantidadeProduzida}
+              onChange={(v) => setFormApontar({ ...formApontar, quantidadeProduzida: typeof v === 'number' ? v : 0 })}
+              min={0}
+            />
             <NumberInput label="Quantidade Perda" value={formApontar.quantidadePerda} onChange={(v) => setFormApontar({ ...formApontar, quantidadePerda: typeof v === 'number' ? v : 0 })} min={0} />
           </Group>
           {modalApontar?.finalizando && !!modalApontar?.quantidadeEtapa && (
@@ -1539,6 +1599,30 @@ export default function ProgramacaoPage() {
             <Select label="Motivo da Perda" data={['ACERTO', 'REFUGO', 'DEFEITO', 'APARA']} value={formApontar.motivoPerda} onChange={(v) => setFormApontar({ ...formApontar, motivoPerda: v || '' })} />
           )}
           <Textarea label="Observação" value={formApontar.observacao} onChange={(e) => setFormApontar({ ...formApontar, observacao: e.currentTarget.value })} />
+
+          {/* Foto da contagem produzida (opcional) — evidência visual anexada
+              ao apontamento, ex: foto do contador da máquina ou da pilha de
+              folhas/embalagens contadas. */}
+          <Stack gap={4}>
+            <Text size="sm" fw={500}>Foto da contagem (opcional)</Text>
+            {fotoApontar ? (
+              <Group gap="xs" align="flex-start">
+                <Image src={URL.createObjectURL(fotoApontar)} alt="Foto da contagem" w={90} h={90} fit="cover" radius="md" style={{ border: '1px solid var(--mantine-color-gray-4)' }} />
+                <ActionIcon size="sm" variant="light" color="red" onClick={() => setFotoApontar(null)} title="Remover foto">
+                  <IconX size={14} />
+                </ActionIcon>
+              </Group>
+            ) : (
+              <FileButton onChange={setFotoApontar} accept="image/png,image/jpeg,image/webp">
+                {(props) => (
+                  <Button size="xs" variant="light" leftSection={<IconCamera size={14} />} {...props}>
+                    Anexar foto
+                  </Button>
+                )}
+              </FileButton>
+            )}
+          </Stack>
+
           <Button onClick={enviarApontamento} fullWidth color={modalApontar?.finalizando ? 'green' : 'blue'}>
             {modalApontar?.finalizando ? 'Confirmar e Finalizar' : 'Registrar Apontamento'}
           </Button>
