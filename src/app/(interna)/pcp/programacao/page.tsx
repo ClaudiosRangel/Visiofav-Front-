@@ -18,16 +18,15 @@ const PRIORIDADE_COLORS: Record<string, string> = { BAIXA: 'gray', NORMAL: 'blue
 const STATUS_COLORS: Record<string, string> = { PENDENTE: 'gray', EM_ANDAMENTO: 'blue', PAUSADA: 'orange', CONCLUIDA: 'green' }
 
 /**
- * Retorna a categoria/aba de um centro com base no campo tipoMaquina (determinístico).
- * Centros com tipoMaquina null retornam 'outros' e aparecem na aba "Outros"
- * (ex: "Serviços Manuais - Produção", que não tem máquina associada).
+ * Retorna a aba de um centro com base no código do Tipo de Processo
+ * cadastrado (cadastro dinâmico em PCP → Cadastros → Tipo de Processo,
+ * substitui o antigo enum fixo tipoMaquina). Cada Tipo de Processo ativo
+ * gera sua própria aba — o código do tipo (ex: "CORTADEIRA") é usado como
+ * chave da aba. Centro sem tipo de processo (não deveria ocorrer, já que o
+ * campo é obrigatório) cai em 'outros' como salvaguarda.
  */
-function getCategoriaCentro(tipoMaquina: string | null | undefined): string {
-  if (!tipoMaquina) return 'outros'
-  if (tipoMaquina === 'CORTADEIRA') return 'cortadeira'
-  if (tipoMaquina === 'IMPRESSAO') return 'impressao'
-  if (['ACABAMENTO', 'COLAGEM', 'VERNIZ'].includes(tipoMaquina)) return 'acabamento'
-  return 'outros'
+function getCategoriaCentro(tipoProcessoCodigo: string | null | undefined): string {
+  return tipoProcessoCodigo?.toLowerCase() || 'outros'
 }
 
 /**
@@ -37,8 +36,8 @@ function getCategoriaCentro(tipoMaquina: string | null | undefined): string {
  * "folhas" (tiragem). Usado no modal de Apontar/Finalizar Etapa para rotular
  * corretamente o campo de quantidade produzida.
  */
-function unidadeContagem(tipoMaquina: string | null | undefined): { label: string; placeholder: string } {
-  if (tipoMaquina === 'COLAGEM') return { label: 'Quantidade Produzida (embalagem)', placeholder: 'Un. de embalagem' }
+function unidadeContagem(tipoProcessoCodigo: string | null | undefined): { label: string; placeholder: string } {
+  if (tipoProcessoCodigo === 'COLAGEM') return { label: 'Quantidade Produzida (embalagem)', placeholder: 'Un. de embalagem' }
   return { label: 'Quantidade Produzida (folhas)', placeholder: 'Tiragem em folhas' }
 }
 
@@ -89,13 +88,11 @@ export default function ProgramacaoPage() {
   const [painel, setPainel] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [abertos, setAbertos] = useState<Record<string, boolean>>({})
-  // Aba "Todos" removida do Modelo 1 (Grid) a pedido do usuário — o valor
-  // 'todos' continua existindo internamente só como sentinela usada pelo
-  // Modelo 2 (Detalhado, que categoriza por OP selecionada dentro do próprio
-  // painel) para pedir a lista de centros SEM filtro. No Grid, o valor
-  // inicial e todos os destinos de navegação são sempre uma aba real
-  // (cortadeira/impressao/acabamento/outros).
-  const [activeTab, setActiveTab] = useState<string>('cortadeira')
+  // Aba ativa no Modelo 1 (Grid) — chave é o código do Tipo de Processo em
+  // minúsculas (ex: 'cortadeira'), gerado dinamicamente a partir do cadastro
+  // (ver tiposProcesso). Valor inicial ajustado para o primeiro tipo
+  // cadastrado assim que a lista carrega (useEffect abaixo).
+  const [activeTab, setActiveTab] = useState<string>('')
   // Layout da tela: "grid" (tabelas por centro, padrão atual) ou "detalhado"
   // (lista mestre + painel de detalhe único, evita repetir a mesma OP em
   // várias linhas/abas). Persistido para lembrar a preferência do usuário.
@@ -117,10 +114,11 @@ export default function ProgramacaoPage() {
   // `finalizando`: quando true, o modal foi aberto pelo botão "Finalizar" —
   // ao salvar, registra o apontamento E conclui a etapa em seguida (a etapa
   // sai da fila do grupo), em vez de só registrar produção parcial.
-  // tipoMaquina do centro da etapa — define a unidade de contagem exibida no
-  // modal: máquinas de Colagem/Coladeira contam em "embalagem" (unitário),
-  // as demais em "folhas/tiragem" (regra de negócio confirmada pelo usuário).
-  const [modalApontar, setModalApontar] = useState<{ etapaId: string; opNumero: number; descricao: string; finalizando?: boolean; quantidadeEtapa?: number; jaProduzido?: number; tipoMaquina?: string | null } | null>(null)
+  // tipoProcessoCodigo do centro da etapa — define a unidade de contagem
+  // exibida no modal: máquinas de Colagem/Coladeira contam em "embalagem"
+  // (unitário), as demais em "folhas/tiragem" (regra de negócio confirmada
+  // pelo usuário).
+  const [modalApontar, setModalApontar] = useState<{ etapaId: string; opNumero: number; descricao: string; finalizando?: boolean; quantidadeEtapa?: number; jaProduzido?: number; tipoProcessoCodigo?: string | null } | null>(null)
   // Foto anexada pelo operador como evidência da contagem produzida (opcional)
   const [fotoApontar, setFotoApontar] = useState<File | null>(null)
   const [modalPausar, setModalPausar] = useState<{ etapaId: string; opNumero: number } | null>(null)
@@ -167,15 +165,22 @@ export default function ProgramacaoPage() {
   // true enquanto a configuração real não carrega, para não gerar "flash"
   // de cores desabilitadas na primeira renderização.
   const [usaCoresStatus, setUsaCoresStatus] = useState(true)
+  // Tipos de Processo ATIVOS cadastrados (PCP → Cadastros → Tipo de
+  // Processo), ordenados por posição — cada um gera uma aba no painel,
+  // substituindo a lista fixa (Cortadeira/Impressão/Acabamento/Outros) que
+  // existia antes no código.
+  const [tiposProcesso, setTiposProcesso] = useState<any[]>([])
   async function carregar() {
     setLoading(true)
     try {
-      const [painelRes, centrosRes] = await Promise.all([
+      const [painelRes, centrosRes, tiposRes] = await Promise.all([
         api.get('/pcp/programacao/painel'),
         api.get('/centros-producao', { params: { limit: 50, status: 'true' } }),
+        api.get('/tipos-processo', { params: { status: 'true' } }),
       ])
       setPainel(painelRes.data)
       setCentrosDisponiveis((centrosRes.data.data || []).map((c: any) => ({ value: c.id, label: `${c.codigo} - ${c.descricao}` })))
+      setTiposProcesso(tiposRes.data.data || [])
       const ab: Record<string, boolean> = {}
       for (const c of (painelRes.data.centros || [])) { if (c.resumo.total > 0) ab[c.centro.id] = true }
       setAbertos(ab)
@@ -190,6 +195,16 @@ export default function ProgramacaoPage() {
       .then((res) => setUsaCoresStatus(res.data?.configuracao?.usaCoresStatusProgramacao ?? true))
       .catch(() => {}) // Falha silenciosa: mantém o default (cores habilitadas)
   }, [])
+
+  // Define a aba inicial como o primeiro Tipo de Processo cadastrado, assim
+  // que a lista carrega — só na primeira carga (activeTab ainda vazio), para
+  // não sobrescrever a escolha do usuário em cargas subsequentes (carregar()
+  // é chamado novamente após ações como criar/mover/reordenar).
+  useEffect(() => {
+    if (!activeTab && tiposProcesso.length > 0) {
+      setActiveTab(tiposProcesso[0].codigo.toLowerCase())
+    }
+  }, [tiposProcesso, activeTab])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -340,7 +355,7 @@ export default function ProgramacaoPage() {
   // Abre o modal de apontamento em modo "finalizar": o usuário registra a
   // quantidade produzida final e, ao confirmar, a etapa é apontada e
   // concluída na sequência (continua saindo da fila do grupo, como antes).
-  function abrirFinalizarEtapa(etapa: any, tipoMaquina?: string | null) {
+  function abrirFinalizarEtapa(etapa: any, tipoProcessoCodigo?: string | null) {
     setModalApontar({
       etapaId: etapa.id,
       opNumero: etapa.opNumero,
@@ -348,7 +363,7 @@ export default function ProgramacaoPage() {
       finalizando: true,
       quantidadeEtapa: etapa.quantidade,
       jaProduzido: etapa.quantidadeProduzida || 0,
-      tipoMaquina,
+      tipoProcessoCodigo,
     })
     // Pré-preenche com o saldo restante para produzir, facilitando o caso comum
     // de "produziu tudo" — o usuário pode ajustar se produziu menos.
@@ -574,7 +589,7 @@ export default function ProgramacaoPage() {
         // Expand this centro
         setAbertos(prev => ({ ...prev, [centro.centro.id]: true }))
         // Switch to the correct tab
-        const categoriaCentro = getCategoriaCentro(centro.centro.tipoMaquina)
+        const categoriaCentro = getCategoriaCentro(centro.centro.tipoProcesso?.codigo)
         if (layoutView === 'grid' && activeTab !== categoriaCentro) {
           setActiveTab(categoriaCentro)
         }
@@ -600,12 +615,9 @@ export default function ProgramacaoPage() {
       return
     }
     if (!formNovoGrupo.tipo) {
-      notifications.show({ title: 'Erro', message: 'Selecione a aba', color: 'red' })
+      notifications.show({ title: 'Erro', message: 'Selecione o Tipo de Processo', color: 'red' })
       return
     }
-    // Mapear aba para tipoMaquina
-    const tipoMaquinaMap: Record<string, string> = { cortadeira: 'CORTADEIRA', impressao: 'IMPRESSAO', acabamento: 'ACABAMENTO' }
-    const tipoMaquina = tipoMaquinaMap[formNovoGrupo.tipo] || null
     const descricao = formNovoGrupo.descricao.trim()
     // Verificar se já existe grupo com mesma descrição
     const grupoExistente = painel?.centros?.find((c: any) =>
@@ -620,7 +632,7 @@ export default function ProgramacaoPage() {
         codigo: descricao.substring(0, 20).toUpperCase().replace(/\s+/g, '_'),
         descricao,
         tipo: 'MAQUINA',
-        tipoMaquina,
+        tipoProcessoId: formNovoGrupo.tipo,
         status: true,
       })
       notifications.show({ title: 'Grupo criado', message: `"${descricao}" criado com sucesso`, color: 'green' })
@@ -804,7 +816,7 @@ export default function ProgramacaoPage() {
     </style></head><body>`
 
     centrosParaImprimir.forEach((centro: any, idx: number) => {
-      const isCortadeira = getCategoriaCentro(centro.centro.tipoMaquina) === 'cortadeira'
+      const isCortadeira = getCategoriaCentro(centro.centro.tipoProcesso?.codigo) === 'cortadeira'
 
       html += `<h2>${centro.centro.descricao.toUpperCase()}</h2>`
 
@@ -910,13 +922,13 @@ export default function ProgramacaoPage() {
   // detalhe, por OP selecionada) — mantido aqui só para esse caso.
   const aguardandoCartaoFiltrado = (painel.aguardandoCartao || []).filter((item: any) => {
     if (layoutView === 'detalhado') return true
-    return getCategoriaCentro(item.tipoMaquina) === activeTab
+    return getCategoriaCentro(item.tipoProcessoCodigo) === activeTab
   })
   const mostrarAguardandoCartao = aguardandoCartaoFiltrado.length > 0
 
   const centrosFiltrados = (layoutView === 'detalhado'
     ? painel.centros
-    : painel.centros.filter((c: any) => getCategoriaCentro(c.centro.tipoMaquina) === activeTab)
+    : painel.centros.filter((c: any) => getCategoriaCentro(c.centro.tipoProcesso?.codigo) === activeTab)
   ).filter((c: any) => {
     if (filtroGrupo) return c.centro.id === filtroGrupo
     return true
@@ -984,12 +996,15 @@ export default function ProgramacaoPage() {
             voltar para o Grid, as abas voltam a aparecer, mantendo a última
             aba selecionada. */}
         {layoutView === 'grid' ? (
-          <Tabs value={activeTab} onChange={(value) => setActiveTab(value || 'cortadeira')} style={{ flex: 1 }}>
+          <Tabs value={activeTab} onChange={(value) => setActiveTab(value || tiposProcesso[0]?.codigo.toLowerCase() || 'outros')} style={{ flex: 1 }}>
             <Tabs.List>
-              <Tabs.Tab value="cortadeira">Cortadeira</Tabs.Tab>
-              <Tabs.Tab value="impressao">Impressão</Tabs.Tab>
-              <Tabs.Tab value="acabamento">Acabamento</Tabs.Tab>
-              <Tabs.Tab value="outros">Outros</Tabs.Tab>
+              {/* Abas geradas dinamicamente a partir do cadastro Tipo de
+                  Processo (PCP → Cadastros → Tipo de Processo), na ordem de
+                  posição definida lá — substitui a lista fixa que existia
+                  antes no código. */}
+              {tiposProcesso.map((tp) => (
+                <Tabs.Tab key={tp.id} value={tp.codigo.toLowerCase()}>{tp.descricao}</Tabs.Tab>
+              ))}
             </Tabs.List>
           </Tabs>
         ) : (
@@ -1012,11 +1027,12 @@ export default function ProgramacaoPage() {
           Imprimir
         </Button>
         <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => {
-          // Pre-selecionar tipoMaquina com base na aba ativa (Req 7.1–7.4).
-          // Aba "Outros" não tem tipoMaquina correspondente — deixa em branco
-          // para seleção manual, igual ao comportamento antigo da aba "Todos".
-          const preSelectTipo = activeTab !== 'outros' ? activeTab : ''
-          setFormNovoGrupo({ descricao: '', tipo: preSelectTipo })
+          // Pre-seleciona o Tipo de Processo correspondente à aba ativa,
+          // buscando pelo código (ex: aba 'cortadeira' → tipo com código
+          // 'CORTADEIRA'). Se não encontrar (aba 'outros' ou tipo inativo),
+          // deixa em branco para seleção manual.
+          const tipoDaAba = tiposProcesso.find((t) => t.codigo.toLowerCase() === activeTab)
+          setFormNovoGrupo({ descricao: '', tipo: tipoDaAba?.id || '' })
           setModalNovoGrupo(true)
         }}>
           Novo Grupo
@@ -1274,7 +1290,7 @@ export default function ProgramacaoPage() {
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => handleDragEnd(centro.centro.id, event)}>
                 <SortableContext items={centro.etapas.map((e: any) => e.id)} strategy={verticalListSortingStrategy}>
                   <ScrollArea>
-                    {getCategoriaCentro(centro.centro.tipoMaquina) === 'cortadeira' ? (
+                    {getCategoriaCentro(centro.centro.tipoProcesso?.codigo) === 'cortadeira' ? (
                     /* ===== MODELO CORTADEIRA ===== */
                     <Table striped highlightOnHover mt="xs" style={{ tableLayout: 'auto', fontSize: '11px' }}>
                       <Table.Thead>
@@ -1367,7 +1383,7 @@ export default function ProgramacaoPage() {
                                     <ActionIcon color="orange" variant="light" size="sm" onClick={() => setModalPausar({ etapaId: etapa.id, opNumero: etapa.opNumero })} title="Parar">
                                       <IconPlayerPause size={14} />
                                     </ActionIcon>
-                                    <ActionIcon color="green" variant="light" size="sm" onClick={() => abrirFinalizarEtapa(etapa, centro.centro.tipoMaquina)} title="Finalizar">
+                                    <ActionIcon color="green" variant="light" size="sm" onClick={() => abrirFinalizarEtapa(etapa, centro.centro.tipoProcesso?.codigo)} title="Finalizar">
                                       <IconCheck size={14} />
                                     </ActionIcon>
                                   </>
@@ -1526,13 +1542,13 @@ export default function ProgramacaoPage() {
                                 )}
                                 {etapa.status === 'EM_ANDAMENTO' && (
                                   <>
-                                    <ActionIcon color="blue" variant="light" size="sm" onClick={() => setModalApontar({ etapaId: etapa.id, opNumero: etapa.opNumero, descricao: etapa.descricao, tipoMaquina: centro.centro.tipoMaquina })} title="Apontar Produção">
+                                    <ActionIcon color="blue" variant="light" size="sm" onClick={() => setModalApontar({ etapaId: etapa.id, opNumero: etapa.opNumero, descricao: etapa.descricao, tipoProcessoCodigo: centro.centro.tipoProcesso?.codigo })} title="Apontar Produção">
                                       <IconClipboardCheck size={14} />
                                     </ActionIcon>
                                     <ActionIcon color="orange" variant="light" size="sm" onClick={() => setModalPausar({ etapaId: etapa.id, opNumero: etapa.opNumero })} title="Pausar">
                                       <IconPlayerPause size={14} />
                                     </ActionIcon>
-                                    <ActionIcon color="green" variant="light" size="sm" onClick={() => abrirFinalizarEtapa(etapa, centro.centro.tipoMaquina)} title="Concluir">
+                                    <ActionIcon color="green" variant="light" size="sm" onClick={() => abrirFinalizarEtapa(etapa, centro.centro.tipoProcesso?.codigo)} title="Concluir">
                                       <IconCheck size={14} />
                                     </ActionIcon>
                                   </>
@@ -1579,8 +1595,8 @@ export default function ProgramacaoPage() {
           )}
           <Group grow>
             <NumberInput
-              label={unidadeContagem(modalApontar?.tipoMaquina).label}
-              placeholder={unidadeContagem(modalApontar?.tipoMaquina).placeholder}
+              label={unidadeContagem(modalApontar?.tipoProcessoCodigo).label}
+              placeholder={unidadeContagem(modalApontar?.tipoProcessoCodigo).placeholder}
               value={formApontar.quantidadeProduzida}
               onChange={(v) => setFormApontar({ ...formApontar, quantidadeProduzida: typeof v === 'number' ? v : 0 })}
               min={0}
@@ -1688,16 +1704,13 @@ export default function ProgramacaoPage() {
       <Modal opened={modalNovoGrupo} onClose={() => setModalNovoGrupo(false)} title="Novo Grupo" centered>
         <Stack gap="md">
           <Select
-            label="Aba"
-            placeholder="Selecione a aba onde o grupo aparecerá"
-            data={[
-              { value: 'cortadeira', label: 'Cortadeira' },
-              { value: 'impressao', label: 'Impressão' },
-              { value: 'acabamento', label: 'Acabamento' },
-            ]}
+            label="Tipo de Processo"
+            placeholder="Selecione o Tipo de Processo (define a aba onde o grupo aparecerá)"
+            data={tiposProcesso.map((tp) => ({ value: tp.id, label: tp.descricao }))}
             value={formNovoGrupo.tipo}
             onChange={(v) => setFormNovoGrupo({ ...formNovoGrupo, tipo: v || '' })}
             required
+            nothingFoundMessage="Nenhum tipo cadastrado — cadastre em Cadastros → Tipo de Processo"
           />
           <TextInput
             label="Nome do Grupo"
@@ -1907,13 +1920,13 @@ export default function ProgramacaoPage() {
           <Select
             data={centrosDisponiveis.filter((c: any) => {
               if (c.value === modalMover?.centroAtualId) return false
-              // Filtrar pela mesma categoria — baseado no tipoMaquina do centro atual
+              // Filtrar pela mesma categoria — baseado no Tipo de Processo do centro atual
               const centroAtual = painel?.centros?.find((ct: any) => ct.centro.id === modalMover?.centroAtualId)
               if (centroAtual) {
-                const categoriaAtual = getCategoriaCentro(centroAtual.centro.tipoMaquina)
-                // Buscar tipoMaquina do centro opção pelo ID
+                const categoriaAtual = getCategoriaCentro(centroAtual.centro.tipoProcesso?.codigo)
+                // Buscar Tipo de Processo do centro opção pelo ID
                 const centroOpcao = painel?.centros?.find((ct: any) => ct.centro.id === c.value)
-                const categoriaOpcao = centroOpcao ? getCategoriaCentro(centroOpcao.centro.tipoMaquina) : 'outros'
+                const categoriaOpcao = centroOpcao ? getCategoriaCentro(centroOpcao.centro.tipoProcesso?.codigo) : 'outros'
                 return categoriaOpcao === categoriaAtual
               }
               return true

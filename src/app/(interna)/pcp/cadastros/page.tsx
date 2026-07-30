@@ -9,11 +9,13 @@ import {
   IconSitemap,
   IconRoute,
   IconPalette,
+  IconCategory,
 } from '@tabler/icons-react'
 import { useRouter } from 'next/navigation'
 
 const CADASTROS = [
   { label: 'Centros de Produção', icon: IconBuildingFactory, href: '/pcp/cadastros/centros', color: 'violet', desc: 'Máquinas, setores e linhas' },
+  { label: 'Tipo de Processo', icon: IconCategory, href: '/pcp/cadastros/tipos-processo', color: 'teal', desc: 'Cortadeira, Impressão, Acabamento... — define as abas da Programação' },
   { label: 'Recursos', icon: IconTool, href: '/pcp/cadastros/recursos', color: 'blue', desc: 'Operadores, ferramentas, facas' },
   { label: 'Turnos', icon: IconClock, href: '/pcp/cadastros/turnos', color: 'cyan', desc: 'Horários de trabalho' },
   { label: 'Estruturas (BOM)', icon: IconSitemap, href: '/pcp/cadastros/estruturas', color: 'green', desc: 'Árvore de materiais' },

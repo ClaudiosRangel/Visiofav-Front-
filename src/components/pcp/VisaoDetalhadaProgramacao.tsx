@@ -32,25 +32,16 @@ const STATUS_LABEL: Record<string, string> = {
 
 const PRIORIDADE_COLORS: Record<string, string> = { BAIXA: 'gray', NORMAL: 'blue', ALTA: 'orange', URGENTE: 'red' }
 
-const CATEGORIAS_ORDEM: Array<{ key: string; label: string }> = [
-  { key: 'cortadeira', label: 'Cortadeira' },
-  { key: 'impressao', label: 'Impressão' },
-  { key: 'acabamento', label: 'Acabamento' },
-  { key: 'outros', label: 'Outros' },
-]
-
 /**
- * Categoriza um centro pelo `tipoMaquina` — cópia local da mesma função já
- * usada em page.tsx (getCategoriaCentro). Duplicada propositalmente: este
- * componente não deve importar/alterar nada do módulo do Modelo 1 (Grid),
- * para garantir que mudanças no Modelo 2 (Detalhado) nunca afetem o Modelo 1.
+ * Categoriza um centro pelo código do Tipo de Processo cadastrado
+ * (PCP → Cadastros → Tipo de Processo, substitui o antigo enum fixo
+ * tipoMaquina) — cópia local da mesma função já usada em page.tsx
+ * (getCategoriaCentro). Duplicada propositalmente: este componente não deve
+ * importar/alterar nada do módulo do Modelo 1 (Grid), para garantir que
+ * mudanças no Modelo 2 (Detalhado) nunca afetem o Modelo 1.
  */
-function getCategoriaCentro(tipoMaquina: string | null | undefined): string {
-  if (!tipoMaquina) return 'outros'
-  if (tipoMaquina === 'CORTADEIRA') return 'cortadeira'
-  if (tipoMaquina === 'IMPRESSAO') return 'impressao'
-  if (['ACABAMENTO', 'COLAGEM', 'VERNIZ'].includes(tipoMaquina)) return 'acabamento'
-  return 'outros'
+function getCategoriaCentro(tipoProcessoCodigo: string | null | undefined): string {
+  return tipoProcessoCodigo?.toLowerCase() || 'outros'
 }
 
 /** Cor do texto do Tipo OP na lista mestre — mesmo critério de cores já usado no Modelo 1 (Grid). */
@@ -126,14 +117,14 @@ interface Props {
   setEditingObs: (v: { id: string; value: string } | null) => void
   salvarObservacao: (etapaId: string, valor: string) => void
   iniciarEtapa: (etapaId: string) => void
-  abrirFinalizarEtapa: (etapa: any, tipoMaquina?: string | null) => void
+  abrirFinalizarEtapa: (etapa: any, tipoProcessoCodigo?: string | null) => void
   setModalPausar: (v: { etapaId: string; opNumero: number } | null) => void
   verPdfOp: (opId: string) => void
   reextrairPdf: (opId: string, opNumero: string | number) => void
   setModalMover: (v: { etapaId: string; opNumero: number; centroAtualId: string; centroDescricao: string }) => void
   setModalDesmembrar: (v: { etapaId: string; opNumero: number; quantidade: number; descricao: string }) => void
   setFormDesmembrar: (v: Array<{ centroProducaoId: string; quantidade: number }>) => void
-  setModalApontar: (v: { etapaId: string; opNumero: number; descricao: string; tipoMaquina?: string | null }) => void
+  setModalApontar: (v: { etapaId: string; opNumero: number; descricao: string; tipoProcessoCodigo?: string | null }) => void
   setModalPostData: (v: { opId: string; opNumero: number; dataAtual: string }) => void
   alterarPrioridade: (opId: string, prioridadeAtual: string) => void
   excluirEtapa: (etapaId: string, isDesmembramento: boolean) => void
@@ -196,7 +187,7 @@ export default function VisaoDetalhadaProgramacao({
   )
 
   // Índice OP → todas as suas etapas (todos os centros, sem filtro de aba),
-  // guardando também o tipoMaquina do centro de cada etapa para categorizar
+  // guardando também o código do Tipo de Processo do centro de cada etapa para categorizar
   // nas abas Cortadeira/Impressão/Acabamento do painel de detalhe.
   const mapaEtapasPorOp = useMemo(() => {
     const mapa = new Map<string, { base: any; etapas: any[] }>()
@@ -207,7 +198,7 @@ export default function VisaoDetalhadaProgramacao({
           ...etapa,
           centroDescricao: centro.centro.descricao,
           centroId: centro.centro.id,
-          centroTipoMaquina: centro.centro.tipoMaquina,
+          centroTipoProcessoCodigo: centro.centro.tipoProcesso?.codigo,
         })
       }
     }
@@ -310,17 +301,36 @@ export default function VisaoDetalhadaProgramacao({
     }
   }
 
+  // Lista de categorias (Tipo de Processo) na ordem cadastrada, derivada
+  // diretamente dos centros presentes no painel — substitui a lista fixa
+  // que existia antes no código (Cortadeira/Impressão/Acabamento/Outros).
+  const categoriasOrdem = useMemo(() => {
+    const vistos = new Set<string>()
+    const lista: Array<{ key: string; label: string }> = []
+    for (const centro of painel?.centros || []) {
+      const key = getCategoriaCentro(centro.centro.tipoProcesso?.codigo)
+      if (!vistos.has(key)) {
+        vistos.add(key)
+        lista.push({ key, label: centro.centro.tipoProcesso?.descricao || 'Outros' })
+      }
+    }
+    return lista
+  }, [painel])
+
   // Agrupa as etapas da OP selecionada pela mesma categoria usada nas abas
-  // do Modelo 1 (Cortadeira/Impressão/Acabamento/Outros).
+  // do Modelo 1 (uma aba por Tipo de Processo cadastrado).
   const etapasPorCategoria = useMemo(() => {
-    const mapa: Record<string, any[]> = { cortadeira: [], impressao: [], acabamento: [], outros: [] }
+    const mapa: Record<string, any[]> = {}
+    for (const cat of categoriasOrdem) mapa[cat.key] = []
     for (const etapa of detalheOp?.etapas || []) {
-      mapa[getCategoriaCentro(etapa.centroTipoMaquina)].push(etapa)
+      const key = getCategoriaCentro(etapa.centroTipoProcessoCodigo)
+      if (!mapa[key]) mapa[key] = []
+      mapa[key].push(etapa)
     }
     return mapa
-  }, [detalheOp])
+  }, [detalheOp, categoriasOrdem])
 
-  const categoriasPresentes = CATEGORIAS_ORDEM.filter((c) => etapasPorCategoria[c.key]?.length > 0)
+  const categoriasPresentes = categoriasOrdem.filter((c) => etapasPorCategoria[c.key]?.length > 0)
 
   // Resumo (em andamento/pausadas/pendentes) de cada centro, direto de
   // `painel.centros` — mesmo dado exibido no cabeçalho de cada grupo no
@@ -625,13 +635,13 @@ export default function VisaoDetalhadaProgramacao({
                               {etapa.status === 'EM_ANDAMENTO' && (
                                 <>
                                   <Tooltip label="Apontar Produção">
-                                    <ActionIcon color="blue" variant="light" size="sm" onClick={() => setModalApontar({ etapaId: etapa.id, opNumero: etapa.opNumero, descricao: etapa.descricao, tipoMaquina: etapa.centroTipoMaquina })}><IconClipboardCheck size={14} /></ActionIcon>
+                                    <ActionIcon color="blue" variant="light" size="sm" onClick={() => setModalApontar({ etapaId: etapa.id, opNumero: etapa.opNumero, descricao: etapa.descricao, tipoProcessoCodigo: etapa.centroTipoProcessoCodigo })}><IconClipboardCheck size={14} /></ActionIcon>
                                   </Tooltip>
                                   <Tooltip label="Pausar">
                                     <ActionIcon color="orange" variant="light" size="sm" onClick={() => setModalPausar({ etapaId: etapa.id, opNumero: etapa.opNumero })}><IconPlayerPause size={14} /></ActionIcon>
                                   </Tooltip>
                                   <Tooltip label="Concluir">
-                                    <ActionIcon color="green" variant="light" size="sm" onClick={() => abrirFinalizarEtapa(etapa, etapa.centroTipoMaquina)}><IconCheck size={14} /></ActionIcon>
+                                    <ActionIcon color="green" variant="light" size="sm" onClick={() => abrirFinalizarEtapa(etapa, etapa.centroTipoProcessoCodigo)}><IconCheck size={14} /></ActionIcon>
                                   </Tooltip>
                                 </>
                               )}

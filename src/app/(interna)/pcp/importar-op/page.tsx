@@ -61,7 +61,7 @@ interface CentroParaCriar {
   codigo: string
   tipo: string
   centroIdVinculado: string | null
-  tipoMaquina: string | null
+  tipoProcessoId: string | null
 }
 
 // ─── Página Principal ────────────────────────────────────────────────────────
@@ -87,12 +87,18 @@ export default function ImportarOpPdfPage() {
   const [produtoForm, setProdutoForm] = useState({ codigo: '', nome: '', unidade: 'UN' })
   const [materiais, setMateriais] = useState<MaterialParaCriar[]>([])
   const [centros, setCentros] = useState<CentroParaCriar[]>([])
-  const [centrosDisponiveis, setCentrosDisponiveis] = useState<Array<{ id: string; codigo: string; descricao: string; tipoMaquina: string | null }>>([])
+  const [centrosDisponiveis, setCentrosDisponiveis] = useState<Array<{ id: string; codigo: string; descricao: string; tipoProcessoId: string | null }>>([])
+  // Tipos de Processo ativos (PCP → Cadastros → Tipo de Processo) — usado no
+  // Select "Tipo de Processo" do Passo 4, substituindo as 5 opções fixas.
+  const [tiposProcesso, setTiposProcesso] = useState<Array<{ id: string; codigo: string; descricao: string }>>([])
 
-  // Carregar centros disponíveis para o combobox
+  // Carregar centros disponíveis para o combobox e Tipos de Processo ativos
   useEffect(() => {
     api.get('/centros-producao', { params: { limit: 100 } })
       .then(res => setCentrosDisponiveis(res.data?.data || []))
+      .catch(() => {})
+    api.get('/tipos-processo', { params: { status: 'true' } })
+      .then(res => setTiposProcesso(res.data?.data || []))
       .catch(() => {})
   }, [])
 
@@ -167,7 +173,7 @@ export default function ImportarOpPdfPage() {
           maquinaOriginal: et.maquina || et.descricao,
           criar: false, codigo: sug.sugestao.codigo,
           tipo: 'MAQUINA', centroIdVinculado: sug.sugestao.id,
-          tipoMaquina: sug.sugestao.tipoMaquina || null,
+          tipoProcessoId: sug.sugestao.tipoProcessoId || null,
         }
       } else {
         // Sem de/para: campo Máquina em BRANCO, código sequencial
@@ -177,7 +183,7 @@ export default function ImportarOpPdfPage() {
           maquinaOriginal: et.maquina || et.descricao,
           criar: true, codigo,
           tipo: 'MAQUINA', centroIdVinculado: null,
-          tipoMaquina: null,
+          tipoProcessoId: null,
         }
       }
     })
@@ -242,36 +248,36 @@ export default function ImportarOpPdfPage() {
       }
 
       // 4. Criar centros marcados
-      const centrosVinculados: Array<{ indice: number; centroProducaoId: string | null; nomeEditado: string; tipoMaquina?: string }> = []
+      const centrosVinculados: Array<{ indice: number; centroProducaoId: string | null; nomeEditado: string; tipoProcessoId?: string }> = []
       for (const ctr of centros) {
         if (ctr.centroIdVinculado) {
-          centrosVinculados.push({ indice: ctr.indice, centroProducaoId: ctr.centroIdVinculado, nomeEditado: ctr.maquina, tipoMaquina: ctr.tipoMaquina || undefined })
+          centrosVinculados.push({ indice: ctr.indice, centroProducaoId: ctr.centroIdVinculado, nomeEditado: ctr.maquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
         } else if (ctr.criar) {
           try {
-            const res = await api.post('/centros-producao', { codigo: ctr.codigo.substring(0, 20), descricao: ctr.maquina, tipo: ctr.tipo, tipoMaquina: ctr.tipoMaquina || undefined })
-            centrosVinculados.push({ indice: ctr.indice, centroProducaoId: res.data.id, nomeEditado: ctr.maquina, tipoMaquina: ctr.tipoMaquina || undefined })
+            const res = await api.post('/centros-producao', { codigo: ctr.codigo.substring(0, 20), descricao: ctr.maquina, tipo: ctr.tipo, tipoProcessoId: ctr.tipoProcessoId || undefined })
+            centrosVinculados.push({ indice: ctr.indice, centroProducaoId: res.data.id, nomeEditado: ctr.maquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
           } catch (err: any) {
             // Se código já existe (409), buscar o centro existente e usar
             if (err?.response?.status === 409) {
               try {
                 const busca = await api.get('/centros-producao', { params: { busca: ctr.codigo.substring(0, 20), limit: 1 } })
                 if (busca.data?.data?.[0]) {
-                  centrosVinculados.push({ indice: ctr.indice, centroProducaoId: busca.data.data[0].id, nomeEditado: ctr.maquina, tipoMaquina: ctr.tipoMaquina || undefined })
+                  centrosVinculados.push({ indice: ctr.indice, centroProducaoId: busca.data.data[0].id, nomeEditado: ctr.maquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
                 } else {
                   // Fallback: enviar nomeEditado para o backend criar via confirmação
-                  centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: ctr.maquina, tipoMaquina: ctr.tipoMaquina || undefined })
+                  centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: ctr.maquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
                 }
               } catch {
-                centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: ctr.maquina, tipoMaquina: ctr.tipoMaquina || undefined })
+                centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: ctr.maquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
               }
             } else {
               // Outro erro: enviar nomeEditado para o backend criar via confirmação
-              centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: ctr.maquina, tipoMaquina: ctr.tipoMaquina || undefined })
+              centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: ctr.maquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
             }
           }
         } else {
           // Item desmarcado: não enviar nomeEditado para que o backend não crie centro/etapa
-          centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: '', tipoMaquina: undefined })
+          centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: '', tipoProcessoId: undefined })
         }
       }
 
@@ -485,7 +491,7 @@ export default function ImportarOpPdfPage() {
                                   novo[i].centroIdVinculado = centroSel.id
                                   novo[i].maquina = centroSel.descricao
                                   novo[i].codigo = centroSel.codigo
-                                  novo[i].tipoMaquina = centroSel.tipoMaquina
+                                  novo[i].tipoProcessoId = centroSel.tipoProcessoId
                                   novo[i].criar = false
                                   setCentros(novo)
                                 }
@@ -509,16 +515,10 @@ export default function ImportarOpPdfPage() {
                         <Select
                           size="xs"
                           placeholder="Selecione"
-                          data={[
-                            { value: 'IMPRESSAO', label: 'Impressão' },
-                            { value: 'ACABAMENTO', label: 'Acabamento' },
-                            { value: 'CORTADEIRA', label: 'Cortadeira' },
-                            { value: 'COLAGEM', label: 'Colagem' },
-                            { value: 'VERNIZ', label: 'Verniz' },
-                          ]}
-                          value={ctr.tipoMaquina}
-                          onChange={(v) => { const novo = [...centros]; novo[i].tipoMaquina = v || null; setCentros(novo) }}
-                          error={ctr.criar && !ctr.centroIdVinculado && !ctr.tipoMaquina ? 'Obrigatório' : undefined}
+                          data={tiposProcesso.map((tp) => ({ value: tp.id, label: tp.descricao }))}
+                          value={ctr.tipoProcessoId}
+                          onChange={(v) => { const novo = [...centros]; novo[i].tipoProcessoId = v || null; setCentros(novo) }}
+                          error={ctr.criar && !ctr.centroIdVinculado && !ctr.tipoProcessoId ? 'Obrigatório' : undefined}
                           style={{ width: 140 }}
                         />
                       </Table.Td>
@@ -564,11 +564,11 @@ export default function ImportarOpPdfPage() {
             </Button>
             {wizardStep < 4 ? (
               <Button onClick={() => {
-                // Validar Step 4 (centros): tipoMaquina obrigatório quando criar = true
+                // Validar Step 4 (centros): tipoProcessoId obrigatório quando criar = true
                 if (wizardStep === 3) {
-                  const centrosSemTipo = centros.filter(c => c.criar && !c.centroIdVinculado && !c.tipoMaquina)
+                  const centrosSemTipo = centros.filter(c => c.criar && !c.centroIdVinculado && !c.tipoProcessoId)
                   if (centrosSemTipo.length > 0) {
-                    notifications.show({ title: 'Atenção', message: 'Selecione o Tipo de Máquina para todos os centros que serão criados.', color: 'yellow' })
+                    notifications.show({ title: 'Atenção', message: 'Selecione o Tipo de Processo para todos os centros que serão criados.', color: 'yellow' })
                     return
                   }
                 }
