@@ -363,6 +363,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       { icon: IconLink, label: 'De/Para (Vínculos)', href: '/pcp/de-para' },
       { icon: IconAssembly, label: 'Kanban', href: '/pcp/kanban' },
       { icon: IconCalendarEvent, label: 'Programação', href: '/pcp/programacao' },
+      { icon: IconEye, label: 'Quadro de Produção', href: '/pcp/quadro-producao' },
       { icon: IconClipboardCheck, label: 'Apontamentos', href: '/pcp/apontamentos' },
       { icon: IconPackage, label: 'Liberação de Materiais', href: '/pcp/liberacoes' },
       { icon: IconArrowsExchange, label: 'Conversão de Unidades', href: '/pcp/conversao' },
