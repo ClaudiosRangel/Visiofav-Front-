@@ -24,3 +24,44 @@ export function useExcluirFuncionario() {
   const qc = useQueryClient()
   return useMutation({ mutationFn: async (id: string) => { await api.delete(`/funcionarios/${id}`) }, onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }) })
 }
+
+// ─── PIN do Checkout de Apontamento ─────────────────────────────────────────
+
+interface FuncionarioPinStatus {
+  id: string
+  nome: string
+  codigo: number
+  matricula?: string
+  pinAtivo: boolean
+}
+
+export function useFuncionariosPinStatus() {
+  return useQuery<FuncionarioPinStatus[]>({
+    queryKey: [KEY, 'pin-status'],
+    queryFn: async () => { const { data } = await api.get('/checkout/admin/funcionarios/pin-status'); return data },
+    staleTime: 1000 * 60 * 2,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useDefinirPin() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ funcionarioId, pin }: { funcionarioId: string; pin: string }) => {
+      const { data } = await api.patch(`/checkout/admin/funcionarios/${funcionarioId}/pin`, { pin })
+      return data
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: [KEY] }); qc.invalidateQueries({ queryKey: [KEY, 'pin-status'] }) },
+  })
+}
+
+export function useRemoverPin() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (funcionarioId: string) => {
+      const { data } = await api.delete(`/checkout/admin/funcionarios/${funcionarioId}/pin`)
+      return data
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: [KEY] }); qc.invalidateQueries({ queryKey: [KEY, 'pin-status'] }) },
+  })
+}
