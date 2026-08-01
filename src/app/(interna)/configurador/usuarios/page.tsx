@@ -80,7 +80,7 @@ type EditFormValues = z.infer<typeof editSchema>
 // ─── Page Component ──────────────────────────────────────────────────────────
 
 export default function UsuariosPage() {
-  usePerfilGuard('ADMIN')
+  usePerfilGuard(['ADMIN', 'SUPERVISOR'])
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editItem, setEditItem] = useState<UsuarioDetalhado | null>(null)

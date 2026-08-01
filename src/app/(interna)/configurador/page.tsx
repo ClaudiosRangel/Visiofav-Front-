@@ -61,7 +61,7 @@ export default function ConfiguradorPage() {
 
   useEffect(() => {
     const perfil = getUserPerfil()
-    if (perfil === 'ADMIN' || perfil === 'SUPER_ADMIN') {
+    if (perfil === 'ADMIN' || perfil === 'SUPER_ADMIN' || perfil === 'SUPERVISOR') {
       setFilteredCadastros(cadastros)
     } else {
       setFilteredCadastros(cadastros.filter((item) => item.href !== '/configurador/usuarios'))

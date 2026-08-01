@@ -10,10 +10,12 @@ import { notifications } from '@mantine/notifications'
 import { useFuncionarios, useCriarFuncionario, useAtualizarFuncionario, useExcluirFuncionario, useFuncionariosPinStatus, useDefinirPin, useRemoverPin } from '@/data/hooks/useFuncionario'
 import { useCentrosDistribuicao } from '@/data/hooks/useCentroDistribuicao'
 
-const schema = z.object({ nome: z.string().min(1, 'Nome é obrigatório'), matricula: z.string().optional(), tipo: z.string().min(1, 'Tipo é obrigatório'), centroDistribuicaoId: z.string().min(1, 'CD é obrigatório') })
+const schema = z.object({ nome: z.string().min(1, 'Nome é obrigatório'), matricula: z.string().optional(), tipo: z.string().min(1, 'Tipo é obrigatório'), centroDistribuicaoId: z.string().optional().or(z.literal('')) })
 type FormValues = z.infer<typeof schema>
 
 const TIPOS = [{ value: 'OPERADOR', label: 'Operador' }, { value: 'CONFERENTE', label: 'Conferente' }, { value: 'LIDER', label: 'Líder' }, { value: 'SUPERVISOR', label: 'Supervisor' }]
+
+const MODULOS = [{ value: 'PCP', label: 'PCP' }, { value: 'WMS', label: 'WMS' }, { value: 'VENDAS', label: 'Vendas' }, { value: 'COMPRAS', label: 'Compras' }, { value: 'FINANCEIRO', label: 'Financeiro' }, { value: 'FISCAL', label: 'Fiscal' }, { value: 'FATURAMENTO', label: 'Faturamento' }]
 
 export default function FuncionariosPage() {
   const [modalOpen, setModalOpen] = useState(false)
@@ -54,7 +56,8 @@ export default function FuncionariosPage() {
   function handleEdit(item: any) { setEditItem(item); reset({ nome: item.nome, matricula: item.matricula || '', tipo: item.tipo, centroDistribuicaoId: item.centroDistribuicaoId }); setModalOpen(true) }
   async function onSubmit(data: FormValues) {
     try {
-      if (editItem) { await atualizar.mutateAsync({ id: editItem.id, ...data }) } else { await criar.mutateAsync(data) }
+      const payload = { ...data, centroDistribuicaoId: data.centroDistribuicaoId || undefined }
+      if (editItem) { await atualizar.mutateAsync({ id: editItem.id, ...payload }) } else { await criar.mutateAsync(payload) }
       notifications.show({ title: 'Sucesso', message: editItem ? 'Atualizado' : 'Criado', color: 'green' }); setModalOpen(false)
     } catch { notifications.show({ title: 'Erro', message: 'Falha ao salvar', color: 'red' }) }
   }
@@ -95,12 +98,12 @@ export default function FuncionariosPage() {
       <Modal opened={modalOpen} onClose={() => setModalOpen(false)} title={editItem ? 'Editar Funcionário' : 'Novo Funcionário'} centered closeOnClickOutside={false}>
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="flex flex-col gap-4">
-            <Controller name="centroDistribuicaoId" control={control} render={({ field }) => (<Select label={<>CD <span style={{ color: 'red' }}>*</span></>} data={cdOptions} error={errors.centroDistribuicaoId?.message} searchable value={field.value || null} onChange={field.onChange} />)} />
             <Controller name="nome" control={control} render={({ field }) => (<TextInput label={<>Nome <span style={{ color: 'red' }}>*</span></>} error={errors.nome?.message} {...field} />)} />
             <div className="flex gap-4 w-full">
               <Controller name="matricula" control={control} render={({ field }) => (<TextInput label="Matrícula" className="w-6/12" {...field} />)} />
               <Controller name="tipo" control={control} render={({ field }) => (<Select label={<>Tipo <span style={{ color: 'red' }}>*</span></>} data={TIPOS} error={errors.tipo?.message} className="w-6/12" {...field} />)} />
             </div>
+            <Controller name="centroDistribuicaoId" control={control} render={({ field }) => (<Select label="CD (WMS)" data={cdOptions} error={errors.centroDistribuicaoId?.message} searchable clearable placeholder="Opcional — só para WMS" value={field.value || null} onChange={field.onChange} />)} />
           </div>
           <Group justify="flex-end" mt="md"><Button variant="default" onClick={() => setModalOpen(false)}>Cancelar</Button><Button type="submit" loading={criar.isPending || atualizar.isPending}>Salvar</Button></Group>
         </form>

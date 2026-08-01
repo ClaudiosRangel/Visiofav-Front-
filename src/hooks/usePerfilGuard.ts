@@ -16,14 +16,12 @@ function decodeToken(): { perfil?: string } | null {
   }
 }
 
-export function usePerfilGuard(perfil: string) {
+export function usePerfilGuard(perfil: string | string[]) {
   const router = useRouter()
 
   useEffect(() => {
     const decoded = decodeToken()
     if (!decoded) {
-      // Falha ao decodificar o token / determinar o perfil: mantém o usuário na página atual
-      // (fail-open, sem redirecionamento) e informa que a permissão não pôde ser verificada.
       notifications.show({
         title: 'Erro',
         message: 'Não foi possível verificar a permissão de acesso',
@@ -31,9 +29,10 @@ export function usePerfilGuard(perfil: string) {
       })
       return
     }
-    // SUPER_ADMIN has access to everything
-    if (decoded.perfil === 'SUPER_ADMIN') return
-    if (decoded.perfil !== perfil) {
+    // SUPER_ADMIN and ADMIN have access to everything
+    if (decoded.perfil === 'SUPER_ADMIN' || decoded.perfil === 'ADMIN') return
+    const allowed = Array.isArray(perfil) ? perfil : [perfil]
+    if (!allowed.includes(decoded.perfil!)) {
       notifications.show({
         title: 'Acesso negado',
         message: 'Acesso não autorizado',
