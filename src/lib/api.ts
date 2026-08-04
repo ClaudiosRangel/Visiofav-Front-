@@ -35,10 +35,13 @@ function startTokenKeepAlive() {
   window.addEventListener('click', updateActivity, { passive: true })
   window.addEventListener('touchstart', updateActivity, { passive: true })
 
-  // A cada 4 minutos, se houve atividade nos últimos 5 min, renova token
+  // A cada 4 minutos, se houve atividade nos últimos 5 min, renova token.
+  // Exceção: páginas do PCP (ex: painel na TV) renovam SEMPRE, independente
+  // de atividade do usuário — evita logout em telas de monitoramento.
   keepAliveInterval = setInterval(async () => {
     const inatividade = Date.now() - lastActivity
-    if (inatividade > 5 * 60 * 1000) return // Mais de 5 min sem uso — não renova
+    const isPcp = typeof window !== 'undefined' && window.location.pathname.startsWith('/pcp')
+    if (!isPcp && inatividade > 5 * 60 * 1000) return // Mais de 5 min sem uso — não renova (exceto PCP)
 
     const refreshToken = localStorage.getItem('visiofab-wms-refresh-token')
     if (!refreshToken) return
