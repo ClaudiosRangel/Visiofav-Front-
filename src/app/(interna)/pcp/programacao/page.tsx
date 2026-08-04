@@ -714,7 +714,9 @@ export default function ProgramacaoPage() {
       if (avisos?.length > 0) {
         notifications.show({ title: 'Atenção', message: avisos.join(' '), color: 'yellow' })
       }
-      carregar()
+      // Não faz carregar() — mantém a ordem das OPs na tela (mesmo
+      // comportamento do iniciar). Os dados extraídos são metadados
+      // (tipo, matriz, formato, materiais) que não afetam a fila.
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao re-extrair PDF', color: 'red' })
     }
