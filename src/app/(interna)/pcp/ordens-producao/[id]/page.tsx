@@ -34,6 +34,9 @@ export default function DetalheOpPage() {
     descricao: '', centroProducaoId: null, tempoSetupMinutos: 0, tempoOperacaoMinutos: 0, tempoEsperaMinutos: 0,
   })
   const [salvandoNovaEtapa, setSalvandoNovaEtapa] = useState(false)
+  // Modal de cancelamento — pede motivo obrigatório antes de enviar
+  const [modalCancelar, setModalCancelar] = useState(false)
+  const [motivoCancelamento, setMotivoCancelamento] = useState('')
 
   useEffect(() => { document.title = 'PCP - Detalhe OP' }, [])
 
@@ -107,12 +110,14 @@ export default function DetalheOpPage() {
   }
 
   async function alterarStatus(novoStatus: string) {
+    // Se for cancelar, abre modal pedindo o motivo em vez de enviar direto
+    if (novoStatus === 'CANCELADA') {
+      setMotivoCancelamento('')
+      setModalCancelar(true)
+      return
+    }
     try {
       const res = await api.patch(`/ordens-producao/${id}/status`, { status: novoStatus })
-      // Mescla os campos atualizados (status, datas, etc.) no estado já
-      // carregado, em vez de refazer o GET completo (que reprocessa itens,
-      // etapas, apontamentos, logs e liberações) — evita uma segunda viagem
-      // de rede pesada só para atualizar o badge de status.
       setOp((prev: any) => ({
         ...prev,
         ...res.data,
@@ -123,6 +128,31 @@ export default function DetalheOpPage() {
       }))
     } catch (err: any) {
       alert(err?.response?.data?.message || 'Erro ao alterar status')
+    }
+  }
+
+  async function confirmarCancelamento() {
+    if (motivoCancelamento.trim().length < 10) {
+      notifications.show({ title: 'Motivo obrigatório', message: 'Informe o motivo do cancelamento (mínimo 10 caracteres)', color: 'red' })
+      return
+    }
+    try {
+      const res = await api.patch(`/ordens-producao/${id}/status`, {
+        status: 'CANCELADA',
+        motivoCancelamento: motivoCancelamento.trim(),
+      })
+      setOp((prev: any) => ({
+        ...prev,
+        ...res.data,
+        logs: [
+          { id: `temp-${Date.now()}`, statusAnterior: prev.status, statusNovo: 'CANCELADA', criadoEm: new Date().toISOString(), observacao: motivoCancelamento.trim() },
+          ...(prev.logs || []),
+        ],
+      }))
+      setModalCancelar(false)
+      notifications.show({ title: 'OP cancelada', message: `OP #${op.referenciaExterna || op.numero} foi cancelada`, color: 'red' })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao cancelar', color: 'red' })
     }
   }
 
@@ -437,6 +467,24 @@ export default function DetalheOpPage() {
           <Group justify="flex-end" mt="sm">
             <Button variant="default" onClick={() => setModalNovaEtapa(false)} disabled={salvandoNovaEtapa}>Cancelar</Button>
             <Button onClick={salvarNovaEtapa} loading={salvandoNovaEtapa}>Criar Etapa</Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Modal: Cancelar OP — pede motivo obrigatório */}
+      <Modal opened={modalCancelar} onClose={() => setModalCancelar(false)} title="Cancelar Ordem de Produção" centered>
+        <Stack gap="sm">
+          <Text size="sm">Informe o motivo do cancelamento da OP #{op?.referenciaExterna || op?.numero}:</Text>
+          <TextInput
+            placeholder="Motivo do cancelamento (mínimo 10 caracteres)"
+            value={motivoCancelamento}
+            onChange={(e) => setMotivoCancelamento(e.currentTarget.value)}
+            error={motivoCancelamento.length > 0 && motivoCancelamento.length < 10 ? `${10 - motivoCancelamento.length} caractere(s) restante(s)` : undefined}
+            autoFocus
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setModalCancelar(false)}>Voltar</Button>
+            <Button color="red" onClick={confirmarCancelamento} disabled={motivoCancelamento.trim().length < 10}>Confirmar Cancelamento</Button>
           </Group>
         </Stack>
       </Modal>
