@@ -410,7 +410,35 @@ export default function ProgramacaoPage() {
       setModalApontar(null)
       setFormApontar({ quantidadeProduzida: 0, quantidadePerda: 0, motivoPerda: '', observacao: '' })
       setFotoApontar(null)
-      carregar()
+
+      if (modalApontar.finalizando) {
+        // Atualização otimista: remove a etapa concluída da fila sem
+        // recarregar o painel inteiro (evita loading/spinner e reordenação).
+        const etapaId = modalApontar.etapaId
+        setPainel((prev: any) => {
+          if (!prev) return prev
+          const centros = prev.centros.map((c: any) => {
+            const novasEtapas = c.etapas.filter((e: any) => e.id !== etapaId)
+            if (novasEtapas.length === c.etapas.length) return c
+            return {
+              ...c,
+              etapas: novasEtapas,
+              resumo: {
+                emAndamento: novasEtapas.filter((e: any) => e.status === 'EM_ANDAMENTO').length,
+                pausadas: novasEtapas.filter((e: any) => e.status === 'PAUSADA').length,
+                pendentes: novasEtapas.filter((e: any) => e.status === 'PENDENTE').length,
+                total: novasEtapas.length,
+              },
+            }
+          })
+          return { ...prev, centros }
+        })
+      } else {
+        // Apontamento parcial (não finalizou): atualiza quantidade local
+        atualizarEtapaLocal(modalApontar.etapaId, {
+          quantidadeProduzida: (modalApontar.jaProduzido || 0) + formApontar.quantidadeProduzida,
+        })
+      }
     } catch (err: any) { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' }) }
   }
 
@@ -510,7 +538,46 @@ export default function ProgramacaoPage() {
       await api.patch(`/pcp/etapas/${etapaId}/mover`, { centroProducaoId: novoCentroId })
       notifications.show({ title: 'OS movida', message: 'OS transferida para o novo grupo', color: 'green' })
       setModalMover(null)
-      carregar()
+      // Atualização otimista: move a etapa do centro antigo para o novo sem
+      // recarregar o painel inteiro (evita loading/spinner e reordenação).
+      setPainel((prev: any) => {
+        if (!prev) return prev
+        let etapaMovida: any = null
+        const centros = prev.centros.map((c: any) => {
+          const idx = c.etapas.findIndex((e: any) => e.id === etapaId)
+          if (idx === -1) return c
+          etapaMovida = c.etapas[idx]
+          const novasEtapas = c.etapas.filter((_: any, i: number) => i !== idx)
+          return {
+            ...c,
+            etapas: novasEtapas,
+            resumo: {
+              emAndamento: novasEtapas.filter((e: any) => e.status === 'EM_ANDAMENTO').length,
+              pausadas: novasEtapas.filter((e: any) => e.status === 'PAUSADA').length,
+              pendentes: novasEtapas.filter((e: any) => e.status === 'PENDENTE').length,
+              total: novasEtapas.length,
+            },
+          }
+        })
+        if (etapaMovida) {
+          const centrosComNovo = centros.map((c: any) => {
+            if (c.centro.id !== novoCentroId) return c
+            const novasEtapas = [...c.etapas, etapaMovida]
+            return {
+              ...c,
+              etapas: novasEtapas,
+              resumo: {
+                emAndamento: novasEtapas.filter((e: any) => e.status === 'EM_ANDAMENTO').length,
+                pausadas: novasEtapas.filter((e: any) => e.status === 'PAUSADA').length,
+                pendentes: novasEtapas.filter((e: any) => e.status === 'PENDENTE').length,
+                total: novasEtapas.length,
+              },
+            }
+          })
+          return { ...prev, centros: centrosComNovo }
+        }
+        return { ...prev, centros }
+      })
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao mover', color: 'red' })
     }
@@ -575,7 +642,29 @@ export default function ProgramacaoPage() {
         observacoes: painel.aguardandoCartao?.find((i: any) => i.opId === opId)?.observacoes?.replace(/\[Bobina\].*encomendad[oa].*\n?/gi, '') || undefined,
       })
       notifications.show({ title: 'Material recebido', message: 'Cartão recebido — OS liberada do aguardo', color: 'green' })
-      carregar()
+      // Atualização otimista: remove do quadro "Aguardando Cartão" sem
+      // recarregar o painel inteiro (evita loading/spinner e reordenação).
+      setPainel((prev: any) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          aguardandoCartao: (prev.aguardandoCartao || []).filter((i: any) => i.opId !== opId),
+        }
+      })
+      // Recarrega em background (sem loading) para que a OP apareça nos
+      // centros normais com dados corretos do servidor.
+      api.get('/pcp/programacao/painel').then((res) => {
+        setPainel((prev: any) => {
+          if (!prev) return prev
+          // Preserva a ordem local dos centros, apenas atualiza etapas e aguardandoCartao
+          const centrosMap = new Map(res.data.centros.map((c: any) => [c.centro.id, c]))
+          const centros = prev.centros.map((c: any) => {
+            const atualizado = centrosMap.get(c.centro.id)
+            return atualizado || c
+          })
+          return { ...prev, centros, aguardandoCartao: res.data.aguardandoCartao || [] }
+        })
+      }).catch(() => {})
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao liberar', color: 'red' })
     }
@@ -913,11 +1002,6 @@ export default function ProgramacaoPage() {
 
   if (loading) return <Center py="xl"><Loader /></Center>
   if (!painel) return <Text c="red" ta="center">Erro ao carregar painel</Text>
-
-  // OPs que já aparecem no "Aguardando Cartão" — não repetir nos grupos abaixo
-  const opsAguardandoCartao = new Set(
-    (painel.aguardandoCartao || []).map((item: any) => item.opNumero)
-  )
 
   // Filtra itens aguardandoCartao pelo tipoMaquina da primeira etapa conforme
   // aba ativa. No layout Detalhado, activeTab fica travado em 'todos' (a
