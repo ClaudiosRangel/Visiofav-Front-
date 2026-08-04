@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Title, Stack, Table, Group, Badge, Text, Loader, Center, Collapse, UnstyledButton, Card, ScrollArea, Button, Modal, NumberInput, Select, Textarea, Progress, ActionIcon, Tabs, TextInput, SegmentedControl, Autocomplete, Box, FileButton, Image } from '@mantine/core'
+import { Title, Stack, Table, Group, Badge, Text, Loader, Center, Collapse, UnstyledButton, Card, ScrollArea, Button, Modal, NumberInput, Select, Textarea, Progress, ActionIcon, Tabs, TextInput, SegmentedControl, Autocomplete, Box, FileButton, Image, Checkbox } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
-import { IconChevronDown, IconChevronRight, IconPlayerPlay, IconPlayerPause, IconCheck, IconClipboardCheck, IconAlertTriangle, IconCut, IconGripVertical, IconSearch, IconFileText, IconPlus, IconArrowRight, IconX, IconPrinter, IconRefresh, IconCamera } from '@tabler/icons-react'
+import { IconChevronDown, IconChevronRight, IconPlayerPlay, IconPlayerPause, IconCheck, IconClipboardCheck, IconAlertTriangle, IconCut, IconGripVertical, IconSearch, IconFileText, IconPlus, IconArrowRight, IconX, IconPrinter, IconRefresh, IconCamera, IconSettings } from '@tabler/icons-react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -103,6 +103,74 @@ export default function ProgramacaoPage() {
   function alterarLayoutView(valor: 'grid' | 'detalhado') {
     setLayoutView(valor)
     localStorage.setItem('pcp-programacao-layout', valor)
+  }
+
+  // Configurador de colunas de impressão por tipo de processo.
+  // Cada tipo de processo pode ter um subconjunto de colunas selecionadas
+  // para aparecer na impressão. Salvo em localStorage.
+  const COLUNAS_DISPONIVEIS = [
+    { id: 'os', label: 'OS' },
+    { id: 'cliente', label: 'Cliente' },
+    { id: 'produto', label: 'Produto' },
+    { id: 'tipoOp', label: 'Tipo OP' },
+    { id: 'quantidade', label: 'Qtd' },
+    { id: 'tiragem', label: 'Tiragem' },
+    { id: 'entrega', label: 'Entrega' },
+    { id: 'material', label: 'Material/Cartão' },
+    { id: 'gramatura', label: 'Gramatura' },
+    { id: 'formato', label: 'Formato' },
+    { id: 'matriz', label: 'Matriz' },
+    { id: 'cores', label: 'Cores' },
+    { id: 'pantone01', label: 'Pantone 1' },
+    { id: 'pantone02', label: 'Pantone 2' },
+    { id: 'pantone03', label: 'Pantone 3' },
+    { id: 'kg', label: 'KG' },
+    { id: 'prioridade', label: 'Prioridade' },
+    { id: 'observacao', label: 'Acompanhamento' },
+  ]
+  const COLUNAS_DEFAULT_CORTADEIRA = ['os', 'cliente', 'produto', 'quantidade', 'tiragem', 'entrega', 'material', 'gramatura', 'formato', 'kg']
+  const COLUNAS_DEFAULT_OUTROS = ['os', 'cliente', 'produto', 'tipoOp', 'quantidade', 'tiragem', 'entrega', 'material', 'gramatura', 'formato', 'matriz', 'cores', 'pantone01', 'pantone02', 'pantone03', 'kg']
+
+  const [colunasImpressao, setColunasImpressao] = useState<Record<string, string[]>>(() => {
+    if (typeof window === 'undefined') return {}
+    try {
+      const salvo = localStorage.getItem('pcp-colunas-impressao')
+      return salvo ? JSON.parse(salvo) : {}
+    } catch { return {} }
+  })
+  const [modalColunasImpressao, setModalColunasImpressao] = useState(false)
+  const [colunasEditando, setColunasEditando] = useState<Record<string, string[]>>({})
+
+  function getColunasParaProcesso(tipoProcessoCodigo: string): string[] {
+    const key = tipoProcessoCodigo.toLowerCase()
+    if (colunasImpressao[key]) return colunasImpressao[key]
+    return key === 'cortadeira' ? COLUNAS_DEFAULT_CORTADEIRA : COLUNAS_DEFAULT_OUTROS
+  }
+
+  function abrirConfigColunas() {
+    // Inicializa o estado de edição com as colunas atuais de cada tipo de processo
+    const edit: Record<string, string[]> = {}
+    for (const tp of tiposProcesso) {
+      const key = tp.codigo.toLowerCase()
+      edit[key] = colunasImpressao[key] || (key === 'cortadeira' ? COLUNAS_DEFAULT_CORTADEIRA : COLUNAS_DEFAULT_OUTROS)
+    }
+    setColunasEditando(edit)
+    setModalColunasImpressao(true)
+  }
+
+  function salvarConfigColunas() {
+    setColunasImpressao(colunasEditando)
+    localStorage.setItem('pcp-colunas-impressao', JSON.stringify(colunasEditando))
+    setModalColunasImpressao(false)
+    notifications.show({ title: 'Colunas salvas', message: 'Configuração de impressão atualizada', color: 'green' })
+  }
+
+  function toggleColunaEditando(tipoKey: string, colunaId: string) {
+    setColunasEditando(prev => {
+      const atual = prev[tipoKey] || []
+      const nova = atual.includes(colunaId) ? atual.filter(c => c !== colunaId) : [...atual, colunaId]
+      return { ...prev, [tipoKey]: nova }
+    })
   }
   // Filtros
   const [busca, setBusca] = useState('')
@@ -359,20 +427,37 @@ export default function ProgramacaoPage() {
   // quantidade produzida final e, ao confirmar, a etapa é apontada e
   // concluída na sequência (continua saindo da fila do grupo, como antes).
   function abrirFinalizarEtapa(etapa: any, tipoProcessoCodigo?: string | null) {
-    setModalApontar({
-      etapaId: etapa.id,
-      opNumero: etapa.opNumero,
-      descricao: etapa.descricao,
-      finalizando: true,
-      quantidadeEtapa: etapa.quantidade,
-      jaProduzido: etapa.quantidadeProduzida || 0,
-      tipoProcessoCodigo,
-    })
-    // Pré-preenche com o saldo restante para produzir, facilitando o caso comum
-    // de "produziu tudo" — o usuário pode ajustar se produziu menos.
-    const restante = Math.max(0, (etapa.quantidade || 0) - (etapa.quantidadeProduzida || 0))
-    setFormApontar({ quantidadeProduzida: restante, quantidadePerda: 0, motivoPerda: '', observacao: '' })
-    setFotoApontar(null)
+    // Finaliza direto sem pedir apontamento — a quantidade produzida é
+    // registrada como o saldo restante automaticamente (produção completa).
+    concluirEtapaDireta(etapa.id, etapa.opNumero)
+  }
+
+  async function concluirEtapaDireta(etapaId: string, opNumero?: number) {
+    try {
+      await api.patch(`/pcp/etapas/${etapaId}/concluir`, {})
+      notifications.show({ title: 'Etapa finalizada', message: `OS ${opNumero || ''} concluída`, color: 'green' })
+      // Atualização otimista: remove a etapa concluída da fila
+      setPainel((prev: any) => {
+        if (!prev) return prev
+        const centros = prev.centros.map((c: any) => {
+          const novasEtapas = c.etapas.filter((e: any) => e.id !== etapaId)
+          if (novasEtapas.length === c.etapas.length) return c
+          return {
+            ...c,
+            etapas: novasEtapas,
+            resumo: {
+              emAndamento: novasEtapas.filter((e: any) => e.status === 'EM_ANDAMENTO').length,
+              pausadas: novasEtapas.filter((e: any) => e.status === 'PAUSADA').length,
+              pendentes: novasEtapas.filter((e: any) => e.status === 'PENDENTE').length,
+              total: novasEtapas.length,
+            },
+          }
+        })
+        return { ...prev, centros }
+      })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao concluir', color: 'red' })
+    }
   }
 
   async function enviarApontamento() {
@@ -891,6 +976,28 @@ export default function ProgramacaoPage() {
       return
     }
 
+    // Mapa de coluna → { header, align, render }
+    const colDefs: Record<string, { header: string; align?: string; render: (e: any) => string }> = {
+      os: { header: 'OS', render: (e) => `<td class="bold">${e.opNumero}</td>` },
+      cliente: { header: 'Cliente', render: (e) => `<td>${e.clienteNome || '—'}</td>` },
+      produto: { header: 'Produto', render: (e) => `<td>${e.produtoNome || '—'}</td>` },
+      tipoOp: { header: 'Tipo OP', render: (e) => `<td>${e.tipoOp || '—'}</td>` },
+      quantidade: { header: 'Qtd', align: 'right', render: (e) => `<td class="right">${e.quantidade?.toLocaleString('pt-BR') || '—'}</td>` },
+      tiragem: { header: 'Tiragem', align: 'right', render: (e) => `<td class="right">${e.tiragem ? e.tiragem.toLocaleString('pt-BR') : '—'}</td>` },
+      entrega: { header: 'Entrega', render: (e) => `<td>${e.dataEntrega ? new Date(e.dataEntrega).toLocaleDateString('pt-BR') : '—'}</td>` },
+      material: { header: 'Material/Cartão', render: (e) => `<td>${e.materialPrincipal || '—'}</td>` },
+      gramatura: { header: 'Gramatura', render: (e) => `<td>${e.gramatura || '—'}</td>` },
+      formato: { header: 'Formato', render: (e) => `<td>${e.formato || '—'}</td>` },
+      matriz: { header: 'Matriz', render: (e) => `<td>${e.matriz || '—'}</td>` },
+      cores: { header: 'Cores', align: 'center', render: (e) => `<td class="center">${e.qtdCores || '—'}</td>` },
+      pantone01: { header: 'Pantone 1', render: (e) => `<td>${e.pantone01 || '—'}</td>` },
+      pantone02: { header: 'Pantone 2', render: (e) => `<td>${e.pantone02 || '—'}</td>` },
+      pantone03: { header: 'Pantone 3', render: (e) => `<td>${e.pantone03 || '—'}</td>` },
+      kg: { header: 'KG', align: 'right', render: (e) => `<td class="right">${e.pesoKg ? e.pesoKg.toLocaleString('pt-BR') : '—'}</td>` },
+      prioridade: { header: 'Prioridade', render: (e) => `<td>${e.prioridade || '—'}</td>` },
+      observacao: { header: 'Acompanhamento', render: (e) => `<td>${e.observacaoOperador || '—'}</td>` },
+    }
+
     let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Programação de Produção</title>
     <style>
       body { font-family: Arial, sans-serif; font-size: 11px; margin: 10mm; }
@@ -907,82 +1014,49 @@ export default function ProgramacaoPage() {
       @media print { @page { size: landscape; margin: 8mm; } }
     </style></head><body>`
 
-    centrosParaImprimir.forEach((centro: any, idx: number) => {
-      const isCortadeira = getCategoriaCentro(centro.centro.tipoProcesso?.codigo) === 'cortadeira'
+    centrosParaImprimir.forEach((centro: any) => {
+      const tipoProcessoCodigo = centro.centro.tipoProcesso?.codigo || 'outros'
+      const colunas = getColunasParaProcesso(tipoProcessoCodigo)
 
       html += `<h2>${centro.centro.descricao.toUpperCase()}</h2>`
+      html += `<table><thead><tr>`
+      for (const colId of colunas) {
+        const def = colDefs[colId]
+        if (!def) continue
+        const alignClass = def.align === 'right' ? ' class="right"' : def.align === 'center' ? ' class="center"' : ''
+        html += `<th${alignClass}>${def.header}</th>`
+      }
+      html += `</tr></thead><tbody>`
 
-      if (isCortadeira) {
-        // Modelo Cortadeira: OS, Cliente, Produto, Qtd, Tiragem, Entrega, Cartão, Gramatura, Formato, KG
-        html += `<table>
-          <thead><tr>
-            <th>OS</th><th>Cliente</th><th>Produto</th><th class="right">Qtd</th><th class="right">Tiragem</th>
-            <th>Entrega</th><th>Cartão</th><th>Gramatura</th><th>Formato</th><th class="right">KG</th>
-          </tr></thead><tbody>`
-
-        let totalTiragem = 0
-        for (const e of centro.etapas) {
-          const tiragem = e.tiragem || 0
-          totalTiragem += tiragem
-          html += `<tr>
-            <td class="bold">${e.opNumero}</td>
-            <td>${e.clienteNome || '—'}</td>
-            <td>${e.produtoNome || '—'}</td>
-            <td class="right">${e.quantidade.toLocaleString('pt-BR')}</td>
-            <td class="right">${tiragem ? tiragem.toLocaleString('pt-BR') : '—'}</td>
-            <td>${e.dataEntrega ? new Date(e.dataEntrega).toLocaleDateString('pt-BR') : '—'}</td>
-            <td>${e.materialPrincipal || '—'}</td>
-            <td>${e.gramatura || '—'}</td>
-            <td>${e.formato || '—'}</td>
-            <td class="right">${e.pesoKg ? e.pesoKg.toLocaleString('pt-BR') : '—'}</td>
-          </tr>`
+      let totalTiragem = 0
+      for (const e of centro.etapas) {
+        totalTiragem += (e.tiragem || 0)
+        html += `<tr>`
+        for (const colId of colunas) {
+          const def = colDefs[colId]
+          if (!def) continue
+          html += def.render(e)
         }
-        html += `<tr class="total-row">
-          <td colspan="4" class="right">Total:</td>
-          <td class="right">${totalTiragem.toLocaleString('pt-BR')}</td>
-          <td colspan="5"></td>
-        </tr></tbody></table>`
-      } else {
-        // Modelo Impressão/Acabamento: OS, Cliente, Serviço/Produto, Tipo OP, Qtd, Tiragem, Entrega, Matriz, Faca/Material, Gramatura, Formato, KG
-        html += `<table>
-          <thead><tr>
-            <th>OS</th><th>Cliente</th><th>Produto</th><th>Tipo OP</th>
-            <th class="right">Qtd</th><th class="right">Tiragem</th><th>Entrega</th>
-            <th>Material</th><th>Gramatura</th><th>Formato</th><th>Matriz</th>
-            <th class="center">Cores</th><th>Pantone 1</th><th>Pantone 2</th><th>Pantone 3</th>
-            <th class="right">KG</th>
-          </tr></thead><tbody>`
-
-        let totalTiragem = 0
-        for (const e of centro.etapas) {
-          const tiragem = e.tiragem || 0
-          totalTiragem += tiragem
-          html += `<tr>
-            <td class="bold">${e.opNumero}</td>
-            <td>${e.clienteNome || '—'}</td>
-            <td>${e.produtoNome || '—'}</td>
-            <td>${e.tipoOp || '—'}</td>
-            <td class="right">${e.quantidade.toLocaleString('pt-BR')}</td>
-            <td class="right">${tiragem ? tiragem.toLocaleString('pt-BR') : '—'}</td>
-            <td>${e.dataEntrega ? new Date(e.dataEntrega).toLocaleDateString('pt-BR') : '—'}</td>
-            <td>${e.materialPrincipal || '—'}</td>
-            <td>${e.gramatura || '—'}</td>
-            <td>${e.formato || '—'}</td>
-            <td>${e.matriz || '—'}</td>
-            <td class="center">${e.qtdCores || '—'}</td>
-            <td>${e.pantone01 || '—'}</td>
-            <td>${e.pantone02 || '—'}</td>
-            <td>${e.pantone03 || '—'}</td>
-            <td class="right">${e.pesoKg ? e.pesoKg.toLocaleString('pt-BR') : '—'}</td>
-          </tr>`
-        }
-        html += `<tr class="total-row">
-          <td colspan="5" class="right">Total:</td>
-          <td class="right">${totalTiragem.toLocaleString('pt-BR')}</td>
-          <td colspan="10"></td>
-        </tr></tbody></table>`
+        html += `</tr>`
       }
 
+      // Linha de total (tiragem, se a coluna estiver ativa)
+      const idxTiragem = colunas.indexOf('tiragem')
+      if (idxTiragem >= 0) {
+        html += `<tr class="total-row">`
+        for (let i = 0; i < colunas.length; i++) {
+          if (i === idxTiragem) {
+            html += `<td class="right">${totalTiragem.toLocaleString('pt-BR')}</td>`
+          } else if (i === idxTiragem - 1) {
+            html += `<td class="right">Total:</td>`
+          } else {
+            html += `<td></td>`
+          }
+        }
+        html += `</tr>`
+      }
+
+      html += `</tbody></table>`
       html += `<div style="font-size:9px;color:#666;margin-top:2px;">${centro.etapas.length} OS(s) pendentes</div>`
     })
 
@@ -1113,6 +1187,9 @@ export default function ProgramacaoPage() {
         <Button size="xs" variant="light" leftSection={<IconPrinter size={14} />} onClick={() => imprimirRelatorio()} className="no-print">
           Imprimir
         </Button>
+        <ActionIcon size="sm" variant="subtle" onClick={() => abrirConfigColunas()} title="Configurar colunas de impressão" className="no-print">
+          <IconSettings size={14} />
+        </ActionIcon>
         <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => {
           // Pre-seleciona o Tipo de Processo correspondente à aba ativa,
           // buscando pelo código (ex: aba 'cortadeira' → tipo com código
@@ -2023,6 +2100,42 @@ export default function ProgramacaoPage() {
             onChange={(val) => { if (val && modalMover) moverEtapaParaGrupo(modalMover.etapaId, val) }}
             nothingFoundMessage="Nenhum grupo encontrado na mesma aba"
           />
+        </Stack>
+      </Modal>
+
+      {/* Modal — Configurar colunas de impressão por tipo de processo */}
+      <Modal opened={modalColunasImpressao} onClose={() => setModalColunasImpressao(false)} title="Configurar Colunas de Impressão" size="lg">
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">Selecione as colunas que deseja exibir na impressão para cada tipo de processo.</Text>
+          <Tabs defaultValue={tiposProcesso[0]?.codigo?.toLowerCase()}>
+            <Tabs.List>
+              {tiposProcesso.map((tp: any) => (
+                <Tabs.Tab key={tp.codigo} value={tp.codigo.toLowerCase()}>{tp.descricao}</Tabs.Tab>
+              ))}
+            </Tabs.List>
+            {tiposProcesso.map((tp: any) => {
+              const key = tp.codigo.toLowerCase()
+              return (
+                <Tabs.Panel key={tp.codigo} value={key} pt="sm">
+                  <Group gap="xs" wrap="wrap">
+                    {COLUNAS_DISPONIVEIS.map(col => (
+                      <Checkbox
+                        key={col.id}
+                        label={col.label}
+                        size="xs"
+                        checked={(colunasEditando[key] || []).includes(col.id)}
+                        onChange={() => toggleColunaEditando(key, col.id)}
+                      />
+                    ))}
+                  </Group>
+                </Tabs.Panel>
+              )
+            })}
+          </Tabs>
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={() => setModalColunasImpressao(false)}>Cancelar</Button>
+            <Button onClick={salvarConfigColunas}>Salvar</Button>
+          </Group>
         </Stack>
       </Modal>
 
