@@ -2240,33 +2240,36 @@ export default function ProgramacaoPage() {
       {modalRetornar && (
       <Modal opened onClose={() => { setModalRetornar(null); setFormRetornar({ emailAdmin: '', senhaAdmin: '' }) }} title={`Retornar OS #${modalRetornar.opNumero} à fila`} centered>
         <form autoComplete="off" onSubmit={(e) => { e.preventDefault(); retornarEtapa() }}>
-        <input type="text" style={{ display: 'none' }} tabIndex={-1} />
-        <input type="password" style={{ display: 'none' }} tabIndex={-1} />
         <Stack gap="md">
           <Text size="sm" c="dimmed">Esta ação retorna a etapa concluída para status PENDENTE. Requer autorização de um administrador.</Text>
-          <TextInput
-            label="Usuário (email do administrador)"
-            placeholder="Digite o email"
-            value={formRetornar.emailAdmin}
-            onChange={(e) => setFormRetornar(prev => ({ ...prev, emailAdmin: e.currentTarget.value }))}
-            autoComplete="off"
-            data-lpignore="true"
-            data-1p-ignore="true"
-            name="auth-code-verificacao"
-            id="auth-code-verificacao"
-          />
-          <TextInput
-            label="Código de autorização"
-            type="password"
-            placeholder="Digite a senha"
-            value={formRetornar.senhaAdmin}
-            onChange={(e) => setFormRetornar(prev => ({ ...prev, senhaAdmin: e.currentTarget.value }))}
-            autoComplete="off"
-            data-lpignore="true"
-            data-1p-ignore="true"
-            name="auth-pin-verificacao"
-            id="auth-pin-verificacao"
-          />
+          <div>
+            <Text size="sm" fw={500} mb={4}>Usuário (email do administrador)</Text>
+            <input
+              type="text"
+              placeholder="Digite o email"
+              value={formRetornar.emailAdmin}
+              onChange={(e) => setFormRetornar(prev => ({ ...prev, emailAdmin: e.target.value }))}
+              onFocus={(e) => { e.target.removeAttribute('readonly') }}
+              readOnly
+              autoComplete="nope"
+              name={`field_${Date.now()}_usr`}
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid #dee2e6', borderRadius: 4, fontSize: 14 }}
+            />
+          </div>
+          <div>
+            <Text size="sm" fw={500} mb={4}>Código de autorização</Text>
+            <input
+              type="password"
+              placeholder="Digite a senha"
+              value={formRetornar.senhaAdmin}
+              onChange={(e) => setFormRetornar(prev => ({ ...prev, senhaAdmin: e.target.value }))}
+              onFocus={(e) => { e.target.removeAttribute('readonly') }}
+              readOnly
+              autoComplete="nope"
+              name={`field_${Date.now()}_pwd`}
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid #dee2e6', borderRadius: 4, fontSize: 14 }}
+            />
+          </div>
           <Button
             fullWidth
             color="orange"
