@@ -279,11 +279,11 @@ export default function ProgramacaoPage() {
     try {
       await api.patch(`/pcp/etapas/${modalRetornar.etapaId}/retornar`, formRetornar)
       notifications.show({ title: 'Sucesso', message: `OS ${modalRetornar.opNumero} retornada à fila`, color: 'green' })
+      const etapaRetornada = modalRetornar.etapaId
       setModalRetornar(null)
       setFormRetornar({ emailAdmin: '', senhaAdmin: '' })
-      // Recarregar concluídas e painel
-      carregarConcluidas()
-      carregar()
+      // Atualização otimista: remove da lista de concluídas (sem refresh)
+      setEtapasConcluidas(prev => prev.filter((e: any) => e.id !== etapaRetornada))
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao retornar etapa', color: 'red' })
     } finally {
@@ -2232,24 +2232,31 @@ export default function ProgramacaoPage() {
 
       {/* Modal: Retornar etapa concluída à fila (requer senha admin) */}
       <Modal opened={!!modalRetornar} onClose={() => { setModalRetornar(null); setFormRetornar({ emailAdmin: '', senhaAdmin: '' }) }} title={`Retornar OS #${modalRetornar?.opNumero} à fila`} centered>
+        <form autoComplete="off" onSubmit={(e) => e.preventDefault()}>
         <Stack gap="md">
           <Text size="sm" c="dimmed">Esta ação retorna a etapa concluída para status PENDENTE. Requer autorização de um administrador.</Text>
           <TextInput
-            label="Email do administrador"
-            placeholder="admin@empresa.com"
+            label="Usuário (email do administrador)"
+            placeholder="Digite o email"
             value={formRetornar.emailAdmin}
             onChange={(e) => setFormRetornar(prev => ({ ...prev, emailAdmin: e.currentTarget.value }))}
             autoComplete="off"
-            name="retornar-email-field"
+            data-lpignore="true"
+            data-1p-ignore="true"
+            name="auth-code-verificacao"
+            id="auth-code-verificacao"
           />
           <TextInput
-            label="Senha"
+            label="Código de autorização"
             type="password"
-            placeholder="Senha do administrador"
+            placeholder="Digite a senha"
             value={formRetornar.senhaAdmin}
             onChange={(e) => setFormRetornar(prev => ({ ...prev, senhaAdmin: e.currentTarget.value }))}
-            autoComplete="new-password"
-            name="retornar-senha-field"
+            autoComplete="off"
+            data-lpignore="true"
+            data-1p-ignore="true"
+            name="auth-pin-verificacao"
+            id="auth-pin-verificacao"
           />
           <Button
             fullWidth
@@ -2261,6 +2268,7 @@ export default function ProgramacaoPage() {
             Confirmar Retorno
           </Button>
         </Stack>
+        </form>
       </Modal>
 
       {/* Modal: Mover OS para outro grupo */}
