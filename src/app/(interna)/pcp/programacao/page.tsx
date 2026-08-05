@@ -238,6 +238,59 @@ export default function ProgramacaoPage() {
   // substituindo a lista fixa (Cortadeira/Impressão/Acabamento/Outros) que
   // existia antes no código.
   const [tiposProcesso, setTiposProcesso] = useState<any[]>([])
+
+  // Etapas concluídas (visualização por processo com opção de retornar)
+  const [mostrarConcluidas, setMostrarConcluidas] = useState(false)
+  const [etapasConcluidas, setEtapasConcluidas] = useState<any[]>([])
+  const [loadingConcluidas, setLoadingConcluidas] = useState(false)
+  const [modalRetornar, setModalRetornar] = useState<{ etapaId: string; opNumero: string } | null>(null)
+  const [formRetornar, setFormRetornar] = useState({ emailAdmin: '', senhaAdmin: '' })
+  const [salvandoRetornar, setSalvandoRetornar] = useState(false)
+
+  async function carregarConcluidas(tipoProcessoId?: string) {
+    setLoadingConcluidas(true)
+    try {
+      const params: any = { limite: 50 }
+      // Buscar o tipoProcessoId a partir da aba ativa
+      if (tipoProcessoId) {
+        params.tipoProcessoId = tipoProcessoId
+      } else if (activeTab && tiposProcesso.length > 0) {
+        const tp = tiposProcesso.find((t: any) => t.codigo.toLowerCase() === activeTab)
+        if (tp) params.tipoProcessoId = tp.id
+      }
+      const { data } = await api.get('/pcp/programacao/concluidas', { params })
+      setEtapasConcluidas(data)
+    } catch {
+      notifications.show({ title: 'Erro', message: 'Falha ao carregar concluídas', color: 'red' })
+    } finally {
+      setLoadingConcluidas(false)
+    }
+  }
+
+  // Recarrega concluídas ao trocar de aba, se o painel de concluídas estiver aberto
+  useEffect(() => {
+    if (mostrarConcluidas && activeTab) carregarConcluidas()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
+
+  async function retornarEtapa() {
+    if (!modalRetornar) return
+    setSalvandoRetornar(true)
+    try {
+      await api.patch(`/pcp/etapas/${modalRetornar.etapaId}/retornar`, formRetornar)
+      notifications.show({ title: 'Sucesso', message: `OS ${modalRetornar.opNumero} retornada à fila`, color: 'green' })
+      setModalRetornar(null)
+      setFormRetornar({ emailAdmin: '', senhaAdmin: '' })
+      // Recarregar concluídas e painel
+      carregarConcluidas()
+      carregar()
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao retornar etapa', color: 'red' })
+    } finally {
+      setSalvandoRetornar(false)
+    }
+  }
+
   async function carregar() {
     setLoading(true)
     try {
@@ -1219,6 +1272,19 @@ export default function ProgramacaoPage() {
         <Button size="xs" variant="light" leftSection={<IconPrinter size={14} />} onClick={() => imprimirRelatorio()} className="no-print">
           Imprimir
         </Button>
+        <Button
+          size="xs"
+          variant={mostrarConcluidas ? 'filled' : 'light'}
+          color={mostrarConcluidas ? 'green' : 'gray'}
+          onClick={() => {
+            const novo = !mostrarConcluidas
+            setMostrarConcluidas(novo)
+            if (novo) carregarConcluidas()
+          }}
+          className="no-print"
+        >
+          Concluídas
+        </Button>
         <ActionIcon size="sm" variant="subtle" onClick={() => abrirConfigColunas()} title="Configurar colunas de impressão" className="no-print">
           <IconSettings size={14} />
         </ActionIcon>
@@ -1417,6 +1483,61 @@ export default function ProgramacaoPage() {
           <Loader size="xs" />
           <Text size="xs" c="dimmed">Salvando ordem...</Text>
         </Group>
+      )}
+
+      {/* Painel de etapas concluídas (por processo/aba ativa) */}
+      {mostrarConcluidas && (
+        <Card withBorder padding="md" mb="md">
+          <Group justify="space-between" mb="sm">
+            <Text fw={600} size="sm">Etapas Concluídas — {tiposProcesso.find((t: any) => t.codigo.toLowerCase() === activeTab)?.descricao || activeTab}</Text>
+            <Button size="compact-xs" variant="subtle" color="gray" onClick={() => setMostrarConcluidas(false)}>Fechar</Button>
+          </Group>
+          {loadingConcluidas ? (
+            <Center py="md"><Loader size="sm" /></Center>
+          ) : etapasConcluidas.length === 0 ? (
+            <Text size="sm" c="dimmed" ta="center" py="md">Nenhuma etapa concluída encontrada para este processo</Text>
+          ) : (
+            <Table striped highlightOnHover fontSize="xs">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>OS</Table.Th>
+                  <Table.Th>Cliente</Table.Th>
+                  <Table.Th>Produto</Table.Th>
+                  <Table.Th>Etapa</Table.Th>
+                  <Table.Th>Qtd</Table.Th>
+                  <Table.Th>Produzido</Table.Th>
+                  <Table.Th>Centro</Table.Th>
+                  <Table.Th>Concluída em</Table.Th>
+                  <Table.Th>Ação</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {etapasConcluidas.map((ec: any) => (
+                  <Table.Tr key={ec.id}>
+                    <Table.Td fw={500}>{ec.opNumero}</Table.Td>
+                    <Table.Td>{ec.cliente || '—'}</Table.Td>
+                    <Table.Td>{ec.produto || '—'}</Table.Td>
+                    <Table.Td>{ec.descricao}</Table.Td>
+                    <Table.Td>{ec.quantidade?.toLocaleString('pt-BR')}</Table.Td>
+                    <Table.Td>{ec.quantidadeProduzida?.toLocaleString('pt-BR')}</Table.Td>
+                    <Table.Td>{ec.centroDescricao}</Table.Td>
+                    <Table.Td>{ec.dataFimReal ? new Date(ec.dataFimReal).toLocaleDateString('pt-BR') : '—'}</Table.Td>
+                    <Table.Td>
+                      <Button
+                        size="compact-xs"
+                        variant="light"
+                        color="orange"
+                        onClick={() => setModalRetornar({ etapaId: ec.id, opNumero: ec.opNumero })}
+                      >
+                        Retornar
+                      </Button>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          )}
+        </Card>
       )}
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleCentroDragEnd}>
@@ -2105,6 +2226,35 @@ export default function ProgramacaoPage() {
             }}
           >
             Confirmar Postergação
+          </Button>
+        </Stack>
+      </Modal>
+
+      {/* Modal: Retornar etapa concluída à fila (requer senha admin) */}
+      <Modal opened={!!modalRetornar} onClose={() => { setModalRetornar(null); setFormRetornar({ emailAdmin: '', senhaAdmin: '' }) }} title={`Retornar OS #${modalRetornar?.opNumero} à fila`} centered>
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">Esta ação retorna a etapa concluída para status PENDENTE. Requer autorização de um administrador.</Text>
+          <TextInput
+            label="Email do administrador"
+            placeholder="admin@empresa.com"
+            value={formRetornar.emailAdmin}
+            onChange={(e) => setFormRetornar(prev => ({ ...prev, emailAdmin: e.currentTarget.value }))}
+          />
+          <TextInput
+            label="Senha"
+            type="password"
+            placeholder="Senha do administrador"
+            value={formRetornar.senhaAdmin}
+            onChange={(e) => setFormRetornar(prev => ({ ...prev, senhaAdmin: e.currentTarget.value }))}
+          />
+          <Button
+            fullWidth
+            color="orange"
+            loading={salvandoRetornar}
+            disabled={!formRetornar.emailAdmin || !formRetornar.senhaAdmin}
+            onClick={retornarEtapa}
+          >
+            Confirmar Retorno
           </Button>
         </Stack>
       </Modal>
