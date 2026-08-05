@@ -65,6 +65,9 @@ const createSchema = z.object({
   senha: z.string().min(6, 'Mínimo 6 caracteres'),
   perfil: z.enum(['ADMIN', 'SUPERVISOR', 'OPERADOR']).default('OPERADOR'),
   funcionarioId: z.string().optional().or(z.literal('')),
+  senhaPrimeiroAcesso: z.boolean().default(false),
+  cadastrarPin: z.boolean().default(false),
+  pin: z.string().regex(/^\d{6}$/, 'PIN deve ter exatamente 6 dígitos').optional().or(z.literal('')),
 })
 
 const editSchema = z.object({
@@ -260,7 +263,7 @@ function UserFormModal({
   // ─── Create Form ─────────────────────────────────────────────────────────
   const createForm = useForm<CreateFormValues>({
     resolver: zodResolver(createSchema),
-    defaultValues: { nome: '', email: '', senha: '', perfil: 'OPERADOR', funcionarioId: '' },
+    defaultValues: { nome: '', email: '', senha: '', perfil: 'OPERADOR', funcionarioId: '', senhaPrimeiroAcesso: false, cadastrarPin: false, pin: '' },
   })
 
   // ─── Edit Form ───────────────────────────────────────────────────────────
@@ -327,7 +330,7 @@ function UserFormModal({
       }
       setColetorError('')
     } else {
-      createForm.reset({ nome: '', email: '', senha: '', perfil: 'OPERADOR', funcionarioId: '' })
+      createForm.reset({ nome: '', email: '', senha: '', perfil: 'OPERADOR', funcionarioId: '', senhaPrimeiroAcesso: false, cadastrarPin: false, pin: '' })
       setSelectedModules([])
       setColetorEnabled(false)
       setSelectedFuncionarioId(null)
@@ -338,8 +341,16 @@ function UserFormModal({
   // ─── Mutations ───────────────────────────────────────────────────────────
   const createMutation = useMutation({
     mutationFn: async (body: CreateFormValues) => {
-      const payload: any = { nome: body.nome, email: body.email, senha: body.senha, perfil: body.perfil }
+      const payload: any = {
+        nome: body.nome,
+        email: body.email,
+        senha: body.senha,
+        perfil: body.perfil,
+        senhaPrimeiroAcesso: body.senhaPrimeiroAcesso,
+        cadastrarPin: body.cadastrarPin,
+      }
       if (body.funcionarioId) payload.funcionarioId = body.funcionarioId
+      if (body.cadastrarPin && body.pin) payload.pin = body.pin
       const { data } = await api.post('/usuarios', payload)
       return data
     },
@@ -457,6 +468,38 @@ function UserFormModal({
                 placeholder="Selecione um funcionário..."
               />
             )} />
+
+            {/* ─── Opções de Primeiro Acesso ────────────────────────────── */}
+            <Text size="sm" fw={600} mt="xs">Opções de Acesso</Text>
+            <Controller name="senhaPrimeiroAcesso" control={createForm.control} render={({ field }) => (
+              <Checkbox
+                label="Senha no primeiro acesso (forçar troca no login)"
+                checked={field.value}
+                onChange={(e) => field.onChange(e.currentTarget.checked)}
+              />
+            )} />
+            <Controller name="cadastrarPin" control={createForm.control} render={({ field }) => (
+              <Checkbox
+                label="Cadastrar PIN (Checkout de Apontamento)"
+                checked={field.value}
+                onChange={(e) => field.onChange(e.currentTarget.checked)}
+                disabled={!createForm.watch('funcionarioId')}
+              />
+            )} />
+            {createForm.watch('cadastrarPin') && (
+              <Controller name="pin" control={createForm.control} render={({ field }) => (
+                <TextInput
+                  label="PIN (6 dígitos numéricos)"
+                  placeholder="000000"
+                  maxLength={6}
+                  error={createForm.formState.errors.pin?.message}
+                  {...field}
+                />
+              )} />
+            )}
+            {createForm.watch('cadastrarPin') && !createForm.watch('funcionarioId') && (
+              <Text size="xs" c="orange">Vincule um funcionário para cadastrar o PIN</Text>
+            )}
           </Stack>
           <Group justify="flex-end" mt="md">
             <Button variant="default" onClick={onClose}>Cancelar</Button>
@@ -474,6 +517,22 @@ function UserFormModal({
             <Controller name="senha" control={editForm.control} render={({ field }) => (
               <PasswordInput label="Senha" placeholder="Deixe vazio para manter" error={editForm.formState.errors.senha?.message} {...field} />
             )} />
+            <Button
+              variant="light"
+              color="orange"
+              size="xs"
+              onClick={async () => {
+                if (!confirm('Resetar a senha deste usuário para "123456"? Ele precisará alterar no próximo login.')) return
+                try {
+                  await api.put(`/usuarios/${editItem!.id}/resetar-senha`, {})
+                  notifications.show({ title: 'Sucesso', message: 'Senha resetada. O usuário deverá alterar no próximo acesso.', color: 'green' })
+                } catch {
+                  notifications.show({ title: 'Erro', message: 'Falha ao resetar senha', color: 'red' })
+                }
+              }}
+            >
+              Resetar Senha (forçar troca)
+            </Button>
             <Controller name="perfil" control={editForm.control} render={({ field }) => (
               <Select label="Perfil" data={PERFIS} value={field.value} onChange={field.onChange} />
             )} />
