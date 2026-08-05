@@ -380,6 +380,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
         ],
       },
       { icon: IconSettings, label: 'Configuração PCP', href: '/pcp/configuracao' },
+      { icon: IconHistory, label: 'Logs de Auditoria', href: '/pcp/logs' },
     ],
   },
 }
