@@ -2239,6 +2239,8 @@ export default function ProgramacaoPage() {
             placeholder="admin@empresa.com"
             value={formRetornar.emailAdmin}
             onChange={(e) => setFormRetornar(prev => ({ ...prev, emailAdmin: e.currentTarget.value }))}
+            autoComplete="off"
+            name="retornar-email-field"
           />
           <TextInput
             label="Senha"
@@ -2246,6 +2248,8 @@ export default function ProgramacaoPage() {
             placeholder="Senha do administrador"
             value={formRetornar.senhaAdmin}
             onChange={(e) => setFormRetornar(prev => ({ ...prev, senhaAdmin: e.currentTarget.value }))}
+            autoComplete="new-password"
+            name="retornar-senha-field"
           />
           <Button
             fullWidth
