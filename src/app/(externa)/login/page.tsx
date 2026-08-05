@@ -32,7 +32,13 @@ export default function LoginPage() {
       }
       // Limpar empresa anterior para forçar nova seleção
       localStorage.removeItem('visiofab-wms-empresa-id')
-      router.push('/selecionar-empresa')
+
+      // Se é primeiro acesso (senha padrão nunca alterada), redirecionar para alteração obrigatória
+      if (response.data.usuario?.primeiroLogin) {
+        router.push('/alterar-senha-obrigatoria')
+      } else {
+        router.push('/selecionar-empresa')
+      }
     } catch {
       notifications.show({ title: 'Erro', message: 'Email ou senha inválidos', color: 'red' })
     }

@@ -31,6 +31,20 @@ export function useRequireAuth() {
       router.replace('/login')
       return
     }
+
+    // Se é primeiro acesso (senha temporária não alterada), redirecionar
+    // para a tela de alteração obrigatória
+    const userStr = localStorage.getItem('visiofab-wms-user')
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr)
+        if (user.primeiroLogin) {
+          router.replace('/alterar-senha-obrigatoria')
+          return
+        }
+      } catch { /* ignora JSON inválido */ }
+    }
+
     setPronto(true)
   }, [router])
 
