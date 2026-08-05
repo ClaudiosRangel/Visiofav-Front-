@@ -62,7 +62,7 @@ function getRowBackground(etapa: any, usaCoresStatus: boolean = true): string | 
   return undefined
 }
 
-function SortableRow({ etapa, children, background, highlighted }: { etapa: { id: string }; children: React.ReactNode; background?: string; highlighted?: boolean }) {
+function SortableRow({ etapa, children, background, highlighted, selected, onToggleSelect }: { etapa: { id: string }; children: React.ReactNode; background?: string; highlighted?: boolean; selected?: boolean; onToggleSelect?: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: etapa.id })
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -76,6 +76,9 @@ function SortableRow({ etapa, children, background, highlighted }: { etapa: { id
     <Table.Tr ref={setNodeRef} style={style} {...attributes} data-etapa-id={etapa.id}>
       <Table.Td style={{ width: 30, cursor: 'grab' }} {...listeners}>
         <IconGripVertical size={14} color="gray" />
+      </Table.Td>
+      <Table.Td style={{ width: 30, padding: '0 4px' }} onClick={(e) => { e.stopPropagation(); onToggleSelect?.() }}>
+        <input type="checkbox" checked={!!selected} onChange={() => onToggleSelect?.()} style={{ cursor: 'pointer', width: 14, height: 14 }} />
       </Table.Td>
       {children}
     </Table.Tr>
@@ -246,6 +249,112 @@ export default function ProgramacaoPage() {
   const [modalRetornar, setModalRetornar] = useState<{ etapaId: string; opNumero: string } | null>(null)
   const [formRetornar, setFormRetornar] = useState({ emailAdmin: '', senhaAdmin: '' })
   const [salvandoRetornar, setSalvandoRetornar] = useState(false)
+
+  // Seleção múltipla de etapas para ações em lote
+  const [selectedEtapas, setSelectedEtapas] = useState<Set<string>>(new Set())
+  const [acaoLoteLoading, setAcaoLoteLoading] = useState(false)
+  const [modalMoverLote, setModalMoverLote] = useState(false)
+  const [centroDestinoLote, setCentroDestinoLote] = useState<string | null>(null)
+
+  function toggleSelectEtapa(etapaId: string) {
+    setSelectedEtapas(prev => {
+      const next = new Set(prev)
+      if (next.has(etapaId)) next.delete(etapaId)
+      else next.add(etapaId)
+      return next
+    })
+  }
+
+  function toggleSelectAllCentro(centroId: string) {
+    const centro = painel?.centros?.find((c: any) => c.centro.id === centroId)
+    if (!centro) return
+    const etapaIds = centro.etapas.map((e: any) => e.id)
+    setSelectedEtapas(prev => {
+      const next = new Set(prev)
+      const allSelected = etapaIds.every((id: string) => next.has(id))
+      if (allSelected) {
+        etapaIds.forEach((id: string) => next.delete(id))
+      } else {
+        etapaIds.forEach((id: string) => next.add(id))
+      }
+      return next
+    })
+  }
+
+  function limparSelecao() { setSelectedEtapas(new Set()) }
+
+  async function acaoLoteIniciar() {
+    setAcaoLoteLoading(true)
+    let sucesso = 0
+    for (const etapaId of selectedEtapas) {
+      try {
+        await api.patch(`/pcp/etapas/${etapaId}/iniciar`, {})
+        sucesso++
+      } catch { /* ignora falhas individuais */ }
+    }
+    notifications.show({ title: 'Lote concluído', message: `${sucesso} etapa(s) iniciada(s)`, color: 'green' })
+    limparSelecao()
+    setAcaoLoteLoading(false)
+    // Recarrega silenciosamente
+    try { const { data } = await api.get('/pcp/programacao/painel'); setPainel(data) } catch {}
+  }
+
+  async function acaoLoteFinalizar() {
+    if (!confirm(`Finalizar ${selectedEtapas.size} etapa(s) selecionada(s)?`)) return
+    setAcaoLoteLoading(true)
+    let sucesso = 0
+    for (const etapaId of selectedEtapas) {
+      try {
+        await api.patch(`/pcp/etapas/${etapaId}/concluir`, {})
+        sucesso++
+      } catch { /* ignora falhas individuais */ }
+    }
+    notifications.show({ title: 'Lote concluído', message: `${sucesso} etapa(s) finalizada(s)`, color: 'green' })
+    limparSelecao()
+    setAcaoLoteLoading(false)
+    try { const { data } = await api.get('/pcp/programacao/painel'); setPainel(data) } catch {}
+  }
+
+  async function acaoLoteMover() {
+    if (!centroDestinoLote) return
+    setAcaoLoteLoading(true)
+    let sucesso = 0
+    for (const etapaId of selectedEtapas) {
+      try {
+        await api.patch(`/pcp/etapas/${etapaId}/mover`, { centroProducaoId: centroDestinoLote })
+        sucesso++
+      } catch { /* ignora falhas individuais */ }
+    }
+    notifications.show({ title: 'Lote concluído', message: `${sucesso} etapa(s) movida(s)`, color: 'green' })
+    limparSelecao()
+    setModalMoverLote(false)
+    setCentroDestinoLote(null)
+    setAcaoLoteLoading(false)
+    try { const { data } = await api.get('/pcp/programacao/painel'); setPainel(data) } catch {}
+  }
+
+  async function acaoLoteReextrair() {
+    if (!confirm(`Re-extrair PDF de ${selectedEtapas.size} OP(s) selecionada(s)?`)) return
+    setAcaoLoteLoading(true)
+    // Coletar opIds únicos das etapas selecionadas
+    const opIds = new Set<string>()
+    for (const centro of (painel?.centros || [])) {
+      for (const etapa of centro.etapas) {
+        if (selectedEtapas.has(etapa.id) && etapa.opId) opIds.add(etapa.opId)
+      }
+    }
+    let sucesso = 0
+    for (const opId of opIds) {
+      try {
+        await api.post('/pcp/programacao/reextrair-pdf', { opId })
+        sucesso++
+      } catch { /* ignora falhas individuais */ }
+    }
+    notifications.show({ title: 'Lote concluído', message: `${sucesso} OP(s) re-extraída(s)`, color: 'green' })
+    limparSelecao()
+    setAcaoLoteLoading(false)
+    try { const { data } = await api.get('/pcp/programacao/painel'); setPainel(data) } catch {}
+  }
 
   async function carregarConcluidas(tipoProcessoId?: string) {
     setLoadingConcluidas(true)
@@ -1491,6 +1600,32 @@ export default function ProgramacaoPage() {
         </Group>
       )}
 
+      {/* Barra de ações em lote (aparece quando há etapas selecionadas) */}
+      {selectedEtapas.size > 0 && (
+        <Card withBorder padding="xs" mb="sm" style={{ background: 'var(--mantine-color-blue-light)', position: 'sticky', top: 0, zIndex: 10 }}>
+          <Group justify="space-between">
+            <Group gap="sm">
+              <Text size="sm" fw={600}>{selectedEtapas.size} etapa(s) selecionada(s)</Text>
+              <Button size="compact-xs" variant="subtle" onClick={limparSelecao}>Limpar</Button>
+            </Group>
+            <Group gap="xs">
+              <Button size="compact-xs" color="green" loading={acaoLoteLoading} onClick={acaoLoteIniciar}>
+                Iniciar
+              </Button>
+              <Button size="compact-xs" color="teal" loading={acaoLoteLoading} onClick={acaoLoteFinalizar}>
+                Finalizar
+              </Button>
+              <Button size="compact-xs" color="blue" loading={acaoLoteLoading} onClick={() => setModalMoverLote(true)}>
+                Mover p/ Grupo
+              </Button>
+              <Button size="compact-xs" color="cyan" loading={acaoLoteLoading} onClick={acaoLoteReextrair}>
+                Re-extrair PDF
+              </Button>
+            </Group>
+          </Group>
+        </Card>
+      )}
+
       {/* Painel de etapas concluídas (por processo/aba ativa) */}
       {mostrarConcluidas && (
         <Card withBorder padding="md" mb="md">
@@ -1619,6 +1754,9 @@ export default function ProgramacaoPage() {
                       <Table.Thead>
                         <Table.Tr style={{ fontSize: '10px' }}>
                           <Table.Th style={{ width: 30 }}></Table.Th>
+                          <Table.Th style={{ width: 30, padding: '0 4px' }}>
+                            <input type="checkbox" onChange={() => toggleSelectAllCentro(centro.centro.id)} checked={centro.etapas.length > 0 && centro.etapas.every((e: any) => selectedEtapas.has(e.id))} style={{ cursor: 'pointer', width: 14, height: 14 }} />
+                          </Table.Th>
                           <Table.Th style={{ minWidth: 200 }}>OS / Cliente / Produto</Table.Th>
                           <Table.Th>Qtd</Table.Th>
                           <Table.Th>Tiragem</Table.Th>
@@ -1633,7 +1771,7 @@ export default function ProgramacaoPage() {
                       </Table.Thead>
                       <Table.Tbody>
                         {centro.etapas.map((etapa: any) => (
-                          <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa, usaCoresStatus)} highlighted={highlightedEtapa === etapa.id}>
+                          <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa, usaCoresStatus)} highlighted={highlightedEtapa === etapa.id} selected={selectedEtapas.has(etapa.id)} onToggleSelect={() => toggleSelectEtapa(etapa.id)}>
                             <Table.Td style={{ minWidth: 200 }}>
                               <Group gap={4} wrap="nowrap">
                                 <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
@@ -1736,6 +1874,9 @@ export default function ProgramacaoPage() {
                       <Table.Thead>
                         <Table.Tr style={{ fontSize: '10px' }}>
                           <Table.Th style={{ width: 30 }}></Table.Th>
+                          <Table.Th style={{ width: 30, padding: '0 4px' }}>
+                            <input type="checkbox" onChange={() => toggleSelectAllCentro(centro.centro.id)} checked={centro.etapas.length > 0 && centro.etapas.every((e: any) => selectedEtapas.has(e.id))} style={{ cursor: 'pointer', width: 14, height: 14 }} />
+                          </Table.Th>
                           <Table.Th style={{ minWidth: 200 }}>OP / Cliente / Produto</Table.Th>
                           <Table.Th>Tipo OP</Table.Th>
                           <Table.Th>Tir.</Table.Th>
@@ -1761,7 +1902,7 @@ export default function ProgramacaoPage() {
                       </Table.Thead>
                       <Table.Tbody>
                         {centro.etapas.map((etapa: any) => (
-                          <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa, usaCoresStatus)} highlighted={highlightedEtapa === etapa.id}>
+                          <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa, usaCoresStatus)} highlighted={highlightedEtapa === etapa.id} selected={selectedEtapas.has(etapa.id)} onToggleSelect={() => toggleSelectEtapa(etapa.id)}>
                             <Table.Td style={{ minWidth: 200 }}>
                               <Group gap={4} wrap="nowrap">
                                 <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
@@ -2277,6 +2418,29 @@ export default function ProgramacaoPage() {
         </div>
       </Modal>
       )}
+
+      {/* Modal: Mover em lote para outro grupo */}
+      <Modal opened={modalMoverLote} onClose={() => { setModalMoverLote(false); setCentroDestinoLote(null) }} title={`Mover ${selectedEtapas.size} etapa(s) para outro grupo`} centered>
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">Selecione o grupo de destino:</Text>
+          <Select
+            data={centrosDisponiveis}
+            value={centroDestinoLote}
+            onChange={setCentroDestinoLote}
+            searchable
+            placeholder="Selecione o grupo destino..."
+          />
+          <Button
+            fullWidth
+            color="blue"
+            loading={acaoLoteLoading}
+            disabled={!centroDestinoLote}
+            onClick={acaoLoteMover}
+          >
+            Confirmar Mover
+          </Button>
+        </Stack>
+      </Modal>
 
       {/* Modal: Mover OS para outro grupo */}
       <Modal opened={!!modalMover} onClose={() => setModalMover(null)} title={`Mover OS #${modalMover?.opNumero} para outro grupo`} centered>
