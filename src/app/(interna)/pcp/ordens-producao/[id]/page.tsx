@@ -37,6 +37,10 @@ export default function DetalheOpPage() {
   // Modal de cancelamento — pede motivo obrigatório antes de enviar
   const [modalCancelar, setModalCancelar] = useState(false)
   const [motivoCancelamento, setMotivoCancelamento] = useState('')
+  // Modal de cancelamento forçado (EM_PRODUCAO/CONCLUIDA) — exige admin
+  const [modalCancelarForcado, setModalCancelarForcado] = useState(false)
+  const [formCancelarForcado, setFormCancelarForcado] = useState({ motivoCancelamento: '', emailAdmin: '', senhaAdmin: '' })
+  const [salvandoCancelarForcado, setSalvandoCancelarForcado] = useState(false)
 
   useEffect(() => { document.title = 'PCP - Detalhe OP' }, [])
 
@@ -156,6 +160,37 @@ export default function DetalheOpPage() {
     }
   }
 
+  async function cancelarForcado() {
+    if (formCancelarForcado.motivoCancelamento.trim().length < 10) {
+      notifications.show({ title: 'Motivo obrigatório', message: 'Informe o motivo (mínimo 10 caracteres)', color: 'red' })
+      return
+    }
+    if (!formCancelarForcado.emailAdmin || !formCancelarForcado.senhaAdmin) {
+      notifications.show({ title: 'Credenciais obrigatórias', message: 'Informe email e senha do administrador', color: 'red' })
+      return
+    }
+    setSalvandoCancelarForcado(true)
+    try {
+      await api.patch(`/ordens-producao/${id}/cancelar-forcado`, formCancelarForcado)
+      setOp((prev: any) => ({
+        ...prev,
+        status: 'CANCELADA',
+        motivoCancelamento: formCancelarForcado.motivoCancelamento.trim(),
+        logs: [
+          { id: `temp-${Date.now()}`, statusAnterior: prev.status, statusNovo: 'CANCELADA', criadoEm: new Date().toISOString(), observacao: `Cancelamento forçado: ${formCancelarForcado.motivoCancelamento.trim()}` },
+          ...(prev.logs || []),
+        ],
+      }))
+      setModalCancelarForcado(false)
+      setFormCancelarForcado({ motivoCancelamento: '', emailAdmin: '', senhaAdmin: '' })
+      notifications.show({ title: 'OP cancelada', message: `OP #${op.referenciaExterna || op.numero} foi cancelada (forçado)`, color: 'red' })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao cancelar', color: 'red' })
+    } finally {
+      setSalvandoCancelarForcado(false)
+    }
+  }
+
   const transicoesPermitidas: Record<string, string[]> = {
     RASCUNHO: ['PLANEJADA', 'CANCELADA'],
     PLANEJADA: ['PROGRAMADA', 'CANCELADA'],
@@ -213,6 +248,15 @@ export default function DetalheOpPage() {
               </Button>
             ) : null
           })}
+        </Group>
+      )}
+
+      {/* Botão de cancelamento forçado para EM_PRODUCAO/CONCLUIDA (exige admin) */}
+      {(op.status === 'EM_PRODUCAO' || op.status === 'CONCLUIDA') && (
+        <Group gap="xs">
+          <Button size="xs" color="red" variant="outline" onClick={() => setModalCancelarForcado(true)}>
+            ✕ Cancelar OP (requer admin)
+          </Button>
         </Group>
       )}
 
@@ -488,6 +532,49 @@ export default function DetalheOpPage() {
           </Group>
         </Stack>
       </Modal>
+
+      {/* Modal: Cancelar forçado (EM_PRODUCAO/CONCLUIDA) — exige admin */}
+      {modalCancelarForcado && (
+        <Modal opened onClose={() => { setModalCancelarForcado(false); setFormCancelarForcado({ motivoCancelamento: '', emailAdmin: '', senhaAdmin: '' }) }} title="Cancelar OP (Forçado)" centered>
+          <Stack gap="sm">
+            <Text size="sm" c="dimmed">Esta OP está em {op?.status}. O cancelamento forçado requer autorização de administrador.</Text>
+            <TextInput
+              label="Motivo do cancelamento (mín. 10 caracteres)"
+              placeholder="Descreva o motivo"
+              value={formCancelarForcado.motivoCancelamento}
+              onChange={(e) => setFormCancelarForcado(prev => ({ ...prev, motivoCancelamento: e.currentTarget.value }))}
+            />
+            <div>
+              <Text size="sm" fw={500} mb={4}>Usuário (admin)</Text>
+              <input
+                type="text"
+                placeholder="Email do administrador"
+                value={formCancelarForcado.emailAdmin}
+                onChange={(e) => setFormCancelarForcado(prev => ({ ...prev, emailAdmin: e.target.value }))}
+                autoComplete="nope"
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #dee2e6', borderRadius: 4, fontSize: 14 }}
+              />
+            </div>
+            <div>
+              <Text size="sm" fw={500} mb={4}>Senha</Text>
+              <input
+                type="text"
+                placeholder="Senha do administrador"
+                value={formCancelarForcado.senhaAdmin}
+                onChange={(e) => setFormCancelarForcado(prev => ({ ...prev, senhaAdmin: e.target.value }))}
+                autoComplete="nope"
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #dee2e6', borderRadius: 4, fontSize: 14, WebkitTextSecurity: 'disc' } as any}
+              />
+            </div>
+            <Group justify="flex-end">
+              <Button variant="default" onClick={() => setModalCancelarForcado(false)}>Voltar</Button>
+              <Button color="red" loading={salvandoCancelarForcado} onClick={cancelarForcado} disabled={formCancelarForcado.motivoCancelamento.trim().length < 10 || !formCancelarForcado.emailAdmin || !formCancelarForcado.senhaAdmin}>
+                Confirmar Cancelamento
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
+      )}
     </Stack>
   )
 }
