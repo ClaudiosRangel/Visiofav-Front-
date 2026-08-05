@@ -280,48 +280,16 @@ export default function ProgramacaoPage() {
       await api.patch(`/pcp/etapas/${modalRetornar.etapaId}/retornar`, formRetornar)
       notifications.show({ title: 'Sucesso', message: `OS ${modalRetornar.opNumero} retornada à fila`, color: 'green' })
       const etapaRetornada = modalRetornar.etapaId
-      // Pegar os dados da etapa da lista de concluídas antes de removê-la
-      const dadosEtapa = etapasConcluidas.find((e: any) => e.id === etapaRetornada)
       setModalRetornar(null)
       setFormRetornar({ emailAdmin: '', senhaAdmin: '' })
       // Remove da lista de concluídas
       setEtapasConcluidas(prev => prev.filter((e: any) => e.id !== etapaRetornada))
-      // Adiciona a etapa ao painel ativo (no final da fila do centro correspondente)
-      if (dadosEtapa) {
-        setPainel((prev: any) => {
-          if (!prev) return prev
-          return {
-            ...prev,
-            centros: prev.centros.map((c: any) => {
-              // Encontrar o centro correto pela descrição retornada da etapa concluída
-              if (c.centro.descricao !== dadosEtapa.centroDescricao && c.centro.codigo !== dadosEtapa.centroDescricao) return c
-              // Adicionar no final da fila com status PENDENTE
-              const novaEtapa = {
-                id: dadosEtapa.id,
-                opId: dadosEtapa.opId,
-                opNumero: dadosEtapa.opNumero,
-                cliente: dadosEtapa.cliente,
-                produto: dadosEtapa.produto,
-                descricao: dadosEtapa.descricao,
-                sequencia: dadosEtapa.sequencia,
-                status: 'PENDENTE',
-                quantidade: dadosEtapa.quantidade,
-                quantidadeProduzida: dadosEtapa.quantidadeProduzida,
-                prioridade: 'NORMAL',
-                posicaoFila: 9999,
-              }
-              const etapas = [...c.etapas, novaEtapa]
-              const resumo = {
-                emAndamento: etapas.filter((e: any) => e.status === 'EM_ANDAMENTO').length,
-                pausadas: etapas.filter((e: any) => e.status === 'PAUSADA').length,
-                pendentes: etapas.filter((e: any) => e.status === 'PENDENTE').length,
-                total: etapas.length,
-              }
-              return { ...c, etapas, resumo }
-            }),
-          }
-        })
-      }
+      // Recarrega o painel completo silenciosamente (sem mostrar loading)
+      // para que a etapa retornada apareça com todos os dados corretos
+      try {
+        const { data } = await api.get('/pcp/programacao/painel')
+        setPainel(data)
+      } catch { /* silencioso — dados aparecem na próxima recarga manual */ }
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao retornar etapa', color: 'red' })
     } finally {
@@ -2269,8 +2237,11 @@ export default function ProgramacaoPage() {
       </Modal>
 
       {/* Modal: Retornar etapa concluída à fila (requer senha admin) */}
-      <Modal opened={!!modalRetornar} onClose={() => { setModalRetornar(null); setFormRetornar({ emailAdmin: '', senhaAdmin: '' }) }} title={`Retornar OS #${modalRetornar?.opNumero} à fila`} centered>
-        <form autoComplete="off" onSubmit={(e) => e.preventDefault()}>
+      {modalRetornar && (
+      <Modal opened onClose={() => { setModalRetornar(null); setFormRetornar({ emailAdmin: '', senhaAdmin: '' }) }} title={`Retornar OS #${modalRetornar.opNumero} à fila`} centered>
+        <form autoComplete="off" onSubmit={(e) => { e.preventDefault(); retornarEtapa() }}>
+        <input type="text" style={{ display: 'none' }} tabIndex={-1} />
+        <input type="password" style={{ display: 'none' }} tabIndex={-1} />
         <Stack gap="md">
           <Text size="sm" c="dimmed">Esta ação retorna a etapa concluída para status PENDENTE. Requer autorização de um administrador.</Text>
           <TextInput
@@ -2308,6 +2279,7 @@ export default function ProgramacaoPage() {
         </Stack>
         </form>
       </Modal>
+      )}
 
       {/* Modal: Mover OS para outro grupo */}
       <Modal opened={!!modalMover} onClose={() => setModalMover(null)} title={`Mover OS #${modalMover?.opNumero} para outro grupo`} centered>
