@@ -280,10 +280,48 @@ export default function ProgramacaoPage() {
       await api.patch(`/pcp/etapas/${modalRetornar.etapaId}/retornar`, formRetornar)
       notifications.show({ title: 'Sucesso', message: `OS ${modalRetornar.opNumero} retornada à fila`, color: 'green' })
       const etapaRetornada = modalRetornar.etapaId
+      // Pegar os dados da etapa da lista de concluídas antes de removê-la
+      const dadosEtapa = etapasConcluidas.find((e: any) => e.id === etapaRetornada)
       setModalRetornar(null)
       setFormRetornar({ emailAdmin: '', senhaAdmin: '' })
-      // Atualização otimista: remove da lista de concluídas (sem refresh)
+      // Remove da lista de concluídas
       setEtapasConcluidas(prev => prev.filter((e: any) => e.id !== etapaRetornada))
+      // Adiciona a etapa ao painel ativo (no final da fila do centro correspondente)
+      if (dadosEtapa) {
+        setPainel((prev: any) => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            centros: prev.centros.map((c: any) => {
+              // Encontrar o centro correto pela descrição retornada da etapa concluída
+              if (c.centro.descricao !== dadosEtapa.centroDescricao && c.centro.codigo !== dadosEtapa.centroDescricao) return c
+              // Adicionar no final da fila com status PENDENTE
+              const novaEtapa = {
+                id: dadosEtapa.id,
+                opId: dadosEtapa.opId,
+                opNumero: dadosEtapa.opNumero,
+                cliente: dadosEtapa.cliente,
+                produto: dadosEtapa.produto,
+                descricao: dadosEtapa.descricao,
+                sequencia: dadosEtapa.sequencia,
+                status: 'PENDENTE',
+                quantidade: dadosEtapa.quantidade,
+                quantidadeProduzida: dadosEtapa.quantidadeProduzida,
+                prioridade: 'NORMAL',
+                posicaoFila: 9999,
+              }
+              const etapas = [...c.etapas, novaEtapa]
+              const resumo = {
+                emAndamento: etapas.filter((e: any) => e.status === 'EM_ANDAMENTO').length,
+                pausadas: etapas.filter((e: any) => e.status === 'PAUSADA').length,
+                pendentes: etapas.filter((e: any) => e.status === 'PENDENTE').length,
+                total: etapas.length,
+              }
+              return { ...c, etapas, resumo }
+            }),
+          }
+        })
+      }
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao retornar etapa', color: 'red' })
     } finally {
