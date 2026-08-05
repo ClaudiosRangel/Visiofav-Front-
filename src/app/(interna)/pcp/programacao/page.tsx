@@ -343,7 +343,24 @@ export default function ProgramacaoPage() {
     const opcoes = ['BAIXA', 'NORMAL', 'ALTA', 'URGENTE']
     const atual = opcoes.indexOf(prioridadeAtual)
     const nova = opcoes[(atual + 1) % opcoes.length]
-    api.patch(`/ordens-producao/${opId}`, { prioridade: nova }).then(() => carregar())
+    api.patch(`/ordens-producao/${opId}`, { prioridade: nova }).then(() => {
+      // Atualização otimista: atualiza a prioridade de todas as etapas
+      // dessa OP no painel local, sem recarregar tudo (preserva ordem da fila)
+      setPainel((prev: any) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          centros: prev.centros.map((c: any) => ({
+            ...c,
+            etapas: c.etapas.map((e: any) =>
+              e.opId === opId ? { ...e, prioridade: nova } : e
+            ),
+          })),
+        }
+      })
+    }).catch(() => {
+      notifications.show({ title: 'Erro', message: 'Falha ao alterar prioridade', color: 'red' })
+    })
   }
 
   async function handleDragEnd(centroId: string, event: DragEndEvent) {
@@ -582,7 +599,20 @@ export default function ProgramacaoPage() {
       // Adiciona horário meio-dia para evitar problema de timezone
       await api.patch('/pcp/programacao/postergar-entrega', { opId, novaDataEntrega: `${novaData}T12:00:00` })
       notifications.show({ title: 'Entrega postergada', message: `Nova data: ${novaData.split('-').reverse().join('/')}`, color: 'orange' })
-      carregar()
+      // Atualização otimista: atualiza a data de entrega de todas as etapas
+      // dessa OP no painel local, sem recarregar tudo (preserva ordem da fila)
+      setPainel((prev: any) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          centros: prev.centros.map((c: any) => ({
+            ...c,
+            etapas: c.etapas.map((e: any) =>
+              e.opId === opId ? { ...e, dataEntrega: `${novaData}T12:00:00` } : e
+            ),
+          })),
+        }
+      })
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' })
     }
