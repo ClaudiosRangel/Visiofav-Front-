@@ -2239,7 +2239,7 @@ export default function ProgramacaoPage() {
       {/* Modal: Retornar etapa concluída à fila (requer senha admin) */}
       {modalRetornar && (
       <Modal opened onClose={() => { setModalRetornar(null); setFormRetornar({ emailAdmin: '', senhaAdmin: '' }) }} title={`Retornar OS #${modalRetornar.opNumero} à fila`} centered>
-        <form autoComplete="off" onSubmit={(e) => { e.preventDefault(); retornarEtapa() }}>
+        <div onSubmit={(e) => { e.preventDefault(); retornarEtapa() }}>
         <Stack gap="md">
           <Text size="sm" c="dimmed">Esta ação retorna a etapa concluída para status PENDENTE. Requer autorização de um administrador.</Text>
           <div>
@@ -2249,25 +2249,19 @@ export default function ProgramacaoPage() {
               placeholder="Digite o email"
               value={formRetornar.emailAdmin}
               onChange={(e) => setFormRetornar(prev => ({ ...prev, emailAdmin: e.target.value }))}
-              onFocus={(e) => { e.target.removeAttribute('readonly') }}
-              readOnly
               autoComplete="nope"
-              name={`field_${Date.now()}_usr`}
               style={{ width: '100%', padding: '8px 12px', border: '1px solid #dee2e6', borderRadius: 4, fontSize: 14 }}
             />
           </div>
           <div>
             <Text size="sm" fw={500} mb={4}>Código de autorização</Text>
             <input
-              type="password"
+              type="text"
               placeholder="Digite a senha"
               value={formRetornar.senhaAdmin}
               onChange={(e) => setFormRetornar(prev => ({ ...prev, senhaAdmin: e.target.value }))}
-              onFocus={(e) => { e.target.removeAttribute('readonly') }}
-              readOnly
               autoComplete="nope"
-              name={`field_${Date.now()}_pwd`}
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid #dee2e6', borderRadius: 4, fontSize: 14 }}
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid #dee2e6', borderRadius: 4, fontSize: 14, WebkitTextSecurity: 'disc' } as any}
             />
           </div>
           <Button
@@ -2280,7 +2274,7 @@ export default function ProgramacaoPage() {
             Confirmar Retorno
           </Button>
         </Stack>
-        </form>
+        </div>
       </Modal>
       )}
 
