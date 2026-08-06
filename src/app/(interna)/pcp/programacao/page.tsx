@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Title, Stack, Table, Group, Badge, Text, Loader, Center, Collapse, UnstyledButton, Card, ScrollArea, Button, Modal, NumberInput, Select, Textarea, Progress, ActionIcon, Tabs, TextInput, SegmentedControl, Autocomplete, Box, FileButton, Image, Checkbox } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
-import { IconChevronDown, IconChevronRight, IconPlayerPlay, IconPlayerPause, IconCheck, IconClipboardCheck, IconAlertTriangle, IconCut, IconGripVertical, IconSearch, IconFileText, IconPlus, IconArrowRight, IconX, IconPrinter, IconRefresh, IconCamera, IconSettings } from '@tabler/icons-react'
+import { IconChevronDown, IconChevronRight, IconPlayerPlay, IconPlayerPause, IconCheck, IconClipboardCheck, IconAlertTriangle, IconCut, IconGripVertical, IconSearch, IconFileText, IconPlus, IconArrowRight, IconX, IconPrinter, IconRefresh, IconCamera, IconSettings, IconPalette } from '@tabler/icons-react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -13,6 +13,7 @@ import { SortableCentroItem } from '@/components/pcp/SortableCentroItem'
 import VisaoDetalhadaProgramacao from '@/components/pcp/VisaoDetalhadaProgramacao'
 import { useCentrosOrdenacao } from '@/hooks/useCentrosOrdenacao'
 import { IconLayoutGrid, IconListDetails } from '@tabler/icons-react'
+import { getUserPerfil } from '@/hooks/usePerfilGuard'
 
 const PRIORIDADE_COLORS: Record<string, string> = { BAIXA: 'gray', NORMAL: 'blue', ALTA: 'orange', URGENTE: 'red' }
 const STATUS_COLORS: Record<string, string> = { PENDENTE: 'gray', EM_ANDAMENTO: 'blue', PAUSADA: 'orange', CONCLUIDA: 'green' }
@@ -87,6 +88,9 @@ function SortableRow({ etapa, children, background, highlighted, selected, onTog
 
 export default function ProgramacaoPage() {
   useEffect(() => { document.title = 'PCP - Painel Operacional' }, [])
+
+  const perfilUsuario = getUserPerfil()
+  const isAdmin = perfilUsuario === 'SUPER_ADMIN' || perfilUsuario === 'ADMIN'
 
   const [painel, setPainel] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -424,12 +428,19 @@ export default function ProgramacaoPage() {
     finally { setLoading(false) }
   }
 
+  // Permissões PCP do usuário logado (carregadas uma vez)
+  const [minhasPermissoes, setMinhasPermissoes] = useState<any>({ isAdmin: false })
+
   useEffect(() => { carregar() }, [])
 
   useEffect(() => {
-    api.get('/pcp/configuracao')
-      .then((res) => setUsaCoresStatus(res.data?.configuracao?.usaCoresStatusProgramacao ?? true))
-      .catch(() => {}) // Falha silenciosa: mantém o default (cores habilitadas)
+    Promise.all([
+      api.get('/pcp/configuracao'),
+      api.get('/pcp/permissoes/minha'),
+    ]).then(([configRes, permRes]) => {
+      setUsaCoresStatus(configRes.data?.configuracao?.usaCoresStatusProgramacao ?? true)
+      setMinhasPermissoes(permRes.data)
+    }).catch(() => {})
   }, [])
 
   // Define a aba inicial como o primeiro Tipo de Processo cadastrado, assim
@@ -1387,6 +1398,7 @@ export default function ProgramacaoPage() {
         <Button size="xs" variant="light" leftSection={<IconPrinter size={14} />} onClick={() => imprimirRelatorio()} className="no-print">
           Imprimir
         </Button>
+        {minhasPermissoes.isAdmin && (
         <Button
           size="xs"
           variant={mostrarConcluidas ? 'filled' : 'light'}
@@ -1400,6 +1412,7 @@ export default function ProgramacaoPage() {
         >
           Concluídas
         </Button>
+        )}
         <ActionIcon size="sm" variant="subtle" onClick={() => abrirConfigColunas()} title="Configurar colunas de impressão" className="no-print">
           <IconSettings size={14} />
         </ActionIcon>
@@ -2025,6 +2038,28 @@ export default function ProgramacaoPage() {
                                 {etapa.isAvulsa && (
                                   <ActionIcon color="red" variant="light" size="sm" onClick={() => excluirOpAvulsa(etapa.opId, etapa.opNumero)} title="Excluir OP avulsa">
                                     <IconX size={14} />
+                                  </ActionIcon>
+                                )}
+                                {minhasPermissoes.isPreImpressao && (
+                                  <ActionIcon
+                                    color={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? 'green' : 'gray'}
+                                    variant={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? 'filled' : 'light'}
+                                    size="sm"
+                                    onClick={async () => {
+                                      try {
+                                        const { data } = await api.post('/pcp/programacao/pintar-matriz', { etapaId: etapa.id })
+                                        const TAG = '[MATRIZ_OK]'
+                                        setPainel((prev: any) => {
+                                          if (!prev) return prev
+                                          return { ...prev, centros: prev.centros.map((c: any) => ({
+                                            ...c, etapas: c.etapas.map((e: any) => e.id === etapa.id ? { ...e, observacaoOperador: data.matrizOk ? (e.observacaoOperador ? `${e.observacaoOperador} ${TAG}` : TAG) : (e.observacaoOperador || '').replace(TAG, '').trim() } : e)
+                                          }))}
+                                        })
+                                      } catch { notifications.show({ title: 'Erro', message: 'Falha ao pintar matriz', color: 'red' }) }
+                                    }}
+                                    title={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? 'Matriz aprovada (clique p/ remover)' : 'Aprovar Matriz (pré-impressão)'}
+                                  >
+                                    <IconPalette size={14} />
                                   </ActionIcon>
                                 )}
                               </Group>

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Card, Table, Text, Group, Badge, Pagination, Stack, Loader, Center } from '@mantine/core'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { usePerfilGuard } from '@/hooks/usePerfilGuard'
 
 const STATUS_COLORS: Record<string, string> = {
   RASCUNHO: 'gray',
@@ -19,6 +20,7 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 export default function PcpLogsPage() {
+  usePerfilGuard(['ADMIN', 'SUPER_ADMIN'])
   useEffect(() => { document.title = 'PCP - Logs de Auditoria' }, [])
 
   const [page, setPage] = useState(1)
