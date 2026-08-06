@@ -78,8 +78,10 @@ function SortableRow({ etapa, children, background, highlighted, selected, onTog
       <Table.Td style={{ width: 30, cursor: 'grab' }} {...listeners}>
         <IconGripVertical size={14} color="gray" />
       </Table.Td>
-      <Table.Td style={{ width: 30, padding: '0 4px' }}>
-        <input type="checkbox" checked={!!selected} onChange={() => onToggleSelect?.()} onClick={(e) => e.stopPropagation()} style={{ cursor: 'pointer', width: 14, height: 14 }} />
+      <Table.Td style={{ width: 30, padding: '0 4px' }} onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+        <div onClick={() => onToggleSelect?.()} style={{ cursor: 'pointer', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #adb5bd', borderRadius: 3, background: selected ? '#228be6' : 'transparent' }}>
+          {selected && <span style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>✓</span>}
+        </div>
       </Table.Td>
       {children}
     </Table.Tr>
