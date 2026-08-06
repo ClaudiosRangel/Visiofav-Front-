@@ -382,7 +382,6 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       { icon: IconSettings, label: 'Configuração PCP', href: '/pcp/configuracao' },
       { icon: IconKey, label: 'Permissões Programação', href: '/pcp/permissoes' },
       { icon: IconHistory, label: 'Logs de Auditoria', href: '/pcp/logs' },
-      { icon: IconDatabase, label: 'Permissões Programação', href: '/pcp/permissoes' },
     ],
   },
 }

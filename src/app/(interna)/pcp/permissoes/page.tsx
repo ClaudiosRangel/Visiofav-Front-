@@ -19,11 +19,11 @@ export default function PermissoesPcpPage() {
 
   useEffect(() => {
     Promise.all([
-      api.get('/pcp/permissoes'),
-      api.get('/tipos-processo'),
+      api.get('/pcp/permissoes').catch(() => ({ data: [] })),
+      api.get('/tipos-processo').catch(() => ({ data: [] })),
     ]).then(([permRes, tiposRes]) => {
-      setUsuarios(permRes.data)
-      setTiposProcesso(tiposRes.data)
+      setUsuarios(Array.isArray(permRes.data) ? permRes.data : [])
+      setTiposProcesso(Array.isArray(tiposRes.data) ? tiposRes.data : [])
     }).catch(() => {
       notifications.show({ title: 'Erro', message: 'Falha ao carregar permissões', color: 'red' })
     }).finally(() => setLoading(false))
