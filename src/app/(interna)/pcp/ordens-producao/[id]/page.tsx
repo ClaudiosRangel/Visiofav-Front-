@@ -521,10 +521,9 @@ export default function DetalheOpPage() {
           <Text size="sm">Informe o motivo do cancelamento da OP #{op?.referenciaExterna || op?.numero}:</Text>
           <TextInput
             placeholder="Motivo do cancelamento (mínimo 10 caracteres)"
-            value={motivoCancelamento}
-            onChange={(e) => setMotivoCancelamento(e.currentTarget.value)}
+            value={motivoCancelamento || ''}
+            onChange={(e) => setMotivoCancelamento(e.currentTarget.value || '')}
             error={motivoCancelamento.length > 0 && motivoCancelamento.length < 10 ? `${10 - motivoCancelamento.length} caractere(s) restante(s)` : undefined}
-            autoFocus
           />
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setModalCancelar(false)}>Voltar</Button>
