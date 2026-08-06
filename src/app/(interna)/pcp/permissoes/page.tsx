@@ -19,13 +19,18 @@ export default function PermissoesPcpPage() {
 
   useEffect(() => {
     Promise.all([
-      api.get('/pcp/permissoes').catch(() => ({ data: [] })),
-      api.get('/tipos-processo').catch(() => ({ data: [] })),
+      api.get('/pcp/permissoes').catch((err) => { console.error('Erro /pcp/permissoes:', err?.response?.status, err?.response?.data); return { data: [] } }),
+      api.get('/tipos-processo').catch((err) => { console.error('Erro /tipos-processo:', err?.response?.status, err?.response?.data); return { data: [] } }),
     ]).then(([permRes, tiposRes]) => {
-      setUsuarios(Array.isArray(permRes.data) ? permRes.data : [])
+      const dados = permRes.data
+      console.log('Permissoes response:', dados)
+      setUsuarios(Array.isArray(dados) ? dados : [])
       setTiposProcesso(Array.isArray(tiposRes.data) ? tiposRes.data : [])
-    }).catch(() => {
-      notifications.show({ title: 'Erro', message: 'Falha ao carregar permissões', color: 'red' })
+      if (!Array.isArray(dados) || dados.length === 0) {
+        notifications.show({ title: 'Aviso', message: `Resposta da API: ${JSON.stringify(dados).substring(0, 200)}`, color: 'yellow' })
+      }
+    }).catch((err) => {
+      notifications.show({ title: 'Erro', message: `Falha: ${err?.message || 'desconhecido'}`, color: 'red' })
     }).finally(() => setLoading(false))
   }, [])
 
