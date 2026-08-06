@@ -519,12 +519,18 @@ export default function DetalheOpPage() {
       <Modal opened={modalCancelar} onClose={() => setModalCancelar(false)} title="Cancelar Ordem de Produção" centered>
         <Stack gap="sm">
           <Text size="sm">Informe o motivo do cancelamento da OP #{op?.referenciaExterna || op?.numero}:</Text>
-          <TextInput
-            placeholder="Motivo do cancelamento (mínimo 10 caracteres)"
-            value={motivoCancelamento || ''}
-            onChange={(e) => setMotivoCancelamento(e.currentTarget.value || '')}
-            error={motivoCancelamento.length > 0 && motivoCancelamento.length < 10 ? `${10 - motivoCancelamento.length} caractere(s) restante(s)` : undefined}
-          />
+          <div>
+            <input
+              type="text"
+              placeholder="Motivo do cancelamento (mínimo 10 caracteres)"
+              value={motivoCancelamento}
+              onChange={(e) => setMotivoCancelamento(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid #dee2e6', borderRadius: 4, fontSize: 14 }}
+            />
+            {motivoCancelamento.length > 0 && motivoCancelamento.length < 10 && (
+              <Text size="xs" c="red" mt={4}>{10 - motivoCancelamento.length} caractere(s) restante(s)</Text>
+            )}
+          </div>
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setModalCancelar(false)}>Voltar</Button>
             <Button color="red" onClick={confirmarCancelamento} disabled={motivoCancelamento.trim().length < 10}>Confirmar Cancelamento</Button>
@@ -537,12 +543,16 @@ export default function DetalheOpPage() {
         <Modal opened onClose={() => { setModalCancelarForcado(false); setFormCancelarForcado({ motivoCancelamento: '', emailAdmin: '', senhaAdmin: '' }) }} title="Cancelar OP (Forçado)" centered>
           <Stack gap="sm">
             <Text size="sm" c="dimmed">Esta OP está em {op?.status}. O cancelamento forçado requer autorização de administrador.</Text>
-            <TextInput
-              label="Motivo do cancelamento (mín. 10 caracteres)"
-              placeholder="Descreva o motivo"
-              value={formCancelarForcado.motivoCancelamento}
-              onChange={(e) => setFormCancelarForcado(prev => ({ ...prev, motivoCancelamento: e.currentTarget.value }))}
-            />
+            <div>
+              <Text size="sm" fw={500} mb={4}>Motivo do cancelamento (mín. 10 caracteres)</Text>
+              <input
+                type="text"
+                placeholder="Descreva o motivo"
+                value={formCancelarForcado.motivoCancelamento}
+                onChange={(e) => setFormCancelarForcado(prev => ({ ...prev, motivoCancelamento: e.target.value }))}
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #dee2e6', borderRadius: 4, fontSize: 14 }}
+              />
+            </div>
             <div>
               <Text size="sm" fw={500} mb={4}>Usuário (admin)</Text>
               <input
