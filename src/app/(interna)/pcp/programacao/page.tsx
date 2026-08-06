@@ -1875,7 +1875,7 @@ export default function ProgramacaoPage() {
                                     <IconX size={14} />
                                   </ActionIcon>
                                 )}
-                                {minhasPermissoes.isPreImpressao && (
+                                {minhasPermissoes.isPreImpressao && centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('corte') && (
                                   <ActionIcon
                                     color={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? 'green' : 'gray'}
                                     variant={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? 'filled' : 'light'}
@@ -2065,7 +2065,7 @@ export default function ProgramacaoPage() {
                                     <IconX size={14} />
                                   </ActionIcon>
                                 )}
-                                {minhasPermissoes.isPreImpressao && (
+                                {minhasPermissoes.isPreImpressao && centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('corte') && (
                                   <ActionIcon
                                     color={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? 'green' : 'gray'}
                                     variant={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? 'filled' : 'light'}
