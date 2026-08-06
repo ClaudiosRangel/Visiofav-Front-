@@ -20,12 +20,13 @@ export default function PermissoesPcpPage() {
   useEffect(() => {
     Promise.all([
       api.get('/pcp/permissoes').catch((err) => { console.error('Erro /pcp/permissoes:', err?.response?.status, err?.response?.data); return { data: [] } }),
-      api.get('/tipos-processo').catch((err) => { console.error('Erro /tipos-processo:', err?.response?.status, err?.response?.data); return { data: [] } }),
+      api.get('/tipos-processo', { params: { status: 'true' } }).catch((err) => { console.error('Erro /tipos-processo:', err?.response?.status, err?.response?.data); return { data: { data: [] } } }),
     ]).then(([permRes, tiposRes]) => {
       const dados = permRes.data
       console.log('Permissoes response:', dados)
       setUsuarios(Array.isArray(dados) ? dados : [])
-      setTiposProcesso(Array.isArray(tiposRes.data) ? tiposRes.data : [])
+      const tiposData = tiposRes.data?.data || tiposRes.data || []
+      setTiposProcesso(Array.isArray(tiposData) ? tiposData : [])
       if (!Array.isArray(dados) || dados.length === 0) {
         notifications.show({ title: 'Aviso', message: `Resposta da API: ${JSON.stringify(dados).substring(0, 200)}`, color: 'yellow' })
       }
