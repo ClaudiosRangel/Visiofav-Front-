@@ -380,7 +380,12 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
         ],
       },
       { icon: IconSettings, label: 'Configuração PCP', href: '/pcp/configuracao' },
-      { icon: IconKey, label: 'Permissões Programação', href: '/pcp/permissoes' },
+      {
+        label: 'Permissões', icon: IconKey, items: [
+          { icon: IconKey, label: 'Acesso (Menus)', href: '/pcp/permissoes/acesso' },
+          { icon: IconSettings, label: 'Programação', href: '/pcp/permissoes' },
+        ],
+      },
       { icon: IconHistory, label: 'Logs de Auditoria', href: '/pcp/logs' },
     ],
   },
