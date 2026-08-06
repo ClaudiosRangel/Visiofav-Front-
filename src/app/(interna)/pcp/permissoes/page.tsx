@@ -121,21 +121,44 @@ export default function PermissoesPcpPage() {
               placeholder="Todos os processos"
             />
 
-            <Text size="sm" fw={600} mt="xs">Ações permitidas</Text>
-            <Group gap="md" wrap="wrap">
-              <Checkbox label="Iniciar" checked={formPermissoes.podeIniciar ?? true} onChange={(e) => setFormPermissoes((p: any) => ({ ...p, podeIniciar: e.currentTarget.checked }))} />
-              <Checkbox label="Finalizar" checked={formPermissoes.podeFinalizar ?? true} onChange={(e) => setFormPermissoes((p: any) => ({ ...p, podeFinalizar: e.currentTarget.checked }))} />
-              <Checkbox label="Pausar" checked={formPermissoes.podePausar ?? true} onChange={(e) => setFormPermissoes((p: any) => ({ ...p, podePausar: e.currentTarget.checked }))} />
-              <Checkbox label="Apontar" checked={formPermissoes.podeApontar ?? true} onChange={(e) => setFormPermissoes((p: any) => ({ ...p, podeApontar: e.currentTarget.checked }))} />
-              <Checkbox label="Mover p/ grupo" checked={formPermissoes.podeMover ?? true} onChange={(e) => setFormPermissoes((p: any) => ({ ...p, podeMover: e.currentTarget.checked }))} />
-              <Checkbox label="Desmembrar" checked={formPermissoes.podeDesmembrar ?? true} onChange={(e) => setFormPermissoes((p: any) => ({ ...p, podeDesmembrar: e.currentTarget.checked }))} />
-              <Checkbox label="Re-extrair PDF" checked={formPermissoes.podeReextrair ?? true} onChange={(e) => setFormPermissoes((p: any) => ({ ...p, podeReextrair: e.currentTarget.checked }))} />
-              <Checkbox label="Alterar prioridade" checked={formPermissoes.podeAlterarPrioridade ?? true} onChange={(e) => setFormPermissoes((p: any) => ({ ...p, podeAlterarPrioridade: e.currentTarget.checked }))} />
-              <Checkbox label="Postergar entrega" checked={formPermissoes.podePostergarEntrega ?? true} onChange={(e) => setFormPermissoes((p: any) => ({ ...p, podePostergarEntrega: e.currentTarget.checked }))} />
-              <Checkbox label="Editar acompanhamento" checked={formPermissoes.podeEditarObservacao ?? true} onChange={(e) => setFormPermissoes((p: any) => ({ ...p, podeEditarObservacao: e.currentTarget.checked }))} />
-            </Group>
+            <Text size="sm" fw={600} mt="md">Ações permitidas por Tipo de Processo</Text>
+            <Text size="xs" c="dimmed">Configure quais ações o usuário pode executar em cada tipo de processo</Text>
 
-            <Text size="sm" fw={600} mt="xs">Organização</Text>
+            {tiposProcesso.map((tp: any) => {
+              const tpKey = tp.id
+              const permsProcesso = formPermissoes.permissoesPorProcesso?.[tpKey] || {}
+              const getVal = (campo: string) => permsProcesso[campo] ?? true
+
+              function setVal(campo: string, valor: boolean) {
+                setFormPermissoes((p: any) => ({
+                  ...p,
+                  permissoesPorProcesso: {
+                    ...(p.permissoesPorProcesso || {}),
+                    [tpKey]: { ...(p.permissoesPorProcesso?.[tpKey] || {}), [campo]: valor },
+                  },
+                }))
+              }
+
+              return (
+                <Card key={tp.id} withBorder padding="xs" mb="xs">
+                  <Text size="sm" fw={600} mb={4}>{tp.descricao || tp.codigo}</Text>
+                  <Group gap="sm" wrap="wrap">
+                    <Checkbox size="xs" label="Iniciar" checked={getVal('podeIniciar')} onChange={(e) => setVal('podeIniciar', e.currentTarget.checked)} />
+                    <Checkbox size="xs" label="Finalizar" checked={getVal('podeFinalizar')} onChange={(e) => setVal('podeFinalizar', e.currentTarget.checked)} />
+                    <Checkbox size="xs" label="Pausar" checked={getVal('podePausar')} onChange={(e) => setVal('podePausar', e.currentTarget.checked)} />
+                    <Checkbox size="xs" label="Apontar" checked={getVal('podeApontar')} onChange={(e) => setVal('podeApontar', e.currentTarget.checked)} />
+                    <Checkbox size="xs" label="Mover" checked={getVal('podeMover')} onChange={(e) => setVal('podeMover', e.currentTarget.checked)} />
+                    <Checkbox size="xs" label="Desmembrar" checked={getVal('podeDesmembrar')} onChange={(e) => setVal('podeDesmembrar', e.currentTarget.checked)} />
+                    <Checkbox size="xs" label="Re-extrair" checked={getVal('podeReextrair')} onChange={(e) => setVal('podeReextrair', e.currentTarget.checked)} />
+                    <Checkbox size="xs" label="Prioridade" checked={getVal('podeAlterarPrioridade')} onChange={(e) => setVal('podeAlterarPrioridade', e.currentTarget.checked)} />
+                    <Checkbox size="xs" label="Postergar" checked={getVal('podePostergarEntrega')} onChange={(e) => setVal('podePostergarEntrega', e.currentTarget.checked)} />
+                    <Checkbox size="xs" label="Acomp." checked={getVal('podeEditarObservacao')} onChange={(e) => setVal('podeEditarObservacao', e.currentTarget.checked)} />
+                  </Group>
+                </Card>
+              )
+            })}
+
+            <Text size="sm" fw={600} mt="xs">Organização (global)</Text>
             <Group gap="md" wrap="wrap">
               <Checkbox label="Reordenar fila (drag OPs)" checked={formPermissoes.podeReordenarFila ?? true} onChange={(e) => setFormPermissoes((p: any) => ({ ...p, podeReordenarFila: e.currentTarget.checked }))} />
               <Checkbox label="Reordenar grupos (drag centros)" checked={formPermissoes.podeReordenarGrupos ?? true} onChange={(e) => setFormPermissoes((p: any) => ({ ...p, podeReordenarGrupos: e.currentTarget.checked }))} />
