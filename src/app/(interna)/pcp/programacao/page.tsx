@@ -1584,9 +1584,9 @@ export default function ProgramacaoPage() {
                         size="sm"
                         style={{ cursor: 'pointer', minHeight: 20 }}
                         onClick={() => setEditingObs({ id: item.id, value: item.observacaoOperador || '' })}
-                        c={item.observacaoOperador ? undefined : 'dimmed'}
+                        c={item.observacaoOperador?.replace('[MATRIZ_OK]', '').trim() ? undefined : 'dimmed'}
                       >
-                        {item.observacaoOperador || 'Clique para editar'}
+                        {item.observacaoOperador?.replace('[MATRIZ_OK]', '').trim() || 'Clique para editar'}
                       </Text>
                     )}
                   </Table.Td>
@@ -1828,9 +1828,9 @@ export default function ProgramacaoPage() {
                                   size="sm"
                                   style={{ cursor: 'pointer', minHeight: 20 }}
                                   onClick={() => setEditingObs({ id: etapa.id, value: etapa.observacaoOperador || '' })}
-                                  c={etapa.observacaoOperador ? undefined : 'dimmed'}
+                                  c={etapa.observacaoOperador?.replace('[MATRIZ_OK]', '').trim() ? undefined : 'dimmed'}
                                 >
-                                  {etapa.observacaoOperador || 'Clique para editar'}
+                                  {etapa.observacaoOperador?.replace('[MATRIZ_OK]', '').trim() || 'Clique para editar'}
                                 </Text>
                               )}
                             </Table.Td>
@@ -1989,7 +1989,7 @@ export default function ProgramacaoPage() {
                               </Text>
                             </Table.Td>
                             <Table.Td><Text size="xs" fw={600} c={STATUS_COLORS[etapa.status]} style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>{etapa.status === 'EM_ANDAMENTO' ? 'EM ANDAMENTO' : etapa.status}</Text></Table.Td>
-                            <Table.Td><Text size="xs" fw={500}>{etapa.matriz || '—'}</Text></Table.Td>
+                            <Table.Td style={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? { background: '#2f9e44', borderRadius: 2 } : undefined}><Text size="xs" fw={500} c={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? 'white' : undefined}>{etapa.matriz || '—'}</Text></Table.Td>
                             <Table.Td><Text size="xs" fw={600} c="indigo">{etapa.qtdCores || '—'}</Text></Table.Td>
                             <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone01 || '—'}</Text></Table.Td>
                             <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone02 || '—'}</Text></Table.Td>
@@ -2010,9 +2010,9 @@ export default function ProgramacaoPage() {
                                   size="sm"
                                   style={{ cursor: 'pointer', minHeight: 20 }}
                                   onClick={() => setEditingObs({ id: etapa.id, value: etapa.observacaoOperador || '' })}
-                                  c={etapa.observacaoOperador ? undefined : 'dimmed'}
+                                  c={etapa.observacaoOperador?.replace('[MATRIZ_OK]', '').trim() ? undefined : 'dimmed'}
                                 >
-                                  {etapa.observacaoOperador || 'Clique para editar'}
+                                  {etapa.observacaoOperador?.replace('[MATRIZ_OK]', '').trim() || 'Clique para editar'}
                                 </Text>
                               )}
                             </Table.Td>
