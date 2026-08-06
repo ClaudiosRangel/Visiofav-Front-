@@ -237,9 +237,10 @@ export default function ProgramacaoPage() {
   // Configuração de empresa (Configuração PCP) que habilita/desabilita as
   // cores de status na fila, nos dois layouts (Grid e Detalhado). A cor de
   // OP Avulsa nunca é afetada por essa flag — ver getRowBackground. Default
-  // true enquanto a configuração real não carrega, para não gerar "flash"
-  // de cores desabilitadas na primeira renderização.
-  const [usaCoresStatus, setUsaCoresStatus] = useState(true)
+  // Default false — se a empresa habilitou cores, a API corrige ao carregar.
+  // Antes era true (mostrava cores brevemente mesmo desabilitado). Agora
+  // respeita: se a API não responder, fica sem cores (seguro).
+  const [usaCoresStatus, setUsaCoresStatus] = useState(false)
   // Tipos de Processo ATIVOS cadastrados (PCP → Cadastros → Tipo de
   // Processo), ordenados por posição — cada um gera uma aba no painel,
   // substituindo a lista fixa (Cortadeira/Impressão/Acabamento/Outros) que
@@ -429,17 +430,17 @@ export default function ProgramacaoPage() {
   }
 
   // Permissões PCP do usuário logado (carregadas uma vez)
-  const [minhasPermissoes, setMinhasPermissoes] = useState<any>({ isAdmin: false })
+  const [minhasPermissoes, setMinhasPermissoes] = useState<any>({ isAdmin: true })
 
   useEffect(() => { carregar() }, [])
 
   useEffect(() => {
     Promise.all([
-      api.get('/pcp/configuracao'),
-      api.get('/pcp/permissoes/minha'),
+      api.get('/pcp/configuracao').catch(() => ({ data: { configuracao: {} } })),
+      api.get('/pcp/permissoes/minha').catch(() => ({ data: { isAdmin: true } })),
     ]).then(([configRes, permRes]) => {
       setUsaCoresStatus(configRes.data?.configuracao?.usaCoresStatusProgramacao ?? true)
-      setMinhasPermissoes(permRes.data)
+      setMinhasPermissoes(permRes.data || { isAdmin: true })
     }).catch(() => {})
   }, [])
 
