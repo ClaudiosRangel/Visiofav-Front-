@@ -1875,7 +1875,7 @@ export default function ProgramacaoPage() {
                                     <IconX size={14} />
                                   </ActionIcon>
                                 )}
-                                {minhasPermissoes.isPreImpressao && centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('corte') && (
+                                {minhasPermissoes.isPreImpressao && (centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('corte') || centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('impress')) && (
                                   <ActionIcon
                                     color={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? 'green' : 'gray'}
                                     variant={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? 'filled' : 'light'}
@@ -1943,6 +1943,9 @@ export default function ProgramacaoPage() {
                           <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa, usaCoresStatus)} highlighted={highlightedEtapa === etapa.id} selected={selectedEtapas.has(etapa.id)} onToggleSelect={() => toggleSelectEtapa(etapa.id)}>
                             <Table.Td style={{ minWidth: 200 }}>
                               <Group gap={4} wrap="nowrap">
+                                {etapa.observacaoOperador?.includes('[MATRIZ_OK]') && centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('impress') && (
+                                  <span style={{ color: '#2f9e44', fontWeight: 'bold', fontSize: 16 }}>✓</span>
+                                )}
                                 <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
                                   {etapa.opNumero} — {etapa.clienteNome || etapa.observacoes?.match(/\[Cliente\]\s*(.+)/)?.[1] || '—'}
                                 </Text>
@@ -1989,7 +1992,7 @@ export default function ProgramacaoPage() {
                               </Text>
                             </Table.Td>
                             <Table.Td><Text size="xs" fw={600} c={STATUS_COLORS[etapa.status]} style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>{etapa.status === 'EM_ANDAMENTO' ? 'EM ANDAMENTO' : etapa.status}</Text></Table.Td>
-                            <Table.Td style={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? { background: '#2f9e44', borderRadius: 2 } : undefined}><Text size="xs" fw={500} c={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? 'white' : undefined}>{etapa.matriz || '—'}</Text></Table.Td>
+                            <Table.Td style={etapa.observacaoOperador?.includes('[MATRIZ_OK]') && centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('corte') ? { background: '#2f9e44', borderRadius: 2 } : undefined}><Text size="xs" fw={500} c={etapa.observacaoOperador?.includes('[MATRIZ_OK]') && centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('corte') ? 'white' : undefined}>{etapa.matriz || '—'}</Text></Table.Td>
                             <Table.Td><Text size="xs" fw={600} c="indigo">{etapa.qtdCores || '—'}</Text></Table.Td>
                             <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone01 || '—'}</Text></Table.Td>
                             <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone02 || '—'}</Text></Table.Td>
@@ -2065,7 +2068,7 @@ export default function ProgramacaoPage() {
                                     <IconX size={14} />
                                   </ActionIcon>
                                 )}
-                                {minhasPermissoes.isPreImpressao && centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('corte') && (
+                                {minhasPermissoes.isPreImpressao && (centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('corte') || centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('impress')) && (
                                   <ActionIcon
                                     color={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? 'green' : 'gray'}
                                     variant={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? 'filled' : 'light'}
