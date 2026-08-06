@@ -71,7 +71,7 @@ export default function PermissoesPcpPage() {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {usuarios.filter((u: any) => u.perfil !== 'ADMIN' && u.perfil !== 'SUPER_ADMIN').map((u: any) => (
+            {usuarios.filter((u: any) => u.perfil !== 'SUPER_ADMIN').map((u: any) => (
               <Table.Tr key={u.usuarioId}>
                 <Table.Td>
                   <Text size="sm" fw={500}>{u.nome}</Text>
@@ -90,6 +90,13 @@ export default function PermissoesPcpPage() {
                 </Table.Td>
               </Table.Tr>
             ))}
+            {usuarios.filter((u: any) => u.perfil !== 'SUPER_ADMIN').length === 0 && (
+              <Table.Tr>
+                <Table.Td colSpan={5}>
+                  <Text ta="center" c="dimmed" py="md">Nenhum usuário encontrado. Verifique se há usuários cadastrados em Configurador → Usuários vinculados a esta empresa.</Text>
+                </Table.Td>
+              </Table.Tr>
+            )}
           </Table.Tbody>
         </Table>
       </Card>
