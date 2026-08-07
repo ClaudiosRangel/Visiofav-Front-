@@ -27,6 +27,9 @@ export default function DetalheOpPage() {
   const [editandoQtdProduzida, setEditandoQtdProduzida] = useState(false)
   const [qtdProduzidaInput, setQtdProduzidaInput] = useState<number | ''>(0)
   const [salvandoQtdProduzida, setSalvandoQtdProduzida] = useState(false)
+  // Edição do nome do produto (tag [Produto] nas observações)
+  const [editandoProdutoNome, setEditandoProdutoNome] = useState(false)
+  const [produtoNomeInput, setProdutoNomeInput] = useState('')
   // Criar etapa manualmente na OP visualizada (aba Etapas)
   const [modalNovaEtapa, setModalNovaEtapa] = useState(false)
   const [centrosDisponiveis, setCentrosDisponiveis] = useState<any[]>([])
@@ -73,6 +76,26 @@ export default function DetalheOpPage() {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar', color: 'red' })
     } finally {
       setSalvandoQtdProduzida(false)
+    }
+  }
+
+  async function salvarProdutoNome() {
+    const novoNome = produtoNomeInput.trim()
+    if (!novoNome) return
+    try {
+      // Atualiza a tag [Produto] nas observações da OP
+      let obs = op.observacoes || ''
+      if (obs.includes('[Produto]')) {
+        obs = obs.replace(/\[Produto\]\s*.+?(?:\n|$)/, `[Produto] ${novoNome}\n`)
+      } else {
+        obs = `[Produto] ${novoNome}\n${obs}`
+      }
+      await api.patch(`/ordens-producao/${id}`, { observacoes: obs.trim() })
+      setOp((prev: any) => ({ ...prev, observacoes: obs.trim(), produtoNome: novoNome }))
+      setEditandoProdutoNome(false)
+      notifications.show({ title: 'Produto atualizado', message: novoNome, color: 'green' })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar', color: 'red' })
     }
   }
 
@@ -263,7 +286,36 @@ export default function DetalheOpPage() {
       {/* Cabeçalho */}
       <Card withBorder>
         <Group grow>
-          <div><Text size="xs" c="dimmed">Produto</Text><Text fw={600}>{op.produtoNome || op.produtoId}</Text></div>
+          <div>
+            <Text size="xs" c="dimmed">Produto</Text>
+            {editandoProdutoNome ? (
+              <Group gap={4} wrap="nowrap">
+                <input
+                  type="text"
+                  value={produtoNomeInput}
+                  onChange={(e) => setProdutoNomeInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') salvarProdutoNome(); if (e.key === 'Escape') setEditandoProdutoNome(false) }}
+                  autoFocus
+                  style={{ flex: 1, padding: '4px 8px', border: '1px solid #dee2e6', borderRadius: 4, fontSize: 13 }}
+                />
+                <ActionIcon size="sm" color="green" variant="light" onClick={salvarProdutoNome} title="Salvar">
+                  <IconCheck size={14} />
+                </ActionIcon>
+                <ActionIcon size="sm" color="gray" variant="light" onClick={() => setEditandoProdutoNome(false)} title="Cancelar">
+                  <IconX size={14} />
+                </ActionIcon>
+              </Group>
+            ) : (
+              <Group gap={4} wrap="nowrap">
+                <Text fw={600}>{op.produtoNome || op.produtoId}</Text>
+                <Tooltip label="Editar nome do produto">
+                  <ActionIcon size="sm" variant="subtle" color="gray" onClick={() => { setProdutoNomeInput(op.produtoNome || ''); setEditandoProdutoNome(true) }}>
+                    <IconPencil size={14} />
+                  </ActionIcon>
+                </Tooltip>
+              </Group>
+            )}
+          </div>
           <div><Text size="xs" c="dimmed">Quantidade</Text><Text fw={600}>{Number(op.quantidade)} {op.unidadeMedida}{Number(op.quantidadeExcedente) > 0 ? ` (+${Number(op.quantidadeExcedente)} excedente)` : ''}</Text></div>
           <div>
             <Text size="xs" c="dimmed">Quantidade Produzida</Text>
