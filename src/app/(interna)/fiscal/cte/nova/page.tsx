@@ -1,256 +1,732 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { notifications } from '@mantine/notifications'
 import {
-  IconFileText,
-  IconUser,
-  IconPackage,
-  IconCash,
-} from '@tabler/icons-react'
+  Paper,
+  Title,
+  Stepper,
+  Button,
+  Group,
+  Grid,
+  TextInput,
+  NumberInput,
+  Select,
+  Textarea,
+  Divider,
+  ActionIcon,
+  Text,
+  Badge,
+  Accordion,
+  Stack,
+} from '@mantine/core'
+import { notifications } from '@mantine/notifications'
+import { IconPlus, IconTrash } from '@tabler/icons-react'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
-import { FormularioEmissao, type StepConfig } from '@/components/fiscal/FormularioEmissao'
 import { useCte } from '@/data/hooks/fiscal/useCte'
 
-const steps: StepConfig[] = [
-  {
-    label: 'Dados Gerais',
-    icon: IconFileText,
-    fields: [
-      {
-        name: 'naturezaOp',
-        label: 'Natureza da Operação',
-        type: 'text',
-        required: true,
-        span: 6,
-      },
-      {
-        name: 'tipoServico',
-        label: 'Tipo de Serviço',
-        type: 'select',
-        required: true,
-        span: 6,
-        options: [
-          { value: '0', label: '0 - Normal' },
-          { value: '1', label: '1 - Subcontratação' },
-          { value: '2', label: '2 - Redespacho' },
-          { value: '3', label: '3 - Redespacho Intermediário' },
-          { value: '4', label: '4 - Serviço Vinculado a Multimodal' },
-        ],
-      },
-      {
-        name: 'cfop',
-        label: 'CFOP',
-        type: 'text',
-        required: true,
-        span: 6,
-      },
-      {
-        name: 'dataEmissao',
-        label: 'Data de Emissão',
-        type: 'date',
-        required: true,
-        span: 6,
-      },
-    ],
-  },
-  {
-    label: 'Tomador',
-    icon: IconUser,
-    fields: [
-      {
-        name: 'cpfCnpj',
-        label: 'CPF/CNPJ',
-        type: 'text',
-        required: true,
-        span: 6,
-      },
-      {
-        name: 'razaoSocial',
-        label: 'Razão Social',
-        type: 'text',
-        required: true,
-        span: 6,
-      },
-      {
-        name: 'ie',
-        label: 'Inscrição Estadual',
-        type: 'text',
-        span: 6,
-      },
-      {
-        name: 'uf',
-        label: 'UF',
-        type: 'text',
-        required: true,
-        span: 6,
-      },
-    ],
-  },
-  {
-    label: 'Dados da Carga',
-    icon: IconPackage,
-    fields: [
-      {
-        name: 'valorCarga',
-        label: 'Valor da Carga',
-        type: 'number',
-        required: true,
-        span: 6,
-      },
-      {
-        name: 'descricaoProduto',
-        label: 'Descrição do Produto Predominante',
-        type: 'text',
-        required: true,
-        span: 6,
-      },
-      {
-        name: 'pesoBruto',
-        label: 'Peso Bruto (kg)',
-        type: 'number',
-        span: 6,
-      },
-      {
-        name: 'ufOrigem',
-        label: 'UF Origem',
-        type: 'text',
-        required: true,
-        span: 6,
-      },
-      {
-        name: 'ufDestino',
-        label: 'UF Destino',
-        type: 'text',
-        required: true,
-        span: 6,
-      },
-    ],
-  },
-  {
-    label: 'Pagamento',
-    icon: IconCash,
-    fields: [
-      {
-        name: 'formaPagamento',
-        label: 'Forma de Pagamento',
-        type: 'select',
-        required: true,
-        span: 6,
-        options: [
-          { value: '01', label: '01 - Dinheiro' },
-          { value: '02', label: '02 - Cheque' },
-          { value: '03', label: '03 - Cartão de Crédito' },
-          { value: '04', label: '04 - Cartão de Débito' },
-          { value: '15', label: '15 - Boleto Bancário' },
-          { value: '16', label: '16 - Depósito Bancário' },
-          { value: '17', label: '17 - PIX' },
-          { value: '90', label: '90 - Sem Pagamento' },
-          { value: '99', label: '99 - Outros' },
-        ],
-      },
-      {
-        name: 'valorPrestacao',
-        label: 'Valor da Prestação de Serviço',
-        type: 'number',
-        required: true,
-        span: 6,
-      },
-    ],
-  },
+const TIPOS_SERVICO = [
+  { value: '0', label: '0 - Normal' },
+  { value: '1', label: '1 - Subcontratação' },
+  { value: '2', label: '2 - Redespacho' },
+  { value: '3', label: '3 - Redespacho Intermediário' },
+  { value: '4', label: '4 - Serviço Vinculado a Multimodal' },
 ]
+
+const MODAIS = [
+  { value: '01', label: '01 - Rodoviário' },
+  { value: '02', label: '02 - Aéreo' },
+  { value: '03', label: '03 - Aquaviário' },
+  { value: '04', label: '04 - Ferroviário' },
+  { value: '05', label: '05 - Dutoviário' },
+  { value: '06', label: '06 - Multimodal' },
+]
+
+const TIPOS_TOMADOR = [
+  { value: '0', label: '0 - Remetente' },
+  { value: '1', label: '1 - Expedidor' },
+  { value: '2', label: '2 - Recebedor' },
+  { value: '3', label: '3 - Destinatário' },
+  { value: '4', label: '4 - Outros' },
+]
+
+const CST_ICMS = [
+  { value: '00', label: '00 - Tributação normal' },
+  { value: '20', label: '20 - Com redução de BC' },
+  { value: '40', label: '40 - Isenta' },
+  { value: '41', label: '41 - Não tributada' },
+  { value: '51', label: '51 - Diferido' },
+  { value: '60', label: '60 - ICMS cobrado anteriormente por ST' },
+  { value: '90', label: '90 - Outros' },
+  { value: 'SN', label: 'SN - Simples Nacional' },
+]
+
+const RESP_SEGURO = [
+  { value: '0', label: '0 - Remetente' },
+  { value: '1', label: '1 - Expedidor' },
+  { value: '2', label: '2 - Recebedor' },
+  { value: '3', label: '3 - Destinatário' },
+  { value: '4', label: '4 - Emitente do CT-e' },
+  { value: '5', label: '5 - Tomador do Serviço' },
+]
+
+const UFS = [
+  'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG',
+  'PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO',
+].map(uf => ({ value: uf, label: uf }))
+
+interface Participante {
+  cnpj: string
+  cpf: string
+  ie: string
+  razaoSocial: string
+  nomeFantasia: string
+  logradouro: string
+  numero: string
+  complemento: string
+  bairro: string
+  codigoMunicipio: string
+  municipio: string
+  uf: string
+  cep: string
+  email: string
+  telefone: string
+}
+
+interface NFeVinculada {
+  chave: string
+}
+
+interface SeguroItem {
+  respSeg: string
+  xSeg: string
+  nApol: string
+  nAver: string
+  vCarga: number
+}
+
+interface ValePedagioItem {
+  cnpjForn: string
+  cnpjPg: string
+  nCompra: string
+  vValePed: number
+}
+
+function participanteVazio(): Participante {
+  return {
+    cnpj: '', cpf: '', ie: '', razaoSocial: '', nomeFantasia: '',
+    logradouro: '', numero: '', complemento: '', bairro: '',
+    codigoMunicipio: '', municipio: '', uf: '', cep: '', email: '', telefone: '',
+  }
+}
 
 export default function CteNovaPage() {
   useModuloGuard('FISCAL')
-  useEffect(() => { document.title = 'Vizor - Fiscal - Novo CT-e' }, [])
+  useEffect(() => { document.title = 'Vizor - Emissão de CT-e' }, [])
 
   const router = useRouter()
   const { useEmitir } = useCte()
   const emitirMutation = useEmitir()
 
-  async function handleSubmit(dados: Record<string, any>) {
-    const payload = {
-      naturezaOp: dados.naturezaOp || '',
-      tipoServico: Number(dados.tipoServico) || 0,
-      cfop: dados.cfop || '',
-      dataEmissao: dados.dataEmissao
-        ? new Date(dados.dataEmissao).toISOString()
-        : new Date().toISOString(),
-      tomador: {
-        cpfCnpj: dados.cpfCnpj || '',
-        razaoSocial: dados.razaoSocial || '',
-        ie: dados.ie || undefined,
-        uf: dados.uf || '',
-      },
-      carga: {
-        valorCarga: Number(dados.valorCarga) || 0,
-        descricaoProduto: dados.descricaoProduto || '',
-        pesoBruto: dados.pesoBruto ? Number(dados.pesoBruto) : undefined,
-        ufOrigem: dados.ufOrigem || '',
-        ufDestino: dados.ufDestino || '',
-      },
-      pagamento: {
-        formaPagamento: dados.formaPagamento || '01',
-        valorPrestacao: Number(dados.valorPrestacao) || 0,
-      },
-    }
+  const [active, setActive] = useState(0)
 
-    return new Promise<void>((resolve, reject) => {
-      emitirMutation.mutate(payload, {
-        onSuccess: (response: any) => {
-          const status = response?.status || response?.documento?.status
+  // Step 1 — Dados Gerais
+  const [naturezaOp, setNaturezaOp] = useState('PRESTACAO DE SERVICO DE TRANSPORTE')
+  const [cfop, setCfop] = useState('5353')
+  const [tpServ, setTpServ] = useState('0')
+  const [modal, setModal] = useState('01')
+  const [tpCTe, setTpCTe] = useState('0')
+  const [serie, setSerie] = useState(1)
 
-          if (status === 'AUTORIZADA') {
-            notifications.show({
-              title: 'CT-e Autorizado',
-              message: `Protocolo: ${response?.protocolo || response?.documento?.protocolo || 'N/A'}`,
-              color: 'green',
-            })
-            router.push('/fiscal/cte')
-          } else if (status === 'REJEITADA') {
-            notifications.show({
-              title: 'CT-e Rejeitado',
-              message: response?.motivo || response?.erros?.[0] || 'Documento rejeitado pela SEFAZ',
-              color: 'red',
-            })
-          } else if (status === 'CONTINGENCIA') {
-            notifications.show({
-              title: 'Contingência',
-              message: 'Documento enfileirado para retransmissão quando o serviço normalizar',
-              color: 'blue',
-            })
-            router.push('/fiscal/cte')
-          } else {
-            notifications.show({
-              title: 'Sucesso',
-              message: 'CT-e enviado para processamento',
-              color: 'green',
-            })
-            router.push('/fiscal/cte')
-          }
+  // Origem/Destino
+  const [cMunIni, setCMunIni] = useState('')
+  const [xMunIni, setXMunIni] = useState('')
+  const [ufIni, setUfIni] = useState('')
+  const [cMunFim, setCMunFim] = useState('')
+  const [xMunFim, setXMunFim] = useState('')
+  const [ufFim, setUfFim] = useState('')
 
-          resolve()
+  // Step 2 — Tomador
+  const [tpTom, setTpTom] = useState('0')
+  const [indIEToma, setIndIEToma] = useState('9')
+
+  // Step 3 — Participantes
+  const [remetente, setRemetente] = useState<Participante>(participanteVazio())
+  const [destinatario, setDestinatario] = useState<Participante>(participanteVazio())
+
+  // Step 4 — Carga
+  const [proPred, setProPred] = useState('')
+  const [vCarga, setVCarga] = useState<number>(0)
+  const [pesoBruto, setPesoBruto] = useState<number>(0)
+  const [nfesVinculadas, setNfesVinculadas] = useState<NFeVinculada[]>([{ chave: '' }])
+
+  // Step 5 — Valor da Prestação
+  const [vTPrest, setVTPrest] = useState<number>(0)
+  const [vRec, setVRec] = useState<number>(0)
+
+  // Step 6 — ICMS
+  const [cstIcms, setCstIcms] = useState('00')
+  const [bcIcms, setBcIcms] = useState<number>(0)
+  const [aliqIcms, setAliqIcms] = useState<number>(0)
+  const [valorIcms, setValorIcms] = useState<number>(0)
+
+  // Step 7 — Seguros
+  const [seguros, setSeguros] = useState<SeguroItem[]>([])
+
+  // Step 8 — Vale-Pedágio
+  const [valesPedagio, setValesPedagio] = useState<ValePedagioItem[]>([])
+
+  // Step 9 — Observações
+  const [infCpl, setInfCpl] = useState('')
+  const [rntrc, setRntrc] = useState('')
+
+  const totalSteps = 7
+
+  function adicionarNFe() {
+    setNfesVinculadas([...nfesVinculadas, { chave: '' }])
+  }
+
+  function removerNFe(index: number) {
+    setNfesVinculadas(nfesVinculadas.filter((_, i) => i !== index))
+  }
+
+  function adicionarSeguro() {
+    setSeguros([...seguros, { respSeg: '4', xSeg: '', nApol: '', nAver: '', vCarga: 0 }])
+  }
+
+  function adicionarValePedagio() {
+    setValesPedagio([...valesPedagio, { cnpjForn: '', cnpjPg: '', nCompra: '', vValePed: 0 }])
+  }
+
+  function montarPayload() {
+    const formatPart = (p: Participante) => ({
+      cnpj: p.cnpj || undefined,
+      cpf: p.cpf || undefined,
+      ie: p.ie || undefined,
+      razaoSocial: p.razaoSocial,
+      nomeFantasia: p.nomeFantasia || undefined,
+      endereco: {
+        logradouro: p.logradouro,
+        numero: p.numero,
+        complemento: p.complemento || undefined,
+        bairro: p.bairro,
+        codigoMunicipio: p.codigoMunicipio,
+        municipio: p.municipio,
+        uf: p.uf,
+        cep: p.cep,
+      },
+      email: p.email || undefined,
+      telefone: p.telefone || undefined,
+    })
+
+    return {
+      serie,
+      cfop,
+      naturezaOp,
+      tpServ: Number(tpServ),
+      tpCTe: Number(tpCTe),
+      modal,
+      tpEmis: 1,
+      cMunIni, xMunIni, ufIni,
+      cMunFim, xMunFim, ufFim,
+      tpTom: Number(tpTom),
+      indIEToma: Number(indIEToma),
+      remetente: formatPart(remetente),
+      destinatario: formatPart(destinatario),
+      vPrest: {
+        vTPrest: vTPrest,
+        vRec: vRec || vTPrest,
+        componentes: [
+          { nome: 'FRETE VALOR', valor: vTPrest },
+        ],
+      },
+      impostos: {
+        icms: {
+          cst: cstIcms,
+          baseCalculo: bcIcms,
+          aliquota: aliqIcms,
+          valor: valorIcms,
         },
-        onError: (err: any) => {
+      },
+      infCTeNorm: {
+        infCarga: {
+          vCarga,
+          proPred,
+          infQ: [
+            { cUnid: '01', tpMed: 'PESO BRUTO', qCarga: pesoBruto || 1 },
+          ],
+        },
+        infDoc: {
+          infNFe: nfesVinculadas
+            .filter(n => n.chave.length === 44)
+            .map(n => ({ chave: n.chave })),
+        },
+        infModal: rntrc ? { RNTRC: rntrc } : undefined,
+        seguro: seguros.length > 0 ? seguros.map(s => ({
+          respSeg: Number(s.respSeg),
+          xSeg: s.xSeg || undefined,
+          nApol: s.nApol || undefined,
+          nAver: s.nAver || undefined,
+          vCarga: s.vCarga || undefined,
+        })) : undefined,
+        valePedagio: valesPedagio.length > 0 ? valesPedagio.map(v => ({
+          cnpjForn: v.cnpjForn,
+          cnpjPg: v.cnpjPg || undefined,
+          nCompra: v.nCompra,
+          vValePed: v.vValePed,
+        })) : undefined,
+      },
+      infCpl: infCpl || undefined,
+      ambiente: 2,
+    }
+  }
+
+  async function handleEmitir() {
+    const payload = montarPayload()
+    emitirMutation.mutate(payload, {
+      onSuccess: (response: any) => {
+        const status = response?.status || response?.documento?.status
+        if (status === 'AUTORIZADO') {
           notifications.show({
-            title: 'Erro na Emissão',
-            message: err?.response?.data?.message || 'Erro ao emitir CT-e',
+            title: 'CT-e Autorizado',
+            message: `Protocolo: ${response?.protocolo || 'N/A'}`,
+            color: 'green',
+          })
+          router.push('/fiscal/cte')
+        } else if (status === 'REJEITADO') {
+          notifications.show({
+            title: 'CT-e Rejeitado',
+            message: response?.motivoRejeicao || 'Documento rejeitado',
             color: 'red',
           })
-          reject(err)
-        },
-      })
+        } else {
+          notifications.show({
+            title: 'CT-e Processado',
+            message: `Status: ${status}`,
+            color: 'blue',
+          })
+          router.push('/fiscal/cte')
+        }
+      },
+      onError: (err: any) => {
+        notifications.show({
+          title: 'Erro na Emissão',
+          message: err?.response?.data?.message || 'Erro ao emitir CT-e',
+          color: 'red',
+        })
+      },
     })
   }
 
+  function renderParticipanteForm(p: Participante, setP: (v: Participante) => void, titulo: string) {
+    return (
+      <Paper p="md" withBorder>
+        <Text fw={600} mb="sm">{titulo}</Text>
+        <Grid>
+          <Grid.Col span={4}>
+            <TextInput label="CNPJ" value={p.cnpj}
+              onChange={(e) => setP({ ...p, cnpj: e.target.value })} maxLength={14} />
+          </Grid.Col>
+          <Grid.Col span={4}>
+            <TextInput label="CPF" value={p.cpf}
+              onChange={(e) => setP({ ...p, cpf: e.target.value })} maxLength={11} />
+          </Grid.Col>
+          <Grid.Col span={4}>
+            <TextInput label="IE" value={p.ie}
+              onChange={(e) => setP({ ...p, ie: e.target.value })} />
+          </Grid.Col>
+          <Grid.Col span={8}>
+            <TextInput label="Razão Social" value={p.razaoSocial} required
+              onChange={(e) => setP({ ...p, razaoSocial: e.target.value })} />
+          </Grid.Col>
+          <Grid.Col span={4}>
+            <TextInput label="Nome Fantasia" value={p.nomeFantasia}
+              onChange={(e) => setP({ ...p, nomeFantasia: e.target.value })} />
+          </Grid.Col>
+
+          <Grid.Col span={6}>
+            <TextInput label="Logradouro" value={p.logradouro} required
+              onChange={(e) => setP({ ...p, logradouro: e.target.value })} />
+          </Grid.Col>
+          <Grid.Col span={2}>
+            <TextInput label="Número" value={p.numero} required
+              onChange={(e) => setP({ ...p, numero: e.target.value })} />
+          </Grid.Col>
+          <Grid.Col span={4}>
+            <TextInput label="Bairro" value={p.bairro} required
+              onChange={(e) => setP({ ...p, bairro: e.target.value })} />
+          </Grid.Col>
+          <Grid.Col span={3}>
+            <TextInput label="Cód. Município (IBGE)" value={p.codigoMunicipio} required
+              onChange={(e) => setP({ ...p, codigoMunicipio: e.target.value })} maxLength={7} />
+          </Grid.Col>
+          <Grid.Col span={4}>
+            <TextInput label="Município" value={p.municipio} required
+              onChange={(e) => setP({ ...p, municipio: e.target.value })} />
+          </Grid.Col>
+          <Grid.Col span={2}>
+            <Select label="UF" data={UFS} value={p.uf}
+              onChange={(v) => setP({ ...p, uf: v || '' })} searchable />
+          </Grid.Col>
+          <Grid.Col span={3}>
+            <TextInput label="CEP" value={p.cep} required
+              onChange={(e) => setP({ ...p, cep: e.target.value })} maxLength={8} />
+          </Grid.Col>
+          <Grid.Col span={6}>
+            <TextInput label="E-mail" value={p.email}
+              onChange={(e) => setP({ ...p, email: e.target.value })} />
+          </Grid.Col>
+          <Grid.Col span={4}>
+            <TextInput label="Telefone" value={p.telefone}
+              onChange={(e) => setP({ ...p, telefone: e.target.value })} />
+          </Grid.Col>
+        </Grid>
+      </Paper>
+    )
+  }
+
   return (
-    <FormularioEmissao
-      tipo="CTE"
-      steps={steps}
-      onSubmit={handleSubmit}
-      title="Emissão de CT-e"
-      breadcrumb="Início / Fiscal / CT-e / Nova"
-    />
+    <Paper p="md">
+      <Title order={3} mb="lg">Emissão de CT-e</Title>
+      <Text size="sm" c="dimmed" mb="md">Início / Fiscal / CT-e / Nova Emissão</Text>
+
+      <Stepper active={active} onStepClick={setActive} mb="xl" size="sm">
+        <Stepper.Step label="Dados Gerais" />
+        <Stepper.Step label="Participantes" />
+        <Stepper.Step label="Carga" />
+        <Stepper.Step label="Valor / ICMS" />
+        <Stepper.Step label="Seguro / Pedágio" />
+        <Stepper.Step label="NF-e Vinculadas" />
+        <Stepper.Step label="Revisão" />
+      </Stepper>
+
+      {/* Step 0 — Dados Gerais */}
+      {active === 0 && (
+        <Grid>
+          <Grid.Col span={6}>
+            <TextInput label="Natureza da Operação" value={naturezaOp}
+              onChange={(e) => setNaturezaOp(e.target.value)} required />
+          </Grid.Col>
+          <Grid.Col span={3}>
+            <TextInput label="CFOP" value={cfop}
+              onChange={(e) => setCfop(e.target.value)} required maxLength={4} />
+          </Grid.Col>
+          <Grid.Col span={3}>
+            <NumberInput label="Série" value={serie}
+              onChange={(v) => setSerie(Number(v) || 1)} min={0} max={999} />
+          </Grid.Col>
+          <Grid.Col span={4}>
+            <Select label="Tipo de Serviço" data={TIPOS_SERVICO} value={tpServ}
+              onChange={(v) => setTpServ(v || '0')} />
+          </Grid.Col>
+          <Grid.Col span={4}>
+            <Select label="Modal" data={MODAIS} value={modal}
+              onChange={(v) => setModal(v || '01')} />
+          </Grid.Col>
+          <Grid.Col span={4}>
+            <Select label="Tomador" data={TIPOS_TOMADOR} value={tpTom}
+              onChange={(v) => setTpTom(v || '0')} />
+          </Grid.Col>
+
+          <Grid.Col span={12}><Divider label="Origem" /></Grid.Col>
+          <Grid.Col span={3}>
+            <TextInput label="Cód. Município Origem (IBGE)" value={cMunIni}
+              onChange={(e) => setCMunIni(e.target.value)} maxLength={7} required />
+          </Grid.Col>
+          <Grid.Col span={5}>
+            <TextInput label="Município Origem" value={xMunIni}
+              onChange={(e) => setXMunIni(e.target.value)} required />
+          </Grid.Col>
+
+          <Grid.Col span={2}>
+            <Select label="UF Origem" data={UFS} value={ufIni}
+              onChange={(v) => setUfIni(v || '')} searchable />
+          </Grid.Col>
+
+          <Grid.Col span={12}><Divider label="Destino" /></Grid.Col>
+          <Grid.Col span={3}>
+            <TextInput label="Cód. Município Destino (IBGE)" value={cMunFim}
+              onChange={(e) => setCMunFim(e.target.value)} maxLength={7} required />
+          </Grid.Col>
+          <Grid.Col span={5}>
+            <TextInput label="Município Destino" value={xMunFim}
+              onChange={(e) => setXMunFim(e.target.value)} required />
+          </Grid.Col>
+          <Grid.Col span={2}>
+            <Select label="UF Destino" data={UFS} value={ufFim}
+              onChange={(v) => setUfFim(v || '')} searchable />
+          </Grid.Col>
+
+          <Grid.Col span={4}>
+            <TextInput label="RNTRC" value={rntrc}
+              onChange={(e) => setRntrc(e.target.value)} maxLength={8}
+              description="Registro na ANTT" />
+          </Grid.Col>
+        </Grid>
+      )}
+
+      {/* Step 1 — Participantes */}
+      {active === 1 && (
+        <Stack gap="md">
+          {renderParticipanteForm(remetente, setRemetente, 'Remetente')}
+          {renderParticipanteForm(destinatario, setDestinatario, 'Destinatário')}
+        </Stack>
+      )}
+
+      {/* Step 2 — Carga */}
+      {active === 2 && (
+        <Grid>
+          <Grid.Col span={6}>
+            <TextInput label="Produto Predominante" value={proPred}
+              onChange={(e) => setProPred(e.target.value)} required />
+          </Grid.Col>
+          <Grid.Col span={3}>
+            <NumberInput label="Valor da Carga (R$)" value={vCarga}
+              onChange={(v) => setVCarga(Number(v) || 0)} min={0} decimalScale={2} />
+          </Grid.Col>
+          <Grid.Col span={3}>
+            <NumberInput label="Peso Bruto (kg)" value={pesoBruto}
+              onChange={(v) => setPesoBruto(Number(v) || 0)} min={0} decimalScale={4} />
+          </Grid.Col>
+        </Grid>
+      )}
+
+      {/* Step 3 — Valor da Prestação e ICMS */}
+      {active === 3 && (
+        <Grid>
+          <Grid.Col span={12}><Divider label="Valor da Prestação" /></Grid.Col>
+          <Grid.Col span={4}>
+            <NumberInput label="Valor Total da Prestação (R$)" value={vTPrest}
+              onChange={(v) => setVTPrest(Number(v) || 0)} min={0} decimalScale={2} required />
+          </Grid.Col>
+          <Grid.Col span={4}>
+            <NumberInput label="Valor a Receber (R$)" value={vRec}
+              onChange={(v) => setVRec(Number(v) || 0)} min={0} decimalScale={2} />
+          </Grid.Col>
+
+          <Grid.Col span={12}><Divider label="ICMS" /></Grid.Col>
+          <Grid.Col span={4}>
+            <Select label="CST ICMS" data={CST_ICMS} value={cstIcms}
+              onChange={(v) => setCstIcms(v || '00')} />
+          </Grid.Col>
+          <Grid.Col span={3}>
+            <NumberInput label="Base de Cálculo" value={bcIcms}
+              onChange={(v) => setBcIcms(Number(v) || 0)} min={0} decimalScale={2} />
+          </Grid.Col>
+          <Grid.Col span={2}>
+            <NumberInput label="Alíquota (%)" value={aliqIcms}
+              onChange={(v) => setAliqIcms(Number(v) || 0)} min={0} max={100} decimalScale={2} />
+          </Grid.Col>
+          <Grid.Col span={3}>
+            <NumberInput label="Valor ICMS" value={valorIcms}
+              onChange={(v) => setValorIcms(Number(v) || 0)} min={0} decimalScale={2} />
+          </Grid.Col>
+        </Grid>
+      )}
+
+      {/* Step 4 — Seguros e Vale-Pedágio */}
+      {active === 4 && (
+        <Stack gap="md">
+          <Group justify="space-between">
+            <Text fw={600}>Seguros</Text>
+            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={adicionarSeguro}>
+              Adicionar Seguro
+            </Button>
+          </Group>
+          {seguros.map((seg, idx) => (
+            <Paper key={idx} p="sm" withBorder>
+              <Group justify="space-between" mb="xs">
+                <Badge>Seguro {idx + 1}</Badge>
+                <ActionIcon color="red" variant="subtle"
+                  onClick={() => setSeguros(seguros.filter((_, i) => i !== idx))}>
+                  <IconTrash size={14} />
+                </ActionIcon>
+              </Group>
+              <Grid>
+                <Grid.Col span={4}>
+                  <Select label="Responsável" data={RESP_SEGURO} value={seg.respSeg}
+                    onChange={(v) => {
+                      const copy = [...seguros]
+                      copy[idx] = { ...copy[idx], respSeg: v || '4' }
+                      setSeguros(copy)
+                    }} />
+                </Grid.Col>
+
+                <Grid.Col span={4}>
+                  <TextInput label="Seguradora" value={seg.xSeg}
+                    onChange={(e) => {
+                      const copy = [...seguros]
+                      copy[idx] = { ...copy[idx], xSeg: e.target.value }
+                      setSeguros(copy)
+                    }} />
+                </Grid.Col>
+                <Grid.Col span={4}>
+                  <TextInput label="Nº Apólice" value={seg.nApol}
+                    onChange={(e) => {
+                      const copy = [...seguros]
+                      copy[idx] = { ...copy[idx], nApol: e.target.value }
+                      setSeguros(copy)
+                    }} />
+                </Grid.Col>
+                <Grid.Col span={4}>
+                  <TextInput label="Nº Averbação" value={seg.nAver}
+                    onChange={(e) => {
+                      const copy = [...seguros]
+                      copy[idx] = { ...copy[idx], nAver: e.target.value }
+                      setSeguros(copy)
+                    }} />
+                </Grid.Col>
+                <Grid.Col span={4}>
+                  <NumberInput label="Valor p/ Seguro" value={seg.vCarga}
+                    onChange={(v) => {
+                      const copy = [...seguros]
+                      copy[idx] = { ...copy[idx], vCarga: Number(v) || 0 }
+                      setSeguros(copy)
+                    }} min={0} decimalScale={2} />
+                </Grid.Col>
+              </Grid>
+            </Paper>
+          ))}
+
+          <Divider my="md" />
+
+          <Group justify="space-between">
+            <Text fw={600}>Vale-Pedágio</Text>
+            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={adicionarValePedagio}>
+              Adicionar Vale-Pedágio
+            </Button>
+          </Group>
+          {valesPedagio.map((vp, idx) => (
+            <Paper key={idx} p="sm" withBorder>
+              <Group justify="space-between" mb="xs">
+                <Badge color="orange">Vale-Pedágio {idx + 1}</Badge>
+                <ActionIcon color="red" variant="subtle"
+                  onClick={() => setValesPedagio(valesPedagio.filter((_, i) => i !== idx))}>
+                  <IconTrash size={14} />
+                </ActionIcon>
+              </Group>
+              <Grid>
+                <Grid.Col span={4}>
+                  <TextInput label="CNPJ Fornecedor" value={vp.cnpjForn}
+                    onChange={(e) => {
+                      const copy = [...valesPedagio]
+                      copy[idx] = { ...copy[idx], cnpjForn: e.target.value }
+                      setValesPedagio(copy)
+                    }} maxLength={14} />
+                </Grid.Col>
+
+                <Grid.Col span={4}>
+                  <TextInput label="Nº Comprovante" value={vp.nCompra}
+                    onChange={(e) => {
+                      const copy = [...valesPedagio]
+                      copy[idx] = { ...copy[idx], nCompra: e.target.value }
+                      setValesPedagio(copy)
+                    }} />
+                </Grid.Col>
+                <Grid.Col span={4}>
+                  <NumberInput label="Valor" value={vp.vValePed}
+                    onChange={(v) => {
+                      const copy = [...valesPedagio]
+                      copy[idx] = { ...copy[idx], vValePed: Number(v) || 0 }
+                      setValesPedagio(copy)
+                    }} min={0} decimalScale={2} />
+                </Grid.Col>
+              </Grid>
+            </Paper>
+          ))}
+        </Stack>
+      )}
+
+      {/* Step 5 — NF-e Vinculadas */}
+      {active === 5 && (
+        <Stack gap="md">
+          <Group justify="space-between">
+            <Text fw={600}>NF-e Vinculadas ao Transporte</Text>
+            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={adicionarNFe}>
+              Adicionar NF-e
+            </Button>
+          </Group>
+          {nfesVinculadas.map((nfe, idx) => (
+            <Group key={idx}>
+              <TextInput
+                style={{ flex: 1 }}
+                label={`Chave de Acesso NF-e #${idx + 1}`}
+                value={nfe.chave}
+                onChange={(e) => {
+                  const copy = [...nfesVinculadas]
+                  copy[idx] = { chave: e.target.value }
+                  setNfesVinculadas(copy)
+                }}
+                maxLength={44}
+                placeholder="44 dígitos"
+              />
+              {nfesVinculadas.length > 1 && (
+                <ActionIcon color="red" variant="subtle" mt={24} onClick={() => removerNFe(idx)}>
+                  <IconTrash size={14} />
+                </ActionIcon>
+              )}
+            </Group>
+          ))}
+        </Stack>
+      )}
+
+      {/* Step 6 — Revisão */}
+      {active === 6 && (
+        <Paper p="md" withBorder>
+          <Title order={4} mb="md">Resumo da Emissão</Title>
+          <Grid>
+            <Grid.Col span={6}>
+              <Text size="sm"><strong>Natureza:</strong> {naturezaOp}</Text>
+              <Text size="sm"><strong>CFOP:</strong> {cfop}</Text>
+              <Text size="sm"><strong>Modal:</strong> {MODAIS.find(m => m.value === modal)?.label}</Text>
+              <Text size="sm"><strong>Série:</strong> {serie}</Text>
+            </Grid.Col>
+            <Grid.Col span={6}>
+              <Text size="sm"><strong>Remetente:</strong> {remetente.razaoSocial || '—'}</Text>
+              <Text size="sm"><strong>Destinatário:</strong> {destinatario.razaoSocial || '—'}</Text>
+              <Text size="sm"><strong>Origem:</strong> {xMunIni}/{ufIni}</Text>
+              <Text size="sm"><strong>Destino:</strong> {xMunFim}/{ufFim}</Text>
+            </Grid.Col>
+            <Grid.Col span={12}><Divider my="xs" /></Grid.Col>
+            <Grid.Col span={4}>
+              <Text size="sm"><strong>Produto:</strong> {proPred}</Text>
+              <Text size="sm"><strong>Valor Carga:</strong> R$ {vCarga.toFixed(2)}</Text>
+            </Grid.Col>
+            <Grid.Col span={4}>
+              <Text size="sm"><strong>Valor Prestação:</strong> R$ {vTPrest.toFixed(2)}</Text>
+              <Text size="sm"><strong>ICMS:</strong> R$ {valorIcms.toFixed(2)}</Text>
+            </Grid.Col>
+            <Grid.Col span={4}>
+              <Text size="sm"><strong>NF-e vinculadas:</strong> {nfesVinculadas.filter(n => n.chave.length === 44).length}</Text>
+              <Text size="sm"><strong>Seguros:</strong> {seguros.length}</Text>
+              <Text size="sm"><strong>Vale-Pedágio:</strong> {valesPedagio.length}</Text>
+            </Grid.Col>
+          </Grid>
+
+          <Textarea label="Informações Complementares" value={infCpl}
+            onChange={(e) => setInfCpl(e.target.value)} mt="md" rows={3} />
+        </Paper>
+      )}
+
+      {/* Navegação */}
+      <Group justify="space-between" mt="xl">
+        <Button variant="default" disabled={active === 0}
+          onClick={() => setActive(active - 1)}>
+          Anterior
+        </Button>
+        <Group>
+          {active < totalSteps - 1 && (
+            <Button onClick={() => setActive(active + 1)}>
+              Próximo
+            </Button>
+          )}
+          {active === totalSteps - 1 && (
+            <Button color="green" loading={emitirMutation.isPending} onClick={handleEmitir}>
+              Emitir CT-e
+            </Button>
+          )}
+        </Group>
+      </Group>
+    </Paper>
   )
 }
