@@ -87,7 +87,7 @@ export default function EmpresaModal({ opened, onClose, editData }: Props) {
     },
   })
 
-  const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
+  const { control, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
   })
 
@@ -242,6 +242,45 @@ export default function EmpresaModal({ opened, onClose, editData }: Props) {
                 placeholder="00.000.000/0000-00"
                 error={errors.cnpj?.message}
                 {...field}
+                rightSection={
+                  <Button
+                    size="compact-xs"
+                    variant="light"
+                    color="blue"
+                    onClick={async () => {
+                      const cnpjVal = field.value?.replace(/[^\d]/g, '')
+                      if (!cnpjVal || cnpjVal.length !== 14) {
+                        notifications.show({ title: 'CNPJ inválido', message: 'Informe 14 dígitos do CNPJ', color: 'red' })
+                        return
+                      }
+                      try {
+                        notifications.show({ title: 'Consultando...', message: 'Buscando dados do CNPJ na Receita Federal', color: 'blue', loading: true, id: 'cnpj-loading' })
+                        const { data } = await api.get(`/empresas/consulta-cnpj/${cnpjVal}`)
+                        notifications.hide('cnpj-loading')
+                        if (data.razaoSocial) setValue('razaoSocial', data.razaoSocial)
+                        if (data.nomeFantasia) setValue('nomeFantasia', data.nomeFantasia)
+                        if (data.inscEstadual) setValue('inscEstadual', data.inscEstadual)
+                        if (data.telefone) setValue('telefone', data.telefone)
+                        if (data.email) setValue('email', data.email)
+                        if (data.logradouro) setValue('logradouro', data.logradouro)
+                        if (data.numero) setValue('numero', data.numero)
+                        if (data.complemento) setValue('complemento', data.complemento)
+                        if (data.bairro) setValue('bairro', data.bairro)
+                        if (data.cidade) setValue('cidade', data.cidade)
+                        if (data.uf) setValue('uf', data.uf)
+                        if (data.cep) setValue('cep', data.cep)
+                        notifications.show({ title: 'CNPJ encontrado', message: `${data.razaoSocial}`, color: 'green' })
+                      } catch (err: any) {
+                        notifications.hide('cnpj-loading')
+                        notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao consultar CNPJ', color: 'red' })
+                      }
+                    }}
+                    style={{ marginRight: 4 }}
+                  >
+                    Consultar
+                  </Button>
+                }
+                rightSectionWidth={85}
               />
             )} />
           </div>
