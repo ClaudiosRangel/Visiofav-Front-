@@ -47,6 +47,7 @@ const schema = z.object({
   cep: z.string().optional(),
   telefone: z.string().optional(),
   email: z.string().optional(),
+  rntrc: z.string().optional(),
   usaWms: z.boolean().optional(),
   status: z.boolean().optional(),
   logo: z.string().nullable().optional(),
@@ -107,6 +108,7 @@ export default function EmpresaModal({ opened, onClose, editData }: Props) {
         cep: editData.cep || '',
         telefone: editData.telefone || '',
         email: editData.email || '',
+        rntrc: editData.rntrc || '',
         usaWms: editData.usaWms ?? false,
         status: editData.status ?? true,
         logo: inicializarEstadoLogo(editData?.logo),
@@ -127,6 +129,7 @@ export default function EmpresaModal({ opened, onClose, editData }: Props) {
         cep: '',
         telefone: '',
         email: '',
+        rntrc: '',
         usaWms: false,
         status: true,
         logo: inicializarEstadoLogo(editData?.logo),
@@ -304,6 +307,9 @@ export default function EmpresaModal({ opened, onClose, editData }: Props) {
               )} />
               <Controller name="email" control={control} render={({ field }) => (
                 <TextInput label="E-mail" placeholder="contato@empresa.com" {...field} />
+              )} />
+              <Controller name="rntrc" control={control} render={({ field }) => (
+                <TextInput label="RNTRC (ANTT)" placeholder="00000000" description="Registro Nacional de Transportadores Rodoviários de Cargas — obrigatório para emissão de CT-e" maxLength={20} {...field} />
               )} />
             </div>
           </Tabs.Panel>
