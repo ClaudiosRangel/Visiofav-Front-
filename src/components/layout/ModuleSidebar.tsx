@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { UnstyledButton, Stack, Text, Divider, Collapse, Tooltip, Menu, ActionIcon } from '@mantine/core'
 import {
   IconArrowLeft, IconChevronDown, IconChevronRight, IconChevronLeft,
@@ -555,6 +555,17 @@ export default function ModuleSidebar() {
   const moduleName = detectModule(pathname)
   const { usaWms } = useEmpresaAtual()
   const { collapsed, toggle } = useModuleSidebarCollapsed()
+  const [acessoMenusPcp, setAcessoMenusPcp] = useState<Record<string, { habilitado: boolean }> | null>(null)
+
+  // Carregar permissões de acesso a menus do PCP (uma vez)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    import('@/lib/api').then(({ api }) => {
+      api.get('/pcp/permissoes/minha').then((res) => {
+        if (res.data?.acessoMenus) setAcessoMenusPcp(res.data.acessoMenus)
+      }).catch(() => {})
+    })
+  }, [])
 
   if (!moduleName) return null
 
@@ -563,7 +574,7 @@ export default function ModuleSidebar() {
 
   // Requirements 9.1, 9.2 — o link para a Tela_Kardex só aparece no grupo "Estoque" do
   // módulo WMS quando a empresa autenticada não usa WMS (deveExibirLinkKardex).
-  const entries: MenuEntry[] = moduleName === 'wms'
+  let entries: MenuEntry[] = moduleName === 'wms'
     ? moduleConfig.entries.map((entry): MenuEntry => {
       if (isGroup(entry) && entry.label === 'Estoque' && deveExibirLinkKardex(usaWms)) {
         const group: NavGroup = {
@@ -575,6 +586,36 @@ export default function ModuleSidebar() {
       return entry
     })
     : moduleConfig.entries
+
+  // Filtrar menus do PCP com base nas permissões de acesso configuradas pelo admin
+  if (moduleName === 'pcp' && acessoMenusPcp) {
+    // Map href suffix → menu ID usado na tela de Acesso
+    const hrefToMenuId: Record<string, string> = {
+      '/pcp/dashboard': 'dashboard',
+      '/pcp/ordens-producao': 'ordens-producao',
+      '/pcp/importar-op': 'importar-op',
+      '/pcp/de-para': 'de-para',
+      '/pcp/kanban': 'kanban',
+      '/pcp/programacao': 'programacao',
+      '/pcp/quadro-producao': 'quadro-producao',
+      '/pcp/apontamentos': 'apontamentos',
+      '/pcp/liberacoes': 'liberacoes',
+      '/pcp/conversao': 'conversao',
+      '/pcp/configuracao': 'configuracao',
+      '/pcp/logs': 'logs',
+    }
+    entries = entries.filter((entry) => {
+      if (isGroup(entry)) {
+        // Grupos (Cadastros, Permissões): verificar pelo label
+        const menuId = entry.label === 'Cadastros' ? 'cadastros' : entry.label === 'Permissões' ? 'permissoes' : null
+        if (menuId && acessoMenusPcp[menuId]?.habilitado === false) return false
+        return true
+      }
+      const menuId = hrefToMenuId[entry.href]
+      if (menuId && acessoMenusPcp[menuId]?.habilitado === false) return false
+      return true
+    })
+  }
 
   return (
     <nav
