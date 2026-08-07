@@ -2485,9 +2485,14 @@ export default function ProgramacaoPage() {
       {/* Modal: Mover em lote para outro grupo */}
       <Modal opened={modalMoverLote} onClose={() => { setModalMoverLote(false); setCentroDestinoLote(null) }} title={`Mover ${selectedEtapas.size} etapa(s) para outro grupo`} centered>
         <Stack gap="md">
-          <Text size="sm" c="dimmed">Selecione o grupo de destino:</Text>
+          <Text size="sm" c="dimmed">Selecione o grupo de destino (mesmo tipo de processo):</Text>
           <Select
-            data={centrosDisponiveis}
+            data={centrosDisponiveis.filter((c: any) => {
+              // Filtrar apenas centros do mesmo tipo de processo da aba ativa
+              const centroData = painel?.centros?.find((ct: any) => ct.centro.id === c.value)
+              if (!centroData) return false
+              return getCategoriaCentro(centroData.centro.tipoProcesso?.codigo) === activeTab
+            })}
             value={centroDestinoLote}
             onChange={setCentroDestinoLote}
             searchable
