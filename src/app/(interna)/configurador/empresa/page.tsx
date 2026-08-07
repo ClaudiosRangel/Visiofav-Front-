@@ -38,6 +38,7 @@ const empresaSchema = z.object({
   cnpj: z.string().optional(),
   // Dados Gerais
   inscEstadual: z.string().optional(),
+  rntrc: z.string().optional(),
   telefone: z.string().optional(),
   email: z.string().optional(),
   status: z.boolean().default(true),
@@ -102,7 +103,7 @@ export default function EmpresaPage() {
     resolver: zodResolver(empresaSchema),
     defaultValues: {
       razaoSocial: '', nomeFantasia: '', cnpj: '',
-      inscEstadual: '', telefone: '', email: '', status: true, usaWms: false,
+      inscEstadual: '', rntrc: '', telefone: '', email: '', status: true, usaWms: false,
       logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '', cep: '',
       regimeTributario: '', ambienteNfe: '', serieNfe: '', proximoNumeroNfe: null,
       serieCte: '', proximoNumeroCte: null,
@@ -117,6 +118,7 @@ export default function EmpresaPage() {
         nomeFantasia: empresa.nomeFantasia || '',
         cnpj: empresa.cnpj || '',
         inscEstadual: empresa.inscEstadual || '',
+      rntrc: (empresa as any).rntrc || '',
         telefone: empresa.telefone || '',
         email: empresa.email || '',
         status: empresa.status ?? true,
@@ -252,6 +254,9 @@ export default function EmpresaPage() {
                 <div className="grid grid-cols-3 gap-4">
                   <Controller name="inscEstadual" control={control} render={({ field }) => (
                     <TextInput label="Inscrição Estadual" placeholder="Isento ou número" {...field} />
+                  )} />
+                  <Controller name="rntrc" control={control} render={({ field }) => (
+                    <TextInput label="RNTRC (ANTT)" placeholder="Nº registro ANTT" {...field} />
                   )} />
                   <Controller name="telefone" control={control} render={({ field }) => (
                     <TextInput label="Telefone" placeholder="(00) 00000-0000" {...field} />
