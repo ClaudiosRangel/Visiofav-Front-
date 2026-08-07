@@ -79,6 +79,7 @@ export default function QuadroProducaoPage() {
   const [data, setData] = useState<QuadroData | null>(null)
   const [clock, setClock] = useState(new Date())
   const [fullscreen, setFullscreen] = useState(false)
+  const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const scrollPosRef = useRef(0)
@@ -89,15 +90,16 @@ export default function QuadroProducaoPage() {
     try {
       const res = await api.get('/pcp/quadro-producao')
       setData(res.data)
+      setUltimaAtualizacao(new Date())
     } catch (err) {
       console.error('[QuadroProducao] Erro ao carregar:', err)
     }
   }, [])
 
-  // Auto-refresh: dados a cada 30s, relógio a cada 1s
+  // Auto-refresh: dados a cada 15s, relógio a cada 1s
   useEffect(() => {
     carregar()
-    const dataInterval = setInterval(carregar, 30000)
+    const dataInterval = setInterval(carregar, 15000)
     const clockInterval = setInterval(() => setClock(new Date()), 1000)
     return () => {
       clearInterval(dataInterval)
@@ -207,6 +209,11 @@ export default function QuadroProducaoPage() {
             <Text size="sm" c={COLORS.textSecondary}>
               {formatarData(clock)}
             </Text>
+            {ultimaAtualizacao && (
+              <Text size="xs" c={COLORS.textSecondary} style={{ opacity: 0.6 }}>
+                Atualizado: {formatarRelogio(ultimaAtualizacao)}
+              </Text>
+            )}
           </Box>
           <Tooltip label={fullscreen ? 'Sair Fullscreen' : 'Modo TV (Fullscreen)'}>
             <ActionIcon
