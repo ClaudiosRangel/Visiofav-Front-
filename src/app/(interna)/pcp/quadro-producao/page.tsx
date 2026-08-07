@@ -1,170 +1,385 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { Title, Stack, Group, Card, Badge, Text, ScrollArea, Loader, Center, SegmentedControl, Progress, Box } from '@mantine/core'
-import { IconClockPause } from '@tabler/icons-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Box, Group, Progress, Text, ActionIcon, Tooltip } from '@mantine/core'
+import { IconMaximize, IconMinimize } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 
-const PRIORIDADE_COLORS: Record<string, string> = { BAIXA: 'gray', NORMAL: 'blue', ALTA: 'orange', URGENTE: 'red' }
+// ─── Tipos ──────────────────────────────────────────────────────────────────
 
-/**
- * Intervalo de atualização automática do quadro (ms). Tela pensada para
- * ficar aberta num monitor/TV do chão de fábrica, sem interação do
- * usuário — por isso o polling silencioso, sem loading global a cada
- * atualização (só na primeira carga).
- */
-const INTERVALO_ATUALIZACAO_MS = 20000
-
-function getCategoriaCentro(tipoProcessoCodigo: string | null | undefined): string {
-  return tipoProcessoCodigo?.toLowerCase() || 'outros'
+interface EtapaAtual {
+  opNumero: string
+  cliente: string | null
+  produto: string | null
+  quantidade: number
+  quantidadeProduzida: number
+  percentual: number
+  tempoNaEtapa: number
+  operadores: string[]
 }
 
-/** Mesma lógica de cor de fundo usada no painel de Programação (Grid), para
- * manter consistência visual entre as duas telas — sem as ações de clique. */
-function getCardBorderColor(etapa: any): string | undefined {
-  if (etapa.isAvulsa) return 'var(--mantine-color-pink-6)'
-  if (etapa.status === 'EM_ANDAMENTO') return 'var(--mantine-color-yellow-6)'
-  if (etapa.status === 'PAUSADA') return 'var(--mantine-color-orange-6)'
-  if (etapa.dataEntrega && new Date(etapa.dataEntrega) < new Date()) return 'var(--mantine-color-red-6)'
-  return 'var(--mantine-color-gray-4)'
+interface Maquina {
+  centroId: string
+  centroNome: string
+  tipoProcesso: string
+  status: 'PRODUZINDO' | 'PARADA' | 'OCIOSA'
+  etapaAtual: EtapaAtual | null
+  ultimoApontamento: string | null
+  motivoParada: string | null
 }
+
+interface Resumo {
+  maquinasAtivas: number
+  maquinasParadas: number
+  maquinasOciosas: number
+  opsConcluídasHoje: number
+  producaoHoje: number
+  alertasParada: number
+}
+
+interface QuadroData {
+  resumo: Resumo
+  maquinas: Maquina[]
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function formatarTempo(minutos: number): string {
+  if (minutos < 60) return `${minutos}min`
+  const h = Math.floor(minutos / 60)
+  const m = minutos % 60
+  return m > 0 ? `${h}h ${m}min` : `${h}h`
+}
+
+function formatarRelogio(date: Date): string {
+  return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function formatarData(date: Date): string {
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+// ─── Estilos ────────────────────────────────────────────────────────────────
+
+const COLORS = {
+  bg: '#1a1b1e',
+  card: '#25262b',
+  cardBorder: '#2c2e33',
+  green: '#2f9e44',
+  orange: '#f76707',
+  gray: '#868e96',
+  textPrimary: '#c1c2c5',
+  textSecondary: '#909296',
+  textBright: '#e9ecef',
+}
+
+// ─── Componente Principal ───────────────────────────────────────────────────
 
 export default function QuadroProducaoPage() {
-  useEffect(() => { document.title = 'PCP - Quadro de Produção' }, [])
+  const [data, setData] = useState<QuadroData | null>(null)
+  const [clock, setClock] = useState(new Date())
+  const [fullscreen, setFullscreen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const scrollPosRef = useRef(0)
+  const scrollDirectionRef = useRef<'down' | 'up'>('down')
 
-  const [painel, setPainel] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  // Agrupamento: por Tipo de Processo (poucas colunas, uma por categoria) ou
-  // por Máquina/Centro (uma coluna por centro de produção cadastrado).
-  const [agrupamento, setAgrupamento] = useState<'tipoProcesso' | 'maquina'>('tipoProcesso')
-
-  async function carregar(mostrarLoading: boolean) {
-    if (mostrarLoading) setLoading(true)
+  // Carregar dados
+  const carregar = useCallback(async () => {
     try {
-      const res = await api.get('/pcp/programacao/painel')
-      setPainel(res.data)
+      const res = await api.get('/pcp/quadro-producao')
+      setData(res.data)
     } catch (err) {
-      console.error(err)
-    } finally {
-      if (mostrarLoading) setLoading(false)
+      console.error('[QuadroProducao] Erro ao carregar:', err)
     }
-  }
-
-  useEffect(() => {
-    carregar(true)
-    const intervalo = setInterval(() => carregar(false), INTERVALO_ATUALIZACAO_MS)
-    return () => clearInterval(intervalo)
   }, [])
 
-  // Colunas por Máquina: uma por centro cadastrado, na ordem já definida em
-  // PCP → Cadastros → Centros de Produção (painel.centros já vem ordenado).
-  const colunasPorMaquina = useMemo(() => {
-    return (painel?.centros || []).map((c: any) => ({
-      key: c.centro.id,
-      titulo: c.centro.descricao,
-      subtitulo: c.centro.tipoProcesso?.descricao,
-      etapas: c.etapas,
-    }))
-  }, [painel])
-
-  // Colunas por Tipo de Processo: agrega todas as etapas de todos os centros
-  // que compartilham o mesmo Tipo de Processo cadastrado numa única coluna.
-  const colunasPorTipoProcesso = useMemo(() => {
-    const mapa = new Map<string, { key: string; titulo: string; etapas: any[] }>()
-    for (const c of painel?.centros || []) {
-      const key = getCategoriaCentro(c.centro.tipoProcesso?.codigo)
-      if (!mapa.has(key)) mapa.set(key, { key, titulo: c.centro.tipoProcesso?.descricao || 'Outros', etapas: [] })
-      mapa.get(key)!.etapas.push(...c.etapas)
+  // Auto-refresh: dados a cada 30s, relógio a cada 1s
+  useEffect(() => {
+    carregar()
+    const dataInterval = setInterval(carregar, 30000)
+    const clockInterval = setInterval(() => setClock(new Date()), 1000)
+    return () => {
+      clearInterval(dataInterval)
+      clearInterval(clockInterval)
     }
-    // Reordena cada coluna combinada por posicaoFila (etapas de centros
-    // diferentes ficavam intercaladas por centro, não por fila real).
-    for (const col of mapa.values()) {
-      col.etapas.sort((a, b) => (a.posicaoFila ?? Infinity) - (b.posicaoFila ?? Infinity))
+  }, [carregar])
+
+  // Auto-scroll suave para quando há mais cards do que cabe na tela
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const interval = setInterval(() => {
+      const maxScroll = el.scrollHeight - el.clientHeight
+      if (maxScroll <= 0) return
+      if (scrollDirectionRef.current === 'down') {
+        scrollPosRef.current += 1
+        if (scrollPosRef.current >= maxScroll) scrollDirectionRef.current = 'up'
+      } else {
+        scrollPosRef.current -= 1
+        if (scrollPosRef.current <= 0) scrollDirectionRef.current = 'down'
+      }
+      el.scrollTop = scrollPosRef.current
+    }, 50)
+    return () => clearInterval(interval)
+  }, [data])
+
+  // Fullscreen toggle
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen?.()
+      setFullscreen(true)
+    } else {
+      document.exitFullscreen?.()
+      setFullscreen(false)
     }
-    return Array.from(mapa.values())
-  }, [painel])
+  }, [])
 
-  const colunas = agrupamento === 'maquina' ? colunasPorMaquina : colunasPorTipoProcesso
+  useEffect(() => {
+    const handler = () => setFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', handler)
+    return () => document.removeEventListener('fullscreenchange', handler)
+  }, [])
 
-  if (loading) return <Center py="xl"><Loader /></Center>
+  // Título da aba
+  useEffect(() => { document.title = 'PCP - Quadro de Produção (TV)' }, [])
+
+  // Wake Lock para manter tela ligada
+  useEffect(() => {
+    let wakeLock: WakeLockSentinel | null = null
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen')
+        }
+      } catch { /* silencioso */ }
+    }
+    requestWakeLock()
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') requestWakeLock()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      wakeLock?.release()
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [])
+
+  const resumo = data?.resumo
+  const maquinas = data?.maquinas || []
 
   return (
-    <Stack gap="md">
-      <Group justify="space-between" wrap="wrap">
-        <Title order={3}>Quadro de Produção</Title>
-        <SegmentedControl
-          value={agrupamento}
-          onChange={(v) => setAgrupamento(v as 'tipoProcesso' | 'maquina')}
-          data={[
-            { label: 'Por Tipo de Processo', value: 'tipoProcesso' },
-            { label: 'Por Máquina', value: 'maquina' },
-          ]}
-        />
+    <Box
+      ref={containerRef}
+      style={{
+        background: COLORS.bg,
+        minHeight: '100vh',
+        padding: fullscreen ? '20px 24px' : '16px 20px',
+        position: fullscreen ? 'fixed' : 'relative',
+        inset: fullscreen ? 0 : undefined,
+        zIndex: fullscreen ? 9999 : undefined,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {/* ─── Header ─────────────────────────────────────────────────── */}
+      <Group justify="space-between" mb="md" wrap="nowrap">
+        <Group gap="lg" wrap="nowrap">
+          <Text fw={700} size="xl" c={COLORS.textBright} style={{ fontSize: '1.4rem', letterSpacing: '0.5px' }}>
+            VIZOR PCP — QUADRO DE PRODUÇÃO
+          </Text>
+          {resumo && (
+            <Group gap="md" wrap="wrap">
+              <Badge color="green" label={`🟢 ${resumo.maquinasAtivas} Produzindo`} />
+              <Badge color="orange" label={`🟡 ${resumo.maquinasParadas} Parada${resumo.maquinasParadas !== 1 ? 's' : ''}`} />
+              <Badge color="gray" label={`⚪ ${resumo.maquinasOciosas} Ociosa${resumo.maquinasOciosas !== 1 ? 's' : ''}`} />
+              <Badge color="teal" label={`✅ ${resumo.opsConcluídasHoje} Concluída${resumo.opsConcluídasHoje !== 1 ? 's' : ''}`} />
+            </Group>
+          )}
+        </Group>
+
+        <Group gap="md" wrap="nowrap">
+          <Box style={{ textAlign: 'right' }}>
+            <Text fw={700} size="lg" c={COLORS.textBright} style={{ fontSize: '1.5rem', fontVariantNumeric: 'tabular-nums' }}>
+              {formatarRelogio(clock)}
+            </Text>
+            <Text size="sm" c={COLORS.textSecondary}>
+              {formatarData(clock)}
+            </Text>
+          </Box>
+          <Tooltip label={fullscreen ? 'Sair Fullscreen' : 'Modo TV (Fullscreen)'}>
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              size="lg"
+              onClick={toggleFullscreen}
+            >
+              {fullscreen ? <IconMinimize size={22} /> : <IconMaximize size={22} />}
+            </ActionIcon>
+          </Tooltip>
+        </Group>
       </Group>
 
-      <ScrollArea>
-        <Group align="flex-start" wrap="nowrap" gap="md" style={{ minWidth: '100%' }}>
-          {colunas.map((coluna: any) => (
-            <Stack key={coluna.key} w={300} style={{ flexShrink: 0 }}>
-              <Group justify="space-between">
-                <Box>
-                  <Text fw={700} size="sm">{coluna.titulo}</Text>
-                  {coluna.subtitulo && <Text size="xs" c="dimmed">{coluna.subtitulo}</Text>}
-                </Box>
-                <Badge variant="light" size="lg">{coluna.etapas.length}</Badge>
-              </Group>
+      {/* ─── Grid de Cards ─────────────────────────────────────────── */}
+      <Box
+        ref={scrollRef}
+        style={{
+          flex: 1,
+          overflow: 'hidden',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+          gap: '16px',
+          alignContent: 'start',
+        }}
+      >
+        {maquinas.map(maquina => (
+          <MaquinaCard key={maquina.centroId} maquina={maquina} />
+        ))}
 
-              <Stack gap="xs" style={{ minHeight: 200, background: 'var(--mantine-color-gray-0)', borderRadius: 8, padding: 8 }}>
-                {coluna.etapas.length === 0 ? (
-                  <Text size="xs" c="dimmed" ta="center" py="lg">Nenhuma OS na fila</Text>
-                ) : (
-                  coluna.etapas.map((etapa: any) => (
-                    <Card
-                      key={etapa.id}
-                      withBorder
-                      padding="xs"
-                      radius="sm"
-                      style={{ borderLeft: `4px solid ${getCardBorderColor(etapa)}` }}
-                    >
-                      <Group justify="space-between" wrap="nowrap">
-                        <Text size="sm" fw={600}>OP #{etapa.opNumero}</Text>
-                        <Group gap={4} wrap="nowrap">
-                          {etapa.status === 'PAUSADA' && <IconClockPause size={14} color="var(--mantine-color-orange-6)" />}
-                          <Badge size="xs" color={PRIORIDADE_COLORS[etapa.prioridade]} variant="dot">
-                            {etapa.prioridade}
-                          </Badge>
-                        </Group>
-                      </Group>
+        {maquinas.length === 0 && (
+          <Box style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '60px 0' }}>
+            <Text size="xl" c={COLORS.textSecondary}>
+              Carregando quadro de produção...
+            </Text>
+          </Box>
+        )}
+      </Box>
+    </Box>
+  )
+}
 
-                      {etapa.clienteNome && (
-                        <Text size="xs" c="dimmed" mt={2} lineClamp={1}>{etapa.clienteNome}</Text>
-                      )}
-                      {etapa.produtoNome && (
-                        <Text size="xs" lineClamp={1}>{etapa.produtoNome}</Text>
-                      )}
-                      <Text size="xs" c="dimmed" mt={2}>{etapa.descricao}</Text>
+// ─── Badge simples (substitui Mantine Badge para controle visual) ───────────
 
-                      <Group justify="space-between" mt={4}>
-                        <Text size="xs" c="dimmed">
-                          {Number(etapa.quantidadeProduzida).toLocaleString('pt-BR')} / {Number(etapa.quantidade).toLocaleString('pt-BR')} {etapa.unidade}
-                        </Text>
-                        <Text size="xs" c="dimmed">{etapa.percentual}%</Text>
-                      </Group>
-                      <Progress value={etapa.percentual} size="sm" mt={2} color={etapa.percentual >= 100 ? 'green' : 'blue'} />
+function Badge({ color, label }: { color: string; label: string }) {
+  return (
+    <Text
+      size="sm"
+      fw={600}
+      c={COLORS.textPrimary}
+      style={{
+        background: `color-mix(in srgb, ${color} 15%, transparent)`,
+        border: `1px solid color-mix(in srgb, ${color} 40%, transparent)`,
+        borderRadius: 6,
+        padding: '4px 10px',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </Text>
+  )
+}
 
-                      {etapa.dataEntrega && (
-                        <Text size="xs" c={new Date(etapa.dataEntrega) < new Date() ? 'red' : 'dimmed'} mt={4}>
-                          Entrega: {new Date(etapa.dataEntrega).toLocaleDateString('pt-BR')}
-                        </Text>
-                      )}
-                    </Card>
-                  ))
-                )}
-              </Stack>
-            </Stack>
-          ))}
-        </Group>
-      </ScrollArea>
-    </Stack>
+// ─── Card de Máquina ────────────────────────────────────────────────────────
+
+function MaquinaCard({ maquina }: { maquina: Maquina }) {
+  const { status, etapaAtual, centroNome, tipoProcesso, motivoParada } = maquina
+
+  const borderColor = status === 'PRODUZINDO' ? COLORS.green
+    : status === 'PARADA' ? COLORS.orange
+    : COLORS.gray
+
+  const glowStyle = status === 'PRODUZINDO'
+    ? { boxShadow: `0 0 12px color-mix(in srgb, ${COLORS.green} 25%, transparent)` }
+    : status === 'PARADA'
+    ? { animation: 'pulse-border 2s ease-in-out infinite' }
+    : { opacity: 0.7 }
+
+  const statusLabel = status === 'PRODUZINDO' ? '🟢 PRODUZINDO'
+    : status === 'PARADA' ? '🟡 PARADA'
+    : '⚪ OCIOSA'
+
+  return (
+    <Box
+      style={{
+        background: COLORS.card,
+        borderRadius: 10,
+        borderLeft: `5px solid ${borderColor}`,
+        padding: '16px 14px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        minHeight: 200,
+        ...glowStyle,
+      }}
+    >
+      {/* Nome da máquina */}
+      <Box>
+        <Text fw={700} size="md" c={COLORS.textBright} lineClamp={1} style={{ fontSize: '1.05rem' }}>
+          {centroNome}
+        </Text>
+        <Text size="xs" c={COLORS.textSecondary}>{tipoProcesso}</Text>
+      </Box>
+
+      {/* Status */}
+      <Text fw={600} size="sm" c={borderColor} style={{ letterSpacing: '0.3px' }}>
+        {statusLabel}
+      </Text>
+
+      {/* Motivo parada */}
+      {status === 'PARADA' && motivoParada && (
+        <Text size="xs" c={COLORS.orange} fw={500}>{motivoParada}</Text>
+      )}
+
+      {/* Info da etapa atual */}
+      {etapaAtual ? (
+        <>
+          <Text fw={600} size="sm" c={COLORS.textBright}>
+            OP #{etapaAtual.opNumero}
+          </Text>
+          {etapaAtual.cliente && (
+            <Text size="xs" c={COLORS.textPrimary} lineClamp={1}>{etapaAtual.cliente}</Text>
+          )}
+          {etapaAtual.produto && (
+            <Text size="xs" c={COLORS.textSecondary} lineClamp={1}>{etapaAtual.produto}</Text>
+          )}
+
+          {/* Progresso */}
+          <Box mt={4}>
+            <Group justify="space-between" mb={4}>
+              <Text size="xs" c={COLORS.textSecondary}>
+                {etapaAtual.quantidadeProduzida.toLocaleString('pt-BR')} / {etapaAtual.quantidade.toLocaleString('pt-BR')}
+              </Text>
+              <Text size="xs" fw={600} c={COLORS.textPrimary}>{etapaAtual.percentual}%</Text>
+            </Group>
+            <Progress
+              value={etapaAtual.percentual}
+              size="lg"
+              radius="sm"
+              color={etapaAtual.percentual >= 100 ? 'green' : status === 'PARADA' ? 'orange' : 'blue'}
+              style={{ background: '#373a40' }}
+            />
+          </Box>
+
+          {/* Tempo na etapa */}
+          <Text size="sm" c={COLORS.textPrimary} mt={4}>
+            ⏱ {formatarTempo(etapaAtual.tempoNaEtapa)}
+          </Text>
+
+          {/* Operadores */}
+          {etapaAtual.operadores.length > 0 && (
+            <Box>
+              {etapaAtual.operadores.map((op, i) => (
+                <Text key={i} size="xs" c={COLORS.textSecondary}>
+                  👤 {op}
+                </Text>
+              ))}
+            </Box>
+          )}
+        </>
+      ) : (
+        <Box style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Text size="lg" c={COLORS.textSecondary} ta="center">—</Text>
+        </Box>
+      )}
+
+      {/* CSS para animação de pulse nos cards parados */}
+      <style>{`
+        @keyframes pulse-border {
+          0%, 100% { box-shadow: 0 0 8px color-mix(in srgb, ${COLORS.orange} 20%, transparent); }
+          50% { box-shadow: 0 0 20px color-mix(in srgb, ${COLORS.orange} 50%, transparent); }
+        }
+      `}</style>
+    </Box>
   )
 }
