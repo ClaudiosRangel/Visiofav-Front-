@@ -125,12 +125,13 @@ export default function CteNovaPage() {
   useEffect(() => { document.title = 'Vizor - Emissão de CT-e' }, [])
 
   const router = useRouter()
-  const { useEmitir } = useCte()
+  const { useEmitir, useDefaults, buscarParticipante } = useCte()
   const emitirMutation = useEmitir()
+  const { data: defaults } = useDefaults()
 
   const [active, setActive] = useState(0)
 
-  // Step 1 — Dados Gerais
+  // Step 1 — Dados Gerais (pré-preenchidos dos defaults)
   const [naturezaOp, setNaturezaOp] = useState('PRESTACAO DE SERVICO DE TRANSPORTE')
   const [cfop, setCfop] = useState('5353')
   const [tpServ, setTpServ] = useState('0')
@@ -181,6 +182,59 @@ export default function CteNovaPage() {
   const [rntrc, setRntrc] = useState('')
 
   const totalSteps = 7
+
+  // === Carregar defaults da empresa ao montar ===
+  useEffect(() => {
+    if (defaults) {
+      if (defaults.naturezaOp) setNaturezaOp(defaults.naturezaOp)
+      if (defaults.modal) setModal(defaults.modal)
+      if (defaults.serie) setSerie(defaults.serie)
+      if (defaults.rntrc) setRntrc(defaults.rntrc)
+      if (defaults.cstIcms) setCstIcms(defaults.cstIcms)
+      if (defaults.aliqIcms) setAliqIcms(defaults.aliqIcms)
+      if (defaults.seguradora && defaults.apolice) {
+        setSeguros([{ respSeg: '4', xSeg: defaults.seguradora, nApol: defaults.apolice, nAver: '', vCarga: 0 }])
+      }
+      // CFOP automático: se UF emitente está setada, pré-preencher a UF de origem
+      if (defaults.ufEmitente) {
+        setUfIni(defaults.ufEmitente)
+      }
+    }
+  }, [defaults])
+
+  // === Calcular CFOP automaticamente pela UF origem vs destino ===
+  useEffect(() => {
+    if (ufIni && ufFim) {
+      setCfop(ufIni === ufFim ? '5353' : '6353')
+    }
+  }, [ufIni, ufFim])
+
+  // === Buscar participante por CNPJ ===
+  async function buscarEPreencher(cpfCnpj: string, setParticipante: (p: Participante) => void) {
+    if (cpfCnpj.replace(/\D/g, '').length < 11) return
+    try {
+      const resultado = await buscarParticipante(cpfCnpj)
+      if (resultado.encontrado) {
+        setParticipante({
+          cnpj: resultado.cnpj?.length === 14 ? resultado.cnpj : '',
+          cpf: resultado.cnpj?.length === 11 ? resultado.cnpj : '',
+          ie: resultado.ie || '',
+          razaoSocial: resultado.razaoSocial || '',
+          nomeFantasia: resultado.nomeFantasia || '',
+          logradouro: resultado.logradouro || '',
+          numero: resultado.numero || '',
+          complemento: resultado.complemento || '',
+          bairro: resultado.bairro || '',
+          codigoMunicipio: resultado.codigoMunicipio || '',
+          municipio: resultado.municipio || '',
+          uf: resultado.uf || '',
+          cep: resultado.cep || '',
+          email: resultado.email || '',
+          telefone: resultado.telefone || '',
+        })
+      }
+    } catch { /* silencioso */ }
+  }
 
   function adicionarNFe() {
     setNfesVinculadas([...nfesVinculadas, { chave: '' }])
@@ -325,7 +379,9 @@ export default function CteNovaPage() {
         <Grid>
           <Grid.Col span={4}>
             <TextInput label="CNPJ" value={p.cnpj}
-              onChange={(e) => setP({ ...p, cnpj: e.target.value })} maxLength={14} />
+              onChange={(e) => setP({ ...p, cnpj: e.target.value })} maxLength={14}
+              onBlur={() => { if (p.cnpj.length >= 11) buscarEPreencher(p.cnpj, setP) }}
+              description="Ao sair do campo, busca no cadastro" />
           </Grid.Col>
           <Grid.Col span={4}>
             <TextInput label="CPF" value={p.cpf}

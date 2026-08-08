@@ -84,6 +84,44 @@ export function useCte() {
     })
   }
 
+  function useDefaults() {
+    return useQuery({
+      queryKey: ['fiscal', 'cte', 'defaults'],
+      queryFn: async () => {
+        const { data } = await api.get('/fiscal/cte/defaults')
+        return data as {
+          rntrc: string
+          serie: number
+          ambiente: number
+          ufEmitente: string
+          naturezaOp: string
+          modal: string
+          cstIcms: string
+          aliqIcms: number
+          seguradora: string
+          apolice: string
+        }
+      },
+      staleTime: 1000 * 60 * 10,
+    })
+  }
+
+  function useSalvarDefaults() {
+    const qc = useQueryClient()
+    return useMutation({
+      mutationFn: async (payload: Record<string, any>) => {
+        const { data } = await api.put('/fiscal/cte/defaults', payload)
+        return data
+      },
+      onSuccess: () => qc.invalidateQueries({ queryKey: ['fiscal', 'cte', 'defaults'] }),
+    })
+  }
+
+  async function buscarParticipante(cpfCnpj: string) {
+    const { data } = await api.get(`/fiscal/cte/buscar-participante/${cpfCnpj.replace(/\D/g, '')}`)
+    return data
+  }
+
   function baixarDacte(id: string) {
     return api.get(`/fiscal/cte/${id}/dacte`, { responseType: 'blob' })
   }
@@ -100,6 +138,9 @@ export function useCte() {
     useCartaCorrecao,
     useInutilizar,
     useDuplicar,
+    useDefaults,
+    useSalvarDefaults,
+    buscarParticipante,
     baixarDacte,
     baixarXml,
   }
