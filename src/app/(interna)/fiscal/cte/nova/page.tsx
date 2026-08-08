@@ -177,6 +177,12 @@ export default function CteNovaPage() {
   // Step 8 — Vale-Pedágio
   const [valesPedagio, setValesPedagio] = useState<ValePedagioItem[]>([])
 
+  // Veículos Novos (transporte de carros)
+  const [tipoCarga, setTipoCarga] = useState<'NORMAL' | 'VEICULO_NOVO' | 'VEICULO_USADO'>('NORMAL')
+  const [veiculosNovos, setVeiculosNovos] = useState<Array<{
+    chassi: string; cCor: string; xCor: string; cMod: string; vUnit: number; vFrete: number
+  }>>([])
+
   // Step 9 — Observações
   const [infCpl, setInfCpl] = useState('')
   const [rntrc, setRntrc] = useState('')
@@ -329,6 +335,9 @@ export default function CteNovaPage() {
           nCompra: v.nCompra,
           vValePed: v.vValePed,
         })) : undefined,
+        veicNovos: tipoCarga === 'VEICULO_NOVO' && veiculosNovos.length > 0
+          ? veiculosNovos.filter(v => v.chassi.length === 17)
+          : undefined,
       },
       infCpl: infCpl || undefined,
       ambiente: 2,
@@ -531,20 +540,93 @@ export default function CteNovaPage() {
 
       {/* Step 2 — Carga */}
       {active === 2 && (
-        <Grid>
-          <Grid.Col span={6}>
-            <TextInput label="Produto Predominante" value={proPred}
-              onChange={(e) => setProPred(e.target.value)} required />
-          </Grid.Col>
-          <Grid.Col span={3}>
-            <NumberInput label="Valor da Carga (R$)" value={vCarga}
-              onChange={(v) => setVCarga(Number(v) || 0)} min={0} decimalScale={2} />
-          </Grid.Col>
-          <Grid.Col span={3}>
-            <NumberInput label="Peso Bruto (kg)" value={pesoBruto}
-              onChange={(v) => setPesoBruto(Number(v) || 0)} min={0} decimalScale={4} />
-          </Grid.Col>
-        </Grid>
+        <Stack gap="md">
+          <Grid>
+            <Grid.Col span={4}>
+              <Select label="Tipo de Carga" data={[
+                { value: 'NORMAL', label: 'Carga Normal' },
+                { value: 'VEICULO_NOVO', label: 'Veículo Novo' },
+                { value: 'VEICULO_USADO', label: 'Veículo Usado' },
+              ]} value={tipoCarga} onChange={(v) => {
+                const tipo = (v as any) || 'NORMAL'
+                setTipoCarga(tipo)
+                if (tipo === 'VEICULO_NOVO') setProPred('VEICULO NOVO')
+                else if (tipo === 'VEICULO_USADO') setProPred('VEICULO USADO')
+              }} />
+            </Grid.Col>
+            <Grid.Col span={4}>
+              <TextInput label="Produto Predominante" value={proPred}
+                onChange={(e) => setProPred(e.target.value)} required />
+            </Grid.Col>
+            <Grid.Col span={2}>
+              <NumberInput label="Valor da Carga (R$)" value={vCarga}
+                onChange={(v) => setVCarga(Number(v) || 0)} min={0} decimalScale={2} />
+            </Grid.Col>
+            <Grid.Col span={2}>
+              <NumberInput label="Peso Bruto (kg)" value={pesoBruto}
+                onChange={(v) => setPesoBruto(Number(v) || 0)} min={0} decimalScale={4} />
+            </Grid.Col>
+          </Grid>
+
+          {/* Veículos Novos */}
+          {tipoCarga === 'VEICULO_NOVO' && (
+            <>
+              <Group justify="space-between">
+                <Text fw={600}>Veículos Transportados</Text>
+                <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() =>
+                  setVeiculosNovos([...veiculosNovos, { chassi: '', cCor: '', xCor: '', cMod: '', vUnit: 0, vFrete: 0 }])
+                }>Adicionar Veículo</Button>
+              </Group>
+              {veiculosNovos.map((v, idx) => (
+                <Paper key={idx} p="sm" withBorder>
+                  <Group justify="space-between" mb="xs">
+                    <Badge>Veículo {idx + 1}</Badge>
+                    <ActionIcon color="red" variant="subtle"
+                      onClick={() => setVeiculosNovos(veiculosNovos.filter((_, i) => i !== idx))}>
+                      <IconTrash size={14} />
+                    </ActionIcon>
+                  </Group>
+                  <Grid>
+                    <Grid.Col span={4}>
+                      <TextInput label="Chassi" value={v.chassi} maxLength={17} required
+                        onChange={(e) => { const c = [...veiculosNovos]; c[idx] = { ...c[idx], chassi: e.target.value.toUpperCase() }; setVeiculosNovos(c) }} />
+                    </Grid.Col>
+                    <Grid.Col span={2}>
+                      <TextInput label="Cód. Cor" value={v.cCor} maxLength={4}
+                        onChange={(e) => { const c = [...veiculosNovos]; c[idx] = { ...c[idx], cCor: e.target.value }; setVeiculosNovos(c) }} />
+                    </Grid.Col>
+                    <Grid.Col span={3}>
+                      <TextInput label="Cor" value={v.xCor}
+                        onChange={(e) => { const c = [...veiculosNovos]; c[idx] = { ...c[idx], xCor: e.target.value }; setVeiculosNovos(c) }} />
+                    </Grid.Col>
+                    <Grid.Col span={3}>
+                      <TextInput label="Cód. Modelo (DENATRAN)" value={v.cMod} maxLength={6}
+                        onChange={(e) => { const c = [...veiculosNovos]; c[idx] = { ...c[idx], cMod: e.target.value }; setVeiculosNovos(c) }} />
+                    </Grid.Col>
+                    <Grid.Col span={4}>
+                      <NumberInput label="Valor Unitário (R$)" value={v.vUnit} min={0} decimalScale={2}
+                        onChange={(val) => { const c = [...veiculosNovos]; c[idx] = { ...c[idx], vUnit: Number(val) || 0 }; setVeiculosNovos(c) }} />
+                    </Grid.Col>
+                    <Grid.Col span={4}>
+                      <NumberInput label="Valor Frete Unit. (R$)" value={v.vFrete} min={0} decimalScale={2}
+                        onChange={(val) => { const c = [...veiculosNovos]; c[idx] = { ...c[idx], vFrete: Number(val) || 0 }; setVeiculosNovos(c) }} />
+                    </Grid.Col>
+                  </Grid>
+                </Paper>
+              ))}
+              {veiculosNovos.length === 0 && (
+                <Text size="sm" c="dimmed">Nenhum veículo adicionado. Clique em "Adicionar Veículo".</Text>
+              )}
+            </>
+          )}
+
+          {tipoCarga === 'VEICULO_USADO' && (
+            <Text size="sm" c="dimmed">
+              Para veículos usados, os dados do veículo constam na NF-e de venda vinculada.
+              Informe as chaves NF-e no step correspondente.
+            </Text>
+          )}
+        </Stack>
       )}
 
       {/* Step 3 — Valor da Prestação e ICMS */}
