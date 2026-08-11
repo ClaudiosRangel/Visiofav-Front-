@@ -40,6 +40,10 @@ export default function DetalheOpPage() {
   // Modal de cancelamento — pede motivo obrigatório antes de enviar
   const [modalCancelar, setModalCancelar] = useState(false)
   const [motivoCancelamento, setMotivoCancelamento] = useState('')
+  // Edição da quantidade da OP
+  const [editandoQuantidade, setEditandoQuantidade] = useState(false)
+  const [quantidadeInput, setQuantidadeInput] = useState<number | ''>(0)
+  const [salvandoQuantidade, setSalvandoQuantidade] = useState(false)
   // Modal de cancelamento forçado (EM_PRODUCAO/CONCLUIDA) — exige admin
   const [modalCancelarForcado, setModalCancelarForcado] = useState(false)
   const [formCancelarForcado, setFormCancelarForcado] = useState({ motivoCancelamento: '', emailAdmin: '', senhaAdmin: '' })
@@ -96,6 +100,25 @@ export default function DetalheOpPage() {
       notifications.show({ title: 'Produto atualizado', message: novoNome, color: 'green' })
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar', color: 'red' })
+    }
+  }
+
+  async function salvarQuantidade() {
+    const valor = typeof quantidadeInput === 'number' ? quantidadeInput : 0
+    if (valor <= 0) {
+      setEditandoQuantidade(false)
+      return
+    }
+    setSalvandoQuantidade(true)
+    try {
+      await api.patch(`/ordens-producao/${id}`, { quantidade: valor })
+      setOp((prev: any) => ({ ...prev, quantidade: valor }))
+      setEditandoQuantidade(false)
+      notifications.show({ title: 'Quantidade atualizada', message: `Nova quantidade: ${valor.toLocaleString('pt-BR')}`, color: 'green' })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar', color: 'red' })
+    } finally {
+      setSalvandoQuantidade(false)
     }
   }
 
@@ -316,7 +339,38 @@ export default function DetalheOpPage() {
               </Group>
             )}
           </div>
-          <div><Text size="xs" c="dimmed">Quantidade</Text><Text fw={600}>{Number(op.quantidade)} {op.unidadeMedida}{Number(op.quantidadeExcedente) > 0 ? ` (+${Number(op.quantidadeExcedente)} excedente)` : ''}</Text></div>
+          <div>
+            <Text size="xs" c="dimmed">Quantidade</Text>
+            {editandoQuantidade ? (
+              <Group gap={4} wrap="nowrap">
+                <NumberInput
+                  size="xs"
+                  value={quantidadeInput}
+                  onChange={(v) => setQuantidadeInput(typeof v === 'number' ? v : '')}
+                  min={1}
+                  autoFocus
+                  w={120}
+                  disabled={salvandoQuantidade}
+                  onKeyDown={(e) => { if (e.key === 'Enter') salvarQuantidade(); if (e.key === 'Escape') setEditandoQuantidade(false) }}
+                />
+                <ActionIcon size="sm" color="green" variant="light" onClick={salvarQuantidade} loading={salvandoQuantidade} title="Salvar">
+                  <IconCheck size={14} />
+                </ActionIcon>
+                <ActionIcon size="sm" color="gray" variant="light" onClick={() => setEditandoQuantidade(false)} disabled={salvandoQuantidade} title="Cancelar">
+                  <IconX size={14} />
+                </ActionIcon>
+              </Group>
+            ) : (
+              <Group gap={4} wrap="nowrap">
+                <Text fw={600}>{Number(op.quantidade).toLocaleString('pt-BR')} {op.unidadeMedida}{Number(op.quantidadeExcedente) > 0 ? ` (+${Number(op.quantidadeExcedente)} excedente)` : ''}</Text>
+                <Tooltip label="Editar quantidade">
+                  <ActionIcon size="sm" variant="subtle" color="gray" onClick={() => { setQuantidadeInput(Number(op.quantidade) || 0); setEditandoQuantidade(true) }}>
+                    <IconPencil size={14} />
+                  </ActionIcon>
+                </Tooltip>
+              </Group>
+            )}
+          </div>
           <div>
             <Text size="xs" c="dimmed">Quantidade Produzida</Text>
             {editandoQtdProduzida ? (
