@@ -79,6 +79,7 @@ export default function ImportarOpPdfPage() {
 
   // Wizard state
   const [wizardStep, setWizardStep] = useState(0)
+  const [quantidadeEditada, setQuantidadeEditada] = useState<number | null>(null)
   const [clienteId, setClienteId] = useState<string | null>(null)
   const [clienteAcao, setClienteAcao] = useState<'existente' | 'criar' | 'pular'>('pular')
   const [clienteForm, setClienteForm] = useState({ razaoSocial: '', cpfCnpj: '', telefone: '' })
@@ -288,7 +289,7 @@ export default function ImportarOpPdfPage() {
           importacaoId: preview!.importacaoId,
           clienteId: finalClienteId,
           produtoId: finalProdutoId,
-          quantidade: preview!.dadosExtraidos.cabecalho.quantidade,
+          quantidade: quantidadeEditada ?? preview!.dadosExtraidos.cabecalho.quantidade,
           prioridade: 'NORMAL',
           materiaisVinculados,
           centrosVinculados,
@@ -305,7 +306,7 @@ export default function ImportarOpPdfPage() {
             importacaoId: reUpload.data.importacaoId,
             clienteId: finalClienteId,
             produtoId: finalProdutoId,
-            quantidade: preview!.dadosExtraidos.cabecalho.quantidade,
+            quantidade: quantidadeEditada ?? preview!.dadosExtraidos.cabecalho.quantidade,
             prioridade: 'NORMAL',
             materiaisVinculados,
             centrosVinculados,
@@ -361,7 +362,7 @@ export default function ImportarOpPdfPage() {
           <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} mb="md">
             <Card withBorder p="xs"><Text size="xs" c="dimmed">OP</Text><Text fw={600}>{preview.dadosExtraidos.cabecalho.numeroOp || '—'}</Text></Card>
             <Card withBorder p="xs"><Text size="xs" c="dimmed">Cliente</Text><Text fw={600}>{preview.dadosExtraidos.cabecalho.cliente || '—'}</Text>{preview.sugestoes.cliente && <Badge size="xs" color="green">✓ Encontrado</Badge>}</Card>
-            <Card withBorder p="xs"><Text size="xs" c="dimmed">Quantidade</Text><Text fw={600}>{preview.dadosExtraidos.cabecalho.quantidade?.toLocaleString('pt-BR') || '—'}</Text></Card>
+            <Card withBorder p="xs"><Text size="xs" c="dimmed">Quantidade</Text><Group gap={4} wrap="nowrap"><TextInput size="xs" type="number" value={quantidadeEditada ?? preview.dadosExtraidos.cabecalho.quantidade ?? ''} onChange={(e) => setQuantidadeEditada(e.currentTarget.value ? Number(e.currentTarget.value) : null)} style={{ width: 100 }} /><Text size="xs" c="dimmed">(editável)</Text></Group></Card>
             <Card withBorder p="xs"><Text size="xs" c="dimmed">Materiais / Etapas</Text><Text fw={600}>{preview.dadosExtraidos.materiais.length} / {preview.dadosExtraidos.etapas.length}</Text></Card>
           </SimpleGrid>
 
