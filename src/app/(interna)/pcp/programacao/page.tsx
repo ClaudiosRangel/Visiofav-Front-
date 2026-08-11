@@ -224,6 +224,7 @@ export default function ProgramacaoPage() {
   const [formDesmembrar, setFormDesmembrar] = useState<Array<{ centroProducaoId: string; quantidade: number }>>([{ centroProducaoId: '', quantidade: 0 }, { centroProducaoId: '', quantidade: 0 }])
   const [centrosDisponiveis, setCentrosDisponiveis] = useState<any[]>([])
   const [editingObs, setEditingObs] = useState<{ id: string; value: string } | null>(null)
+  const [editingQtd, setEditingQtd] = useState<{ opId: string; etapaId: string; value: string } | null>(null)
   const [editingGrupo, setEditingGrupo] = useState<string | null>(null) // centroId being renamed
   // Mover OS para outro grupo
   const [modalMover, setModalMover] = useState<{ etapaId: string; opNumero: number; centroAtualId: string; centroDescricao: string } | null>(null)
@@ -805,6 +806,29 @@ export default function ProgramacaoPage() {
       notifications.show({ title: 'Erro', message: 'Falha ao salvar observação', color: 'red' })
     }
     setEditingObs(null)
+  }
+
+  async function salvarQuantidade(opId: string, novaQuantidade: number) {
+    if (!novaQuantidade || novaQuantidade <= 0) {
+      setEditingQtd(null)
+      return
+    }
+    try {
+      await api.patch(`/ordens-producao/${opId}`, { quantidade: novaQuantidade })
+      // Atualização otimista no painel
+      setPainel((prev: any) => {
+        if (!prev) return prev
+        const centros = prev.centros.map((c: any) => ({
+          ...c,
+          etapas: c.etapas.map((e: any) => e.opId === opId ? { ...e, quantidade: novaQuantidade } : e)
+        }))
+        return { ...prev, centros }
+      })
+      notifications.show({ title: 'Quantidade atualizada', message: `Nova quantidade: ${novaQuantidade.toLocaleString('pt-BR')}`, color: 'green' })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar quantidade', color: 'red' })
+    }
+    setEditingQtd(null)
   }
 
   async function postergarEntrega(opId: string, novaData: string) {
@@ -1832,7 +1856,24 @@ export default function ProgramacaoPage() {
                                 {etapa.produtoNome || '—'}
                               </Text>
                             </Table.Td>
-                            <Table.Td>{etapa.quantidade.toLocaleString('pt-BR')}</Table.Td>
+                            <Table.Td>
+                              {editingQtd?.etapaId === etapa.id ? (
+                                <TextInput
+                                  size="xs"
+                                  type="number"
+                                  value={editingQtd.value}
+                                  onChange={(e) => setEditingQtd({ ...editingQtd, value: e.currentTarget.value })}
+                                  onBlur={() => salvarQuantidade(etapa.opId, parseFloat(editingQtd.value.replace(/\./g, '').replace(',', '.')))}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') salvarQuantidade(etapa.opId, parseFloat(editingQtd.value.replace(/\./g, '').replace(',', '.'))); if (e.key === 'Escape') setEditingQtd(null) }}
+                                  autoFocus
+                                  style={{ width: 80 }}
+                                />
+                              ) : (
+                                <Text size="sm" style={{ cursor: 'pointer' }} onClick={() => setEditingQtd({ opId: etapa.opId, etapaId: etapa.id, value: String(etapa.quantidade) })} title="Clique para editar quantidade">
+                                  {etapa.quantidade.toLocaleString('pt-BR')}
+                                </Text>
+                              )}
+                            </Table.Td>
                             <Table.Td>{etapa.tiragem ? etapa.tiragem.toLocaleString('pt-BR') : '—'}</Table.Td>
                             <Table.Td>
                               {etapa.dataEntrega ? (
@@ -2004,7 +2045,24 @@ export default function ProgramacaoPage() {
                             <Table.Td>{etapa.gramatura || '—'}</Table.Td>
                             <Table.Td>{etapa.formato || '—'}</Table.Td>
                             <Table.Td>{etapa.pesoKg ? `${etapa.pesoKg.toLocaleString('pt-BR')} kg` : '—'}</Table.Td>
-                            <Table.Td>{etapa.quantidade.toLocaleString('pt-BR')} {etapa.unidade}</Table.Td>
+                            <Table.Td>
+                              {editingQtd?.etapaId === etapa.id ? (
+                                <TextInput
+                                  size="xs"
+                                  type="number"
+                                  value={editingQtd.value}
+                                  onChange={(e) => setEditingQtd({ ...editingQtd, value: e.currentTarget.value })}
+                                  onBlur={() => salvarQuantidade(etapa.opId, parseFloat(editingQtd.value.replace(/\./g, '').replace(',', '.')))}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') salvarQuantidade(etapa.opId, parseFloat(editingQtd.value.replace(/\./g, '').replace(',', '.'))); if (e.key === 'Escape') setEditingQtd(null) }}
+                                  autoFocus
+                                  style={{ width: 80 }}
+                                />
+                              ) : (
+                                <Text size="sm" style={{ cursor: 'pointer' }} onClick={() => setEditingQtd({ opId: etapa.opId, etapaId: etapa.id, value: String(etapa.quantidade) })} title="Clique para editar quantidade">
+                                  {etapa.quantidade.toLocaleString('pt-BR')} {etapa.unidade}
+                                </Text>
+                              )}
+                            </Table.Td>
                             {temApontamento && <Table.Td fw={600} c="green">{etapa.quantidadeProduzida.toLocaleString('pt-BR')}</Table.Td>}
                             {temApontamento && <Table.Td>{etapa.quantidadePerda > 0 ? <Text c="red" size="sm">{etapa.quantidadePerda}</Text> : '—'}</Table.Td>}
                             {temApontamento && <Table.Td w={100}><Progress value={etapa.percentual} size="lg" color={etapa.percentual >= 100 ? 'green' : 'blue'} /><Text size="xs" ta="center">{etapa.percentual}%</Text></Table.Td>}
