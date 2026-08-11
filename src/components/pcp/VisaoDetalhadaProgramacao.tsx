@@ -141,6 +141,8 @@ interface Props {
   handleCentroDragEnd: (event: DragEndEvent) => void
   /** Sensors do dnd-kit para o drag de grupos — mesma instância do Grid. */
   centroSensors: ReturnType<typeof useSensors>
+  /** Permissões do PCP do usuário logado — usadas para ocultar/exibir botões de ação. */
+  minhasPermissoes?: any
 }
 
 /**
@@ -169,10 +171,23 @@ export default function VisaoDetalhadaProgramacao({
   excluirEtapa, excluirOpAvulsa, liberarProducao,
   reordenarFilaCentro, abrirAdicionarOS,
   handleCentroDragEnd, centroSensors,
+  minhasPermissoes = { isAdmin: true },
 }: Props) {
   const [selecao, setSelecao] = useState<Selecao>(null)
   const [especificacaoAberta, setEspecificacaoAberta] = useState(true)
   const [abaCategoria, setAbaCategoria] = useState<string | null>(null)
+
+  /** Verifica permissão granular por tipo de processo. */
+  function podeExecutar(acao: string, tipoProcessoId?: string | null): boolean {
+    if (minhasPermissoes.isAdmin) return true
+    if (tipoProcessoId && minhasPermissoes.permissoesPorProcesso?.[tipoProcessoId]) {
+      const permsProcesso = minhasPermissoes.permissoesPorProcesso[tipoProcessoId]
+      if (acao in permsProcesso && permsProcesso[acao] !== undefined) {
+        return permsProcesso[acao]
+      }
+    }
+    return minhasPermissoes[acao] ?? true
+  }
   // Grupos/centros abertos na lista mestre — mesmo padrão do Modelo 1
   // (Grid): abre automaticamente os centros que têm etapas na fila.
   const [abertos, setAbertos] = useState<Record<string, boolean>>({})
@@ -199,6 +214,7 @@ export default function VisaoDetalhadaProgramacao({
           centroDescricao: centro.centro.descricao,
           centroId: centro.centro.id,
           centroTipoProcessoCodigo: centro.centro.tipoProcesso?.codigo,
+          centroTipoProcessoId: centro.centro.tipoProcessoId,
         })
       }
     }
@@ -612,17 +628,24 @@ export default function VisaoDetalhadaProgramacao({
                               <Tooltip label="Adicionar OS a este grupo">
                                 <ActionIcon color="teal" variant="light" size="sm" onClick={() => abrirAdicionarOS(etapa.centroId, etapa.centroDescricao)}><IconPlus size={14} /></ActionIcon>
                               </Tooltip>
+                              {podeExecutar('podeReextrair', etapa.centroTipoProcessoId) && (
                               <Tooltip label="Re-extrair Matriz/Formato do PDF">
                                 <ActionIcon color="cyan" variant="light" size="sm" onClick={() => reextrairPdf(baseOp.opId, baseOp.opNumero)}><IconRefresh size={14} /></ActionIcon>
                               </Tooltip>
+                              )}
+                              {podeExecutar('podeMover', etapa.centroTipoProcessoId) && (
                               <Tooltip label="Mover para outro grupo">
                                 <ActionIcon color="indigo" variant="light" size="sm" onClick={() => setModalMover({ etapaId: etapa.id, opNumero: etapa.opNumero, centroAtualId: etapa.centroId, centroDescricao: etapa.centroDescricao })}><IconArrowRight size={14} /></ActionIcon>
                               </Tooltip>
+                              )}
                               {etapa.status === 'PENDENTE' && (
                                 <>
+                                  {podeExecutar('podeIniciar', etapa.centroTipoProcessoId) && (
                                   <Tooltip label="Iniciar">
                                     <ActionIcon color="green" variant="light" size="sm" onClick={() => iniciarEtapa(etapa.id)}><IconPlayerPlay size={14} /></ActionIcon>
                                   </Tooltip>
+                                  )}
+                                  {podeExecutar('podeDesmembrar', etapa.centroTipoProcessoId) && (
                                   <Tooltip label="Desmembrar">
                                     <ActionIcon
                                       color="violet"
@@ -639,24 +662,31 @@ export default function VisaoDetalhadaProgramacao({
                                       <IconCut size={14} />
                                     </ActionIcon>
                                   </Tooltip>
+                                  )}
                                 </>
                               )}
-                              {etapa.status === 'PAUSADA' && (
+                              {etapa.status === 'PAUSADA' && podeExecutar('podeIniciar', etapa.centroTipoProcessoId) && (
                                 <Tooltip label="Retomar">
                                   <ActionIcon color="green" variant="light" size="sm" onClick={() => iniciarEtapa(etapa.id)}><IconPlayerPlay size={14} /></ActionIcon>
                                 </Tooltip>
                               )}
                               {etapa.status === 'EM_ANDAMENTO' && (
                                 <>
+                                  {podeExecutar('podeApontar', etapa.centroTipoProcessoId) && (
                                   <Tooltip label="Apontar Produção">
                                     <ActionIcon color="blue" variant="light" size="sm" onClick={() => setModalApontar({ etapaId: etapa.id, opNumero: etapa.opNumero, descricao: etapa.descricao, tipoProcessoCodigo: etapa.centroTipoProcessoCodigo })}><IconClipboardCheck size={14} /></ActionIcon>
                                   </Tooltip>
+                                  )}
+                                  {podeExecutar('podePausar', etapa.centroTipoProcessoId) && (
                                   <Tooltip label="Pausar">
                                     <ActionIcon color="orange" variant="light" size="sm" onClick={() => setModalPausar({ etapaId: etapa.id, opNumero: etapa.opNumero })}><IconPlayerPause size={14} /></ActionIcon>
                                   </Tooltip>
+                                  )}
+                                  {podeExecutar('podeFinalizar', etapa.centroTipoProcessoId) && (
                                   <Tooltip label="Concluir">
                                     <ActionIcon color="green" variant="light" size="sm" onClick={() => abrirFinalizarEtapa(etapa, etapa.centroTipoProcessoCodigo)}><IconCheck size={14} /></ActionIcon>
                                   </Tooltip>
+                                  )}
                                 </>
                               )}
                               {(etapa.isDesmembramento || etapa.isManual) && etapa.status === 'PENDENTE' && (

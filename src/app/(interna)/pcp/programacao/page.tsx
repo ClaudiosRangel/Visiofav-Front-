@@ -94,6 +94,25 @@ export default function ProgramacaoPage() {
   const perfilUsuario = getUserPerfil()
   const isAdmin = perfilUsuario === 'SUPER_ADMIN' || perfilUsuario === 'ADMIN'
 
+  /**
+   * Verifica se o usuário tem permissão para executar uma ação no painel,
+   * considerando as permissões granulares por tipo de processo.
+   * ADMIN/SUPER_ADMIN sempre retornam true.
+   */
+  function podeExecutar(acao: string, tipoProcessoId?: string | null, permissoes?: any): boolean {
+    const perms = permissoes || minhasPermissoes
+    if (perms.isAdmin || isAdmin) return true
+    // Se há configuração específica para este tipo de processo, usa ela
+    if (tipoProcessoId && perms.permissoesPorProcesso?.[tipoProcessoId]) {
+      const permsProcesso = perms.permissoesPorProcesso[tipoProcessoId]
+      if (acao in permsProcesso && permsProcesso[acao] !== undefined) {
+        return permsProcesso[acao]
+      }
+    }
+    // Fallback: permissão global
+    return perms[acao] ?? true
+  }
+
   const [painel, setPainel] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [abertos, setAbertos] = useState<Record<string, boolean>>({})
@@ -468,6 +487,12 @@ export default function ProgramacaoPage() {
     const { active, over } = event
     if (!over || active.id === over.id) return
 
+    // Verificar permissão de reordenar grupos
+    if (!minhasPermissoes.isAdmin && !isAdmin && !minhasPermissoes.podeReordenarGrupos) {
+      notifications.show({ title: 'Sem permissão', message: 'Você não tem permissão para reordenar grupos', color: 'red' })
+      return
+    }
+
     const oldIndex = centrosFiltrados.findIndex((c: any) => c.centro.id === active.id)
     const newIndex = centrosFiltrados.findIndex((c: any) => c.centro.id === over.id)
     if (oldIndex === -1 || newIndex === -1) return
@@ -548,6 +573,12 @@ export default function ProgramacaoPage() {
   async function handleDragEnd(centroId: string, event: DragEndEvent) {
     const { active, over } = event
     if (!over || active.id === over.id) return
+
+    // Verificar permissão de reordenar fila
+    if (!minhasPermissoes.isAdmin && !isAdmin && !minhasPermissoes.podeReordenarFila) {
+      notifications.show({ title: 'Sem permissão', message: 'Você não tem permissão para reordenar a fila', color: 'red' })
+      return
+    }
 
     // Find the centro's etapas in current state
     const centroData = painel.centros.find((c: any) => c.centro.id === centroId)
@@ -1519,6 +1550,7 @@ export default function ProgramacaoPage() {
           alterarPrioridade={alterarPrioridade}
           handleCentroDragEnd={handleCentroDragEnd}
           centroSensors={sensors}
+          minhasPermissoes={minhasPermissoes}
         />
       ) : (
       <>
@@ -1839,30 +1871,38 @@ export default function ProgramacaoPage() {
                                 <ActionIcon color="gray" variant="light" size="sm" onClick={() => verPdfOp(etapa.opId)} title="Ver PDF da OP">
                                   <IconFileText size={14} />
                                 </ActionIcon>
+                                {podeExecutar('podeReextrair', centro.centro.tipoProcessoId) && (
                                 <ActionIcon color="cyan" variant="light" size="sm" onClick={() => reextrairPdf(etapa.opId, etapa.opNumero)} title="Re-extrair Matriz/Formato do PDF">
                                   <IconRefresh size={14} />
                                 </ActionIcon>
+                                )}
+                                {podeExecutar('podeMover', centro.centro.tipoProcessoId) && (
                                 <ActionIcon color="indigo" variant="light" size="sm" onClick={() => setModalMover({ etapaId: etapa.id, opNumero: etapa.opNumero, centroAtualId: centro.centro.id, centroDescricao: centro.centro.descricao })} title="Mover para outro grupo">
                                   <IconArrowRight size={14} />
                                 </ActionIcon>
-                                {etapa.status === 'PENDENTE' && (
+                                )}
+                                {etapa.status === 'PENDENTE' && podeExecutar('podeIniciar', centro.centro.tipoProcessoId) && (
                                   <ActionIcon color="green" variant="light" size="sm" onClick={() => iniciarEtapa(etapa.id)} title="Iniciar">
                                     <IconPlayerPlay size={14} />
                                   </ActionIcon>
                                 )}
-                                {etapa.status === 'PAUSADA' && (
+                                {etapa.status === 'PAUSADA' && podeExecutar('podeIniciar', centro.centro.tipoProcessoId) && (
                                   <ActionIcon color="green" variant="light" size="sm" onClick={() => iniciarEtapa(etapa.id)} title="Retomar">
                                     <IconPlayerPlay size={14} />
                                   </ActionIcon>
                                 )}
                                 {etapa.status === 'EM_ANDAMENTO' && (
                                   <>
+                                    {podeExecutar('podePausar', centro.centro.tipoProcessoId) && (
                                     <ActionIcon color="orange" variant="light" size="sm" onClick={() => setModalPausar({ etapaId: etapa.id, opNumero: etapa.opNumero })} title="Parar">
                                       <IconPlayerPause size={14} />
                                     </ActionIcon>
+                                    )}
+                                    {podeExecutar('podeFinalizar', centro.centro.tipoProcessoId) && (
                                     <ActionIcon color="green" variant="light" size="sm" onClick={() => abrirFinalizarEtapa(etapa, centro.centro.tipoProcesso?.codigo)} title="Finalizar">
                                       <IconCheck size={14} />
                                     </ActionIcon>
+                                    )}
                                   </>
                                 )}
                                 {(etapa.isDesmembramento || etapa.isManual) && etapa.status === 'PENDENTE' && (
@@ -1969,7 +2009,7 @@ export default function ProgramacaoPage() {
                             <Table.Td style={{ minWidth: 100 }}>
                               {etapa.dataEntrega ? (
                                 <Group gap={4} wrap="nowrap">
-                                  <Text size="sm" style={{ cursor: 'pointer' }} onClick={() => setModalPostData({ opId: etapa.opId, opNumero: etapa.opNumero, dataAtual: etapa.dataEntrega })}>
+                                  <Text size="sm" style={{ cursor: podeExecutar('podePostergarEntrega', centro.centro.tipoProcessoId) ? 'pointer' : 'default' }} onClick={() => { if (podeExecutar('podePostergarEntrega', centro.centro.tipoProcessoId)) setModalPostData({ opId: etapa.opId, opNumero: etapa.opNumero, dataAtual: etapa.dataEntrega }) }}>
                                     {new Date(etapa.dataEntrega).toLocaleDateString('pt-BR')}
                                   </Text>
                                   {etapa.vezesPostergada === 0 && <Text size="sm">🟢</Text>}
@@ -1979,14 +2019,15 @@ export default function ProgramacaoPage() {
                               ) : '—'}
                             </Table.Td>
                             <Table.Td>
-                              <Text size="xs" fw={600} c={PRIORIDADE_COLORS[etapa.prioridade]} style={{ whiteSpace: 'nowrap', fontSize: '10px', cursor: 'pointer' }}
+                              <Text size="xs" fw={600} c={PRIORIDADE_COLORS[etapa.prioridade]} style={{ whiteSpace: 'nowrap', fontSize: '10px', cursor: podeExecutar('podeAlterarPrioridade', centro.centro.tipoProcessoId) ? 'pointer' : 'default' }}
                                 onClick={() => {
+                                  if (!podeExecutar('podeAlterarPrioridade', centro.centro.tipoProcessoId)) return
                                   const opcoes = ['BAIXA', 'NORMAL', 'ALTA', 'URGENTE']
                                   const atual = opcoes.indexOf(etapa.prioridade)
                                   const nova = opcoes[(atual + 1) % opcoes.length]
                                   api.patch(`/ordens-producao/${etapa.opId}`, { prioridade: nova }).then(() => carregar())
                                 }}
-                                title="Clique para alterar prioridade"
+                                title={podeExecutar('podeAlterarPrioridade', centro.centro.tipoProcessoId) ? 'Clique para alterar prioridade' : 'Sem permissão para alterar prioridade'}
                               >
                                 {etapa.prioridade}
                               </Text>
@@ -2024,38 +2065,52 @@ export default function ProgramacaoPage() {
                                 <ActionIcon color="gray" variant="light" size="sm" onClick={() => verPdfOp(etapa.opId)} title="Ver PDF da OP">
                                   <IconFileText size={14} />
                                 </ActionIcon>
+                                {podeExecutar('podeReextrair', centro.centro.tipoProcessoId) && (
                                 <ActionIcon color="cyan" variant="light" size="sm" onClick={() => reextrairPdf(etapa.opId, etapa.opNumero)} title="Re-extrair Matriz/Formato do PDF">
                                   <IconRefresh size={14} />
                                 </ActionIcon>
+                                )}
+                                {podeExecutar('podeMover', centro.centro.tipoProcessoId) && (
                                 <ActionIcon color="indigo" variant="light" size="sm" onClick={() => setModalMover({ etapaId: etapa.id, opNumero: etapa.opNumero, centroAtualId: centro.centro.id, centroDescricao: centro.centro.descricao })} title="Mover para outro grupo">
                                   <IconArrowRight size={14} />
                                 </ActionIcon>
+                                )}
                                 {etapa.status === 'PENDENTE' && (
                                   <>
+                                    {podeExecutar('podeIniciar', centro.centro.tipoProcessoId) && (
                                     <ActionIcon color="green" variant="light" size="sm" onClick={() => iniciarEtapa(etapa.id)} title="Iniciar">
                                       <IconPlayerPlay size={14} />
                                     </ActionIcon>
+                                    )}
+                                    {podeExecutar('podeDesmembrar', centro.centro.tipoProcessoId) && (
                                     <ActionIcon color="violet" variant="light" size="sm" onClick={() => { setModalDesmembrar({ etapaId: etapa.id, opNumero: etapa.opNumero, quantidade: etapa.quantidade, descricao: etapa.descricao }); setFormDesmembrar([{ centroProducaoId: '', quantidade: Math.floor(etapa.quantidade / 2) }, { centroProducaoId: '', quantidade: Math.ceil(etapa.quantidade / 2) }]) }} title="Desmembrar">
                                       <IconCut size={14} />
                                     </ActionIcon>
+                                    )}
                                   </>
                                 )}
-                                {etapa.status === 'PAUSADA' && (
+                                {etapa.status === 'PAUSADA' && podeExecutar('podeIniciar', centro.centro.tipoProcessoId) && (
                                   <ActionIcon color="green" variant="light" size="sm" onClick={() => iniciarEtapa(etapa.id)} title="Retomar">
                                     <IconPlayerPlay size={14} />
                                   </ActionIcon>
                                 )}
                                 {etapa.status === 'EM_ANDAMENTO' && (
                                   <>
+                                    {podeExecutar('podeApontar', centro.centro.tipoProcessoId) && (
                                     <ActionIcon color="blue" variant="light" size="sm" onClick={() => setModalApontar({ etapaId: etapa.id, opNumero: etapa.opNumero, descricao: etapa.descricao, tipoProcessoCodigo: centro.centro.tipoProcesso?.codigo })} title="Apontar Produção">
                                       <IconClipboardCheck size={14} />
                                     </ActionIcon>
+                                    )}
+                                    {podeExecutar('podePausar', centro.centro.tipoProcessoId) && (
                                     <ActionIcon color="orange" variant="light" size="sm" onClick={() => setModalPausar({ etapaId: etapa.id, opNumero: etapa.opNumero })} title="Pausar">
                                       <IconPlayerPause size={14} />
                                     </ActionIcon>
+                                    )}
+                                    {podeExecutar('podeFinalizar', centro.centro.tipoProcessoId) && (
                                     <ActionIcon color="green" variant="light" size="sm" onClick={() => abrirFinalizarEtapa(etapa, centro.centro.tipoProcesso?.codigo)} title="Concluir">
                                       <IconCheck size={14} />
                                     </ActionIcon>
+                                    )}
                                   </>
                                 )}
                                 {(etapa.isDesmembramento || etapa.isManual) && etapa.status === 'PENDENTE' && (
