@@ -1600,7 +1600,7 @@ export default function ProgramacaoPage() {
                     {item.kgEncomendado > 0 && <Text size="xs" c="red">⏳ {item.kgEncomendado.toLocaleString('pt-BR')} kg encomendado</Text>}
                   </Table.Td>
                   <Table.Td>{item.dataEntrega ? new Date(item.dataEntrega).toLocaleDateString('pt-BR') : '—'}</Table.Td>
-                  <Table.Td style={{ minWidth: 150, ...(item.observacaoOperador?.replace('[MATRIZ_OK]', '').trim() ? { background: '#ff1493', borderRadius: 2 } : {}) }}>
+                  <Table.Td style={{ minWidth: 150, ...(item.observacaoOperador?.replace('[MATRIZ_OK]', '').trim() ? { background: '#2dd4a8', borderRadius: 2 } : {}) }}>
                     {editingObs?.id === item.id ? (
                       <TextInput
                         size="xs"
@@ -1845,7 +1845,7 @@ export default function ProgramacaoPage() {
                             <Table.Td>{etapa.gramatura || '—'}</Table.Td>
                             <Table.Td>{etapa.formato || '—'}</Table.Td>
                             <Table.Td>{etapa.pesoKg ? etapa.pesoKg.toLocaleString('pt-BR') : '—'}</Table.Td>
-                            <Table.Td style={{ minWidth: 130, ...(etapa.observacaoOperador?.replace('[MATRIZ_OK]', '').trim() ? { background: '#ff1493', borderRadius: 2 } : {}) }}>
+                            <Table.Td style={{ minWidth: 130, ...(etapa.observacaoOperador?.replace('[MATRIZ_OK]', '').trim() ? { background: '#2dd4a8', borderRadius: 2 } : {}) }}>
                               {editingObs?.id === etapa.id ? (
                                 <TextInput
                                   size="xs"
@@ -2040,7 +2040,7 @@ export default function ProgramacaoPage() {
                             <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone01 || '—'}</Text></Table.Td>
                             <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone02 || '—'}</Text></Table.Td>
                             <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone03 || '—'}</Text></Table.Td>
-                            <Table.Td style={{ minWidth: 150, ...(etapa.observacaoOperador?.replace('[MATRIZ_OK]', '').trim() ? { background: '#ff1493', borderRadius: 2 } : {}) }}>
+                            <Table.Td style={{ minWidth: 150, ...(etapa.observacaoOperador?.replace('[MATRIZ_OK]', '').trim() ? { background: '#2dd4a8', borderRadius: 2 } : {}) }}>
                               {editingObs?.id === etapa.id ? (
                                 <TextInput
                                   size="xs"
