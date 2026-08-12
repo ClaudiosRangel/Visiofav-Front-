@@ -33,6 +33,8 @@ export default function OrdensProducaoPage() {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [busca, setBusca] = useState('')
+  const [filtroCliente, setFiltroCliente] = useState('')
+  const [filtroProduto, setFiltroProduto] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('TODAS')
   const [pdfStatus, setPdfStatus] = useState<Record<string, boolean>>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -44,6 +46,8 @@ export default function OrdensProducaoPage() {
       const params: any = { page, limit: 20 }
       if (statusFilter !== 'TODAS') params.status = statusFilter
       if (busca) params.numero = busca
+      if (filtroCliente.trim()) params.cliente = filtroCliente.trim()
+      if (filtroProduto.trim()) params.produto = filtroProduto.trim()
       const res = await api.get('/ordens-producao', { params })
       setData(res.data.data)
       setTotal(res.data.total)
@@ -114,6 +118,22 @@ export default function OrdensProducaoPage() {
           value={busca}
           onChange={(e) => setBusca(e.currentTarget.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') carregarOps() }}
+          w={200}
+        />
+        <TextInput
+          placeholder="Filtrar por cliente..."
+          value={filtroCliente}
+          onChange={(e) => setFiltroCliente(e.currentTarget.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') carregarOps() }}
+          onBlur={() => carregarOps()}
+          w={200}
+        />
+        <TextInput
+          placeholder="Filtrar por produto..."
+          value={filtroProduto}
+          onChange={(e) => setFiltroProduto(e.currentTarget.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') carregarOps() }}
+          onBlur={() => carregarOps()}
           w={200}
         />
       </Group>
