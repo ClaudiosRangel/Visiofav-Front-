@@ -2047,14 +2047,14 @@ export default function ProgramacaoPage() {
                               </Menu>
                             </Table.Td>
                             )}
-                            <Table.Td style={{ minWidth: 200 }}>
+                            <Table.Td style={{ minWidth: 200, ...(etapa.preImpressaoStatus === 'FINALIZADO' ? { background: '#2f9e44', borderRadius: 2 } : etapa.preImpressaoStatus === 'PROBLEMA' ? { background: '#e03131', borderRadius: 2 } : etapa.preImpressaoStatus === 'METADE' ? { background: '#228be6', borderRadius: 2 } : {}) }}>
                               <Group gap={4} wrap="nowrap">
-                                <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
+                                <Text size="sm" fw={700} style={{ lineHeight: 1.2 }} c={etapa.preImpressaoStatus ? 'white' : undefined}>
                                   {etapa.opNumero} — {etapa.clienteNome || etapa.observacoes?.match(/\[Cliente\]\s*(.+)/)?.[1] || '—'}
                                 </Text>
                                 {etapa.isAvulsa && <Badge color="pink" size="xs">AVULSA</Badge>}
                               </Group>
-                              <Text size="xs" fw={600} c="dimmed" style={{ lineHeight: 1.2 }}>
+                              <Text size="xs" fw={600} c={etapa.preImpressaoStatus ? 'white' : 'dimmed'} style={{ lineHeight: 1.2 }}>
                                 {etapa.produtoNome || etapa.observacoes?.match(/\[Produto\]\s*(.+)/)?.[1] || ''}
                               </Text>
                               {etapa.materialEncomendado && <Text size="xs" c="red" fw={700}>* Aguardando restante cartão</Text>}
@@ -2113,7 +2113,7 @@ export default function ProgramacaoPage() {
                               </Text>
                             </Table.Td>
                             <Table.Td><Text size="xs" fw={600} c={STATUS_COLORS[etapa.status]} style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>{etapa.status === 'EM_ANDAMENTO' ? 'EM ANDAMENTO' : etapa.status}</Text></Table.Td>
-                            <Table.Td style={etapa.preImpressaoStatus === 'FINALIZADO' ? { background: '#2f9e44', borderRadius: 2 } : etapa.preImpressaoStatus === 'PROBLEMA' ? { background: '#e03131', borderRadius: 2 } : undefined}><Text size="xs" fw={500} c={etapa.preImpressaoStatus === 'FINALIZADO' || etapa.preImpressaoStatus === 'PROBLEMA' ? 'white' : undefined}>{etapa.matriz || '—'}</Text></Table.Td>
+                            <Table.Td><Text size="xs" fw={500}>{etapa.matriz || '—'}</Text></Table.Td>
                             <Table.Td><Text size="xs" fw={600} c="indigo">{etapa.qtdCores || '—'}</Text></Table.Td>
                             <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone01 || '—'}</Text></Table.Td>
                             <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone02 || '—'}</Text></Table.Td>
