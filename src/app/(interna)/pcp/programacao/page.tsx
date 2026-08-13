@@ -1845,6 +1845,7 @@ export default function ProgramacaoPage() {
                           <Table.Th style={{ width: 30, padding: '0 4px' }}>
                             <input type="checkbox" onChange={() => toggleSelectAllCentro(centro.centro.id)} checked={centro.etapas.length > 0 && centro.etapas.every((e: any) => selectedEtapas.has(e.id))} style={{ cursor: 'pointer', width: 14, height: 14 }} />
                           </Table.Th>
+                          <Table.Th style={{ width: 28 }} title="Etapa Anterior">⚙</Table.Th>
                           <Table.Th style={{ minWidth: 200 }}>OS / Cliente / Produto</Table.Th>
                           <Table.Th>Qtd</Table.Th>
                           <Table.Th>Tiragem</Table.Th>
@@ -1860,6 +1861,10 @@ export default function ProgramacaoPage() {
                       <Table.Tbody>
                         {centro.etapas.map((etapa: any) => (
                           <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa, usaCoresStatus)} highlighted={highlightedEtapa === etapa.id} selected={selectedEtapas.has(etapa.id)} onToggleSelect={() => toggleSelectEtapa(etapa.id)}>
+                            <Table.Td style={{ width: 28, padding: '0 4px' }}>
+                              {etapa.etapaAnteriorConcluida === true && <IconCheck size={20} color="#00d26a" strokeWidth={3} />}
+                              {etapa.etapaAnteriorConcluida === false && <span style={{ color: '#adb5bd', fontSize: 10 }}>—</span>}
+                            </Table.Td>
                             <Table.Td style={{ minWidth: 200 }}>
                               <Group gap={4} wrap="nowrap">
                                 <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
