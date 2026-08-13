@@ -2105,7 +2105,13 @@ export default function ProgramacaoPage() {
                                   const opcoes = ['BAIXA', 'NORMAL', 'ALTA', 'URGENTE']
                                   const atual = opcoes.indexOf(etapa.prioridade)
                                   const nova = opcoes[(atual + 1) % opcoes.length]
-                                  api.patch(`/ordens-producao/${etapa.opId}`, { prioridade: nova }).then(() => carregar())
+                                  api.patch(`/ordens-producao/${etapa.opId}`, { prioridade: nova }).then(() => {
+                                    // Atualização otimista — não chama carregar() para preservar a ordem da fila
+                                    setPainel((prev: any) => {
+                                      if (!prev) return prev
+                                      return { ...prev, centros: prev.centros.map((c: any) => ({ ...c, etapas: c.etapas.map((e: any) => e.opId === etapa.opId ? { ...e, prioridade: nova } : e) })) }
+                                    })
+                                  })
                                 }}
                                 title={podeExecutar('podeAlterarPrioridade', centro.centro.tipoProcessoId) ? 'Clique para alterar prioridade' : 'Sem permissão para alterar prioridade'}
                               >
