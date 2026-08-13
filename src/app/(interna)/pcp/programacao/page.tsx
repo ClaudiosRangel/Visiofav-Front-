@@ -1973,28 +1973,6 @@ export default function ProgramacaoPage() {
                                     <IconX size={14} />
                                   </ActionIcon>
                                 )}
-                                {minhasPermissoes.isPreImpressao && (centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('corte') || centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('impress')) && (
-                                  <ActionIcon
-                                    color={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? 'green' : 'gray'}
-                                    variant={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? 'filled' : 'light'}
-                                    size="sm"
-                                    onClick={async () => {
-                                      try {
-                                        const { data } = await api.post('/pcp/programacao/pintar-matriz', { etapaId: etapa.id })
-                                        const TAG = '[MATRIZ_OK]'
-                                        setPainel((prev: any) => {
-                                          if (!prev) return prev
-                                          return { ...prev, centros: prev.centros.map((c: any) => ({
-                                            ...c, etapas: c.etapas.map((e: any) => e.id === etapa.id ? { ...e, observacaoOperador: data.matrizOk ? (e.observacaoOperador ? `${e.observacaoOperador} ${TAG}` : TAG) : (e.observacaoOperador || '').replace(TAG, '').trim() } : e)
-                                          }))}
-                                        })
-                                      } catch { notifications.show({ title: 'Erro', message: 'Falha ao pintar matriz', color: 'red' }) }
-                                    }}
-                                    title={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? 'Matriz aprovada (clique p/ remover)' : 'Aprovar Matriz'}
-                                  >
-                                    <IconPalette size={14} />
-                                  </ActionIcon>
-                                )}
                               </Group>
                             </Table.Td>
                           </SortableRow>
@@ -2224,28 +2202,6 @@ export default function ProgramacaoPage() {
                                 {etapa.isAvulsa && (
                                   <ActionIcon color="red" variant="light" size="sm" onClick={() => excluirOpAvulsa(etapa.opId, etapa.opNumero)} title="Excluir OP avulsa">
                                     <IconX size={14} />
-                                  </ActionIcon>
-                                )}
-                                {minhasPermissoes.isPreImpressao && (centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('corte') || centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('impress')) && (
-                                  <ActionIcon
-                                    color={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? 'green' : 'gray'}
-                                    variant={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? 'filled' : 'light'}
-                                    size="sm"
-                                    onClick={async () => {
-                                      try {
-                                        const { data } = await api.post('/pcp/programacao/pintar-matriz', { etapaId: etapa.id })
-                                        const TAG = '[MATRIZ_OK]'
-                                        setPainel((prev: any) => {
-                                          if (!prev) return prev
-                                          return { ...prev, centros: prev.centros.map((c: any) => ({
-                                            ...c, etapas: c.etapas.map((e: any) => e.id === etapa.id ? { ...e, observacaoOperador: data.matrizOk ? (e.observacaoOperador ? `${e.observacaoOperador} ${TAG}` : TAG) : (e.observacaoOperador || '').replace(TAG, '').trim() } : e)
-                                          }))}
-                                        })
-                                      } catch { notifications.show({ title: 'Erro', message: 'Falha ao pintar matriz', color: 'red' }) }
-                                    }}
-                                    title={etapa.observacaoOperador?.includes('[MATRIZ_OK]') ? 'Matriz aprovada (clique p/ remover)' : 'Aprovar Matriz (pré-impressão)'}
-                                  >
-                                    <IconPalette size={14} />
                                   </ActionIcon>
                                 )}
                               </Group>
