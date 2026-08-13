@@ -44,6 +44,10 @@ export default function DetalheOpPage() {
   const [editandoQuantidade, setEditandoQuantidade] = useState(false)
   const [quantidadeInput, setQuantidadeInput] = useState<number | ''>(0)
   const [salvandoQuantidade, setSalvandoQuantidade] = useState(false)
+  // Edição da data de entrega prevista
+  const [editandoEntrega, setEditandoEntrega] = useState(false)
+  const [entregaInput, setEntregaInput] = useState('')
+  const [salvandoEntrega, setSalvandoEntrega] = useState(false)
   // Modal de cancelamento forçado (EM_PRODUCAO/CONCLUIDA) — exige admin
   const [modalCancelarForcado, setModalCancelarForcado] = useState(false)
   const [formCancelarForcado, setFormCancelarForcado] = useState({ motivoCancelamento: '', emailAdmin: '', senhaAdmin: '' })
@@ -119,6 +123,24 @@ export default function DetalheOpPage() {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar', color: 'red' })
     } finally {
       setSalvandoQuantidade(false)
+    }
+  }
+
+  async function salvarEntrega() {
+    if (!entregaInput) {
+      setEditandoEntrega(false)
+      return
+    }
+    setSalvandoEntrega(true)
+    try {
+      await api.patch(`/ordens-producao/${id}`, { dataEntregaPrevista: `${entregaInput}T12:00:00` })
+      setOp((prev: any) => ({ ...prev, dataEntregaPrevista: `${entregaInput}T12:00:00` }))
+      setEditandoEntrega(false)
+      notifications.show({ title: 'Entrega atualizada', message: `Nova data: ${entregaInput.split('-').reverse().join('/')}`, color: 'green' })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar', color: 'red' })
+    } finally {
+      setSalvandoEntrega(false)
     }
   }
 
@@ -410,8 +432,49 @@ export default function DetalheOpPage() {
               </Group>
             )}
           </div>
-          <div><Text size="xs" c="dimmed">Entrega Prevista</Text><Text fw={600}>{op.dataEntregaPrevista ? new Date(op.dataEntregaPrevista).toLocaleDateString('pt-BR') : '—'}</Text></div>
+          <div>
+            <Text size="xs" c="dimmed">Entrega Prevista</Text>
+            {editandoEntrega ? (
+              <Group gap={4} wrap="nowrap">
+                <input
+                  type="date"
+                  value={entregaInput}
+                  onChange={(e) => setEntregaInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') salvarEntrega(); if (e.key === 'Escape') setEditandoEntrega(false) }}
+                  autoFocus
+                  disabled={salvandoEntrega}
+                  style={{ padding: '4px 8px', border: '1px solid #dee2e6', borderRadius: 4, fontSize: 13 }}
+                />
+                <ActionIcon size="sm" color="green" variant="light" onClick={salvarEntrega} loading={salvandoEntrega} title="Salvar">
+                  <IconCheck size={14} />
+                </ActionIcon>
+                <ActionIcon size="sm" color="gray" variant="light" onClick={() => setEditandoEntrega(false)} disabled={salvandoEntrega} title="Cancelar">
+                  <IconX size={14} />
+                </ActionIcon>
+              </Group>
+            ) : (
+              <Group gap={4} wrap="nowrap">
+                <Text fw={600}>{op.dataEntregaPrevista ? new Date(op.dataEntregaPrevista).toLocaleDateString('pt-BR') : '—'}</Text>
+                <Tooltip label="Editar data de entrega">
+                  <ActionIcon size="sm" variant="subtle" color="gray" onClick={() => { setEntregaInput(op.dataEntregaPrevista ? new Date(op.dataEntregaPrevista).toISOString().split('T')[0] : ''); setEditandoEntrega(true) }}>
+                    <IconPencil size={14} />
+                  </ActionIcon>
+                </Tooltip>
+              </Group>
+            )}
+          </div>
           <div><Text size="xs" c="dimmed">Cliente</Text><Text fw={600}>{op.clienteNome || '—'}</Text></div>
+          <div>
+            <Text size="xs" c="dimmed">Prog. Entrega</Text>
+            {programacoes.length > 0 ? (
+              <Text fw={600} c="teal">
+                {new Date(programacoes.sort((a: any, b: any) => new Date(b.dataEntrega).getTime() - new Date(a.dataEntrega).getTime())[0].dataEntrega).toLocaleDateString('pt-BR')}
+                {programacoes.length > 1 && <Text span size="xs" c="dimmed"> (+{programacoes.length - 1})</Text>}
+              </Text>
+            ) : (
+              <Text fw={600} c="dimmed">—</Text>
+            )}
+          </div>
           <div><Text size="xs" c="dimmed">Lote</Text><Text fw={600}>{op.lote || '—'}</Text></div>
           <div><Text size="xs" c="dimmed">Cor</Text><Text fw={600}>{op.cor || '—'}</Text></div>
         </Group>
