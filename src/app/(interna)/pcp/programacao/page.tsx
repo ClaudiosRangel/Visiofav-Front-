@@ -2021,8 +2021,8 @@ export default function ProgramacaoPage() {
                       <Table.Tbody>
                         {centro.etapas.map((etapa: any) => (
                           <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa, usaCoresStatus)} highlighted={highlightedEtapa === etapa.id} selected={selectedEtapas.has(etapa.id)} onToggleSelect={() => toggleSelectEtapa(etapa.id)}>
-                            <Table.Td style={{ width: 24, padding: '0 4px' }}>
-                              {etapa.etapaAnteriorConcluida === true && <IconCheck size={14} color="#2f9e44" />}
+                            <Table.Td style={{ width: 28, padding: '0 4px' }}>
+                              {etapa.etapaAnteriorConcluida === true && <IconCheck size={20} color="#00d26a" strokeWidth={3} />}
                               {etapa.etapaAnteriorConcluida === false && <span style={{ color: '#adb5bd', fontSize: 10 }}>—</span>}
                             </Table.Td>
                             {(centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('impress') || centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('corte')) && (
