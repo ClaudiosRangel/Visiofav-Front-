@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Title, Stack, Table, Group, Badge, Text, Loader, Center, Collapse, UnstyledButton, Card, ScrollArea, Button, Modal, NumberInput, Select, Textarea, Progress, ActionIcon, Tabs, TextInput, SegmentedControl, Autocomplete, Box, FileButton, Image, Checkbox } from '@mantine/core'
+import { Title, Stack, Table, Group, Badge, Text, Loader, Center, Collapse, UnstyledButton, Card, ScrollArea, Button, Modal, NumberInput, Select, Textarea, Progress, ActionIcon, Tabs, TextInput, SegmentedControl, Autocomplete, Box, FileButton, Image, Checkbox, Menu } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
-import { IconChevronDown, IconChevronRight, IconPlayerPlay, IconPlayerPause, IconCheck, IconClipboardCheck, IconAlertTriangle, IconCut, IconGripVertical, IconSearch, IconFileText, IconPlus, IconArrowRight, IconX, IconPrinter, IconRefresh, IconCamera, IconSettings, IconPalette } from '@tabler/icons-react'
+import { IconChevronDown, IconChevronRight, IconPlayerPlay, IconPlayerPause, IconCheck, IconClipboardCheck, IconAlertTriangle, IconCut, IconGripVertical, IconSearch, IconFileText, IconPlus, IconArrowRight, IconX, IconPrinter, IconRefresh, IconCamera, IconSettings, IconPalette, IconCircleHalf2, IconAlertCircle } from '@tabler/icons-react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -829,6 +829,21 @@ export default function ProgramacaoPage() {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar quantidade', color: 'red' })
     }
     setEditingQtd(null)
+  }
+
+  async function setPreImpressaoStatus(etapaId: string, status: 'FINALIZADO' | 'METADE' | 'PROBLEMA' | null) {
+    try {
+      await api.post('/pcp/programacao/pintar-matriz', { etapaId, status })
+      // Atualização otimista
+      setPainel((prev: any) => {
+        if (!prev) return prev
+        return { ...prev, centros: prev.centros.map((c: any) => ({
+          ...c, etapas: c.etapas.map((e: any) => e.id === etapaId ? { ...e, preImpressaoStatus: status } : e)
+        }))}
+      })
+    } catch {
+      notifications.show({ title: 'Erro', message: 'Falha ao definir status de pré-impressão', color: 'red' })
+    }
   }
 
   async function postergarEntrega(opId: string, novaData: string) {
@@ -1998,6 +2013,10 @@ export default function ProgramacaoPage() {
                           <Table.Th style={{ width: 30, padding: '0 4px' }}>
                             <input type="checkbox" onChange={() => toggleSelectAllCentro(centro.centro.id)} checked={centro.etapas.length > 0 && centro.etapas.every((e: any) => selectedEtapas.has(e.id))} style={{ cursor: 'pointer', width: 14, height: 14 }} />
                           </Table.Th>
+                          <Table.Th style={{ width: 24 }} title="Etapa Anterior">⚙</Table.Th>
+                          {(centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('impress') || centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('corte')) && (
+                            <Table.Th style={{ width: 24 }} title="Pré-Impressão"><IconPrinter size={12} /></Table.Th>
+                          )}
                           <Table.Th style={{ minWidth: 200 }}>OP / Cliente / Produto</Table.Th>
                           <Table.Th>Tipo OP</Table.Th>
                           <Table.Th>Tir.</Table.Th>
@@ -2024,11 +2043,34 @@ export default function ProgramacaoPage() {
                       <Table.Tbody>
                         {centro.etapas.map((etapa: any) => (
                           <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa, usaCoresStatus)} highlighted={highlightedEtapa === etapa.id} selected={selectedEtapas.has(etapa.id)} onToggleSelect={() => toggleSelectEtapa(etapa.id)}>
+                            <Table.Td style={{ width: 24, padding: '0 4px' }}>
+                              {etapa.etapaAnteriorConcluida === true && <IconCheck size={14} color="#2f9e44" />}
+                              {etapa.etapaAnteriorConcluida === false && <span style={{ color: '#adb5bd', fontSize: 10 }}>—</span>}
+                            </Table.Td>
+                            {(centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('impress') || centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('corte')) && (
+                            <Table.Td style={{ width: 24, padding: '0 4px' }}>
+                              <Menu shadow="md" width={160} position="bottom-start">
+                                <Menu.Target>
+                                  <ActionIcon
+                                    size="sm"
+                                    variant="light"
+                                    color={etapa.preImpressaoStatus === 'FINALIZADO' ? 'green' : etapa.preImpressaoStatus === 'METADE' ? 'blue' : etapa.preImpressaoStatus === 'PROBLEMA' ? 'red' : 'gray'}
+                                    title={etapa.preImpressaoStatus || 'Definir status pré-impressão'}
+                                  >
+                                    <IconPrinter size={12} />
+                                  </ActionIcon>
+                                </Menu.Target>
+                                <Menu.Dropdown>
+                                  <Menu.Item leftSection={<IconCheck size={14} color="#2f9e44" />} onClick={() => setPreImpressaoStatus(etapa.id, 'FINALIZADO')}>Finalizou</Menu.Item>
+                                  <Menu.Item leftSection={<IconCircleHalf2 size={14} color="#228be6" />} onClick={() => setPreImpressaoStatus(etapa.id, 'METADE')}>Metade</Menu.Item>
+                                  <Menu.Item leftSection={<IconAlertCircle size={14} color="#e03131" />} onClick={() => setPreImpressaoStatus(etapa.id, 'PROBLEMA')}>Problema</Menu.Item>
+                                  {etapa.preImpressaoStatus && <Menu.Item c="dimmed" onClick={() => setPreImpressaoStatus(etapa.id, null)}>Limpar</Menu.Item>}
+                                </Menu.Dropdown>
+                              </Menu>
+                            </Table.Td>
+                            )}
                             <Table.Td style={{ minWidth: 200 }}>
                               <Group gap={4} wrap="nowrap">
-                                {etapa.observacaoOperador?.includes('[MATRIZ_OK]') && centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('impress') && (
-                                  <span style={{ color: '#2f9e44', fontWeight: 'bold', fontSize: 16 }}>✓</span>
-                                )}
                                 <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
                                   {etapa.opNumero} — {etapa.clienteNome || etapa.observacoes?.match(/\[Cliente\]\s*(.+)/)?.[1] || '—'}
                                 </Text>
@@ -2093,7 +2135,7 @@ export default function ProgramacaoPage() {
                               </Text>
                             </Table.Td>
                             <Table.Td><Text size="xs" fw={600} c={STATUS_COLORS[etapa.status]} style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>{etapa.status === 'EM_ANDAMENTO' ? 'EM ANDAMENTO' : etapa.status}</Text></Table.Td>
-                            <Table.Td style={etapa.observacaoOperador?.includes('[MATRIZ_OK]') && centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('corte') ? { background: '#2f9e44', borderRadius: 2 } : undefined}><Text size="xs" fw={500} c={etapa.observacaoOperador?.includes('[MATRIZ_OK]') && centro.centro.tipoProcesso?.codigo?.toLowerCase().includes('corte') ? 'white' : undefined}>{etapa.matriz || '—'}</Text></Table.Td>
+                            <Table.Td style={etapa.preImpressaoStatus === 'FINALIZADO' ? { background: '#2f9e44', borderRadius: 2 } : etapa.preImpressaoStatus === 'PROBLEMA' ? { background: '#e03131', borderRadius: 2 } : undefined}><Text size="xs" fw={500} c={etapa.preImpressaoStatus === 'FINALIZADO' || etapa.preImpressaoStatus === 'PROBLEMA' ? 'white' : undefined}>{etapa.matriz || '—'}</Text></Table.Td>
                             <Table.Td><Text size="xs" fw={600} c="indigo">{etapa.qtdCores || '—'}</Text></Table.Td>
                             <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone01 || '—'}</Text></Table.Td>
                             <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone02 || '—'}</Text></Table.Td>
