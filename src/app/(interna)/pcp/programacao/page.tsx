@@ -2040,7 +2040,7 @@ export default function ProgramacaoPage() {
                                 </Menu.Target>
                                 <Menu.Dropdown>
                                   <Menu.Item leftSection={<IconCheck size={14} color="#2f9e44" />} onClick={() => setPreImpressaoStatus(etapa.id, 'FINALIZADO')}>Finalizou</Menu.Item>
-                                  <Menu.Item leftSection={<IconCircleHalf2 size={14} color="#228be6" />} onClick={() => setPreImpressaoStatus(etapa.id, 'METADE')}>Metade</Menu.Item>
+                                  <Menu.Item leftSection={<IconCircleHalf2 size={14} color="#228be6" />} onClick={() => setPreImpressaoStatus(etapa.id, 'METADE')}>Montagem</Menu.Item>
                                   <Menu.Item leftSection={<IconAlertCircle size={14} color="#e03131" />} onClick={() => setPreImpressaoStatus(etapa.id, 'PROBLEMA')}>Problema</Menu.Item>
                                   {etapa.preImpressaoStatus && <Menu.Item c="dimmed" onClick={() => setPreImpressaoStatus(etapa.id, null)}>Limpar</Menu.Item>}
                                 </Menu.Dropdown>
