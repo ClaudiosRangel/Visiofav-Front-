@@ -1910,12 +1910,11 @@ export default function ProgramacaoPage() {
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => handleDragEnd(centro.centro.id, event)}>
                 <SortableContext items={centro.etapas.map((e: any) => e.id)} strategy={verticalListSortingStrategy}>
                   <ScrollArea>
-                    {getCategoriaCentro(centro.centro.tipoProcesso?.codigo) === 'cortadeira' ? (
-                    /* ===== MODELO CORTADEIRA ===== */
-                    (() => {
+                    {(() => {
                       const colsGrid = getColunasGridParaProcesso(centro.centro.tipoProcesso?.codigo || 'cortadeira')
                       const colVis = (id: string) => !colsGrid || colsGrid.includes(id)
-                      return (
+                      if (getCategoriaCentro(centro.centro.tipoProcesso?.codigo) === 'cortadeira') {
+                        return (
                     <Table striped highlightOnHover mt="xs" style={{ tableLayout: 'auto', fontSize: '11px' }}>
                       <Table.Thead>
                         <Table.Tr style={{ fontSize: '10px' }}>
@@ -2081,9 +2080,10 @@ export default function ProgramacaoPage() {
                         ))}
                       </Table.Tbody>
                     </Table>
-                      )
-                    })() : (
-                    /* ===== MODELO IMPRESSÃO / ACABAMENTO ===== */
+                        )
+                      }
+                      /* ===== MODELO IMPRESSÃO / ACABAMENTO ===== */
+                      return (
                     <Table striped highlightOnHover mt="xs" style={{ tableLayout: 'auto', fontSize: '11px' }}>
                       {(() => {
                         const temApontamento = centro.etapas.some((e: any) => e.quantidadeProduzida > 0 || e.quantidadePerda > 0)
@@ -2321,7 +2321,8 @@ export default function ProgramacaoPage() {
                       </>)
                       })()}
                     </Table>
-                    )}
+                    )
+                    })()}
                   </ScrollArea>
                 </SortableContext>
               </DndContext>
