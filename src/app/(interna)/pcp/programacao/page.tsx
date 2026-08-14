@@ -153,6 +153,7 @@ export default function ProgramacaoPage() {
     { id: 'pantone02', label: 'Pantone 2' },
     { id: 'pantone03', label: 'Pantone 3' },
     { id: 'kg', label: 'KG' },
+    { id: 'produzida', label: 'Produzida' },
     { id: 'prioridade', label: 'Prioridade' },
     { id: 'observacao', label: 'Acompanhamento' },
   ]
@@ -166,8 +167,16 @@ export default function ProgramacaoPage() {
       return salvo ? JSON.parse(salvo) : {}
     } catch { return {} }
   })
+  const [colunasGrid, setColunasGrid] = useState<Record<string, string[]>>(() => {
+    if (typeof window === 'undefined') return {}
+    try {
+      const salvo = localStorage.getItem('pcp-colunas-grid')
+      return salvo ? JSON.parse(salvo) : {}
+    } catch { return {} }
+  })
   const [modalColunasImpressao, setModalColunasImpressao] = useState(false)
   const [colunasEditando, setColunasEditando] = useState<Record<string, string[]>>({})
+  const [colunasGridEditando, setColunasGridEditando] = useState<Record<string, string[]>>({})
 
   function getColunasParaProcesso(tipoProcessoCodigo: string): string[] {
     const key = tipoProcessoCodigo.toLowerCase()
@@ -175,26 +184,44 @@ export default function ProgramacaoPage() {
     return key === 'cortadeira' ? COLUNAS_DEFAULT_CORTADEIRA : COLUNAS_DEFAULT_OUTROS
   }
 
+  function getColunasGridParaProcesso(tipoProcessoCodigo: string): string[] | null {
+    const key = tipoProcessoCodigo.toLowerCase()
+    return colunasGrid[key] || null // null = mostrar todas (padrão)
+  }
+
   function abrirConfigColunas() {
     // Inicializa o estado de edição com as colunas atuais de cada tipo de processo
     const edit: Record<string, string[]> = {}
+    const editGrid: Record<string, string[]> = {}
     for (const tp of tiposProcesso) {
       const key = tp.codigo.toLowerCase()
       edit[key] = colunasImpressao[key] || (key === 'cortadeira' ? COLUNAS_DEFAULT_CORTADEIRA : COLUNAS_DEFAULT_OUTROS)
+      editGrid[key] = colunasGrid[key] || COLUNAS_DISPONIVEIS.map(c => c.id) // default: todas visíveis
     }
     setColunasEditando(edit)
+    setColunasGridEditando(editGrid)
     setModalColunasImpressao(true)
   }
 
   function salvarConfigColunas() {
     setColunasImpressao(colunasEditando)
+    setColunasGrid(colunasGridEditando)
     localStorage.setItem('pcp-colunas-impressao', JSON.stringify(colunasEditando))
+    localStorage.setItem('pcp-colunas-grid', JSON.stringify(colunasGridEditando))
     setModalColunasImpressao(false)
-    notifications.show({ title: 'Colunas salvas', message: 'Configuração de impressão atualizada', color: 'green' })
+    notifications.show({ title: 'Colunas salvas', message: 'Configuração atualizada', color: 'green' })
   }
 
   function toggleColunaEditando(tipoKey: string, colunaId: string) {
     setColunasEditando(prev => {
+      const atual = prev[tipoKey] || []
+      const nova = atual.includes(colunaId) ? atual.filter(c => c !== colunaId) : [...atual, colunaId]
+      return { ...prev, [tipoKey]: nova }
+    })
+  }
+
+  function toggleColunaGridEditando(tipoKey: string, colunaId: string) {
+    setColunasGridEditando(prev => {
       const atual = prev[tipoKey] || []
       const nova = atual.includes(colunaId) ? atual.filter(c => c !== colunaId) : [...atual, colunaId]
       return { ...prev, [tipoKey]: nova }
@@ -1492,7 +1519,7 @@ export default function ProgramacaoPage() {
           Concluídas
         </Button>
         )}
-        <ActionIcon size="sm" variant="subtle" onClick={() => abrirConfigColunas()} title="Configurar colunas de impressão" className="no-print">
+        <ActionIcon size="sm" variant="subtle" onClick={() => abrirConfigColunas()} title="Configurar colunas (grid e impressão)" className="no-print">
           <IconSettings size={14} />
         </ActionIcon>
         <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => {
@@ -2675,10 +2702,12 @@ export default function ProgramacaoPage() {
         </Stack>
       </Modal>
 
-      {/* Modal — Configurar colunas de impressão por tipo de processo */}
-      <Modal opened={modalColunasImpressao} onClose={() => setModalColunasImpressao(false)} title="Configurar Colunas de Impressão" size="lg">
+      {/* Modal — Configurar colunas (grid + impressão) por tipo de processo */}
+      <Modal opened={modalColunasImpressao} onClose={() => setModalColunasImpressao(false)} title="Configurar Colunas" size="lg">
         <Stack gap="md">
-          <Text size="sm" c="dimmed">Selecione as colunas que deseja exibir na impressão para cada tipo de processo.</Text>
+          <Text size="sm" c="dimmed">Selecione as colunas que deseja exibir no grid (tela) e na impressão para cada tipo de processo.</Text>
+
+          <Text size="sm" fw={600}>Colunas do Grid (visualização na tela)</Text>
           <Tabs defaultValue={tiposProcesso[0]?.codigo?.toLowerCase()}>
             <Tabs.List>
               {tiposProcesso.map((tp: any) => (
@@ -2695,6 +2724,33 @@ export default function ProgramacaoPage() {
                         key={col.id}
                         label={col.label}
                         size="xs"
+                        checked={(colunasGridEditando[key] || []).includes(col.id)}
+                        onChange={() => toggleColunaGridEditando(key, col.id)}
+                      />
+                    ))}
+                  </Group>
+                </Tabs.Panel>
+              )
+            })}
+          </Tabs>
+
+          <Text size="sm" fw={600} mt="md">Colunas de Impressão (relatório)</Text>
+          <Tabs defaultValue={tiposProcesso[0]?.codigo?.toLowerCase()}>
+            <Tabs.List>
+              {tiposProcesso.map((tp: any) => (
+                <Tabs.Tab key={`imp-${tp.codigo}`} value={tp.codigo.toLowerCase()}>{tp.descricao}</Tabs.Tab>
+              ))}
+            </Tabs.List>
+            {tiposProcesso.map((tp: any) => {
+              const key = tp.codigo.toLowerCase()
+              return (
+                <Tabs.Panel key={`imp-${tp.codigo}`} value={key} pt="sm">
+                  <Group gap="xs" wrap="wrap">
+                    {COLUNAS_DISPONIVEIS.map(col => (
+                      <Checkbox
+                        key={col.id}
+                        label={col.label}
+                        size="xs"
                         checked={(colunasEditando[key] || []).includes(col.id)}
                         onChange={() => toggleColunaEditando(key, col.id)}
                       />
@@ -2704,6 +2760,7 @@ export default function ProgramacaoPage() {
               )
             })}
           </Tabs>
+
           <Group justify="flex-end">
             <Button variant="subtle" onClick={() => setModalColunasImpressao(false)}>Cancelar</Button>
             <Button onClick={salvarConfigColunas}>Salvar</Button>
