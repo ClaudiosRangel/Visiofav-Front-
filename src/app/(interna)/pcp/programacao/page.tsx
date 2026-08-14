@@ -1822,8 +1822,10 @@ export default function ProgramacaoPage() {
                   igual ao total exibido no relatório impresso). */}
               {(() => {
                 const totalTiragem = centro.etapas.reduce((acc: number, e: any) => acc + (e.tiragem || 0), 0)
+                const totalProduzida = centro.etapas.reduce((acc: number, e: any) => acc + (e.quantidadeProduzida || 0), 0)
+                const saldo = totalTiragem - totalProduzida
                 return totalTiragem > 0 ? (
-                  <Badge color="yellow" variant="light" size="sm">Tiragem: {totalTiragem.toLocaleString('pt-BR')}</Badge>
+                  <Badge color="yellow" variant="light" size="sm">Tiragem: {saldo.toLocaleString('pt-BR')}</Badge>
                 ) : null
               })()}
               {centro.resumo.emAndamento > 0 && <Badge color="blue" size="sm">{centro.resumo.emAndamento} em andamento</Badge>}
@@ -1855,6 +1857,7 @@ export default function ProgramacaoPage() {
                           <Table.Th style={{ minWidth: 200 }}>OS / Cliente / Produto</Table.Th>
                           <Table.Th>Qtd</Table.Th>
                           <Table.Th>Tiragem</Table.Th>
+                          <Table.Th>Produzida</Table.Th>
                           <Table.Th>Entrega</Table.Th>
                           <Table.Th>Cartão</Table.Th>
                           <Table.Th>Gramatura</Table.Th>
@@ -1901,6 +1904,11 @@ export default function ProgramacaoPage() {
                               )}
                             </Table.Td>
                             <Table.Td>{etapa.tiragem ? etapa.tiragem.toLocaleString('pt-BR') : '—'}</Table.Td>
+                            <Table.Td>
+                              <Text size="sm" fw={etapa.quantidadeProduzida > 0 ? 600 : undefined} c={etapa.quantidadeProduzida > 0 ? 'green' : 'dimmed'}>
+                                {etapa.quantidadeProduzida > 0 ? etapa.quantidadeProduzida.toLocaleString('pt-BR') : '—'}
+                              </Text>
+                            </Table.Td>
                             <Table.Td>
                               {etapa.dataEntrega ? (
                                 <Text size="sm" style={{ cursor: 'pointer' }} onClick={() => setModalPostData({ opId: etapa.opId, opNumero: etapa.opNumero, dataAtual: etapa.dataEntrega })}>
