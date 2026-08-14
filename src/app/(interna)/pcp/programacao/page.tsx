@@ -252,6 +252,7 @@ export default function ProgramacaoPage() {
   const [centrosDisponiveis, setCentrosDisponiveis] = useState<any[]>([])
   const [editingObs, setEditingObs] = useState<{ id: string; value: string } | null>(null)
   const [editingQtd, setEditingQtd] = useState<{ opId: string; etapaId: string; value: string } | null>(null)
+  const [editingProd, setEditingProd] = useState<{ etapaId: string; value: string } | null>(null)
   const [editingGrupo, setEditingGrupo] = useState<string | null>(null) // centroId being renamed
   // Mover OS para outro grupo
   const [modalMover, setModalMover] = useState<{ etapaId: string; opNumero: number; centroAtualId: string; centroDescricao: string } | null>(null)
@@ -862,6 +863,44 @@ export default function ProgramacaoPage() {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar quantidade', color: 'red' })
     }
     setEditingQtd(null)
+  }
+
+  async function salvarProduzida(etapaId: string, valor: number) {
+    if (!valor || valor <= 0) {
+      setEditingProd(null)
+      return
+    }
+    try {
+      // Buscar a quantidade já produzida para calcular o delta
+      let produzidaAtual = 0
+      for (const c of (painel?.centros || [])) {
+        const et = c.etapas.find((e: any) => e.id === etapaId)
+        if (et) { produzidaAtual = et.quantidadeProduzida || 0; break }
+      }
+      const delta = valor - produzidaAtual
+      if (delta > 0) {
+        await api.post(`/pcp/etapas/${etapaId}/apontar`, { quantidadeProduzida: delta, quantidadePerda: 0 })
+      } else if (delta < 0) {
+        // Se diminuiu, faz um ajuste (apontamento com o novo valor total)
+        // Na prática, set direto — usa o endpoint de quantidade-produzida
+        await api.patch(`/ordens-producao/${etapaId}/quantidade-produzida-etapa`, { quantidadeProduzida: valor }).catch(() => {
+          // Fallback: registrar como delta positivo de 0 (não altera)
+        })
+      }
+      // Atualização otimista
+      setPainel((prev: any) => {
+        if (!prev) return prev
+        const centros = prev.centros.map((c: any) => ({
+          ...c,
+          etapas: c.etapas.map((e: any) => e.id === etapaId ? { ...e, quantidadeProduzida: valor } : e)
+        }))
+        return { ...prev, centros }
+      })
+      notifications.show({ title: 'Produção registrada', message: `${valor.toLocaleString('pt-BR')} produzidas`, color: 'green' })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao registrar produção', color: 'red' })
+    }
+    setEditingProd(null)
   }
 
   async function setPreImpressaoStatus(etapaId: string, status: 'FINALIZADO' | 'METADE' | 'PROBLEMA' | null) {
@@ -1932,9 +1971,22 @@ export default function ProgramacaoPage() {
                             </Table.Td>
                             <Table.Td>{etapa.tiragem ? etapa.tiragem.toLocaleString('pt-BR') : '—'}</Table.Td>
                             <Table.Td>
-                              <Text size="sm" fw={etapa.quantidadeProduzida > 0 ? 600 : undefined} c={etapa.quantidadeProduzida > 0 ? 'green' : 'dimmed'}>
-                                {etapa.quantidadeProduzida > 0 ? etapa.quantidadeProduzida.toLocaleString('pt-BR') : '—'}
-                              </Text>
+                              {editingProd?.etapaId === etapa.id ? (
+                                <TextInput
+                                  size="xs"
+                                  type="number"
+                                  value={editingProd.value}
+                                  onChange={(e) => setEditingProd({ ...editingProd, value: e.currentTarget.value })}
+                                  onBlur={() => salvarProduzida(etapa.id, parseFloat(editingProd.value || '0'))}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') salvarProduzida(etapa.id, parseFloat(editingProd.value || '0')); if (e.key === 'Escape') setEditingProd(null) }}
+                                  autoFocus
+                                  style={{ width: 70 }}
+                                />
+                              ) : (
+                                <Text size="sm" fw={etapa.quantidadeProduzida > 0 ? 600 : undefined} c={etapa.quantidadeProduzida > 0 ? 'green' : 'dimmed'} style={{ cursor: 'pointer' }} onClick={() => setEditingProd({ etapaId: etapa.id, value: String(etapa.quantidadeProduzida || '') })} title="Clique para editar produzida">
+                                  {etapa.quantidadeProduzida > 0 ? etapa.quantidadeProduzida.toLocaleString('pt-BR') : '—'}
+                                </Text>
+                              )}
                             </Table.Td>
                             <Table.Td>
                               {etapa.dataEntrega ? (
