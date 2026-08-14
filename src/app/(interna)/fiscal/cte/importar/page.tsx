@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Paper,
@@ -13,7 +13,6 @@ import {
   Table,
   Loader,
   Alert,
-  Dropzone,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconUpload, IconFileCode, IconCheck, IconAlertCircle } from '@tabler/icons-react'
@@ -49,9 +48,11 @@ export default function ImportarNfePage() {
   useEffect(() => { document.title = 'Vizor - Importar NF-e para CT-e' }, [])
 
   const router = useRouter()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(false)
   const [resultado, setResultado] = useState<DadosImportados | null>(null)
   const [erro, setErro] = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState(false)
 
   async function processarArquivo(file: File) {
     setLoading(true)
@@ -101,25 +102,46 @@ export default function ImportarNfePage() {
         O sistema extrai remetente, destinatário, origem, destino, valor, peso e vincula a chave da NF-e.
       </Text>
 
-      {/* Dropzone */}
-      <Dropzone
-        onDrop={(files) => { if (files[0]) processarArquivo(files[0]) }}
-        accept={{ 'text/xml': ['.xml'], 'application/xml': ['.xml'] }}
-        maxSize={5 * 1024 * 1024}
-        multiple={false}
-        loading={loading}
-        mb="lg"
+      {/* Área de upload */}
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault()
+          setDragOver(false)
+          const file = e.dataTransfer.files[0]
+          if (file) processarArquivo(file)
+        }}
+        onClick={() => fileInputRef.current?.click()}
+        style={{
+          border: `2px dashed ${dragOver ? '#228be6' : '#555'}`,
+          borderRadius: 8,
+          padding: 40,
+          textAlign: 'center',
+          cursor: 'pointer',
+          backgroundColor: dragOver ? 'rgba(34,139,230,0.05)' : 'transparent',
+          marginBottom: 16,
+          transition: 'all 0.2s',
+        }}
       >
-        <Group justify="center" gap="xl" mih={120} style={{ pointerEvents: 'none' }}>
-          <IconUpload size={40} stroke={1.5} />
-          <div>
-            <Text size="lg" inline>Arraste o XML da NF-e aqui</Text>
-            <Text size="sm" c="dimmed" inline mt={7}>
-              Ou clique para selecionar o arquivo (.xml, máx 5MB)
-            </Text>
-          </div>
-        </Group>
-      </Dropzone>
+        <IconUpload size={40} stroke={1.5} style={{ marginBottom: 8 }} />
+        <Text size="lg">Arraste o XML da NF-e aqui</Text>
+        <Text size="sm" c="dimmed" mt={4}>
+          Ou clique para selecionar o arquivo (.xml, máx 5MB)
+        </Text>
+        {loading && <Loader size="sm" mt="md" />}
+      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xml"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) processarArquivo(file)
+          e.target.value = ''
+        }}
+      />
 
       {/* Erro */}
       {erro && (
