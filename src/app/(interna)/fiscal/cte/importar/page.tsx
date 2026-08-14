@@ -60,21 +60,33 @@ export default function ImportarNfePage() {
     setResultado(null)
 
     try {
-      const texto = await file.text()
-
-      // Verificar se é XML
-      if (!texto.includes('<NFe') && !texto.includes('<nfeProc')) {
-        setErro('O arquivo não parece ser um XML de NF-e válido. Envie o arquivo .xml (não o PDF do DANFE).')
+      if (file.name.endsWith('.xml') || file.type.includes('xml')) {
+        // Processar como XML
+        const texto = await file.text()
+        if (!texto.includes('<NFe') && !texto.includes('<nfeProc')) {
+          setErro('O arquivo XML não parece ser uma NF-e válida.')
+          setLoading(false)
+          return
+        }
+        const { data } = await api.post('/fiscal/cte/importar-nfe', { xml: texto })
+        setResultado(data)
+      } else if (file.name.endsWith('.pdf') || file.type === 'application/pdf') {
+        // Processar como PDF (DANFE)
+        const arrayBuffer = await file.arrayBuffer()
+        const base64 = btoa(
+          new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+        )
+        const { data } = await api.post('/fiscal/cte/importar-danfe-pdf', { pdfBase64: base64 })
+        setResultado(data)
+      } else {
+        setErro('Formato não suportado. Envie um arquivo .xml ou .pdf')
         setLoading(false)
         return
       }
 
-      const { data } = await api.post('/fiscal/cte/importar-nfe', { xml: texto })
-      setResultado(data)
-
       notifications.show({
-        title: 'NF-e processada com sucesso',
-        message: `Chave: ${data.dadosExtraidos.chaveAcesso}`,
+        title: 'Arquivo processado com sucesso',
+        message: 'Dados extraídos para emissão do CT-e',
         color: 'green',
       })
     } catch (err: any) {
@@ -98,7 +110,7 @@ export default function ImportarNfePage() {
       </Text>
 
       <Text size="sm" mb="md">
-        Arraste o XML da NF-e recebida (Hayasa, ou outro remetente) para preencher o CT-e automaticamente.
+        Arraste o XML ou PDF (DANFE) da NF-e recebida para preencher o CT-e automaticamente.
         O sistema extrai remetente, destinatário, origem, destino, valor, peso e vincula a chave da NF-e.
       </Text>
 
@@ -125,16 +137,16 @@ export default function ImportarNfePage() {
         }}
       >
         <IconUpload size={40} stroke={1.5} style={{ marginBottom: 8 }} />
-        <Text size="lg">Arraste o XML da NF-e aqui</Text>
+        <Text size="lg">Arraste o XML ou PDF da NF-e aqui</Text>
         <Text size="sm" c="dimmed" mt={4}>
-          Ou clique para selecionar o arquivo (.xml, máx 5MB)
+          Ou clique para selecionar o arquivo (.xml ou .pdf do DANFE, máx 5MB)
         </Text>
         {loading && <Loader size="sm" mt="md" />}
       </div>
       <input
         ref={fileInputRef}
         type="file"
-        accept=".xml"
+        accept=".xml,.pdf"
         style={{ display: 'none' }}
         onChange={(e) => {
           const file = e.target.files?.[0]
