@@ -667,28 +667,12 @@ export default function ProgramacaoPage() {
     try {
       await api.patch(`/pcp/etapas/${etapaId}/concluir`, {})
       notifications.show({ title: 'Etapa finalizada', message: `OS ${opNumero || ''} concluída`, color: 'green' })
-      // Atualização otimista: remove a etapa concluída da fila e marca
-      // etapaAnteriorConcluida=true nas etapas seguintes da mesma OP
+      // Remove a etapa concluída da fila imediatamente (feedback visual rápido)
       setPainel((prev: any) => {
         if (!prev) return prev
-        // Encontrar a etapa concluída para saber seu opId e sequencia
-        let opIdConcluida: string | null = null
-        let seqConcluida = 0
-        for (const c of prev.centros) {
-          const etapa = c.etapas.find((e: any) => e.id === etapaId)
-          if (etapa) { opIdConcluida = etapa.opId; seqConcluida = etapa.sequencia || 0; break }
-        }
         const centros = prev.centros.map((c: any) => {
-          const novasEtapas = c.etapas
-            .filter((e: any) => e.id !== etapaId)
-            .map((e: any) => {
-              // Se é da mesma OP e a etapa concluída era a anterior imediata, ticar
-              if (opIdConcluida && e.opId === opIdConcluida && e.sequencia > seqConcluida) {
-                return { ...e, etapaAnteriorConcluida: true }
-              }
-              return e
-            })
-          if (novasEtapas.length === c.etapas.length && !c.etapas.some((e: any) => e.id === etapaId)) return c
+          const novasEtapas = c.etapas.filter((e: any) => e.id !== etapaId)
+          if (novasEtapas.length === c.etapas.length) return c
           return {
             ...c,
             etapas: novasEtapas,
@@ -702,6 +686,12 @@ export default function ProgramacaoPage() {
         })
         return { ...prev, centros }
       })
+      // Recarrega o painel silenciosamente para atualizar ✓ de etapaAnterior
+      // em todos os centros (o backend calcula por Tipo de Processo corretamente)
+      try {
+        const { data } = await api.get('/pcp/programacao/painel')
+        setPainel(data)
+      } catch { /* silencioso */ }
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao concluir', color: 'red' })
     }
