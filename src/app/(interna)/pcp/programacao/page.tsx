@@ -923,8 +923,8 @@ export default function ProgramacaoPage() {
       // Adiciona horário meio-dia para evitar problema de timezone
       await api.patch('/pcp/programacao/postergar-entrega', { opId, novaDataEntrega: `${novaData}T12:00:00` })
       notifications.show({ title: 'Entrega postergada', message: `Nova data: ${novaData.split('-').reverse().join('/')}`, color: 'orange' })
-      // Atualização otimista: atualiza a data de entrega de todas as etapas
-      // dessa OP no painel local, sem recarregar tudo (preserva ordem da fila)
+      // Atualização otimista: atualiza a data de entrega e incrementa vezesPostergada
+      // de todas as etapas dessa OP no painel local, sem recarregar tudo (preserva ordem da fila)
       setPainel((prev: any) => {
         if (!prev) return prev
         return {
@@ -932,7 +932,7 @@ export default function ProgramacaoPage() {
           centros: prev.centros.map((c: any) => ({
             ...c,
             etapas: c.etapas.map((e: any) =>
-              e.opId === opId ? { ...e, dataEntrega: `${novaData}T12:00:00` } : e
+              e.opId === opId ? { ...e, dataEntrega: `${novaData}T12:00:00`, vezesPostergada: (e.vezesPostergada || 0) + 1 } : e
             ),
           })),
         }
