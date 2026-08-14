@@ -1946,12 +1946,12 @@ export default function ProgramacaoPage() {
                             <Table.Td style={{ minWidth: 200 }}>
                               <Group gap={4} wrap="nowrap">
                                 <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
-                                  {etapa.opNumero} — {etapa.clienteNome || '—'}
+                                  {etapa.opNumero} — {etapa.produtoNome || '—'}
                                 </Text>
                                 {etapa.isAvulsa && <Badge color="pink" size="xs">AVULSA</Badge>}
                               </Group>
                               <Text size="xs" fw={600} c="dimmed" style={{ lineHeight: 1.2 }}>
-                                {etapa.produtoNome || '—'}
+                                {etapa.clienteNome || '—'}
                               </Text>
                             </Table.Td>
                             {colVis('quantidade') && <Table.Td>
@@ -2153,12 +2153,12 @@ export default function ProgramacaoPage() {
                             <Table.Td style={{ minWidth: 200, ...(etapa.preImpressaoStatus === 'FINALIZADO' ? { background: '#2f9e44', borderRadius: 2 } : etapa.preImpressaoStatus === 'PROBLEMA' ? { background: '#e03131', borderRadius: 2 } : etapa.preImpressaoStatus === 'METADE' ? { background: '#228be6', borderRadius: 2 } : {}) }}>
                               <Group gap={4} wrap="nowrap">
                                 <Text size="sm" fw={700} style={{ lineHeight: 1.2 }} c={etapa.preImpressaoStatus ? 'white' : undefined}>
-                                  {etapa.opNumero} — {etapa.clienteNome || etapa.observacoes?.match(/\[Cliente\]\s*(.+)/)?.[1] || '—'}
+                                  {etapa.opNumero} — {etapa.produtoNome || etapa.observacoes?.match(/\[Produto\]\s*(.+)/)?.[1] || '—'}
                                 </Text>
                                 {etapa.isAvulsa && <Badge color="pink" size="xs">AVULSA</Badge>}
                               </Group>
                               <Text size="xs" fw={600} c={etapa.preImpressaoStatus ? 'white' : 'dimmed'} style={{ lineHeight: 1.2 }}>
-                                {etapa.produtoNome || etapa.observacoes?.match(/\[Produto\]\s*(.+)/)?.[1] || ''}
+                                {etapa.clienteNome || etapa.observacoes?.match(/\[Cliente\]\s*(.+)/)?.[1] || ''}
                               </Text>
                               {etapa.materialEncomendado && <Text size="xs" c="red" fw={700}>* Aguardando restante cartão</Text>}
                             </Table.Td>
