@@ -201,12 +201,89 @@ export default function CteNovaPage() {
       if (defaults.seguradora && defaults.apolice) {
         setSeguros([{ respSeg: '4', xSeg: defaults.seguradora, nApol: defaults.apolice, nAver: '', vCarga: 0 }])
       }
-      // CFOP automático: se UF emitente está setada, pré-preencher a UF de origem
       if (defaults.ufEmitente) {
         setUfIni(defaults.ufEmitente)
       }
     }
   }, [defaults])
+
+  // === Carregar dados importados de NF-e (sessionStorage) ===
+  useEffect(() => {
+    const importado = sessionStorage.getItem('cte_importado')
+    if (importado) {
+      try {
+        const dados = JSON.parse(importado)
+        sessionStorage.removeItem('cte_importado')
+        // Preencher tudo do CT-e importado
+        if (dados.cfop) setCfop(dados.cfop)
+        if (dados.naturezaOp) setNaturezaOp(dados.naturezaOp)
+        if (dados.serie) setSerie(dados.serie)
+        if (dados.modal) setModal(dados.modal)
+        if (dados.cMunIni) setCMunIni(dados.cMunIni)
+        if (dados.xMunIni) setXMunIni(dados.xMunIni)
+        if (dados.ufIni) setUfIni(dados.ufIni)
+        if (dados.cMunFim) setCMunFim(dados.cMunFim)
+        if (dados.xMunFim) setXMunFim(dados.xMunFim)
+        if (dados.ufFim) setUfFim(dados.ufFim)
+        if (dados.rntrc) setRntrc(dados.rntrc)
+        if (dados.cstIcms) setCstIcms(dados.cstIcms)
+        if (dados.aliqIcms) setAliqIcms(dados.aliqIcms)
+        if (dados.remetente) {
+          setRemetente({
+            cnpj: dados.remetente.cnpj || '',
+            cpf: dados.remetente.cpf || '',
+            ie: dados.remetente.ie || '',
+            razaoSocial: dados.remetente.razaoSocial || '',
+            nomeFantasia: dados.remetente.nomeFantasia || '',
+            logradouro: dados.remetente.logradouro || '',
+            numero: dados.remetente.numero || '',
+            complemento: dados.remetente.complemento || '',
+            bairro: dados.remetente.bairro || '',
+            codigoMunicipio: dados.remetente.codigoMunicipio || '',
+            municipio: dados.remetente.municipio || '',
+            uf: dados.remetente.uf || '',
+            cep: dados.remetente.cep || '',
+            email: dados.remetente.email || '',
+            telefone: dados.remetente.telefone || '',
+          })
+        }
+        if (dados.destinatario) {
+          setDestinatario({
+            cnpj: dados.destinatario.cnpj || '',
+            cpf: dados.destinatario.cpf || '',
+            ie: dados.destinatario.ie || '',
+            razaoSocial: dados.destinatario.razaoSocial || '',
+            nomeFantasia: dados.destinatario.nomeFantasia || '',
+            logradouro: dados.destinatario.logradouro || '',
+            numero: dados.destinatario.numero || '',
+            complemento: dados.destinatario.complemento || '',
+            bairro: dados.destinatario.bairro || '',
+            codigoMunicipio: dados.destinatario.codigoMunicipio || '',
+            municipio: dados.destinatario.municipio || '',
+            uf: dados.destinatario.uf || '',
+            cep: dados.destinatario.cep || '',
+            email: dados.destinatario.email || '',
+            telefone: dados.destinatario.telefone || '',
+          })
+        }
+        if (dados.infCarga) {
+          if (dados.infCarga.vCarga) setVCarga(dados.infCarga.vCarga)
+          if (dados.infCarga.proPred) setProPred(dados.infCarga.proPred)
+          if (dados.infCarga.pesoBruto) setPesoBruto(dados.infCarga.pesoBruto)
+        }
+        if (dados.nfesVinculadas) {
+          setNfesVinculadas(dados.nfesVinculadas)
+        }
+        if (dados.veicNovos && dados.veicNovos.length > 0) {
+          setTipoCarga('VEICULO_NOVO')
+          setVeiculosNovos(dados.veicNovos.map((v: any) => ({
+            chassi: v.chassi || '', cCor: v.cCor || '', xCor: v.xCor || '',
+            cMod: v.cMod || '', vUnit: v.vUnit || 0, vFrete: 0,
+          })))
+        }
+      } catch { /* ignora erro de parse */ }
+    }
+  }, [])
 
   // === Calcular CFOP automaticamente pela UF origem vs destino ===
   useEffect(() => {

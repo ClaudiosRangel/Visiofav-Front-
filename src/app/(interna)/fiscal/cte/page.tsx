@@ -219,13 +219,22 @@ export default function CtePage() {
   useEffect(() => { document.title = 'Vizor - Fiscal - CT-e' }, [])
 
   return (
-    <ListagemFiscal<CteItem>
-      queryKey={['fiscal', 'cte']}
-      endpoint="/fiscal/cte"
-      columns={columns}
-      title="Conhecimento de Transporte Eletrônico (CT-e)"
-      breadcrumb="Início / Fiscal / CT-e"
-      createButton={{ label: 'Novo CT-e', href: '/fiscal/cte/nova' }}
-    />
+    <>
+      <ListagemFiscal<CteItem>
+        queryKey={['fiscal', 'cte']}
+        endpoint="/fiscal/cte"
+        columns={columns}
+        title="Conhecimento de Transporte Eletrônico (CT-e)"
+        breadcrumb="Início / Fiscal / CT-e"
+        createButton={{ label: 'Novo CT-e', href: '/fiscal/cte/nova' }}
+      />
+      <Group mt="sm" ml="md">
+        <Button variant="light" color="blue" size="xs"
+          component="a" href="/fiscal/cte/importar"
+          leftSection={<IconFileCode size={14} />}>
+          Gerar CT-e a partir de NF-e (XML)
+        </Button>
+      </Group>
+    </>
   )
 }
