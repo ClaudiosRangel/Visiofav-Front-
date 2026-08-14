@@ -47,3 +47,8 @@ export function getUserPerfil(): string | null {
   const decoded = decodeToken()
   return decoded?.perfil || null
 }
+
+export function getEmpresaId(): string | null {
+  const decoded = decodeToken() as { empresaId?: string } | null
+  return decoded?.empresaId || null
+}

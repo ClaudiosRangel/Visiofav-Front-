@@ -13,7 +13,7 @@ import { SortableCentroItem } from '@/components/pcp/SortableCentroItem'
 import VisaoDetalhadaProgramacao from '@/components/pcp/VisaoDetalhadaProgramacao'
 import { useCentrosOrdenacao } from '@/hooks/useCentrosOrdenacao'
 import { IconLayoutGrid, IconListDetails } from '@tabler/icons-react'
-import { getUserPerfil } from '@/hooks/usePerfilGuard'
+import { getUserPerfil, getEmpresaId } from '@/hooks/usePerfilGuard'
 
 const PRIORIDADE_COLORS: Record<string, string> = { BAIXA: 'gray', NORMAL: 'blue', ALTA: 'orange', URGENTE: 'red' }
 const STATUS_COLORS: Record<string, string> = { PENDENTE: 'gray', EM_ANDAMENTO: 'blue', PAUSADA: 'orange', CONCLUIDA: 'green' }
@@ -124,18 +124,22 @@ export default function ProgramacaoPage() {
   // Layout da tela: "grid" (tabelas por centro, padrão atual) ou "detalhado"
   // (lista mestre + painel de detalhe único, evita repetir a mesma OP em
   // várias linhas/abas). Persistido para lembrar a preferência do usuário.
+  // Chave inclui empresaId para que cada empresa tenha configuração independente.
+  const empresaIdLocal = getEmpresaId() || ''
+  const lsKey = (suffix: string) => empresaIdLocal ? `pcp-${empresaIdLocal}-${suffix}` : `pcp-${suffix}`
+
   const [layoutView, setLayoutView] = useState<'grid' | 'detalhado'>(() => {
     if (typeof window === 'undefined') return 'grid'
-    return (localStorage.getItem('pcp-programacao-layout') as 'grid' | 'detalhado') || 'grid'
+    return (localStorage.getItem(lsKey('programacao-layout')) as 'grid' | 'detalhado') || 'grid'
   })
   function alterarLayoutView(valor: 'grid' | 'detalhado') {
     setLayoutView(valor)
-    localStorage.setItem('pcp-programacao-layout', valor)
+    localStorage.setItem(lsKey('programacao-layout'), valor)
   }
 
   // Configurador de colunas de impressão por tipo de processo.
   // Cada tipo de processo pode ter um subconjunto de colunas selecionadas
-  // para aparecer na impressão. Salvo em localStorage.
+  // para aparecer na impressão. Salvo em localStorage por empresa.
   const COLUNAS_DISPONIVEIS = [
     { id: 'os', label: 'OS' },
     { id: 'cliente', label: 'Cliente' },
@@ -163,14 +167,14 @@ export default function ProgramacaoPage() {
   const [colunasImpressao, setColunasImpressao] = useState<Record<string, string[]>>(() => {
     if (typeof window === 'undefined') return {}
     try {
-      const salvo = localStorage.getItem('pcp-colunas-impressao')
+      const salvo = localStorage.getItem(lsKey('colunas-impressao'))
       return salvo ? JSON.parse(salvo) : {}
     } catch { return {} }
   })
   const [colunasGrid, setColunasGrid] = useState<Record<string, string[]>>(() => {
     if (typeof window === 'undefined') return {}
     try {
-      const salvo = localStorage.getItem('pcp-colunas-grid')
+      const salvo = localStorage.getItem(lsKey('colunas-grid'))
       return salvo ? JSON.parse(salvo) : {}
     } catch { return {} }
   })
@@ -206,8 +210,8 @@ export default function ProgramacaoPage() {
   function salvarConfigColunas() {
     setColunasImpressao(colunasEditando)
     setColunasGrid(colunasGridEditando)
-    localStorage.setItem('pcp-colunas-impressao', JSON.stringify(colunasEditando))
-    localStorage.setItem('pcp-colunas-grid', JSON.stringify(colunasGridEditando))
+    localStorage.setItem(lsKey('colunas-impressao'), JSON.stringify(colunasEditando))
+    localStorage.setItem(lsKey('colunas-grid'), JSON.stringify(colunasGridEditando))
     setModalColunasImpressao(false)
     notifications.show({ title: 'Colunas salvas', message: 'Configuração atualizada', color: 'green' })
   }
