@@ -120,6 +120,8 @@ export default function SelecionarEmpresaPage() {
 
   useEffect(() => {
     if (!empresas || erroSelecaoAutomatica) return
+    // SUPER_ADMIN sempre deve ver a tela de seleção (multi-tenant, acessa todas as empresas)
+    if (perfil === 'SUPER_ADMIN') return
     if (deveSelecionarAutomaticamente(empresas.length)) {
       handleSelecionar(empresas[0]).catch(() => {
         setErroSelecaoAutomatica(true)
@@ -157,7 +159,7 @@ export default function SelecionarEmpresaPage() {
     )
   }
 
-  if (empresas && empresas.length === 1 && !erroSelecaoAutomatica) {
+  if (empresas && empresas.length === 1 && !erroSelecaoAutomatica && perfil !== 'SUPER_ADMIN') {
     return (
       <Center h="60vh">
         <Loader size="lg" />

@@ -14,9 +14,9 @@ import {
   IconFileInvoice, IconTruck, IconCalculator, IconSearch, IconHash,
   // WMS
   IconHome, IconPackage, IconClipboardCheck, IconBarcode, IconBuildingWarehouse, IconArrowsExchange as IconMovim, IconSettings,
-  IconEye, IconDatabase, IconAlertCircle, IconHistory, IconClockPause,
+  IconEye, IconDatabase, IconAlertCircle, IconHistory, IconClockPause, IconLock,
   // Integração
-  IconKey, IconWebhook, IconUpload, IconCloudDownload, IconDownload,
+  IconKey, IconWebhook, IconUpload, IconCloudDownload, IconDownload, IconPlugConnected,
   // PCP
   IconAssembly, IconListDetails, IconCalendarEvent, IconRoute, IconSitemap, IconTool, IconClock, IconPalette, IconLink, IconCategory,
   // Configurador
@@ -199,6 +199,9 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconPackage, label: 'Ressuprimento', href: '/wms/ressuprimento' },
           { icon: IconPackage, label: 'Manutenção de Estoque', href: '/wms/manutencao-estoque' },
           { icon: IconClipboardCheck, label: 'Inventário', href: '/wms/inventario' },
+          { icon: IconChartBar, label: 'Classificação ABC', href: '/wms/classificacao-abc' },
+          { icon: IconLock, label: 'Bloqueios & Quarentena', href: '/wms/bloqueios' },
+          { icon: IconArrowsExchange, label: 'Mudança de Picking', href: '/wms/picking/mudancas' },
         ],
       },
 
@@ -216,6 +219,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconBarcode, label: 'Etiquetas ZPL', href: '/wms/etiquetas/templates' },
           { icon: IconBarcode, label: 'Impressoras', href: '/wms/etiquetas/impressoras' },
           { icon: IconBarcode, label: 'Fila de Impressão', href: '/wms/etiquetas/fila' },
+          { icon: IconPlugConnected, label: 'Integração WMS', href: '/wms/configuracoes/integracao' },
         ],
       },
 
