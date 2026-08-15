@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Paper,
   Title,
@@ -24,6 +24,7 @@ import { notifications } from '@mantine/notifications'
 import { IconPlus, IconTrash } from '@tabler/icons-react'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { useCte } from '@/data/hooks/fiscal/useCte'
+import { api } from '@/lib/api'
 
 const TIPOS_SERVICO = [
   { value: '0', label: '0 - Normal' },
@@ -125,11 +126,15 @@ export default function CteNovaPage() {
   useEffect(() => { document.title = 'Vizor - Emissão de CT-e' }, [])
 
   const router = useRouter()
-  const { useEmitir, useDefaults, buscarParticipante } = useCte()
+  const searchParams = useSearchParams()
+  const { useEmitir, useGravar, useAtualizar, useDetalhe, useDefaults, buscarParticipante } = useCte()
   const emitirMutation = useEmitir()
+  const gravarMutation = useGravar()
+  const atualizarMutation = useAtualizar()
   const { data: defaults } = useDefaults()
 
   const [active, setActive] = useState(0)
+  const [editandoId, setEditandoId] = useState<string | null>(null)
 
   // Step 1 — Dados Gerais (pré-preenchidos dos defaults)
   const [naturezaOp, setNaturezaOp] = useState('PRESTACAO DE SERVICO DE TRANSPORTE')
@@ -281,9 +286,87 @@ export default function CteNovaPage() {
             cMod: v.cMod || '', vUnit: v.vUnit || 0, vFrete: 0,
           })))
         }
+
+        // Auto-consulta de CNPJ não necessária — o backend já fez via resolverParticipante
       } catch { /* ignora erro de parse */ }
     }
   }, [])
+
+  // === Carregar dados de CT-e existente para edição ===
+  useEffect(() => {
+    const editarId = searchParams.get('editar')
+    if (!editarId) return
+    setEditandoId(editarId)
+    api.get(`/fiscal/cte/${editarId}`).then(({ data }) => {
+      const dados = data.dadosEmissao
+      if (!dados) return
+      if (dados.cfop) setCfop(dados.cfop)
+      if (dados.naturezaOp) setNaturezaOp(dados.naturezaOp)
+      if (dados.serie) setSerie(dados.serie)
+      if (dados.modal) setModal(dados.modal)
+      if (dados.tpServ !== undefined) setTpServ(String(dados.tpServ))
+      if (dados.tpCTe !== undefined) setTpCTe(String(dados.tpCTe))
+      if (dados.cMunIni) setCMunIni(dados.cMunIni)
+      if (dados.xMunIni) setXMunIni(dados.xMunIni)
+      if (dados.ufIni) setUfIni(dados.ufIni)
+      if (dados.cMunFim) setCMunFim(dados.cMunFim)
+      if (dados.xMunFim) setXMunFim(dados.xMunFim)
+      if (dados.ufFim) setUfFim(dados.ufFim)
+      if (dados.tpTom !== undefined) setTpTom(String(dados.tpTom))
+      if (dados.indIEToma !== undefined) setIndIEToma(String(dados.indIEToma))
+      if (dados.infCTeNorm?.infModal?.RNTRC) setRntrc(dados.infCTeNorm.infModal.RNTRC)
+      if (dados.impostos?.icms) {
+        if (dados.impostos.icms.cst) setCstIcms(dados.impostos.icms.cst)
+        if (dados.impostos.icms.aliquota) setAliqIcms(dados.impostos.icms.aliquota)
+        if (dados.impostos.icms.baseCalculo) setBcIcms(dados.impostos.icms.baseCalculo)
+        if (dados.impostos.icms.valor) setValorIcms(dados.impostos.icms.valor)
+      }
+      if (dados.remetente) {
+        setRemetente({
+          cnpj: dados.remetente.cnpj || '', cpf: dados.remetente.cpf || '', ie: dados.remetente.ie || '',
+          razaoSocial: dados.remetente.razaoSocial || '', nomeFantasia: dados.remetente.nomeFantasia || '',
+          logradouro: dados.remetente.endereco?.logradouro || '', numero: dados.remetente.endereco?.numero || '',
+          complemento: dados.remetente.endereco?.complemento || '', bairro: dados.remetente.endereco?.bairro || '',
+          codigoMunicipio: dados.remetente.endereco?.codigoMunicipio || '', municipio: dados.remetente.endereco?.municipio || '',
+          uf: dados.remetente.endereco?.uf || '', cep: dados.remetente.endereco?.cep || '',
+          email: dados.remetente.email || '', telefone: dados.remetente.telefone || '',
+        })
+      }
+      if (dados.destinatario) {
+        setDestinatario({
+          cnpj: dados.destinatario.cnpj || '', cpf: dados.destinatario.cpf || '', ie: dados.destinatario.ie || '',
+          razaoSocial: dados.destinatario.razaoSocial || '', nomeFantasia: dados.destinatario.nomeFantasia || '',
+          logradouro: dados.destinatario.endereco?.logradouro || '', numero: dados.destinatario.endereco?.numero || '',
+          complemento: dados.destinatario.endereco?.complemento || '', bairro: dados.destinatario.endereco?.bairro || '',
+          codigoMunicipio: dados.destinatario.endereco?.codigoMunicipio || '', municipio: dados.destinatario.endereco?.municipio || '',
+          uf: dados.destinatario.endereco?.uf || '', cep: dados.destinatario.endereco?.cep || '',
+          email: dados.destinatario.email || '', telefone: dados.destinatario.telefone || '',
+        })
+      }
+      if (dados.vPrest) {
+        if (dados.vPrest.vTPrest) setVTPrest(dados.vPrest.vTPrest)
+        if (dados.vPrest.vRec) setVRec(dados.vPrest.vRec)
+      }
+      if (dados.infCTeNorm?.infCarga) {
+        if (dados.infCTeNorm.infCarga.vCarga) setVCarga(dados.infCTeNorm.infCarga.vCarga)
+        if (dados.infCTeNorm.infCarga.proPred) setProPred(dados.infCTeNorm.infCarga.proPred)
+        if (dados.infCTeNorm.infCarga.infQ?.[0]?.qCarga) setPesoBruto(dados.infCTeNorm.infCarga.infQ[0].qCarga)
+      }
+      if (dados.infCTeNorm?.infDoc?.infNFe) {
+        setNfesVinculadas(dados.infCTeNorm.infDoc.infNFe.map((n: any) => ({ chave: n.chave })))
+      }
+      if (dados.infCTeNorm?.veicNovos?.length > 0) {
+        setTipoCarga('VEICULO_NOVO')
+        setVeiculosNovos(dados.infCTeNorm.veicNovos.map((v: any) => ({
+          chassi: v.chassi || '', cCor: v.cCor || '', xCor: v.xCor || '',
+          cMod: v.cMod || '', vUnit: v.vUnit || 0, vFrete: v.vFrete || 0,
+        })))
+      }
+      if (dados.infCpl) setInfCpl(dados.infCpl)
+    }).catch(() => {
+      notifications.show({ title: 'Erro', message: 'Não foi possível carregar o CT-e para edição', color: 'red' })
+    })
+  }, [searchParams])
 
   // === Calcular CFOP automaticamente pela UF origem vs destino ===
   useEffect(() => {
@@ -292,12 +375,30 @@ export default function CteNovaPage() {
     }
   }, [ufIni, ufFim])
 
+  // === Valor a Receber = Valor Total da Prestação (espelhar) ===
+  useEffect(() => {
+    setVRec(vTPrest)
+  }, [vTPrest])
+
+  // === Base de Cálculo ICMS = Valor Total da Prestação ===
+  useEffect(() => {
+    setBcIcms(vTPrest)
+  }, [vTPrest])
+
+  // === Valor ICMS = Base de Cálculo × Alíquota / 100 ===
+  useEffect(() => {
+    const valor = Math.round(bcIcms * aliqIcms) / 100
+    setValorIcms(valor)
+  }, [bcIcms, aliqIcms])
+
   // === Buscar participante por CNPJ ===
   async function buscarEPreencher(cpfCnpj: string, setParticipante: (p: Participante) => void) {
-    if (cpfCnpj.replace(/\D/g, '').length < 11) return
+    const doc = cpfCnpj.replace(/\D/g, '')
+    if (doc.length < 11) return
     try {
-      const resultado = await buscarParticipante(cpfCnpj)
-      if (resultado.encontrado) {
+      // Primeiro tenta no cadastro interno
+      const resultado = await buscarParticipante(doc)
+      if (resultado.encontrado && resultado.logradouro) {
         setParticipante({
           cnpj: resultado.cnpj?.length === 14 ? resultado.cnpj : '',
           cpf: resultado.cnpj?.length === 11 ? resultado.cnpj : '',
@@ -315,6 +416,31 @@ export default function CteNovaPage() {
           email: resultado.email || '',
           telefone: resultado.telefone || '',
         })
+        return
+      }
+
+      // Se não encontrou com endereço, consulta pela API pública (BrasilAPI)
+      if (doc.length === 14) {
+        const { data } = await api.get(`/empresas/consulta-cnpj/${doc}`)
+        if (data) {
+          setParticipante((prev: any) => ({
+            ...prev,
+            cnpj: doc,
+            razaoSocial: data.razaoSocial || prev.razaoSocial || '',
+            nomeFantasia: data.nomeFantasia || '',
+            ie: data.inscEstadual || prev.ie || '',
+            logradouro: data.logradouro || '',
+            numero: data.numero || '',
+            complemento: data.complemento || '',
+            bairro: data.bairro || '',
+            codigoMunicipio: data.codigoMunicipio || '',
+            municipio: data.cidade || '',
+            uf: data.uf || '',
+            cep: data.cep || '',
+            email: data.email || '',
+            telefone: data.telefone || '',
+          }))
+        }
       }
     } catch { /* silencioso */ }
   }
@@ -423,39 +549,45 @@ export default function CteNovaPage() {
 
   async function handleEmitir() {
     const payload = montarPayload()
-    emitirMutation.mutate(payload, {
-      onSuccess: (response: any) => {
-        const status = response?.status || response?.documento?.status
-        if (status === 'AUTORIZADO') {
+    if (editandoId) {
+      // Modo edição: atualizar CT-e existente
+      atualizarMutation.mutate({ id: editandoId, payload }, {
+        onSuccess: (response: any) => {
           notifications.show({
-            title: 'CT-e Autorizado',
-            message: `Protocolo: ${response?.protocolo || 'N/A'}`,
+            title: 'CT-e Atualizado',
+            message: `Nº ${response?.numero || ''} / Série ${response?.serie || ''} — atualizado com sucesso.`,
             color: 'green',
           })
           router.push('/fiscal/cte')
-        } else if (status === 'REJEITADO') {
+        },
+        onError: (err: any) => {
           notifications.show({
-            title: 'CT-e Rejeitado',
-            message: response?.motivoRejeicao || 'Documento rejeitado',
+            title: 'Erro ao Atualizar',
+            message: err?.response?.data?.message || err?.response?.data?.erros?.[0]?.message || 'Erro ao atualizar CT-e',
             color: 'red',
           })
-        } else {
+        },
+      })
+    } else {
+      // Modo criação: gravar novo CT-e
+      emitirMutation.mutate(payload, {
+        onSuccess: (response: any) => {
           notifications.show({
-            title: 'CT-e Processado',
-            message: `Status: ${status}`,
-            color: 'blue',
+            title: 'CT-e Gravado',
+            message: `Nº ${response?.numero || ''} / Série ${response?.serie || ''} — Status: DIGITADA. Transmita pela listagem.`,
+            color: 'green',
           })
           router.push('/fiscal/cte')
-        }
-      },
-      onError: (err: any) => {
-        notifications.show({
-          title: 'Erro na Emissão',
-          message: err?.response?.data?.message || 'Erro ao emitir CT-e',
-          color: 'red',
-        })
-      },
-    })
+        },
+        onError: (err: any) => {
+          notifications.show({
+            title: 'Erro ao Gravar',
+            message: err?.response?.data?.message || err?.response?.data?.erros?.[0]?.message || 'Erro ao gravar CT-e',
+            color: 'red',
+          })
+        },
+      })
+    }
   }
 
   function renderParticipanteForm(p: Participante, setP: (v: Participante) => void, titulo: string) {
@@ -529,8 +661,8 @@ export default function CteNovaPage() {
 
   return (
     <Paper p="md">
-      <Title order={3} mb="lg">Emissão de CT-e</Title>
-      <Text size="sm" c="dimmed" mb="md">Início / Fiscal / CT-e / Nova Emissão</Text>
+      <Title order={3} mb="lg">{editandoId ? 'Editar CT-e' : 'Emissão de CT-e'}</Title>
+      <Text size="sm" c="dimmed" mb="md">Início / Fiscal / CT-e / {editandoId ? 'Editar' : 'Nova Emissão'}</Text>
 
       <Stepper active={active} onStepClick={setActive} mb="xl" size="sm">
         <Stepper.Step label="Dados Gerais" />
@@ -677,7 +809,7 @@ export default function CteNovaPage() {
                         onChange={(e) => { const c = [...veiculosNovos]; c[idx] = { ...c[idx], xCor: e.target.value }; setVeiculosNovos(c) }} />
                     </Grid.Col>
                     <Grid.Col span={3}>
-                      <TextInput label="Cód. Modelo (DENATRAN)" value={v.cMod} maxLength={6}
+                      <TextInput label="Cód. Modelo (DENATRAN)" value={v.cMod} maxLength={8}
                         onChange={(e) => { const c = [...veiculosNovos]; c[idx] = { ...c[idx], cMod: e.target.value }; setVeiculosNovos(c) }} />
                     </Grid.Col>
                     <Grid.Col span={4}>
@@ -936,8 +1068,8 @@ export default function CteNovaPage() {
             </Button>
           )}
           {active === totalSteps - 1 && (
-            <Button color="green" loading={emitirMutation.isPending} onClick={handleEmitir}>
-              Emitir CT-e
+            <Button color="green" loading={emitirMutation.isPending || atualizarMutation.isPending} onClick={handleEmitir}>
+              {editandoId ? 'Atualizar CT-e' : 'Gravar CT-e'}
             </Button>
           )}
         </Group>

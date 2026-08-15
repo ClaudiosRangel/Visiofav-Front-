@@ -29,7 +29,40 @@ export function useCte() {
     const qc = useQueryClient()
     return useMutation({
       mutationFn: async (payload: any) => {
-        const { data } = await api.post('/fiscal/cte/emitir', payload)
+        const { data } = await api.post('/fiscal/cte/gravar', payload)
+        return data
+      },
+      onSuccess: () => qc.invalidateQueries({ queryKey: ['fiscal', 'cte'] }),
+    })
+  }
+
+  function useGravar() {
+    const qc = useQueryClient()
+    return useMutation({
+      mutationFn: async (payload: any) => {
+        const { data } = await api.post('/fiscal/cte/gravar', payload)
+        return data
+      },
+      onSuccess: () => qc.invalidateQueries({ queryKey: ['fiscal', 'cte'] }),
+    })
+  }
+
+  function useAtualizar() {
+    const qc = useQueryClient()
+    return useMutation({
+      mutationFn: async ({ id, payload }: { id: string; payload: any }) => {
+        const { data } = await api.put(`/fiscal/cte/${id}`, payload)
+        return data
+      },
+      onSuccess: () => qc.invalidateQueries({ queryKey: ['fiscal', 'cte'] }),
+    })
+  }
+
+  function useTransmitir() {
+    const qc = useQueryClient()
+    return useMutation({
+      mutationFn: async (id: string) => {
+        const { data } = await api.post(`/fiscal/cte/${id}/transmitir`)
         return data
       },
       onSuccess: () => qc.invalidateQueries({ queryKey: ['fiscal', 'cte'] }),
@@ -41,6 +74,17 @@ export function useCte() {
     return useMutation({
       mutationFn: async ({ id, justificativa }: { id: string; justificativa: string }) => {
         const { data } = await api.post(`/fiscal/cte/${id}/cancelar`, { justificativa })
+        return data
+      },
+      onSuccess: () => qc.invalidateQueries({ queryKey: ['fiscal', 'cte'] }),
+    })
+  }
+
+  function useTransmitir() {
+    const qc = useQueryClient()
+    return useMutation({
+      mutationFn: async (id: string) => {
+        const { data } = await api.post(`/fiscal/cte/${id}/transmitir`)
         return data
       },
       onSuccess: () => qc.invalidateQueries({ queryKey: ['fiscal', 'cte'] }),
@@ -134,6 +178,9 @@ export function useCte() {
     useListar,
     useDetalhe,
     useEmitir,
+    useGravar,
+    useAtualizar,
+    useTransmitir,
     useCancelar,
     useCartaCorrecao,
     useInutilizar,

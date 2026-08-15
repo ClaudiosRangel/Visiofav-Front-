@@ -29,6 +29,7 @@ import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { ListagemFiscal, type ColumnDef } from '@/components/fiscal/ListagemFiscal'
 import { StatusBadge } from '@/components/fiscal/StatusBadge'
 import { useCte } from '@/data/hooks/fiscal/useCte'
+import { api } from '@/lib/api'
 
 interface CteItem {
   id: string
@@ -45,12 +46,89 @@ interface CteItem {
 function AcoesMenu({ item }: { item: CteItem }) {
   const { baixarDacte, baixarXml } = useCte()
   const cancelarMutation = useCte().useCancelar()
+  const transmitirMutation = useCte().useTransmitir()
   const router = useRouter()
   const [cancelarAberto, setCancelarAberto] = useState(false)
   const [justificativa, setJustificativa] = useState('')
   const [cceAberto, setCceAberto] = useState(false)
   const [textoCorrecao, setTextoCorrecao] = useState('')
   const cartaCorrecaoMutation = useCte().useCartaCorrecao()
+
+  async function handleTransmitir(id: string) {
+    transmitirMutation.mutate(id, {
+      onSuccess: (response: any) => {
+        if (response?.sucesso) {
+          notifications.show({
+            title: 'CT-e Autorizado',
+            message: `Protocolo: ${response?.protocolo || 'N/A'}`,
+            color: 'green',
+          })
+        } else {
+          const motivo = response?.motivoRejeicao || response?.message || response?.mensagem || 'Documento rejeitado pela SEFAZ'
+          const codigo = response?.codigoRejeicao ? ` (cStat: ${response.codigoRejeicao})` : ''
+          notifications.show({
+            title: 'CT-e Rejeitado',
+            message: `${motivo}${codigo}`,
+            color: 'red',
+            autoClose: false,
+          })
+        }
+      },
+      onError: (err: any) => {
+        const data = err?.response?.data
+        const msg = data?.mensagem || data?.message || data?.erros?.[0]?.mensagem || 'Erro ao transmitir'
+        const detalhes = data?.detalhes ? ` | Detalhes: ${JSON.stringify(data.detalhes)}` : ''
+        const codigo = data?.codigo ? ` [Código: ${data.codigo}]` : ''
+        notifications.show({
+          title: 'Erro na Transmissão',
+          message: `${msg}${codigo}${detalhes}`,
+          color: 'red',
+          autoClose: false,
+        })
+      },
+    })
+  }
+
+  async function handleConsultar(id: string) {
+    try {
+      const { data } = await api.get(`/fiscal/cte/${id}`)
+      const status = data?.status || 'Desconhecido'
+      const motivo = data?.motivoRejeicao || ''
+      const protocolo = data?.protocolo || ''
+      notifications.show({
+        title: `Situação do CT-e: ${status}`,
+        message: protocolo ? `Protocolo: ${protocolo}` : (motivo || 'Sem informações adicionais'),
+        color: status === 'AUTORIZADO' ? 'green' : status === 'REJEITADO' ? 'red' : 'blue',
+        autoClose: false,
+      })
+    } catch (err: any) {
+      notifications.show({
+        title: 'Erro ao consultar',
+        message: err?.response?.data?.message || 'Não foi possível consultar',
+        color: 'red',
+      })
+    }
+  }
+
+  async function handleExcluir(id: string) {
+    if (!confirm('Tem certeza que deseja excluir este CT-e?')) return
+    try {
+      await api.delete(`/fiscal/cte/${id}`)
+      notifications.show({
+        title: 'CT-e Excluído',
+        message: 'Documento removido com sucesso.',
+        color: 'green',
+      })
+      // Refresh da listagem
+      window.location.reload()
+    } catch (err: any) {
+      notifications.show({
+        title: 'Erro ao excluir',
+        message: err?.response?.data?.message || 'Não foi possível excluir',
+        color: 'red',
+      })
+    }
+  }
 
   async function handleDacte() {
     try {
@@ -124,6 +202,24 @@ function AcoesMenu({ item }: { item: CteItem }) {
           <ActionIcon variant="subtle"><IconDotsVertical size={16} /></ActionIcon>
         </Menu.Target>
         <Menu.Dropdown>
+          {['DIGITADA', 'PENDENTE', 'REJEITADO'].includes(item.status) && (
+            <Menu.Item leftSection={<IconEdit size={14} />}
+              onClick={() => router.push(`/fiscal/cte/nova?editar=${item.id}`)}>
+              Editar
+            </Menu.Item>
+          )}
+          {['DIGITADA', 'PENDENTE', 'REJEITADO'].includes(item.status) && (
+            <Menu.Item leftSection={<IconFileCode size={14} />} color="blue"
+              onClick={() => handleTransmitir(item.id)}>
+              Transmitir à SEFAZ
+            </Menu.Item>
+          )}
+          {['PENDENTE', 'AUTORIZADO', 'REJEITADO'].includes(item.status) && (
+            <Menu.Item leftSection={<IconFileCode size={14} />}
+              onClick={() => handleConsultar(item.id)}>
+              Consultar na SEFAZ
+            </Menu.Item>
+          )}
           {['AUTORIZADO', 'CANCELADO'].includes(item.status) && (
             <Menu.Item leftSection={<IconFileTypePdf size={14} />} onClick={handleDacte}>
               DACTE (PDF)
@@ -150,6 +246,15 @@ function AcoesMenu({ item }: { item: CteItem }) {
             onClick={() => router.push(`/fiscal/cte/nova?duplicar=${item.id}`)}>
             Duplicar
           </Menu.Item>
+          {['DIGITADA', 'PENDENTE', 'REJEITADO'].includes(item.status) && (
+            <>
+              <Menu.Divider />
+              <Menu.Item color="red" leftSection={<IconX size={14} />}
+                onClick={() => handleExcluir(item.id)}>
+                Excluir
+              </Menu.Item>
+            </>
+          )}
         </Menu.Dropdown>
       </Menu>
 

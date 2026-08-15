@@ -58,6 +58,7 @@ const empresaSchema = z.object({
   proximoNumeroNfe: z.number().int().positive().nullable().optional(),
   serieCte: z.string().optional(),
   proximoNumeroCte: z.number().int().positive().nullable().optional(),
+  ambienteCte: z.string().optional(),
 })
 
 type EmpresaForm = z.infer<typeof empresaSchema>
@@ -106,7 +107,7 @@ export default function EmpresaPage() {
       inscEstadual: '', rntrc: '', telefone: '', email: '', status: true, usaWms: false,
       logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '', cep: '',
       regimeTributario: '', ambienteNfe: '', serieNfe: '', proximoNumeroNfe: null,
-      serieCte: '', proximoNumeroCte: null,
+      serieCte: '', proximoNumeroCte: null, ambienteCte: '',
     },
   })
 
@@ -131,11 +132,12 @@ export default function EmpresaPage() {
         uf: empresa.uf || '',
         cep: empresa.cep || '',
         regimeTributario: empresa.regimeTributario ? String(empresa.regimeTributario) : '',
-        ambienteNfe: empresa.ambienteNfe ? String(empresa.ambienteNfe) : '',
-        serieNfe: empresa.serieNfe || '',
-        proximoNumeroNfe: empresa.proximoNumeroNfe ?? null,
-        serieCte: empresa.serieCte || '',
-        proximoNumeroCte: empresa.proximoNumeroCte ?? null,
+        ambienteNfe: empresa.ambienteNFe ? String(empresa.ambienteNFe) : '',
+        serieNfe: empresa.serieNFe ? String(empresa.serieNFe) : '',
+        proximoNumeroNfe: empresa.proximoNumeroNFe ?? null,
+        serieCte: empresa.serieCTe ? String(empresa.serieCTe) : '',
+        proximoNumeroCte: empresa.proximoNumeroCTe ?? null,
+        ambienteCte: empresa.ambienteCTe ? String(empresa.ambienteCTe) : '',
       })
       setLogoUrl(empresa.logo || null)
     }
@@ -146,11 +148,16 @@ export default function EmpresaPage() {
 
   async function onSubmit(data: EmpresaForm) {
     // Remove cnpj from payload (read-only) and convert string fields to numbers for backend
-    const { cnpj, regimeTributario, ambienteNfe, ...rest } = data
+    const { cnpj, regimeTributario, ambienteNfe, ambienteCte, serieNfe, proximoNumeroNfe, serieCte, proximoNumeroCte, ...rest } = data
     const payload: any = {
       ...rest,
       regimeTributario: regimeTributario ? Number(regimeTributario) : undefined,
-      ambienteNfe: ambienteNfe ? Number(ambienteNfe) : undefined,
+      ambienteNFe: ambienteNfe ? Number(ambienteNfe) : undefined,
+      ambienteCTe: ambienteCte ? Number(ambienteCte) : undefined,
+      serieNFe: serieNfe ? Number(serieNfe) : undefined,
+      proximoNumeroNFe: proximoNumeroNfe ?? undefined,
+      serieCTe: serieCte ? Number(serieCte) : undefined,
+      proximoNumeroCTe: proximoNumeroCte ?? undefined,
     }
     salvar.mutate(payload)
   }
@@ -357,6 +364,17 @@ export default function EmpresaPage() {
                   )} />
                 </div>
                 <Text size="sm" fw={600} mt="sm">CT-e</Text>
+                <div className="grid grid-cols-2 gap-4">
+                  <Controller name="ambienteCte" control={control} render={({ field }) => (
+                    <Select
+                      label="Ambiente CT-e"
+                      data={AMBIENTES_NFE}
+                      clearable
+                      value={field.value || null}
+                      onChange={(v) => field.onChange(v || '')}
+                    />
+                  )} />
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <Controller name="serieCte" control={control} render={({ field }) => (
                     <TextInput label="Série CT-e" placeholder="1" {...field} />
