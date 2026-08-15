@@ -76,12 +76,14 @@ function AcoesMenu({ item }: { item: CteItem }) {
       },
       onError: (err: any) => {
         const data = err?.response?.data
-        const msg = data?.mensagem || data?.message || data?.erros?.[0]?.mensagem || 'Erro ao transmitir'
-        const detalhes = data?.detalhes ? ` | Detalhes: ${JSON.stringify(data.detalhes)}` : ''
+        // Proteger contra respostas HTML (servidor retornando página de erro)
+        const rawMsg = typeof data === 'string' && data.includes('<') ? 'Erro ao transmitir' :
+          (data?.mensagem || data?.message || data?.erros?.[0]?.mensagem || 'Erro ao transmitir')
+        const msg = rawMsg.length > 300 ? rawMsg.substring(0, 300) + '...' : rawMsg
         const codigo = data?.codigo ? ` [Código: ${data.codigo}]` : ''
         notifications.show({
           title: 'Erro na Transmissão',
-          message: `${msg}${codigo}${detalhes}`,
+          message: `${msg}${codigo}`,
           color: 'red',
           autoClose: false,
         })

@@ -77,7 +77,14 @@ api.interceptors.request.use((config) => {
 })
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Proteger contra respostas HTML acidentais (ex: página de erro do servidor)
+    if (typeof response.data === 'string' && response.data.includes('<!DOCTYPE') || 
+        typeof response.data === 'string' && response.data.includes('<html')) {
+      return Promise.reject(new Error('Servidor retornou resposta inesperada. Tente novamente.'))
+    }
+    return response
+  },
   async (error: AxiosError) => {
     const originalRequest = error.config as any
 
