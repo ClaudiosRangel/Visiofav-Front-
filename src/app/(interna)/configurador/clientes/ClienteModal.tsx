@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useState } from 'react'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { IconRoute } from '@tabler/icons-react'
+import { IconRoute, IconSearch } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { GeocodificarClienteButton } from '@/components/geo/GeocodificarClienteButton'
 import { SugestaoRotaModal } from '@/components/geo/SugestaoRotaModal'
@@ -25,6 +25,7 @@ const schema = z.object({
   complemento: z.string().optional(),
   bairro: z.string().optional(),
   cidade: z.string().optional(),
+  codigoMunicipio: z.string().optional(),
   uf: z.string().optional(),
   cep: z.string().optional(),
   telefone: z.string().optional(),
@@ -39,6 +40,7 @@ export default function ClienteModal({ opened, onClose, editData }: Props) {
   const queryClient = useQueryClient()
   const isEditing = !!editData
   const [sugestaoModalOpen, setSugestaoModalOpen] = useState(false)
+  const [consultando, setConsultando] = useState(false)
 
   const temEndereco = !!(editData?.cep || editData?.cidade)
   const temCoordenadas = !!(editData?.latitude && editData?.longitude)
@@ -60,7 +62,7 @@ export default function ClienteModal({ opened, onClose, editData }: Props) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['clientes'] }),
   })
 
-  const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema) })
+  const { control, handleSubmit, reset, setValue, getValues, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
   useEffect(() => {
     if (editData) {
@@ -70,13 +72,45 @@ export default function ClienteModal({ opened, onClose, editData }: Props) {
         rotaId: editData.rotaId || null,
         logradouro: editData.logradouro || '', numero: editData.numero || '',
         complemento: editData.complemento || '', bairro: editData.bairro || '',
-        cidade: editData.cidade || '', uf: editData.uf || '', cep: editData.cep || '',
+        cidade: editData.cidade || '', codigoMunicipio: editData.codigoMunicipio || '',
+        uf: editData.uf || '', cep: editData.cep || '',
         telefone: editData.telefone || '', email: editData.email || '',
       })
     } else {
-      reset({ razaoSocial: '', cpfCnpj: '', rotaId: null })
+      reset({ razaoSocial: '', cpfCnpj: '', rotaId: null, codigoMunicipio: '' })
     }
   }, [editData, reset, opened])
+
+  async function consultarCnpj() {
+    const cnpj = getValues('cpfCnpj')?.replace(/\D/g, '')
+    if (!cnpj || cnpj.length < 14) {
+      notifications.show({ title: 'Atenção', message: 'Informe um CNPJ válido com 14 dígitos', color: 'yellow' })
+      return
+    }
+    setConsultando(true)
+    try {
+      const { data } = await api.get(`/empresas/consulta-cnpj/${cnpj}`)
+      if (data) {
+        if (data.razaoSocial) setValue('razaoSocial', data.razaoSocial)
+        if (data.nomeFantasia) setValue('nomeFantasia', data.nomeFantasia)
+        if (data.logradouro) setValue('logradouro', data.logradouro)
+        if (data.numero) setValue('numero', data.numero)
+        if (data.complemento) setValue('complemento', data.complemento)
+        if (data.bairro) setValue('bairro', data.bairro)
+        if (data.cidade || data.municipio) setValue('cidade', data.cidade || data.municipio)
+        if (data.uf) setValue('uf', data.uf)
+        if (data.cep) setValue('cep', data.cep.replace(/\D/g, ''))
+        if (data.codigoMunicipio) setValue('codigoMunicipio', data.codigoMunicipio)
+        if (data.telefone) setValue('telefone', data.telefone)
+        if (data.email) setValue('email', data.email)
+        notifications.show({ title: 'CNPJ consultado', message: `Dados de "${data.razaoSocial}" preenchidos`, color: 'green' })
+      }
+    } catch (err: any) {
+      notifications.show({ title: 'Erro na consulta', message: err?.response?.data?.message || 'Não foi possível consultar o CNPJ', color: 'red' })
+    } finally {
+      setConsultando(false)
+    }
+  }
 
   async function onSubmit(data: FormValues) {
     try {
@@ -101,7 +135,20 @@ export default function ClienteModal({ opened, onClose, editData }: Props) {
             <TextInput label="Nome Fantasia" {...field} />
           )} />
           <Controller name="cpfCnpj" control={control} render={({ field }) => (
-            <TextInput label={<>CPF / CNPJ <span style={{ color: 'red' }}>*</span></>} placeholder="000.000.000-00 ou 00.000.000/0000-00" error={errors.cpfCnpj?.message} {...field} />
+            <TextInput
+              label={<>CPF / CNPJ <span style={{ color: 'red' }}>*</span></>}
+              placeholder="000.000.000-00 ou 00.000.000/0000-00"
+              error={errors.cpfCnpj?.message}
+              rightSection={
+                <Tooltip label="Consultar CNPJ na Receita Federal">
+                  <Button size="compact-xs" variant="light" loading={consultando} onClick={consultarCnpj}>
+                    Consultar
+                  </Button>
+                </Tooltip>
+              }
+              rightSectionWidth={90}
+              {...field}
+            />
           )} />
         </div>
 
@@ -160,9 +207,14 @@ export default function ClienteModal({ opened, onClose, editData }: Props) {
                   <Select label="UF" data={UFS} searchable clearable value={field.value || null} onChange={(v) => field.onChange(v || '')} />
                 )} />
               </div>
-              <Controller name="cep" control={control} render={({ field }) => (
-                <TextInput label="CEP" placeholder="00000-000" className="max-w-xs" {...field} />
-              )} />
+              <div className="grid grid-cols-2 gap-4">
+                <Controller name="codigoMunicipio" control={control} render={({ field }) => (
+                  <TextInput label="Cód. Município (IBGE)" placeholder="7 dígitos" maxLength={7} {...field} />
+                )} />
+                <Controller name="cep" control={control} render={({ field }) => (
+                  <TextInput label="CEP" placeholder="00000-000" {...field} />
+                )} />
+              </div>
             </div>
           </Tabs.Panel>
 
@@ -223,7 +275,6 @@ export default function ClienteModal({ opened, onClose, editData }: Props) {
           clienteId={editData.id}
           onRotaSelecionada={(rotaId) => {
             setSugestaoModalOpen(false)
-            // Update the rotaId on the client via the API
             atualizar.mutate(
               { id: editData.id, rotaId },
               {
