@@ -132,6 +132,21 @@ function AcoesMenu({ item }: { item: CteItem }) {
     }
   }
 
+  async function handleVisualizarXml(id: string) {
+    try {
+      const response = await api.get(`/fiscal/cte/${id}/preview-xml`, { responseType: 'blob' })
+      const blob = new Blob([response.data], { type: 'application/xml' })
+      const url = URL.createObjectURL(blob)
+      window.open(url, '_blank')
+    } catch (err: any) {
+      notifications.show({
+        title: 'Erro ao gerar XML',
+        message: err?.response?.data?.message || 'Não foi possível gerar o preview do XML',
+        color: 'red',
+      })
+    }
+  }
+
   async function handleDacte() {
     try {
       const response = await baixarDacte(item.id)
@@ -220,6 +235,12 @@ function AcoesMenu({ item }: { item: CteItem }) {
             <Menu.Item leftSection={<IconFileCode size={14} />}
               onClick={() => handleConsultar(item.id)}>
               Consultar na SEFAZ
+            </Menu.Item>
+          )}
+          {['DIGITADA', 'PENDENTE', 'REJEITADO'].includes(item.status) && (
+            <Menu.Item leftSection={<IconFileCode size={14} />}
+              onClick={() => handleVisualizarXml(item.id)}>
+              Visualizar XML
             </Menu.Item>
           )}
           {['AUTORIZADO', 'CANCELADO'].includes(item.status) && (
