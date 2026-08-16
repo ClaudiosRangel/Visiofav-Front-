@@ -79,11 +79,14 @@ function AcoesMenu({ item }: { item: CteItem }) {
         // Proteger contra respostas HTML (servidor retornando página de erro)
         const rawMsg = typeof data === 'string' && data.includes('<') ? 'Erro ao transmitir' :
           (data?.mensagem || data?.message || data?.erros?.[0]?.mensagem || 'Erro ao transmitir')
-        const msg = rawMsg.length > 300 ? rawMsg.substring(0, 300) + '...' : rawMsg
+        const msg = rawMsg.length > 500 ? rawMsg.substring(0, 500) + '...' : rawMsg
         const codigo = data?.codigo ? ` [Código: ${data.codigo}]` : ''
+        // Incluir body da resposta SEFAZ se disponível
+        const body = data?.detalhes?.body ? `\n\nResposta SEFAZ: ${String(data.detalhes.body).substring(0, 300)}` : ''
+        const xMotivo = data?.detalhes?.xMotivo ? `\nMotivo: ${data.detalhes.xMotivo}` : ''
         notifications.show({
           title: 'Erro na Transmissão',
-          message: `${msg}${codigo}`,
+          message: `${msg}${codigo}${xMotivo}${body}`,
           color: 'red',
           autoClose: false,
         })
