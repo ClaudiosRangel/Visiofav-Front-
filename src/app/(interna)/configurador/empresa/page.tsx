@@ -59,6 +59,7 @@ const empresaSchema = z.object({
   serieCte: z.string().optional(),
   proximoNumeroCte: z.number().int().positive().nullable().optional(),
   ambienteCte: z.string().optional(),
+  codigoMunicipio: z.string().optional(),
 })
 
 type EmpresaForm = z.infer<typeof empresaSchema>
@@ -138,6 +139,7 @@ export default function EmpresaPage() {
         serieCte: empresa.serieCTe ? String(empresa.serieCTe) : '',
         proximoNumeroCte: empresa.proximoNumeroCTe ?? null,
         ambienteCte: empresa.ambienteCTe ? String(empresa.ambienteCTe) : '',
+        codigoMunicipio: empresa.codigoMunicipio || '',
       })
       setLogoUrl(empresa.logo || null)
     }
@@ -148,7 +150,7 @@ export default function EmpresaPage() {
 
   async function onSubmit(data: EmpresaForm) {
     // Remove cnpj from payload (read-only) and convert string fields to numbers for backend
-    const { cnpj, regimeTributario, ambienteNfe, ambienteCte, serieNfe, proximoNumeroNfe, serieCte, proximoNumeroCte, ...rest } = data
+    const { cnpj, regimeTributario, ambienteNfe, ambienteCte, serieNfe, proximoNumeroNfe, serieCte, proximoNumeroCte, codigoMunicipio, ...rest } = data
     const payload: any = {
       ...rest,
       regimeTributario: regimeTributario ? Number(regimeTributario) : undefined,
@@ -158,6 +160,7 @@ export default function EmpresaPage() {
       proximoNumeroNFe: proximoNumeroNfe ?? undefined,
       serieCTe: serieCte ? Number(serieCte) : undefined,
       proximoNumeroCTe: proximoNumeroCte ?? undefined,
+      codigoMunicipio: codigoMunicipio || undefined,
     }
     salvar.mutate(payload)
   }
@@ -345,6 +348,11 @@ export default function EmpresaPage() {
                       value={field.value || null}
                       onChange={(v) => field.onChange(v || '')}
                     />
+                  )} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Controller name="codigoMunicipio" control={control} render={({ field }) => (
+                    <TextInput label="Cód. Município (IBGE)" placeholder="7 dígitos — ex: 3304557" maxLength={7} {...field} />
                   )} />
                 </div>
                 <Text size="sm" fw={600} mt="sm">NF-e</Text>
