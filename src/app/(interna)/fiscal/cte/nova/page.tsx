@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Paper,
@@ -438,7 +438,7 @@ export default function CteNovaPage() {
   }, [bcIcms, aliqIcms])
 
   // === Buscar participante por CNPJ ===
-  async function buscarEPreencher(cpfCnpj: string, setParticipante: (p: Participante) => void) {
+  async function buscarEPreencher(cpfCnpj: string, setParticipante: Dispatch<SetStateAction<Participante>>) {
     const doc = cpfCnpj.replace(/\D/g, '')
     if (doc.length < 11) return
     try {
@@ -469,7 +469,7 @@ export default function CteNovaPage() {
       if (doc.length === 14) {
         const { data } = await api.get(`/empresas/consulta-cnpj/${doc}`)
         if (data) {
-          setParticipante((prev: any) => ({
+          setParticipante((prev) => ({
             ...prev,
             cnpj: doc,
             razaoSocial: data.razaoSocial || prev.razaoSocial || '',
@@ -636,7 +636,7 @@ export default function CteNovaPage() {
     }
   }
 
-  function renderParticipanteForm(p: Participante, setP: (v: Participante) => void, titulo: string) {
+  function renderParticipanteForm(p: Participante, setP: Dispatch<SetStateAction<Participante>>, titulo: string) {
     return (
       <Paper p="md" withBorder>
         <Text fw={600} mb="sm">{titulo}</Text>

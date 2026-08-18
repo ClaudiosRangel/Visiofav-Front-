@@ -352,13 +352,13 @@ export default function EmpresaPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <Controller name="codigoMunicipio" control={control} render={({ field }) => (
-                    <TextInput label="Cód. Município (IBGE)" placeholder="7 dígitos — ex: 3304557" maxLength={7} {...field} />
+                    <TextInput label="Cód. Município (IBGE)" placeholder="7 dígitos — ex: 3304557" maxLength={7} {...field} value={field.value ?? ''} />
                   )} />
                 </div>
                 <Text size="sm" fw={600} mt="sm">NF-e</Text>
                 <div className="grid grid-cols-2 gap-4">
                   <Controller name="serieNfe" control={control} render={({ field }) => (
-                    <TextInput label="Série NF-e" placeholder="1" {...field} />
+                    <TextInput label="Série NF-e" placeholder="1" {...field} value={field.value ?? ''} />
                   )} />
                   <Controller name="proximoNumeroNfe" control={control} render={({ field }) => (
                     <NumberInput
@@ -385,7 +385,7 @@ export default function EmpresaPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <Controller name="serieCte" control={control} render={({ field }) => (
-                    <TextInput label="Série CT-e" placeholder="1" {...field} />
+                    <TextInput label="Série CT-e" placeholder="1" {...field} value={field.value ?? ''} />
                   )} />
                   <Controller name="proximoNumeroCte" control={control} render={({ field }) => (
                     <NumberInput

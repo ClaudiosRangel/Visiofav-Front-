@@ -19,6 +19,8 @@ import {
   Select,
   Stack,
   Paper,
+  Badge,
+  ScrollArea,
 } from '@mantine/core'
 import { DateInput } from '@mantine/dates'
 import { notifications } from '@mantine/notifications'
@@ -33,6 +35,7 @@ import {
   IconSend,
   IconMail,
   IconSearch,
+  IconHistory,
 } from '@tabler/icons-react'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { StatusBadge } from '@/components/fiscal/StatusBadge'
@@ -53,6 +56,7 @@ interface CteItem {
   dataEmissao: string
   dataAutorizacao: string | null
   chaveAcesso: string | null
+  origemDestino: string | null
 }
 
 // =============================================================================
@@ -71,6 +75,9 @@ function AcoesMenu({ item }: { item: CteItem }) {
   const [textoCorrecao, setTextoCorrecao] = useState('')
   const [emailAberto, setEmailAberto] = useState(false)
   const [emails, setEmails] = useState('')
+  const [eventosAberto, setEventosAberto] = useState(false)
+  const [eventos, setEventos] = useState<any[]>([])
+  const [eventosLoading, setEventosLoading] = useState(false)
   const cartaCorrecaoMutation = useCte().useCartaCorrecao()
 
   function handleTransmitir(id: string) {
@@ -167,6 +174,19 @@ function AcoesMenu({ item }: { item: CteItem }) {
     })
   }
 
+  async function handleEventos() {
+    setEventosAberto(true)
+    setEventosLoading(true)
+    try {
+      const { data } = await api.get(`/fiscal/cte/${item.id}`)
+      setEventos(data.eventos || [])
+    } catch {
+      setEventos([])
+    } finally {
+      setEventosLoading(false)
+    }
+  }
+
   return (
     <>
       <Menu shadow="md" width={200}>
@@ -191,6 +211,9 @@ function AcoesMenu({ item }: { item: CteItem }) {
           )}
           {['AUTORIZADO', 'CANCELADO'].includes(item.status) && (
             <Menu.Item leftSection={<IconMail size={14} />} onClick={() => setEmailAberto(true)}>Enviar por e-mail</Menu.Item>
+          )}
+          {['AUTORIZADO', 'CANCELADO'].includes(item.status) && (
+            <Menu.Item leftSection={<IconHistory size={14} />} onClick={handleEventos}>Eventos</Menu.Item>
           )}
           {item.status === 'AUTORIZADO' && (
             <>
@@ -228,6 +251,45 @@ function AcoesMenu({ item }: { item: CteItem }) {
           <Button variant="default" onClick={() => setEmailAberto(false)}>Cancelar</Button>
           <Button color="blue" loading={enviarEmailMutation.isPending} onClick={handleEnviarEmail}>Enviar</Button>
         </Group>
+      </Modal>
+
+      <Modal opened={eventosAberto} onClose={() => setEventosAberto(false)} title={`Eventos — CT-e nº ${item.numero}`} size="lg">
+        {eventosLoading ? (
+          <Text c="dimmed" ta="center" py="xl">Carregando...</Text>
+        ) : eventos.length === 0 ? (
+          <Text c="dimmed" ta="center" py="xl">Nenhum evento registrado</Text>
+        ) : (
+          <ScrollArea h={300}>
+            <Table striped highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Data</Table.Th>
+                  <Table.Th>Tipo</Table.Th>
+                  <Table.Th>Seq.</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                  <Table.Th>Protocolo</Table.Th>
+                  <Table.Th>Descrição</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {eventos.map((ev: any, idx: number) => (
+                  <Table.Tr key={ev.id || idx}>
+                    <Table.Td>{new Date(ev.dataEvento).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</Table.Td>
+                    <Table.Td>{ev.tipoEvento === '110111' ? 'Cancelamento' : ev.tipoEvento === '110110' ? 'CC-e' : ev.tipoEvento}</Table.Td>
+                    <Table.Td>{ev.sequencia}</Table.Td>
+                    <Table.Td>
+                      <Badge size="xs" color={ev.status === 'REGISTRADO' ? 'green' : 'red'}>
+                        {ev.status}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td><Text size="xs">{ev.protocolo || '—'}</Text></Table.Td>
+                    <Table.Td><Text size="xs" lineClamp={2}>{ev.justificativa || ev.textoCorrecao || '—'}</Text></Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea>
+        )}
       </Modal>
     </>
   )
@@ -405,6 +467,7 @@ export default function CtePage() {
               </Table.Th>
               <Table.Th>Número</Table.Th>
               <Table.Th>Série</Table.Th>
+              <Table.Th>Origem → Destino</Table.Th>
               <Table.Th>Tomador/Destinatário</Table.Th>
               <Table.Th>Valor</Table.Th>
               <Table.Th>Status</Table.Th>
@@ -416,7 +479,7 @@ export default function CtePage() {
           <Table.Tbody>
             {items.length === 0 && !isLoading ? (
               <Table.Tr>
-                <Table.Td colSpan={9} style={{ textAlign: 'center', padding: '2rem' }}>
+                <Table.Td colSpan={10} style={{ textAlign: 'center', padding: '2rem' }}>
                   <Text c="dimmed">Nenhum CT-e encontrado</Text>
                 </Table.Td>
               </Table.Tr>
@@ -426,6 +489,7 @@ export default function CtePage() {
                   <Table.Td><Checkbox checked={selecionados.has(item.id)} onChange={() => toggleItem(item.id)} /></Table.Td>
                   <Table.Td>{item.numero}</Table.Td>
                   <Table.Td>{item.serie}</Table.Td>
+                  <Table.Td><Text size="xs" c="dimmed">{item.origemDestino || '—'}</Text></Table.Td>
                   <Table.Td>{item.tomadorRazao || item.destRazao || '—'}</Table.Td>
                   <Table.Td>{item.valorTotal != null ? item.valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—'}</Table.Td>
                   <Table.Td><StatusBadge status={item.status} /></Table.Td>
