@@ -657,6 +657,12 @@ export default function CteNovaPage() {
         email: result.email || '',
         telefone: result.telefone || '',
       })
+      // Se não veio código IBGE mas tem município e UF, resolver automaticamente
+      if (!result.codigoMunicipio && result.municipio && result.uf) {
+        resolverCodigoMunicipio(result.municipio, result.uf, (codigo) => {
+          setP(prev => ({ ...prev, codigoMunicipio: codigo }))
+        })
+      }
     }
 
     return (
