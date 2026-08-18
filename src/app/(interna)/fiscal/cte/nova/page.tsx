@@ -612,7 +612,7 @@ export default function CteNovaPage() {
           : undefined,
       },
       infCpl: infCpl || undefined,
-      ambiente: 2,
+      ambiente: defaults?.ambiente || 2,
     }
   }
 
