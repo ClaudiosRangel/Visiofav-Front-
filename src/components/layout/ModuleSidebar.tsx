@@ -20,7 +20,7 @@ import {
   // PCP
   IconAssembly, IconListDetails, IconCalendarEvent, IconRoute, IconSitemap, IconTool, IconClock, IconPalette, IconLink, IconCategory,
   // Configurador
-  IconBuilding,
+  IconBuilding, IconBell,
 } from '@tabler/icons-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
@@ -353,6 +353,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       { icon: IconBuilding, label: 'Empresa', href: '/configurador/empresa' },
       { icon: IconUsers, label: 'Vendedores', href: '/configurador/vendedores' },
       { icon: IconSettings, label: 'Tributação', href: '/configurador/tributacao' },
+      { icon: IconBell, label: 'Notificações (Admin)', href: '/configurador/notificacoes' },
       {
         label: 'Integração', icon: IconKey, items: [
           { icon: IconKey, label: 'API Keys', href: '/configurador/integracao/api-keys' },

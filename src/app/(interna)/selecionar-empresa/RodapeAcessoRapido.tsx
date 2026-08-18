@@ -1,7 +1,8 @@
 'use client'
 
 import { Group, UnstyledButton, Text } from '@mantine/core'
-import { IconUser, IconPlus, IconLifebuoy } from '@tabler/icons-react'
+import { IconUser, IconPlus, IconLifebuoy, IconBell } from '@tabler/icons-react'
+import { useRouter } from 'next/navigation'
 
 interface RodapeAcessoRapidoProps {
   isAdmin: boolean
@@ -16,6 +17,8 @@ export default function RodapeAcessoRapido({
   onNovaEmpresa,
   onCentralDeAjuda,
 }: RodapeAcessoRapidoProps) {
+  const router = useRouter()
+
   return (
     <Group
       justify="center"
@@ -37,6 +40,15 @@ export default function RodapeAcessoRapido({
           <Group gap={6}>
             <IconPlus size={18} className="text-gray-500" />
             <Text size="sm" c="dimmed">Nova Empresa</Text>
+          </Group>
+        </UnstyledButton>
+      )}
+
+      {isAdmin && (
+        <UnstyledButton onClick={() => router.push('/configurador/notificacoes')}>
+          <Group gap={6}>
+            <IconBell size={18} className="text-gray-500" />
+            <Text size="sm" c="dimmed">Enviar Notificação</Text>
           </Group>
         </UnstyledButton>
       )}
