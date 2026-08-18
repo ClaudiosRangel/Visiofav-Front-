@@ -628,12 +628,10 @@ function AvatarUpload({ userId, currentAvatar }: { userId: string; currentAvatar
       setPreview(base64)
       setUploading(true)
       try {
-        await api.patch('/notificacoes/meu-avatar', { avatarUrl: base64 })
-        // Também atualizar via rota de admin (para salvar no usuario específico)
         await api.put(`/usuarios/${userId}`, { avatarUrl: base64 })
         notifications.show({ title: 'Foto salva', message: 'Avatar atualizado com sucesso', color: 'green' })
-      } catch {
-        notifications.show({ title: 'Erro', message: 'Falha ao salvar foto', color: 'red' })
+      } catch (err: any) {
+        notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar foto', color: 'red' })
       }
       setUploading(false)
     }
