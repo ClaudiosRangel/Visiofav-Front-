@@ -19,6 +19,7 @@ import {
   Badge,
   Accordion,
   Stack,
+  Autocomplete,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconPlus, IconTrash } from '@tabler/icons-react'
@@ -235,7 +236,16 @@ export default function CteNovaPage() {
   const [veiculosNovos, setVeiculosNovos] = useState<Array<{
     chassi: string; cCor: string; xCor: string; cMod: string; vUnit: number; vFrete: number
   }>>([])
+  const [coresDisponiveis, setCoresDisponiveis] = useState<string[]>([])
 
+  // Carregar cores cadastradas para autocomplete
+  useEffect(() => {
+    api.get('/fiscal/cte/cores').then(({ data }) => {
+      const cores = (data as Array<{ codigo: string; descricao: string }>)
+        .map(c => `${c.descricao} (${c.codigo})`)
+      setCoresDisponiveis(cores)
+    }).catch(() => {})
+  }, [])
   // Step 9 — Observações
   const [infCpl, setInfCpl] = useState('')
   const [rntrc, setRntrc] = useState('')
@@ -896,8 +906,17 @@ export default function CteNovaPage() {
                         onChange={(e) => { const c = [...veiculosNovos]; c[idx] = { ...c[idx], cCor: e.target.value }; setVeiculosNovos(c) }} />
                     </Grid.Col>
                     <Grid.Col span={3}>
-                      <TextInput label="Cor" value={v.xCor}
-                        onChange={(e) => { const c = [...veiculosNovos]; c[idx] = { ...c[idx], xCor: e.target.value }; setVeiculosNovos(c) }}
+                      <Autocomplete label="Cor" value={v.xCor}
+                        data={coresDisponiveis}
+                        onChange={(val) => {
+                          const c = [...veiculosNovos]; c[idx] = { ...c[idx], xCor: val }; setVeiculosNovos(c)
+                          // Se selecionou uma cor da lista (formato "DESCRICAO (CODIGO)"), preencher código
+                          const match = val.match(/^(.+?)\s*\((\d+)\)$/)
+                          if (match) {
+                            c[idx] = { ...c[idx], xCor: match[1].trim(), cCor: match[2] }
+                            setVeiculosNovos([...c])
+                          }
+                        }}
                         onBlur={() => resolverCodigoCor(v.xCor, idx)} />
                     </Grid.Col>
                     <Grid.Col span={3}>
