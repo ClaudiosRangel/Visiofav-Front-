@@ -221,10 +221,10 @@ function EnviarNotificacaoModal({ opened, onClose }: { opened: boolean; onClose:
   useEffect(() => {
     if (opened) {
       setLoadingUsuarios(true)
-      api.get('/usuarios').then(({ data }) => {
-        const usuarios = (data.data || data || []).map((u: any) => ({
+      api.get('/notificacoes/usuarios').then(({ data }) => {
+        const usuarios = (data || []).map((u: any) => ({
           value: u.id,
-          label: u.nome || u.email,
+          label: u.perfil === 'SUPER_ADMIN' ? `⭐ ${u.nome} (Admin Vizor)` : u.nome || u.email,
         }))
         setUsuariosDisponiveis(usuarios)
       }).catch(() => {}).finally(() => setLoadingUsuarios(false))
