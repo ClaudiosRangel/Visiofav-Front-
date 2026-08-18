@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, Table, Text, Group, Badge, Pagination, Stack, Loader, Center, TextInput, Button } from '@mantine/core'
-import { IconSearch, IconX } from '@tabler/icons-react'
+import { Card, Table, Text, Group, Badge, Pagination, Stack, Loader, Center, TextInput, Button, MultiSelect } from '@mantine/core'
+import { IconSearch, IconX, IconFilter } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { usePerfilGuard } from '@/hooks/usePerfilGuard'
@@ -20,6 +20,20 @@ const STATUS_COLORS: Record<string, string> = {
   PAUSADA: 'orange',
 }
 
+const TIPOS_ACAO = [
+  { value: 'transicao', label: 'Transição de Status' },
+  { value: 'cancelamento', label: 'Cancelamento' },
+  { value: 'postergar', label: 'Postergar Entrega' },
+  { value: 'mover', label: 'Mover Etapa' },
+  { value: 'desmembrar', label: 'Desmembrar' },
+  { value: 'preimpressao', label: 'Pré-Impressão' },
+  { value: 'reordenar', label: 'Reordenar Fila' },
+  { value: 'editar', label: 'Edição de Campos' },
+  { value: 'reextrair', label: 'Re-extração PDF' },
+  { value: 'manual', label: 'Adição Manual' },
+  { value: 'producao', label: 'Produção Concluída' },
+]
+
 export default function PcpLogsPage() {
   usePerfilGuard(['ADMIN', 'SUPER_ADMIN'])
   useEffect(() => { document.title = 'PCP - Logs de Auditoria' }, [])
@@ -27,6 +41,7 @@ export default function PcpLogsPage() {
   const [page, setPage] = useState(1)
   const [filtroOp, setFiltroOp] = useState('')
   const [filtroOpAplicado, setFiltroOpAplicado] = useState('')
+  const [acoesSelecionadas, setAcoesSelecionadas] = useState<string[]>([])
 
   function aplicarFiltro() {
     setFiltroOpAplicado(filtroOp.trim())
@@ -36,14 +51,16 @@ export default function PcpLogsPage() {
   function limparFiltro() {
     setFiltroOp('')
     setFiltroOpAplicado('')
+    setAcoesSelecionadas([])
     setPage(1)
   }
 
   const { data: response, isLoading } = useQuery<any>({
-    queryKey: ['pcp-logs', page, filtroOpAplicado],
+    queryKey: ['pcp-logs', page, filtroOpAplicado, acoesSelecionadas],
     queryFn: async () => {
       const params: any = { page, limit: 30 }
       if (filtroOpAplicado) params.opNumero = filtroOpAplicado
+      if (acoesSelecionadas.length > 0) params.acoes = acoesSelecionadas.join(',')
       const { data } = await api.get('/pcp/logs', { params })
       return data
     },
@@ -58,10 +75,10 @@ export default function PcpLogsPage() {
     <Stack gap="md">
       <Text size="xs" c="dimmed">PCP / Logs de Auditoria</Text>
       <Text size="xl" fw={600}>Logs de Auditoria — PCP</Text>
-      <Text size="sm" c="dimmed">Histórico de todas as transições de status das Ordens de Produção</Text>
+      <Text size="sm" c="dimmed">Histórico de todas as ações realizadas nas Ordens de Produção</Text>
 
-      {/* Filtro por OP */}
-      <Group gap="xs">
+      {/* Filtros */}
+      <Group gap="xs" align="flex-end" wrap="wrap">
         <TextInput
           placeholder="Filtrar por nº da OP..."
           size="sm"
@@ -69,18 +86,38 @@ export default function PcpLogsPage() {
           onChange={(e) => setFiltroOp(e.currentTarget.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') aplicarFiltro() }}
           leftSection={<IconSearch size={14} />}
-          style={{ width: 200 }}
+          style={{ width: 180 }}
+        />
+        <MultiSelect
+          data={TIPOS_ACAO}
+          value={acoesSelecionadas}
+          onChange={(v) => { setAcoesSelecionadas(v); setPage(1) }}
+          placeholder="Filtrar por tipo de ação..."
+          size="sm"
+          clearable
+          searchable
+          leftSection={<IconFilter size={14} />}
+          style={{ minWidth: 280, maxWidth: 500 }}
         />
         <Button size="sm" variant="light" onClick={aplicarFiltro}>Filtrar</Button>
-        {filtroOpAplicado && (
+        {(filtroOpAplicado || acoesSelecionadas.length > 0) && (
           <Button size="sm" variant="subtle" color="gray" leftSection={<IconX size={14} />} onClick={limparFiltro}>
             Limpar
           </Button>
         )}
-        {filtroOpAplicado && (
-          <Badge variant="light" color="blue">OP: {filtroOpAplicado}</Badge>
-        )}
       </Group>
+
+      {/* Tags dos filtros ativos */}
+      {(filtroOpAplicado || acoesSelecionadas.length > 0) && (
+        <Group gap={4}>
+          {filtroOpAplicado && <Badge variant="light" color="blue">OP: {filtroOpAplicado}</Badge>}
+          {acoesSelecionadas.map(a => (
+            <Badge key={a} variant="light" color="violet">
+              {TIPOS_ACAO.find(t => t.value === a)?.label || a}
+            </Badge>
+          ))}
+        </Group>
+      )}
 
       <Card withBorder>
         <Table striped highlightOnHover>
@@ -102,14 +139,18 @@ export default function PcpLogsPage() {
                 </Table.Td>
                 <Table.Td fw={500}>{log.opNumero}</Table.Td>
                 <Table.Td>
-                  <Badge size="xs" color={STATUS_COLORS[log.statusAnterior] || 'gray'} variant="light">
-                    {log.statusAnterior}
-                  </Badge>
+                  {log.statusAnterior ? (
+                    <Badge size="xs" color={STATUS_COLORS[log.statusAnterior] || 'gray'} variant="light">
+                      {log.statusAnterior}
+                    </Badge>
+                  ) : <Text size="xs" c="dimmed">—</Text>}
                 </Table.Td>
                 <Table.Td>
-                  <Badge size="xs" color={STATUS_COLORS[log.statusNovo] || 'gray'} variant="light">
-                    {log.statusNovo}
-                  </Badge>
+                  {log.statusNovo ? (
+                    <Badge size="xs" color={STATUS_COLORS[log.statusNovo] || 'gray'} variant="light">
+                      {log.statusNovo}
+                    </Badge>
+                  ) : <Text size="xs" c="dimmed">—</Text>}
                 </Table.Td>
                 <Table.Td><Text size="xs">{log.usuario}</Text></Table.Td>
                 <Table.Td><Text size="xs" c="dimmed" lineClamp={2}>{log.observacao || '—'}</Text></Table.Td>
