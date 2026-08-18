@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, Table, Text, Group, Badge, Pagination, Stack, Loader, Center } from '@mantine/core'
+import { Card, Table, Text, Group, Badge, Pagination, Stack, Loader, Center, TextInput, Button } from '@mantine/core'
+import { IconSearch, IconX } from '@tabler/icons-react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { usePerfilGuard } from '@/hooks/usePerfilGuard'
@@ -24,11 +25,26 @@ export default function PcpLogsPage() {
   useEffect(() => { document.title = 'PCP - Logs de Auditoria' }, [])
 
   const [page, setPage] = useState(1)
+  const [filtroOp, setFiltroOp] = useState('')
+  const [filtroOpAplicado, setFiltroOpAplicado] = useState('')
+
+  function aplicarFiltro() {
+    setFiltroOpAplicado(filtroOp.trim())
+    setPage(1)
+  }
+
+  function limparFiltro() {
+    setFiltroOp('')
+    setFiltroOpAplicado('')
+    setPage(1)
+  }
 
   const { data: response, isLoading } = useQuery<any>({
-    queryKey: ['pcp-logs', page],
+    queryKey: ['pcp-logs', page, filtroOpAplicado],
     queryFn: async () => {
-      const { data } = await api.get('/pcp/logs', { params: { page, limit: 30 } })
+      const params: any = { page, limit: 30 }
+      if (filtroOpAplicado) params.opNumero = filtroOpAplicado
+      const { data } = await api.get('/pcp/logs', { params })
       return data
     },
   })
@@ -43,6 +59,28 @@ export default function PcpLogsPage() {
       <Text size="xs" c="dimmed">PCP / Logs de Auditoria</Text>
       <Text size="xl" fw={600}>Logs de Auditoria — PCP</Text>
       <Text size="sm" c="dimmed">Histórico de todas as transições de status das Ordens de Produção</Text>
+
+      {/* Filtro por OP */}
+      <Group gap="xs">
+        <TextInput
+          placeholder="Filtrar por nº da OP..."
+          size="sm"
+          value={filtroOp}
+          onChange={(e) => setFiltroOp(e.currentTarget.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') aplicarFiltro() }}
+          leftSection={<IconSearch size={14} />}
+          style={{ width: 200 }}
+        />
+        <Button size="sm" variant="light" onClick={aplicarFiltro}>Filtrar</Button>
+        {filtroOpAplicado && (
+          <Button size="sm" variant="subtle" color="gray" leftSection={<IconX size={14} />} onClick={limparFiltro}>
+            Limpar
+          </Button>
+        )}
+        {filtroOpAplicado && (
+          <Badge variant="light" color="blue">OP: {filtroOpAplicado}</Badge>
+        )}
+      </Group>
 
       <Card withBorder>
         <Table striped highlightOnHover>

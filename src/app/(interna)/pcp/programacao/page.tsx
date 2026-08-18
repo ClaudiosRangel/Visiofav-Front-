@@ -161,8 +161,8 @@ export default function ProgramacaoPage() {
     { id: 'prioridade', label: 'Prioridade' },
     { id: 'observacao', label: 'Acompanhamento' },
   ]
-  const COLUNAS_DEFAULT_CORTADEIRA = ['os', 'cliente', 'produto', 'quantidade', 'tiragem', 'entrega', 'material', 'gramatura', 'formato', 'kg']
-  const COLUNAS_DEFAULT_OUTROS = ['os', 'cliente', 'produto', 'tipoOp', 'quantidade', 'tiragem', 'entrega', 'material', 'gramatura', 'formato', 'matriz', 'cores', 'pantone01', 'pantone02', 'pantone03', 'kg']
+  const COLUNAS_DEFAULT_CORTADEIRA = ['os', 'cliente', 'produto', 'quantidade', 'tiragem', 'produzida', 'entrega', 'material', 'gramatura', 'formato', 'kg']
+  const COLUNAS_DEFAULT_OUTROS = ['os', 'cliente', 'produto', 'tipoOp', 'quantidade', 'tiragem', 'produzida', 'entrega', 'material', 'gramatura', 'formato', 'matriz', 'cores', 'pantone01', 'pantone02', 'pantone03', 'kg']
 
   const [colunasImpressao, setColunasImpressao] = useState<Record<string, string[]>>(() => {
     if (typeof window === 'undefined') return {}
@@ -2110,7 +2110,7 @@ export default function ProgramacaoPage() {
                           <Table.Th>Fmt.</Table.Th>
                           <Table.Th>KG</Table.Th>
                           <Table.Th>Qtd</Table.Th>
-                          {temApontamento && <Table.Th>Prod.</Table.Th>}
+                          <Table.Th>Prod.</Table.Th>
                           {temApontamento && <Table.Th>Perda</Table.Th>}
                           {temApontamento && <Table.Th>%</Table.Th>}
                           <Table.Th>Entrega</Table.Th>
@@ -2190,7 +2190,24 @@ export default function ProgramacaoPage() {
                                 </Text>
                               )}
                             </Table.Td>
-                            {temApontamento && <Table.Td fw={600} c="green">{etapa.quantidadeProduzida.toLocaleString('pt-BR')}</Table.Td>}
+                            <Table.Td>
+                              {editingProd?.etapaId === etapa.id ? (
+                                <TextInput
+                                  size="xs"
+                                  type="number"
+                                  value={editingProd.value}
+                                  onChange={(e) => setEditingProd({ ...editingProd, value: e.currentTarget.value })}
+                                  onBlur={() => salvarProduzida(etapa.id, parseFloat(editingProd.value || '0'))}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') salvarProduzida(etapa.id, parseFloat(editingProd.value || '0')); if (e.key === 'Escape') setEditingProd(null) }}
+                                  autoFocus
+                                  style={{ width: 70 }}
+                                />
+                              ) : (
+                                <Text size="sm" fw={etapa.quantidadeProduzida > 0 ? 600 : undefined} c={etapa.quantidadeProduzida > 0 ? 'green' : 'dimmed'} style={{ cursor: 'pointer' }} onClick={() => setEditingProd({ etapaId: etapa.id, value: String(etapa.quantidadeProduzida || '') })} title="Clique para editar produzida">
+                                  {etapa.quantidadeProduzida > 0 ? etapa.quantidadeProduzida.toLocaleString('pt-BR') : '—'}
+                                </Text>
+                              )}
+                            </Table.Td>
                             {temApontamento && <Table.Td>{etapa.quantidadePerda > 0 ? <Text c="red" size="sm">{etapa.quantidadePerda}</Text> : '—'}</Table.Td>}
                             {temApontamento && <Table.Td w={100}><Progress value={etapa.percentual} size="lg" color={etapa.percentual >= 100 ? 'green' : 'blue'} /><Text size="xs" ta="center">{etapa.percentual}%</Text></Table.Td>}
                             <Table.Td style={{ minWidth: 100 }}>

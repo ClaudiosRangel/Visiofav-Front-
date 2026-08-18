@@ -52,6 +52,10 @@ export default function DetalheOpPage() {
   const [modalCancelarForcado, setModalCancelarForcado] = useState(false)
   const [formCancelarForcado, setFormCancelarForcado] = useState({ motivoCancelamento: '', emailAdmin: '', senhaAdmin: '' })
   const [salvandoCancelarForcado, setSalvandoCancelarForcado] = useState(false)
+  // Modal de transição forçada de status (SUPER_ADMIN — qualquer status)
+  const [modalForcarStatus, setModalForcarStatus] = useState(false)
+  const [formForcarStatus, setFormForcarStatus] = useState({ status: '', motivoAlteracao: '', emailAdmin: '', senhaAdmin: '' })
+  const [salvandoForcarStatus, setSalvandoForcarStatus] = useState(false)
 
   useEffect(() => { document.title = 'PCP - Detalhe OP' }, [])
 
@@ -259,6 +263,36 @@ export default function DetalheOpPage() {
     }
   }
 
+  async function forcarStatus() {
+    if (formForcarStatus.motivoAlteracao.trim().length < 10) {
+      notifications.show({ title: 'Motivo obrigatório', message: 'Informe o motivo (mínimo 10 caracteres)', color: 'red' })
+      return
+    }
+    if (!formForcarStatus.emailAdmin || !formForcarStatus.senhaAdmin || !formForcarStatus.status) {
+      notifications.show({ title: 'Campos obrigatórios', message: 'Informe status, email e senha do super administrador', color: 'red' })
+      return
+    }
+    setSalvandoForcarStatus(true)
+    try {
+      const res = await api.patch(`/ordens-producao/${id}/forcar-status`, formForcarStatus)
+      setOp((prev: any) => ({
+        ...prev,
+        status: formForcarStatus.status,
+        logs: [
+          { id: `temp-${Date.now()}`, statusAnterior: prev.status, statusNovo: formForcarStatus.status, criadoEm: new Date().toISOString(), observacao: `Transição forçada: ${formForcarStatus.motivoAlteracao.trim()}` },
+          ...(prev.logs || []),
+        ],
+      }))
+      setModalForcarStatus(false)
+      setFormForcarStatus({ status: '', motivoAlteracao: '', emailAdmin: '', senhaAdmin: '' })
+      notifications.show({ title: 'Status alterado', message: res.data.message, color: 'green' })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao alterar status', color: 'red' })
+    } finally {
+      setSalvandoForcarStatus(false)
+    }
+  }
+
   const transicoesPermitidas: Record<string, string[]> = {
     RASCUNHO: ['PLANEJADA', 'CANCELADA'],
     PLANEJADA: ['PROGRAMADA', 'CANCELADA'],
@@ -324,6 +358,18 @@ export default function DetalheOpPage() {
         <Group gap="xs">
           <Button size="xs" color="red" variant="outline" onClick={() => setModalCancelarForcado(true)}>
             ✕ Cancelar OP (requer admin)
+          </Button>
+          <Button size="xs" color="violet" variant="outline" onClick={() => { setFormForcarStatus({ status: '', motivoAlteracao: '', emailAdmin: '', senhaAdmin: '' }); setModalForcarStatus(true) }}>
+            ⚡ Alterar Status (super admin)
+          </Button>
+        </Group>
+      )}
+
+      {/* Botão de alterar status forçado para CANCELADA (reabrir OP) */}
+      {op.status === 'CANCELADA' && (
+        <Group gap="xs">
+          <Button size="xs" color="violet" variant="outline" onClick={() => { setFormForcarStatus({ status: '', motivoAlteracao: '', emailAdmin: '', senhaAdmin: '' }); setModalForcarStatus(true) }}>
+            ⚡ Alterar Status (super admin)
           </Button>
         </Group>
       )}
@@ -748,6 +794,67 @@ export default function DetalheOpPage() {
               <Button variant="default" onClick={() => setModalCancelarForcado(false)}>Voltar</Button>
               <Button color="red" loading={salvandoCancelarForcado} onClick={cancelarForcado} disabled={formCancelarForcado.motivoCancelamento.trim().length < 10 || !formCancelarForcado.emailAdmin || !formCancelarForcado.senhaAdmin}>
                 Confirmar Cancelamento
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
+      )}
+
+      {/* Modal: Forçar transição de status (SUPER_ADMIN) */}
+      {modalForcarStatus && (
+        <Modal opened onClose={() => { setModalForcarStatus(false); setFormForcarStatus({ status: '', motivoAlteracao: '', emailAdmin: '', senhaAdmin: '' }) }} title="Alterar Status (Super Admin)" centered>
+          <Stack gap="sm">
+            <Text size="sm" c="dimmed">Esta ação permite alterar o status da OP para qualquer outro. Requer credenciais de super administrador.</Text>
+            <div>
+              <Text size="sm" fw={500} mb={4}>Novo Status</Text>
+              <select
+                value={formForcarStatus.status}
+                onChange={(e) => setFormForcarStatus(prev => ({ ...prev, status: e.target.value }))}
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #dee2e6', borderRadius: 4, fontSize: 14 }}
+              >
+                <option value="">Selecione...</option>
+                {['RASCUNHO', 'PLANEJADA', 'PROGRAMADA', 'LIBERADA', 'EM_PRODUCAO', 'CONCLUIDA', 'CANCELADA']
+                  .filter(s => s !== op?.status)
+                  .map(s => <option key={s} value={s}>{s}</option>)
+                }
+              </select>
+            </div>
+            <div>
+              <Text size="sm" fw={500} mb={4}>Motivo da alteração (mín. 10 caracteres)</Text>
+              <input
+                type="text"
+                placeholder="Descreva o motivo"
+                value={formForcarStatus.motivoAlteracao}
+                onChange={(e) => setFormForcarStatus(prev => ({ ...prev, motivoAlteracao: e.target.value }))}
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #dee2e6', borderRadius: 4, fontSize: 14 }}
+              />
+            </div>
+            <div>
+              <Text size="sm" fw={500} mb={4}>Usuário (super admin)</Text>
+              <input
+                type="text"
+                placeholder="Email do super administrador"
+                value={formForcarStatus.emailAdmin}
+                onChange={(e) => setFormForcarStatus(prev => ({ ...prev, emailAdmin: e.target.value }))}
+                autoComplete="nope"
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #dee2e6', borderRadius: 4, fontSize: 14 }}
+              />
+            </div>
+            <div>
+              <Text size="sm" fw={500} mb={4}>Senha</Text>
+              <input
+                type="text"
+                placeholder="Senha do super administrador"
+                value={formForcarStatus.senhaAdmin}
+                onChange={(e) => setFormForcarStatus(prev => ({ ...prev, senhaAdmin: e.target.value }))}
+                autoComplete="nope"
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #dee2e6', borderRadius: 4, fontSize: 14, WebkitTextSecurity: 'disc' } as any}
+              />
+            </div>
+            <Group justify="flex-end">
+              <Button variant="default" onClick={() => setModalForcarStatus(false)}>Voltar</Button>
+              <Button color="violet" loading={salvandoForcarStatus} onClick={forcarStatus} disabled={!formForcarStatus.status || formForcarStatus.motivoAlteracao.trim().length < 10 || !formForcarStatus.emailAdmin || !formForcarStatus.senhaAdmin}>
+                Confirmar Alteração
               </Button>
             </Group>
           </Stack>
