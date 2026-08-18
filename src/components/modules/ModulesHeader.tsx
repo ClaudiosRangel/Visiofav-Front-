@@ -21,6 +21,7 @@ import { useEmpresa } from '@/providers/EmpresaProvider'
 import PreferencesDrawer from '@/components/preferences/PreferencesDrawer'
 import { useNotificacoes, type Notificacao } from '@/data/hooks/useNotificacoes'
 import { NotificacaoModal } from '@/components/notificacoes/NotificacaoModal'
+import { api } from '@/lib/api'
 
 function getIconeTipo(tipo: string) {
   switch (tipo) {
@@ -52,6 +53,7 @@ export default function ModulesHeader() {
   const { empresa, trocarEmpresa, podeTrocarEmpresa, logout } = useEmpresa()
   const [userName, setUserName] = useState('')
   const [userInitials, setUserInitials] = useState('U')
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [prefsOpen, setPrefsOpen] = useState(false)
   const [popoverOpened, { toggle: togglePopover, close: closePopover }] = useDisclosure(false)
   const [notificacaoSelecionada, setNotificacaoSelecionada] = useState<Notificacao | null>(null)
@@ -78,6 +80,10 @@ export default function ModulesHeader() {
         setUserInitials(initials.substring(0, 2))
       } catch {}
     }
+    // Buscar avatar do perfil
+    api.get('/notificacoes/meu-perfil').then(({ data }) => {
+      if (data?.avatarUrl) setAvatarUrl(data.avatarUrl)
+    }).catch(() => {})
   }, [])
 
   const handleClickNotificacao = (notif: Notificacao) => {
@@ -221,6 +227,7 @@ export default function ModulesHeader() {
                 radius="xl"
                 size="md"
                 color="primary"
+                src={avatarUrl || undefined}
                 className="cursor-pointer hover:ring-2 hover:ring-green-200 transition-all"
                 aria-label="Menu do usuário"
               >
