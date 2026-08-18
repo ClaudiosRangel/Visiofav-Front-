@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   Button, Card, Group, Text, TextInput, PasswordInput, Table, Badge, ActionIcon,
   Tooltip, Modal, Select, LoadingOverlay, Switch, Checkbox, Pagination, Stack,
+  Avatar, FileButton,
 } from '@mantine/core'
 import { IconPlus, IconSearch, IconEdit, IconTrash, IconRefresh } from '@tabler/icons-react'
 import { useForm, Controller } from 'react-hook-form'
@@ -28,6 +29,7 @@ interface Usuario {
 
 interface UsuarioDetalhado extends Usuario {
   empresas: { empresaId: string; modulos: string }[]
+  avatarUrl?: string | null
 }
 
 interface Funcionario {
@@ -544,6 +546,10 @@ function UserFormModal({
               />
             )} />
 
+            {/* ─── Avatar / Foto ────────────────────────────────────── */}
+            <Text size="sm" fw={600} mt="xs">Foto do Usuário</Text>
+            <AvatarUpload userId={editItem.id} currentAvatar={editItem.avatarUrl} />
+
             {/* ─── Permissions Section ──────────────────────────────────── */}
             <Text size="sm" fw={600} mt="xs">Permissões de Módulos</Text>
             <Checkbox
@@ -595,5 +601,79 @@ function UserFormModal({
         </form>
       )}
     </Modal>
+  )
+}
+
+// ─── AvatarUpload Component ──────────────────────────────────────────────────
+
+function AvatarUpload({ userId, currentAvatar }: { userId: string; currentAvatar?: string | null }) {
+  const [preview, setPreview] = useState<string | null>(currentAvatar || null)
+  const [uploading, setUploading] = useState(false)
+
+  async function handleFile(file: File | null) {
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) {
+      notifications.show({ title: 'Arquivo grande', message: 'Máximo 2MB', color: 'red' })
+      return
+    }
+    if (!file.type.startsWith('image/')) {
+      notifications.show({ title: 'Formato inválido', message: 'Selecione uma imagem (JPG, PNG)', color: 'red' })
+      return
+    }
+
+    // Converter para base64
+    const reader = new FileReader()
+    reader.onload = async () => {
+      const base64 = reader.result as string
+      setPreview(base64)
+      setUploading(true)
+      try {
+        await api.patch('/notificacoes/meu-avatar', { avatarUrl: base64 })
+        // Também atualizar via rota de admin (para salvar no usuario específico)
+        await api.put(`/usuarios/${userId}`, { avatarUrl: base64 })
+        notifications.show({ title: 'Foto salva', message: 'Avatar atualizado com sucesso', color: 'green' })
+      } catch {
+        notifications.show({ title: 'Erro', message: 'Falha ao salvar foto', color: 'red' })
+      }
+      setUploading(false)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  async function handleRemover() {
+    setPreview(null)
+    setUploading(true)
+    try {
+      await api.put(`/usuarios/${userId}`, { avatarUrl: null })
+      notifications.show({ title: 'Foto removida', message: '', color: 'green' })
+    } catch {
+      notifications.show({ title: 'Erro', message: 'Falha ao remover foto', color: 'red' })
+    }
+    setUploading(false)
+  }
+
+  const initials = 'U'
+
+  return (
+    <Group gap="md">
+      <Avatar src={preview || undefined} size="lg" radius="xl" color="primary">
+        {initials}
+      </Avatar>
+      <Stack gap={4}>
+        <FileButton onChange={handleFile} accept="image/png,image/jpeg,image/webp">
+          {(props) => (
+            <Button variant="light" size="xs" loading={uploading} {...props}>
+              {preview ? 'Trocar foto' : 'Enviar foto'}
+            </Button>
+          )}
+        </FileButton>
+        {preview && (
+          <Button variant="subtle" size="xs" color="red" onClick={handleRemover} disabled={uploading}>
+            Remover
+          </Button>
+        )}
+        <Text size="xs" c="dimmed">JPG, PNG ou WebP. Máximo 2MB.</Text>
+      </Stack>
+    </Group>
   )
 }
