@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { Title, Stack, Table, Badge, Group, Button, TextInput, Pagination, ActionIcon, Text, Loader, Center, Tooltip, Tabs } from '@mantine/core'
-import { IconPlus, IconSearch, IconEye, IconTrash, IconFileTypePdf, IconUpload } from '@tabler/icons-react'
+import { IconPlus, IconSearch, IconEye, IconTrash, IconFileTypePdf, IconUpload, IconHistory } from '@tabler/icons-react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
@@ -236,6 +236,9 @@ export default function OrdensProducaoPage() {
                           <IconTrash size={18} />
                         </ActionIcon>
                       )}
+                      <ActionIcon variant="subtle" color="violet" onClick={() => router.push(`/pcp/ordens-producao/${op.id}/historico`)} title="Histórico">
+                        <IconHistory size={18} />
+                      </ActionIcon>
                     </Group>
                   </Table.Td>
                 </Table.Tr>
