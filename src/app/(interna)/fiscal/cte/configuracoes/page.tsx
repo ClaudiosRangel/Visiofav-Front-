@@ -119,7 +119,7 @@ export default function CteConfiguracoesPage() {
             description="Modelo 1: layout original. Modelo 2: estilo ACBr com canhoto no topo."
             data={[
               { value: '1', label: 'Modelo 1 — Padrão' },
-              { value: '2', label: 'Modelo 2 — Estilo ACBr (canhoto + QR Code)' },
+              { value: '2', label: 'Modelo 2 — Com canhoto e QR Code' },
             ]}
             value={dacteModelo}
             onChange={(v) => setDacteModelo(v || '1')}
