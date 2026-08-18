@@ -157,6 +157,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconCloudDownload, label: 'Notas do Fornecedor (DFe)', href: '/fiscal/distribuicao-dfe' },
           { icon: IconTruckDelivery, label: 'Manifesto Dest.', href: '/fiscal/manifesto-destinatario' },
           { icon: IconEye, label: 'Auditoria', href: '/fiscal/auditoria' },
+          { icon: IconSettings, label: 'Config. CT-e', href: '/fiscal/cte/configuracoes' },
         ],
       },
     ],

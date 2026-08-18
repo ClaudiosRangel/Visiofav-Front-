@@ -67,6 +67,7 @@ function AcoesMenu({ item }: { item: CteItem }) {
   const { baixarDacte, baixarXml } = useCte()
   const cancelarMutation = useCte().useCancelar()
   const transmitirMutation = useCte().useTransmitir()
+  const consultarSefazMutation = useCte().useConsultarSefaz()
   const enviarEmailMutation = useCte().useEnviarEmail()
   const router = useRouter()
   const [cancelarAberto, setCancelarAberto] = useState(false)
@@ -78,6 +79,8 @@ function AcoesMenu({ item }: { item: CteItem }) {
   const [eventosAberto, setEventosAberto] = useState(false)
   const [eventos, setEventos] = useState<any[]>([])
   const [eventosLoading, setEventosLoading] = useState(false)
+  const [consultaSefazAberto, setConsultaSefazAberto] = useState(false)
+  const [consultaSefazResult, setConsultaSefazResult] = useState<{ cStat: number; xMotivo: string; protocolo: string | null; dataRecebimento: string | null } | null>(null)
   const cartaCorrecaoMutation = useCte().useCartaCorrecao()
 
   function handleTransmitir(id: string) {
@@ -215,6 +218,16 @@ function AcoesMenu({ item }: { item: CteItem }) {
           {['AUTORIZADO', 'CANCELADO'].includes(item.status) && (
             <Menu.Item leftSection={<IconHistory size={14} />} onClick={handleEventos}>Eventos</Menu.Item>
           )}
+          {['AUTORIZADO', 'CANCELADO', 'PENDENTE'].includes(item.status) && item.chaveAcesso && (
+            <Menu.Item leftSection={<IconSearch size={14} />} onClick={() => {
+              consultarSefazMutation.mutate(item.id, {
+                onSuccess: (result) => { setConsultaSefazResult(result); setConsultaSefazAberto(true) },
+                onError: (err: any) => notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao consultar', color: 'red' }),
+              })
+            }} disabled={consultarSefazMutation.isPending}>
+              {consultarSefazMutation.isPending ? 'Consultando...' : 'Consultar SEFAZ'}
+            </Menu.Item>
+          )}
           {item.status === 'AUTORIZADO' && (
             <>
               <Menu.Item leftSection={<IconEdit size={14} />} onClick={() => setCceAberto(true)}>Carta de Correção</Menu.Item>
@@ -290,6 +303,38 @@ function AcoesMenu({ item }: { item: CteItem }) {
             </Table>
           </ScrollArea>
         )}
+      </Modal>
+
+      <Modal opened={consultaSefazAberto} onClose={() => setConsultaSefazAberto(false)} title={`Consulta SEFAZ — CT-e nº ${item.numero}`}>
+        {consultaSefazResult && (
+          <Stack gap="sm">
+            <Group>
+              <Text fw={600} size="sm">cStat:</Text>
+              <Badge color={consultaSefazResult.cStat === 100 ? 'green' : consultaSefazResult.cStat === 101 ? 'orange' : 'blue'}>
+                {consultaSefazResult.cStat}
+              </Badge>
+            </Group>
+            <Group>
+              <Text fw={600} size="sm">Motivo:</Text>
+              <Text size="sm">{consultaSefazResult.xMotivo}</Text>
+            </Group>
+            {consultaSefazResult.protocolo && (
+              <Group>
+                <Text fw={600} size="sm">Protocolo:</Text>
+                <Text size="sm">{consultaSefazResult.protocolo}</Text>
+              </Group>
+            )}
+            {consultaSefazResult.dataRecebimento && (
+              <Group>
+                <Text fw={600} size="sm">Data Recebimento:</Text>
+                <Text size="sm">{consultaSefazResult.dataRecebimento}</Text>
+              </Group>
+            )}
+          </Stack>
+        )}
+        <Group justify="flex-end" mt="md">
+          <Button variant="default" onClick={() => setConsultaSefazAberto(false)}>Fechar</Button>
+        </Group>
       </Modal>
     </>
   )
