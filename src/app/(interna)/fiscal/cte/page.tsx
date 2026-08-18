@@ -380,7 +380,7 @@ export default function CtePage() {
   if (dataAutInicio) params.dataAutorizacaoInicio = fmt(dataAutInicio)
   if (dataAutFim) params.dataAutorizacaoFim = fmt(dataAutFim)
 
-  const { data: response, isLoading } = useQuery<{ data: CteItem[]; total: number; totalPages: number }>({
+  const { data: response, isLoading } = useQuery<{ data: CteItem[]; total: number; totalPages: number; ambiente?: number }>({
     queryKey: ['fiscal', 'cte', params],
     queryFn: async () => { const { data } = await api.get('/fiscal/cte', { params }); return data },
     staleTime: 1000 * 60 * 2,
@@ -451,7 +451,12 @@ export default function CtePage() {
   return (
     <div>
       <Text size="xs" c="dimmed" mb={4}>Início / Fiscal / CT-e</Text>
-      <Text size="xl" fw={600} mb="lg">Conhecimento de Transporte Eletrônico (CT-e)</Text>
+      <Text size="xl" fw={600}>Conhecimento de Transporte Eletrônico (CT-e)</Text>
+      {response?.ambiente && (
+        <Text size="sm" c={response.ambiente === 1 ? 'green' : 'red'} fw={600} mb="md">
+          {response.ambiente === 1 ? '● Ambiente: PRODUÇÃO' : '● Ambiente: HOMOLOGAÇÃO — CT-e sem valor fiscal'}
+        </Text>
+      )}
 
       <Card pos="relative">
         <LoadingOverlay visible={isLoading} />
