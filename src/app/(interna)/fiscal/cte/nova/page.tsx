@@ -136,6 +136,52 @@ export default function CteNovaPage() {
   const [active, setActive] = useState(0)
   const [editandoId, setEditandoId] = useState<string | null>(null)
 
+  // === Busca de código IBGE por nome de município ===
+  async function resolverCodigoMunicipio(
+    nomeMunicipio: string,
+    uf: string,
+    setCodigoFn: (codigo: string) => void,
+  ) {
+    if (!nomeMunicipio || nomeMunicipio.trim().length < 2 || !uf) return
+    try {
+      const { data } = await api.get('/fiscal/cte/municipios', { params: { nome: nomeMunicipio.trim(), uf } })
+      if (data && data.length > 0) {
+        setCodigoFn(data[0].codigo)
+      }
+    } catch { /* silencioso */ }
+  }
+
+  // === Busca/auto-cadastro de código de cor para veículos ===
+  async function resolverCodigoCor(descricaoCor: string, veiculoIdx: number) {
+    if (!descricaoCor || descricaoCor.trim().length === 0) return
+    const corNorm = descricaoCor.trim().toUpperCase()
+    try {
+      // Buscar nas cores cadastradas
+      const { data: cores } = await api.get('/fiscal/cte/cores')
+      const encontrada = (cores as Array<{ codigo: string; descricao: string }>)
+        .find(c => c.descricao.toUpperCase() === corNorm)
+
+      if (encontrada) {
+        const c = [...veiculosNovos]
+        c[veiculoIdx] = { ...c[veiculoIdx], cCor: encontrada.codigo, xCor: encontrada.descricao }
+        setVeiculosNovos(c)
+      } else {
+        // Auto-cadastrar a cor com código sequencial
+        const maxCodigo = (cores as Array<{ codigo: string }>)
+          .map(c => parseInt(c.codigo, 10))
+          .filter(n => !isNaN(n))
+          .reduce((max, n) => Math.max(max, n), 0)
+        const novoCodigo = String(maxCodigo + 1).padStart(2, '0')
+
+        await api.post('/fiscal/cte/cores', { codigo: novoCodigo, descricao: corNorm })
+
+        const c = [...veiculosNovos]
+        c[veiculoIdx] = { ...c[veiculoIdx], cCor: novoCodigo, xCor: corNorm }
+        setVeiculosNovos(c)
+      }
+    } catch { /* silencioso */ }
+  }
+
   // Step 1 — Dados Gerais (pré-preenchidos dos defaults)
   const [naturezaOp, setNaturezaOp] = useState('PRESTACAO DE SERVICO DE TRANSPORTE')
   const [cfop, setCfop] = useState('5353')
@@ -636,7 +682,8 @@ export default function CteNovaPage() {
           </Grid.Col>
           <Grid.Col span={4}>
             <TextInput label="Município" value={p.municipio} required
-              onChange={(e) => setP({ ...p, municipio: e.target.value })} />
+              onChange={(e) => setP({ ...p, municipio: e.target.value })}
+              onBlur={() => resolverCodigoMunicipio(p.municipio, p.uf, (codigo) => setP({ ...p, codigoMunicipio: codigo }))} />
           </Grid.Col>
           <Grid.Col span={2}>
             <Select label="UF" data={UFS} value={p.uf}
@@ -709,7 +756,8 @@ export default function CteNovaPage() {
           </Grid.Col>
           <Grid.Col span={5}>
             <TextInput label="Município Origem" value={xMunIni}
-              onChange={(e) => setXMunIni(e.target.value)} required />
+              onChange={(e) => setXMunIni(e.target.value)} required
+              onBlur={() => resolverCodigoMunicipio(xMunIni, ufIni, setCMunIni)} />
           </Grid.Col>
 
           <Grid.Col span={2}>
@@ -724,7 +772,8 @@ export default function CteNovaPage() {
           </Grid.Col>
           <Grid.Col span={5}>
             <TextInput label="Município Destino" value={xMunFim}
-              onChange={(e) => setXMunFim(e.target.value)} required />
+              onChange={(e) => setXMunFim(e.target.value)} required
+              onBlur={() => resolverCodigoMunicipio(xMunFim, ufFim, setCMunFim)} />
           </Grid.Col>
           <Grid.Col span={2}>
             <Select label="UF Destino" data={UFS} value={ufFim}
@@ -806,7 +855,8 @@ export default function CteNovaPage() {
                     </Grid.Col>
                     <Grid.Col span={3}>
                       <TextInput label="Cor" value={v.xCor}
-                        onChange={(e) => { const c = [...veiculosNovos]; c[idx] = { ...c[idx], xCor: e.target.value }; setVeiculosNovos(c) }} />
+                        onChange={(e) => { const c = [...veiculosNovos]; c[idx] = { ...c[idx], xCor: e.target.value }; setVeiculosNovos(c) }}
+                        onBlur={() => resolverCodigoCor(v.xCor, idx)} />
                     </Grid.Col>
                     <Grid.Col span={3}>
                       <TextInput label="Cód. Modelo (DENATRAN)" value={v.cMod} maxLength={8}

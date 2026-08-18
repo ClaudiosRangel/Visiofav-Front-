@@ -80,17 +80,6 @@ export function useCte() {
     })
   }
 
-  function useTransmitir() {
-    const qc = useQueryClient()
-    return useMutation({
-      mutationFn: async (id: string) => {
-        const { data } = await api.post(`/fiscal/cte/${id}/transmitir`)
-        return data
-      },
-      onSuccess: () => qc.invalidateQueries({ queryKey: ['fiscal', 'cte'] }),
-    })
-  }
-
   function useCartaCorrecao() {
     const qc = useQueryClient()
     return useMutation({
@@ -125,6 +114,83 @@ export function useCte() {
         const { data } = await api.post(`/fiscal/cte/${id}/duplicar`)
         return data
       },
+    })
+  }
+
+  function useEnviarEmail() {
+    return useMutation({
+      mutationFn: async ({ id, emails, incluirPdf, incluirXml }: {
+        id: string; emails: string[]; incluirPdf?: boolean; incluirXml?: boolean
+      }) => {
+        const { data } = await api.post(`/fiscal/cte/${id}/enviar-email`, { emails, incluirPdf, incluirXml })
+        return data
+      },
+    })
+  }
+
+  function useTransmitirLote() {
+    const qc = useQueryClient()
+    return useMutation({
+      mutationFn: async (ids: string[]) => {
+        const { data } = await api.post('/fiscal/cte/transmitir-lote', { ids })
+        return data
+      },
+      onSuccess: () => qc.invalidateQueries({ queryKey: ['fiscal', 'cte'] }),
+    })
+  }
+
+  function useEnviarEmailLote() {
+    return useMutation({
+      mutationFn: async ({ ids, emails, incluirPdf, incluirXml }: {
+        ids: string[]; emails: string[]; incluirPdf?: boolean; incluirXml?: boolean
+      }) => {
+        const { data } = await api.post('/fiscal/cte/enviar-email-lote', { ids, emails, incluirPdf, incluirXml })
+        return data
+      },
+    })
+  }
+
+  function useCancelarLote() {
+    const qc = useQueryClient()
+    return useMutation({
+      mutationFn: async ({ ids, justificativa }: { ids: string[]; justificativa: string }) => {
+        const { data } = await api.post('/fiscal/cte/cancelar-lote', { ids, justificativa })
+        return data
+      },
+      onSuccess: () => qc.invalidateQueries({ queryKey: ['fiscal', 'cte'] }),
+    })
+  }
+
+  function useListarCores() {
+    return useQuery({
+      queryKey: ['fiscal', 'cte', 'cores'],
+      queryFn: async () => {
+        const { data } = await api.get('/fiscal/cte/cores')
+        return data as Array<{ id: string; codigo: string; descricao: string }>
+      },
+      staleTime: 1000 * 60 * 30,
+    })
+  }
+
+  function useCriarCor() {
+    const qc = useQueryClient()
+    return useMutation({
+      mutationFn: async (payload: { codigo: string; descricao: string }) => {
+        const { data } = await api.post('/fiscal/cte/cores', payload)
+        return data
+      },
+      onSuccess: () => qc.invalidateQueries({ queryKey: ['fiscal', 'cte', 'cores'] }),
+    })
+  }
+
+  function useSeedCores() {
+    const qc = useQueryClient()
+    return useMutation({
+      mutationFn: async () => {
+        const { data } = await api.post('/fiscal/cte/cores/seed')
+        return data
+      },
+      onSuccess: () => qc.invalidateQueries({ queryKey: ['fiscal', 'cte', 'cores'] }),
     })
   }
 
@@ -185,6 +251,13 @@ export function useCte() {
     useCartaCorrecao,
     useInutilizar,
     useDuplicar,
+    useEnviarEmail,
+    useTransmitirLote,
+    useEnviarEmailLote,
+    useCancelarLote,
+    useListarCores,
+    useCriarCor,
+    useSeedCores,
     useDefaults,
     useSalvarDefaults,
     buscarParticipante,
