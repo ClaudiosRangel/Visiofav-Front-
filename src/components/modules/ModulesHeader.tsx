@@ -13,8 +13,9 @@ import {
   IconSparkles,
   IconMessage,
   IconQuestionMark,
+  IconCamera,
 } from '@tabler/icons-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useDisclosure } from '@mantine/hooks'
 import { useRouter } from 'next/navigation'
 import { useEmpresa } from '@/providers/EmpresaProvider'
@@ -55,6 +56,7 @@ export default function ModulesHeader() {
   const [userInitials, setUserInitials] = useState('U')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [prefsOpen, setPrefsOpen] = useState(false)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
   const [popoverOpened, { toggle: togglePopover, close: closePopover }] = useDisclosure(false)
   const [notificacaoSelecionada, setNotificacaoSelecionada] = useState<Notificacao | null>(null)
   const [modalAberta, { open: abrirModal, close: fecharModal }] = useDisclosure(false)
@@ -105,6 +107,30 @@ export default function ModulesHeader() {
     if (!notif.lida) {
       marcarLida.mutate(notif.id)
     }
+  }
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) return
+    if (!file.type.startsWith('image/')) return
+    const reader = new FileReader()
+    reader.onload = async () => {
+      const base64 = reader.result as string
+      setAvatarUrl(base64)
+      try {
+        await api.patch('/notificacoes/meu-avatar', { avatarUrl: base64 })
+        // Salvar no localStorage
+        const stored = localStorage.getItem('visiofab-wms-user')
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          parsed.avatarUrl = base64
+          localStorage.setItem('visiofab-wms-user', JSON.stringify(parsed))
+        }
+      } catch {}
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
   }
 
   return (
@@ -259,6 +285,12 @@ export default function ModulesHeader() {
                   Trocar Empresa
                 </Menu.Item>
               )}
+              <Menu.Item
+                leftSection={<IconCamera size={14} />}
+                onClick={() => avatarInputRef.current?.click()}
+              >
+                Alterar foto
+              </Menu.Item>
               <Menu.Item leftSection={<IconLogout size={14} />} color="red" onClick={logout}>
                 Sair
               </Menu.Item>
@@ -269,6 +301,7 @@ export default function ModulesHeader() {
     </header>
     <PreferencesDrawer opened={prefsOpen} onClose={() => setPrefsOpen(false)} />
     <NotificacaoModal notificacao={notificacaoSelecionada} opened={modalAberta} onClose={fecharModal} />
+    <input ref={avatarInputRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={handleAvatarUpload} />
     </>
   )
 }
