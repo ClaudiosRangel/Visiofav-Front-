@@ -138,6 +138,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconHash, label: 'CST/CSOSN', href: '/fiscal/cadastros/cst-csosn' },
           { icon: IconFileText, label: 'Natureza Operação', href: '/fiscal/cadastros/natureza-operacao' },
           { icon: IconPalette, label: 'Cores de Veículo', href: '/fiscal/cadastros/cores-veiculo' },
+          { icon: IconFileText, label: 'Observações CT-e', href: '/fiscal/cadastros/observacoes-cte' },
         ],
       },
       {

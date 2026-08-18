@@ -26,6 +26,7 @@ import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { useCte } from '@/data/hooks/fiscal/useCte'
 import { api } from '@/lib/api'
 import { MunicipioAutocomplete } from '@/components/fiscal/MunicipioAutocomplete'
+import { ParticipanteAutocomplete, type ParticipanteResult } from '@/components/fiscal/ParticipanteAutocomplete'
 
 const TIPOS_SERVICO = [
   { value: '0', label: '0 - Normal' },
@@ -638,9 +639,39 @@ export default function CteNovaPage() {
   }
 
   function renderParticipanteForm(p: Participante, setP: Dispatch<SetStateAction<Participante>>, titulo: string) {
+    function preencherDeResultado(result: ParticipanteResult) {
+      setP({
+        cnpj: result.cnpj?.length === 14 ? result.cnpj : '',
+        cpf: result.cnpj?.length === 11 ? result.cnpj : '',
+        ie: result.ie || '',
+        razaoSocial: result.razaoSocial || '',
+        nomeFantasia: result.nomeFantasia || '',
+        logradouro: result.logradouro || '',
+        numero: result.numero || '',
+        complemento: result.complemento || '',
+        bairro: result.bairro || '',
+        codigoMunicipio: result.codigoMunicipio || '',
+        municipio: result.municipio || '',
+        uf: result.uf || '',
+        cep: result.cep || '',
+        email: result.email || '',
+        telefone: result.telefone || '',
+      })
+    }
+
     return (
       <Paper p="md" withBorder>
         <Text fw={600} mb="sm">{titulo}</Text>
+        <Grid mb="sm">
+          <Grid.Col span={12}>
+            <ParticipanteAutocomplete
+              label={`Buscar ${titulo} por nome`}
+              placeholder="Digite razão social, nome fantasia ou CNPJ..."
+              onSelect={preencherDeResultado}
+            />
+          </Grid.Col>
+        </Grid>
+        <Divider mb="sm" label="ou preencha manualmente" labelPosition="center" />
         <Grid>
           <Grid.Col span={4}>
             <TextInput label="CNPJ" value={p.cnpj}
@@ -1106,7 +1137,26 @@ export default function CteNovaPage() {
           </Grid>
 
           <Textarea label="Informações Complementares" value={infCpl}
-            onChange={(e) => setInfCpl(e.target.value)} mt="md" rows={3} />
+            onChange={(e) => setInfCpl(e.target.value)} mt="md" rows={3}
+            description="Dica: use o cadastro Fiscal → Cadastros → Observações CT-e para salvar textos frequentes"
+          />
+          <Button variant="subtle" size="xs" mt={4} onClick={async () => {
+            try {
+              const { data } = await api.get('/fiscal/cte/observacoes-padrao')
+              const obs = data as Array<{ codigo: string; texto: string; ativo: boolean }>
+              const ativas = obs.filter(o => o.ativo)
+              if (ativas.length === 0) {
+                notifications.show({ title: 'Sem observações', message: 'Nenhuma observação padrão cadastrada. Acesse Fiscal → Cadastros → Observações CT-e.', color: 'yellow' })
+                return
+              }
+              // Simples: preencher com a primeira se houver só 1, ou concatenar com separator
+              const texto = ativas.map(o => o.texto).join('; ')
+              setInfCpl(prev => prev ? `${prev}; ${texto}` : texto)
+              notifications.show({ title: 'Observações inseridas', message: `${ativas.length} observação(ões) adicionada(s)`, color: 'green' })
+            } catch { notifications.show({ title: 'Erro', message: 'Não foi possível carregar observações', color: 'red' }) }
+          }}>
+            📋 Inserir observações cadastradas
+          </Button>
         </Paper>
       )}
 

@@ -128,6 +128,17 @@ export function useCte() {
     })
   }
 
+  function useConsultarSefaz() {
+    const qc = useQueryClient()
+    return useMutation({
+      mutationFn: async (id: string) => {
+        const { data } = await api.post(`/fiscal/cte/${id}/consultar-sefaz`)
+        return data as { sucesso: boolean; cStat: number; xMotivo: string; protocolo: string | null; dataRecebimento: string | null }
+      },
+      onSuccess: () => qc.invalidateQueries({ queryKey: ['fiscal', 'cte'] }),
+    })
+  }
+
   function useTransmitirLote() {
     const qc = useQueryClient()
     return useMutation({
@@ -252,6 +263,7 @@ export function useCte() {
     useInutilizar,
     useDuplicar,
     useEnviarEmail,
+    useConsultarSefaz,
     useTransmitirLote,
     useEnviarEmailLote,
     useCancelarLote,
