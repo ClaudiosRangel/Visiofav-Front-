@@ -73,6 +73,7 @@ export default function ModulesHeader() {
       try {
         const parsed = JSON.parse(user)
         setUserName(parsed.nome || '')
+        if (parsed.avatarUrl) setAvatarUrl(parsed.avatarUrl)
         const parts = (parsed.nome || 'U').split(' ')
         const initials = parts.length >= 2
             ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
@@ -80,9 +81,20 @@ export default function ModulesHeader() {
         setUserInitials(initials.substring(0, 2))
       } catch {}
     }
-    // Buscar avatar do perfil
+    // Tentar buscar avatar atualizado da API (fallback caso localStorage esteja desatualizado)
     api.get('/notificacoes/meu-perfil').then(({ data }) => {
-      if (data?.avatarUrl) setAvatarUrl(data.avatarUrl)
+      if (data?.avatarUrl) {
+        setAvatarUrl(data.avatarUrl)
+        // Salvar no localStorage para próximas montagens
+        try {
+          const stored = localStorage.getItem('visiofab-wms-user')
+          if (stored) {
+            const parsed = JSON.parse(stored)
+            parsed.avatarUrl = data.avatarUrl
+            localStorage.setItem('visiofab-wms-user', JSON.stringify(parsed))
+          }
+        } catch {}
+      }
     }).catch(() => {})
   }, [])
 

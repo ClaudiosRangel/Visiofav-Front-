@@ -629,6 +629,15 @@ function AvatarUpload({ userId, currentAvatar }: { userId: string; currentAvatar
       setUploading(true)
       try {
         await api.put(`/usuarios/${userId}`, { avatarUrl: base64 })
+        // Salvar no localStorage para o header pegar imediatamente
+        try {
+          const stored = localStorage.getItem('visiofab-wms-user')
+          if (stored) {
+            const parsed = JSON.parse(stored)
+            parsed.avatarUrl = base64
+            localStorage.setItem('visiofab-wms-user', JSON.stringify(parsed))
+          }
+        } catch {}
         notifications.show({ title: 'Foto salva', message: 'Avatar atualizado com sucesso', color: 'green' })
       } catch (err: any) {
         notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar foto', color: 'red' })
