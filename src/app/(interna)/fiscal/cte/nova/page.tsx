@@ -346,6 +346,17 @@ export default function CteNovaPage() {
         }
 
         // Auto-consulta de CNPJ não necessária — o backend já fez via resolverParticipante
+        // Resolver códigos IBGE que ficaram vazios
+        if (dados.remetente && !dados.remetente.codigoMunicipio && dados.remetente.municipio && dados.remetente.uf) {
+          resolverCodigoMunicipio(dados.remetente.municipio, dados.remetente.uf, (codigo) => {
+            setRemetente(prev => ({ ...prev, codigoMunicipio: codigo }))
+          })
+        }
+        if (dados.destinatario && !dados.destinatario.codigoMunicipio && dados.destinatario.municipio && dados.destinatario.uf) {
+          resolverCodigoMunicipio(dados.destinatario.municipio, dados.destinatario.uf, (codigo) => {
+            setDestinatario(prev => ({ ...prev, codigoMunicipio: codigo }))
+          })
+        }
       } catch { /* ignora erro de parse */ }
     }
   }, [])
