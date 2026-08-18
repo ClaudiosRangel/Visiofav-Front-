@@ -25,6 +25,7 @@ import { IconPlus, IconTrash } from '@tabler/icons-react'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { useCte } from '@/data/hooks/fiscal/useCte'
 import { api } from '@/lib/api'
+import { MunicipioAutocomplete } from '@/components/fiscal/MunicipioAutocomplete'
 
 const TIPOS_SERVICO = [
   { value: '0', label: '0 - Normal' },
@@ -677,17 +678,18 @@ export default function CteNovaPage() {
               onChange={(e) => setP({ ...p, bairro: e.target.value })} />
           </Grid.Col>
           <Grid.Col span={3}>
-            <TextInput label="Cód. Município (IBGE)" value={p.codigoMunicipio} required
+            <TextInput label="Cód. IBGE" value={p.codigoMunicipio} required
               onChange={(e) => setP({ ...p, codigoMunicipio: e.target.value })} maxLength={7} />
-          </Grid.Col>
-          <Grid.Col span={4}>
-            <TextInput label="Município" value={p.municipio} required
-              onChange={(e) => setP({ ...p, municipio: e.target.value })}
-              onBlur={() => resolverCodigoMunicipio(p.municipio, p.uf, (codigo) => setP({ ...p, codigoMunicipio: codigo }))} />
           </Grid.Col>
           <Grid.Col span={2}>
             <Select label="UF" data={UFS} value={p.uf}
               onChange={(v) => setP({ ...p, uf: v || '' })} searchable />
+          </Grid.Col>
+          <Grid.Col span={4}>
+            <MunicipioAutocomplete label="Município" uf={p.uf} value={p.municipio}
+              onChange={(nome) => setP({ ...p, municipio: nome })}
+              onSelect={(m) => setP({ ...p, municipio: m.nome, codigoMunicipio: m.codigo })}
+              required />
           </Grid.Col>
           <Grid.Col span={3}>
             <TextInput label="CEP" value={p.cep} required
@@ -750,34 +752,37 @@ export default function CteNovaPage() {
           </Grid.Col>
 
           <Grid.Col span={12}><Divider label="Origem" /></Grid.Col>
-          <Grid.Col span={3}>
-            <TextInput label="Cód. Município Origem (IBGE)" value={cMunIni}
-              onChange={(e) => setCMunIni(e.target.value)} maxLength={7} required />
-          </Grid.Col>
-          <Grid.Col span={5}>
-            <TextInput label="Município Origem" value={xMunIni}
-              onChange={(e) => setXMunIni(e.target.value)} required
-              onBlur={() => resolverCodigoMunicipio(xMunIni, ufIni, setCMunIni)} />
-          </Grid.Col>
-
           <Grid.Col span={2}>
             <Select label="UF Origem" data={UFS} value={ufIni}
               onChange={(v) => setUfIni(v || '')} searchable />
           </Grid.Col>
+          <Grid.Col span={5}>
+            <MunicipioAutocomplete label="Município Origem" uf={ufIni} value={xMunIni}
+              onChange={setXMunIni}
+              onSelect={(m) => { setXMunIni(m.nome); setCMunIni(m.codigo) }}
+              required />
+          </Grid.Col>
+          <Grid.Col span={3}>
+            <TextInput label="Cód. IBGE" value={cMunIni}
+              onChange={(e) => setCMunIni(e.target.value)} maxLength={7} required
+              description="Preenchido ao selecionar município" />
+          </Grid.Col>
 
           <Grid.Col span={12}><Divider label="Destino" /></Grid.Col>
-          <Grid.Col span={3}>
-            <TextInput label="Cód. Município Destino (IBGE)" value={cMunFim}
-              onChange={(e) => setCMunFim(e.target.value)} maxLength={7} required />
-          </Grid.Col>
-          <Grid.Col span={5}>
-            <TextInput label="Município Destino" value={xMunFim}
-              onChange={(e) => setXMunFim(e.target.value)} required
-              onBlur={() => resolverCodigoMunicipio(xMunFim, ufFim, setCMunFim)} />
-          </Grid.Col>
           <Grid.Col span={2}>
             <Select label="UF Destino" data={UFS} value={ufFim}
               onChange={(v) => setUfFim(v || '')} searchable />
+          </Grid.Col>
+          <Grid.Col span={5}>
+            <MunicipioAutocomplete label="Município Destino" uf={ufFim} value={xMunFim}
+              onChange={setXMunFim}
+              onSelect={(m) => { setXMunFim(m.nome); setCMunFim(m.codigo) }}
+              required />
+          </Grid.Col>
+          <Grid.Col span={3}>
+            <TextInput label="Cód. IBGE" value={cMunFim}
+              onChange={(e) => setCMunFim(e.target.value)} maxLength={7} required
+              description="Preenchido ao selecionar município" />
           </Grid.Col>
 
           <Grid.Col span={4}>
