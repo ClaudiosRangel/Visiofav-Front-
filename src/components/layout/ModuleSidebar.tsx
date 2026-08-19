@@ -154,7 +154,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconKey, label: 'Certificados', href: '/fiscal/certificados' },
           { icon: IconAlertCircle, label: 'Contingência', href: '/fiscal/contingencia' },
           { icon: IconUpload, label: 'Importação XML', href: '/fiscal/importacao-xml' },
-          { icon: IconDownload, label: 'Exportar XMLs', href: '/fiscal/exportar-xml' },
+          { icon: IconDownload, label: 'Baixar / Enviar Arquivos', href: '/fiscal/exportar-xml' },
           { icon: IconCloudDownload, label: 'Notas do Fornecedor (DFe)', href: '/fiscal/distribuicao-dfe' },
           { icon: IconTruckDelivery, label: 'Manifesto Dest.', href: '/fiscal/manifesto-destinatario' },
           { icon: IconEye, label: 'Auditoria', href: '/fiscal/auditoria' },

@@ -93,9 +93,9 @@ export default function ExportarXmlPage() {
 
   return (
     <Paper p="md">
-      <Title order={3} mb="xs">Exportar XMLs para Contador</Title>
+      <Title order={3} mb="xs">Baixar / Enviar Arquivos (XML / PDF)</Title>
       <Text size="sm" c="dimmed" mb="lg">
-        Início / Fiscal / Exportar XMLs
+        Início / Fiscal / Baixar Arquivos
       </Text>
 
       <Grid mb="lg">
