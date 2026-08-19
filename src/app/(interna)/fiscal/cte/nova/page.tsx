@@ -238,6 +238,8 @@ export default function CteNovaPage() {
   }>>([])
   const [coresDisponiveis, setCoresDisponiveis] = useState<string[]>([])
   const [tabelasFreteOptions, setTabelasFreteOptions] = useState<{ value: string; label: string }[]>([])
+  const [tabelaFreteSelecionada, setTabelaFreteSelecionada] = useState<string | null>(null)
+  const [tabelaFreteAutoLabel, setTabelaFreteAutoLabel] = useState('')
 
   // Carregar cores cadastradas para autocomplete
   useEffect(() => {
@@ -246,16 +248,40 @@ export default function CteNovaPage() {
         .map(c => `${c.descricao} (${c.codigo})`)
       setCoresDisponiveis(cores)
     }).catch(() => {})
-    // Carregar tabelas de frete
-    api.get('/fiscal/cte/tabelas-frete').then(({ data }) => {
-      const tabs = (data as Array<{ id: string; nome: string; valorFixo: any; ufOrigem: string; ufDestino: string }>)
+  }, [])
+
+  // Carregar tabelas de frete filtradas pela rota (UF Origem → UF Destino)
+  useEffect(() => {
+    if (!ufIni || !ufFim) {
+      setTabelasFreteOptions([])
+      setTabelaFreteSelecionada(null)
+      setTabelaFreteAutoLabel('')
+      return
+    }
+    api.get('/fiscal/cte/tabelas-frete', { params: { ufOrigem: ufIni, ufDestino: ufFim } }).then(({ data }) => {
+      const tabs = (data as Array<{ id: string; nome: string; valorFixo: any; ufOrigem: string; ufDestino: string; status: boolean }>)
+        .filter(t => t.status)
         .map(t => ({
           value: t.id,
-          label: `${t.nome}${t.ufOrigem ? ` (${t.ufOrigem}→${t.ufDestino})` : ''}${t.valorFixo ? ` — R$ ${Number(t.valorFixo).toFixed(2)}` : ''}`,
+          label: `${t.nome}${t.valorFixo ? ` — R$ ${Number(t.valorFixo).toFixed(2)}` : ''}`,
         }))
       setTabelasFreteOptions(tabs)
+
+      // Auto-selecionar a primeira tabela e aplicar valor
+      if (tabs.length > 0 && vTPrest === 0) {
+        const primeiraId = tabs[0].value
+        setTabelaFreteSelecionada(primeiraId)
+        setTabelaFreteAutoLabel(tabs[0].label)
+        api.get(`/fiscal/cte/tabelas-frete/${primeiraId}`).then(({ data: t }) => {
+          if (t.valorFixo && Number(t.valorFixo) > 0) setVTPrest(Number(t.valorFixo))
+          else if (t.freteMinimo && Number(t.freteMinimo) > 0) setVTPrest(Number(t.freteMinimo))
+        }).catch(() => {})
+      } else if (tabs.length === 0) {
+        setTabelaFreteSelecionada(null)
+        setTabelaFreteAutoLabel('')
+      }
     }).catch(() => {})
-  }, [])
+  }, [ufIni, ufFim])
   // Step 9 — Observações
   const [infCpl, setInfCpl] = useState('')
   const [rntrc, setRntrc] = useState('')
@@ -977,9 +1003,11 @@ export default function CteNovaPage() {
           <Grid.Col span={4}>
             <Select
               label="Tabela de Frete"
-              placeholder="Selecione para preencher valor..."
+              placeholder={tabelaFreteAutoLabel || 'Nenhuma tabela para esta rota'}
               data={tabelasFreteOptions}
+              value={tabelaFreteSelecionada}
               onChange={async (tabelaId) => {
+                setTabelaFreteSelecionada(tabelaId)
                 if (!tabelaId) return
                 try {
                   const { data } = await api.get(`/fiscal/cte/tabelas-frete/${tabelaId}`)
