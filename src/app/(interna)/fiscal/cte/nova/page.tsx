@@ -237,6 +237,7 @@ export default function CteNovaPage() {
     chassi: string; cCor: string; xCor: string; cMod: string; vUnit: number; vFrete: number
   }>>([])
   const [coresDisponiveis, setCoresDisponiveis] = useState<string[]>([])
+  const [tabelasFreteOptions, setTabelasFreteOptions] = useState<{ value: string; label: string }[]>([])
 
   // Carregar cores cadastradas para autocomplete
   useEffect(() => {
@@ -244,6 +245,15 @@ export default function CteNovaPage() {
       const cores = (data as Array<{ codigo: string; descricao: string }>)
         .map(c => `${c.descricao} (${c.codigo})`)
       setCoresDisponiveis(cores)
+    }).catch(() => {})
+    // Carregar tabelas de frete
+    api.get('/fiscal/cte/tabelas-frete').then(({ data }) => {
+      const tabs = (data as Array<{ id: string; nome: string; valorFixo: any; ufOrigem: string; ufDestino: string }>)
+        .map(t => ({
+          value: t.id,
+          label: `${t.nome}${t.ufOrigem ? ` (${t.ufOrigem}→${t.ufDestino})` : ''}${t.valorFixo ? ` — R$ ${Number(t.valorFixo).toFixed(2)}` : ''}`,
+        }))
+      setTabelasFreteOptions(tabs)
     }).catch(() => {})
   }, [])
   // Step 9 — Observações
@@ -964,6 +974,26 @@ export default function CteNovaPage() {
       {active === 3 && (
         <Grid>
           <Grid.Col span={12}><Divider label="Valor da Prestação" /></Grid.Col>
+          <Grid.Col span={4}>
+            <Select
+              label="Tabela de Frete"
+              placeholder="Selecione para preencher valor..."
+              data={tabelasFreteOptions}
+              onChange={async (tabelaId) => {
+                if (!tabelaId) return
+                try {
+                  const { data } = await api.get(`/fiscal/cte/tabelas-frete/${tabelaId}`)
+                  if (data.valorFixo && Number(data.valorFixo) > 0) {
+                    setVTPrest(Number(data.valorFixo))
+                  } else if (data.freteMinimo && Number(data.freteMinimo) > 0) {
+                    setVTPrest(Number(data.freteMinimo))
+                  }
+                } catch {}
+              }}
+              clearable
+              searchable
+            />
+          </Grid.Col>
           <Grid.Col span={4}>
             <NumberInput label="Valor Total da Prestação (R$)" value={vTPrest}
               onChange={(v) => setVTPrest(Number(v) || 0)} min={0} decimalScale={2} required />
