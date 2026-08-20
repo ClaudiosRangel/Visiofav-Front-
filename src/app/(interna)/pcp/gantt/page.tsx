@@ -372,22 +372,27 @@ export default function GanttProducaoPage() {
       </Group>
 
       {/* Gantt Container */}
-      <Paper withBorder radius="md" style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
-        {/* ═══ COLUNA FIXA (labels) ═══ */}
+      <Paper withBorder radius="md" style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+        {/* ═══ COLUNA FIXA (absolute, nunca se move horizontalmente) ═══ */}
         <div
           ref={labelsRef}
           onScroll={() => syncScroll('labels')}
           style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            bottom: 0,
             width: LABEL_WIDTH,
-            minWidth: LABEL_WIDTH,
+            zIndex: 30,
+            background: 'var(--mantine-color-dark-7)',
+            borderRight: '2px solid var(--mantine-color-gray-5)',
             overflowY: 'auto',
             overflowX: 'hidden',
-            borderRight: '2px solid var(--mantine-color-gray-5)',
-            scrollbarWidth: 'none', // Firefox
+            scrollbarWidth: 'none',
           }}
         >
           {/* Spacer para alinhar com header do eixo X */}
-          <div style={{ height: 32, borderBottom: '1px solid var(--mantine-color-dark-4)', display: 'flex', alignItems: 'center', padding: '0 8px' }}>
+          <div style={{ height: 32, borderBottom: '1px solid var(--mantine-color-dark-4)', display: 'flex', alignItems: 'center', padding: '0 8px', position: 'sticky', top: 0, background: 'var(--mantine-color-dark-7)', zIndex: 5 }}>
             <Text size="xs" fw={600} c="dimmed">Máquina / Recurso</Text>
           </div>
           {/* Labels */}
@@ -405,11 +410,11 @@ export default function GanttProducaoPage() {
           ))}
         </div>
 
-        {/* ═══ ÁREA DO GANTT (scroll X + Y) ═══ */}
+        {/* ═══ ÁREA DO GANTT (scroll X + Y, com padding-left para não sobrepor a coluna) ═══ */}
         <div
           ref={ganttRef}
           onScroll={() => syncScroll('gantt')}
-          style={{ flex: 1, overflow: 'auto' }}
+          style={{ position: 'absolute', left: LABEL_WIDTH, top: 0, right: 0, bottom: 0, overflow: 'auto' }}
         >
           <div style={{ width: totalWidth, minHeight: totalContentHeight + 32, position: 'relative' }}>
             {/* Eixo X (sticky top) */}
