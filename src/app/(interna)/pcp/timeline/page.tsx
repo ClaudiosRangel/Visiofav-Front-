@@ -13,6 +13,7 @@ import {
 } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
+import Link from 'next/link'
 
 interface Parada {
   motivo: string
@@ -173,9 +174,16 @@ export default function TimelinePage() {
           <IconTimeline size={28} />
           <Title order={2}>Timeline de Produção</Title>
         </Group>
-        <Badge size="lg" variant="light" color="gray">
-          Atualiza a cada 60s
-        </Badge>
+        <Group gap="sm">
+          <Link href="/pcp/timeline/gantt" style={{ textDecoration: 'none' }}>
+            <Badge size="lg" variant="filled" color="violet" style={{ cursor: 'pointer' }}>
+              Visão Gantt
+            </Badge>
+          </Link>
+          <Badge size="lg" variant="light" color="gray">
+            Atualiza a cada 60s
+          </Badge>
+        </Group>
       </Group>
 
       {/* Cards de resumo */}
