@@ -332,65 +332,70 @@ export default function GanttPage() {
 
       {/* Gantt */}
       <Paper withBorder radius="md" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {/* Container principal com scroll vertical */}
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          <div style={{ display: 'inline-flex', minWidth: '100%' }}>
-            {/* Coluna fixa de labels */}
+        {/* Layout: coluna fixa + área scrollável lado a lado */}
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+          {/* Coluna fixa de labels (NÃO scrollável horizontalmente) */}
+          <div style={{
+            width: LABEL_WIDTH,
+            minWidth: LABEL_WIDTH,
+            borderRight: '2px solid var(--mantine-color-gray-4)',
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            flexShrink: 0,
+          }} className="gantt-labels">
+            {/* Header */}
             <div style={{
+              height: 28,
+              display: 'flex',
+              alignItems: 'center',
+              padding: '0 8px',
+              borderBottom: '1px solid var(--mantine-color-gray-3)',
               position: 'sticky',
-              left: 0,
-              zIndex: 20,
-              width: LABEL_WIDTH,
-              minWidth: LABEL_WIDTH,
+              top: 0,
               background: 'var(--mantine-color-body)',
-              borderRight: '1px solid var(--mantine-color-gray-3)',
+              zIndex: 5,
             }}>
-              {/* Header da coluna */}
-              <div style={{
-                height: 28,
-                display: 'flex',
-                alignItems: 'center',
-                padding: '0 8px',
-                borderBottom: '1px solid var(--mantine-color-gray-3)',
-                position: 'sticky',
-                top: 0,
-                background: 'var(--mantine-color-body)',
-                zIndex: 21,
-              }}>
-                <Text size="xs" fw={600} c="dimmed">Processo / Máquina</Text>
-              </div>
-              {/* Labels */}
-              {gruposProcesso.map((grupo, gi) => (
-                <div key={gi}>
-                  <div style={{
-                    height: 24,
+              <Text size="xs" fw={600} c="dimmed">Processo / Máquina</Text>
+            </div>
+            {/* Labels */}
+            {gruposProcesso.map((grupo, gi) => (
+              <div key={gi}>
+                <div style={{
+                  height: 24,
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '0 8px',
+                  background: 'var(--mantine-color-dark-6)',
+                  borderBottom: '1px solid var(--mantine-color-gray-7)',
+                }}>
+                  <Text size="10px" fw={700} tt="uppercase" c="yellow">{grupo.tipoProcesso}</Text>
+                </div>
+                {grupo.raias.map((raia, ri) => (
+                  <div key={ri} style={{
+                    height: RAIA_HEIGHT,
                     display: 'flex',
                     alignItems: 'center',
                     padding: '0 8px',
-                    background: 'var(--mantine-color-dark-6)',
-                    borderBottom: '1px solid var(--mantine-color-gray-2)',
+                    borderBottom: '1px solid var(--mantine-color-dark-4)',
                   }}>
-                    <Text size="10px" fw={700} tt="uppercase" c="dimmed">{grupo.tipoProcesso}</Text>
+                    <Text size="xs" lineClamp={2} title={raia.centroProducao}>
+                      {raia.centroProducao}
+                    </Text>
                   </div>
-                  {grupo.raias.map((raia, ri) => (
-                    <div key={ri} style={{
-                      height: RAIA_HEIGHT,
-                      display: 'flex',
-                      alignItems: 'center',
-                      padding: '0 8px',
-                      borderBottom: '1px solid var(--mantine-color-gray-1)',
-                    }}>
-                      <Text size="xs" lineClamp={2} title={raia.centroProducao}>
-                        {raia.centroProducao}
-                      </Text>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ))}
+          </div>
 
-            {/* Área do Gantt (scrollável) */}
-            <div style={{ width: totalWidth, position: 'relative' }}>
+          {/* Área do Gantt (scrollável em X e Y independentemente) */}
+          <div style={{ flex: 1, overflow: 'auto' }} className="gantt-area"
+            onScroll={(e) => {
+              // Sincronizar scroll vertical entre labels e área do gantt
+              const labelsDiv = document.querySelector('.gantt-labels') as HTMLElement
+              if (labelsDiv) labelsDiv.scrollTop = e.currentTarget.scrollTop
+            }}
+          >
+            <div style={{ width: totalWidth, position: 'relative', minHeight: '100%' }}>
               {/* Eixo X (horas) — sticky no topo */}
               <div style={{
                 height: 28,
@@ -409,7 +414,7 @@ export default function GanttPage() {
                       left,
                       top: 0,
                       height: '100%',
-                      borderLeft: `1px ${isNewDay ? 'solid' : 'dashed'} var(--mantine-color-gray-${isNewDay ? '5' : '2'})`,
+                      borderLeft: `1px ${isNewDay ? 'solid' : 'dashed'} var(--mantine-color-gray-${isNewDay ? '5' : '3'})`,
                       paddingLeft: 4,
                       display: 'flex',
                       alignItems: 'center',
@@ -436,7 +441,7 @@ export default function GanttPage() {
                     left,
                     top: 28,
                     height: totalRaiaHeight,
-                    borderLeft: `1px ${isNewDay ? 'solid' : 'dashed'} var(--mantine-color-gray-${isNewDay ? '4' : '1'})`,
+                    borderLeft: `1px ${isNewDay ? 'solid' : 'dashed'} var(--mantine-color-gray-${isNewDay ? '5' : '2'})`,
                     pointerEvents: 'none',
                   }} />
                 )
