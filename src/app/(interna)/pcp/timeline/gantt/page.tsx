@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import {
   Title, Stack, Group, Text, Loader, Center, Badge, Paper, Box,
-  Tooltip, Select, TextInput, ScrollArea, SegmentedControl, ActionIcon,
+  Tooltip, Select, TextInput, SegmentedControl, ActionIcon,
 } from '@mantine/core'
 import {
   IconSearch, IconTimeline, IconZoomIn, IconZoomOut, IconRefresh,
@@ -128,7 +128,6 @@ export default function GanttPage() {
   const [busca, setBusca] = useState('')
   const [zoom, setZoom] = useState(1) // pixels por minuto
   const [visao, setVisao] = useState<'8h' | '24h' | '3d' | '7d'>('24h')
-  const scrollRef = useRef<HTMLDivElement>(null)
 
   async function carregar() {
     setLoading(true)
@@ -333,57 +332,46 @@ export default function GanttPage() {
 
       {/* Gantt */}
       <Paper withBorder radius="md" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {/* Eixo X (horas) */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--mantine-color-gray-3)' }}>
-          <div style={{ width: LABEL_WIDTH, minWidth: LABEL_WIDTH, borderRight: '1px solid var(--mantine-color-gray-3)', padding: '4px 8px' }}>
-            <Text size="xs" fw={600} c="dimmed">Processo / Máquina</Text>
-          </div>
-          <ScrollArea viewportRef={scrollRef} style={{ flex: 1 }} scrollbarSize={8} type="always" offsetScrollbars>
-            <div style={{ width: totalWidth, height: 28, position: 'relative' }}>
-              {hourMarkers.map((m, i) => {
-                const left = ((m.ms - minTime) / 60000) * pixelsPorMinuto
-                const isNewDay = new Date(m.ms).getHours() === 0
-                return (
-                  <div key={i} style={{
-                    position: 'absolute',
-                    left,
-                    top: 0,
-                    height: '100%',
-                    borderLeft: `1px ${isNewDay ? 'solid' : 'dashed'} var(--mantine-color-gray-${isNewDay ? '5' : '2'})`,
-                    paddingLeft: 4,
-                    display: 'flex',
-                    alignItems: 'center',
-                  }}>
-                    <Text size="10px" c="dimmed" fw={isNewDay ? 700 : 400}>
-                      {isNewDay ? new Date(m.ms).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' : ''}
-                      {m.label}
-                    </Text>
-                  </div>
-                )
-              })}
-            </div>
-          </ScrollArea>
-        </div>
-
-        {/* Raias */}
-        <ScrollArea style={{ flex: 1 }} scrollbarSize={8} type="always">
-          <div style={{ display: 'flex', minHeight: '100%' }}>
-            {/* Labels das raias (fixo à esquerda) */}
-            <div style={{ width: LABEL_WIDTH, minWidth: LABEL_WIDTH, borderRight: '1px solid var(--mantine-color-gray-3)' }}>
+        {/* Container principal com scroll vertical */}
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          <div style={{ display: 'inline-flex', minWidth: '100%' }}>
+            {/* Coluna fixa de labels */}
+            <div style={{
+              position: 'sticky',
+              left: 0,
+              zIndex: 20,
+              width: LABEL_WIDTH,
+              minWidth: LABEL_WIDTH,
+              background: 'var(--mantine-color-body)',
+              borderRight: '1px solid var(--mantine-color-gray-3)',
+            }}>
+              {/* Header da coluna */}
+              <div style={{
+                height: 28,
+                display: 'flex',
+                alignItems: 'center',
+                padding: '0 8px',
+                borderBottom: '1px solid var(--mantine-color-gray-3)',
+                position: 'sticky',
+                top: 0,
+                background: 'var(--mantine-color-body)',
+                zIndex: 21,
+              }}>
+                <Text size="xs" fw={600} c="dimmed">Processo / Máquina</Text>
+              </div>
+              {/* Labels */}
               {gruposProcesso.map((grupo, gi) => (
                 <div key={gi}>
-                  {/* Header do tipo de processo */}
                   <div style={{
                     height: 24,
                     display: 'flex',
                     alignItems: 'center',
                     padding: '0 8px',
-                    background: 'var(--mantine-color-gray-1)',
+                    background: 'var(--mantine-color-dark-6)',
                     borderBottom: '1px solid var(--mantine-color-gray-2)',
                   }}>
                     <Text size="10px" fw={700} tt="uppercase" c="dimmed">{grupo.tipoProcesso}</Text>
                   </div>
-                  {/* Raias do grupo */}
                   {grupo.raias.map((raia, ri) => (
                     <div key={ri} style={{
                       height: RAIA_HEIGHT,
@@ -401,128 +389,152 @@ export default function GanttPage() {
               ))}
             </div>
 
-            {/* Área do Gantt (scrollável horizontalmente) */}
-            <ScrollArea viewportRef={scrollRef} style={{ flex: 1 }} scrollbarSize={8} type="always" offsetScrollbars>
-              <div style={{ width: totalWidth, position: 'relative' }}>
-                {/* Linhas de grade (horas) */}
+            {/* Área do Gantt (scrollável) */}
+            <div style={{ width: totalWidth, position: 'relative' }}>
+              {/* Eixo X (horas) — sticky no topo */}
+              <div style={{
+                height: 28,
+                position: 'sticky',
+                top: 0,
+                background: 'var(--mantine-color-body)',
+                zIndex: 15,
+                borderBottom: '1px solid var(--mantine-color-gray-3)',
+              }}>
                 {hourMarkers.map((m, i) => {
                   const left = ((m.ms - minTime) / 60000) * pixelsPorMinuto
                   const isNewDay = new Date(m.ms).getHours() === 0
-                  const totalRaiaHeight = gruposProcesso.reduce(
-                    (acc, g) => acc + 24 + g.raias.length * RAIA_HEIGHT, 0
-                  )
                   return (
                     <div key={i} style={{
                       position: 'absolute',
                       left,
                       top: 0,
-                      height: totalRaiaHeight,
-                      borderLeft: `1px ${isNewDay ? 'solid' : 'dashed'} var(--mantine-color-gray-${isNewDay ? '4' : '1'})`,
-                      pointerEvents: 'none',
-                    }} />
-                  )
-                })}
-
-                {/* Linha "agora" */}
-                {agora >= minTime && agora <= maxTime && (
-                  <div style={{
-                    position: 'absolute',
-                    left: ((agora - minTime) / 60000) * pixelsPorMinuto,
-                    top: 0,
-                    height: '100%',
-                    width: 2,
-                    background: '#fa5252',
-                    zIndex: 10,
-                    pointerEvents: 'none',
-                  }}>
-                    <div style={{
-                      position: 'absolute',
-                      top: -2,
-                      left: -3,
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
-                      background: '#fa5252',
-                    }} />
-                  </div>
-                )}
-
-                {/* Barras por raia */}
-                {gruposProcesso.map((grupo, gi) => {
-                  let offsetY = gruposProcesso.slice(0, gi).reduce(
-                    (acc, g) => acc + 24 + g.raias.length * RAIA_HEIGHT, 0
-                  )
-                  return (
-                    <div key={gi}>
-                      {/* Espaço do header do grupo */}
-                      <div style={{ height: 24 }} />
-                      {grupo.raias.map((raia, ri) => {
-                        const raiaTop = offsetY + 24 + ri * RAIA_HEIGHT
-                        return raia.barras.map((bar, bi) => {
-                          const barLeft = ((bar.inicioMs - minTime) / 60000) * pixelsPorMinuto
-                          const barWidth = Math.max(4, ((bar.fimMs - bar.inicioMs) / 60000) * pixelsPorMinuto)
-                          const color = INDICADOR_COLORS[bar.indicador] || '#868e96'
-                          const isEmAndamento = bar.status === 'EM_ANDAMENTO'
-
-                          return (
-                            <Tooltip
-                              key={`${gi}-${ri}-${bi}`}
-                              multiline
-                              w={280}
-                              label={
-                                <div>
-                                  <Text size="xs" fw={700}>OP {bar.opNumero} — {bar.clienteNome || '—'}</Text>
-                                  <Text size="xs">{bar.descricao}</Text>
-                                  <Text size="xs" c="dimmed">
-                                    Previsto: {formatMinutos(bar.tempoTotalPrevisto)}
-                                    {bar.tempoRealMinutos !== null && ` | Real: ${formatMinutos(bar.tempoRealMinutos)}`}
-                                  </Text>
-                                  <Text size="xs" c="dimmed">
-                                    {formatHora(bar.inicioMs)} → {formatHora(bar.fimMs)}
-                                  </Text>
-                                  {bar.inicioRealMs && (
-                                    <Text size="xs" c="dimmed">
-                                      Real: {formatHora(bar.inicioRealMs)} → {bar.fimRealMs ? formatHora(bar.fimRealMs) : 'em andamento'}
-                                    </Text>
-                                  )}
-                                </div>
-                              }
-                            >
-                              <div style={{
-                                position: 'absolute',
-                                top: raiaTop + 8,
-                                left: barLeft,
-                                width: barWidth,
-                                height: RAIA_HEIGHT - 16,
-                                background: color,
-                                opacity: bar.indicador === 'AGUARDANDO' ? 0.4 : 0.85,
-                                borderRadius: 4,
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                overflow: 'hidden',
-                                border: isEmAndamento ? '2px solid #fff' : 'none',
-                                boxShadow: isEmAndamento ? `0 0 6px ${color}` : undefined,
-                                animation: isEmAndamento ? 'pulse-bar 2s infinite' : undefined,
-                              }}>
-                                {barWidth > 40 && (
-                                  <Text size="9px" c="white" fw={600} lineClamp={1} px={4}>
-                                    {bar.opNumero}
-                                  </Text>
-                                )}
-                              </div>
-                            </Tooltip>
-                          )
-                        })
-                      })}
+                      height: '100%',
+                      borderLeft: `1px ${isNewDay ? 'solid' : 'dashed'} var(--mantine-color-gray-${isNewDay ? '5' : '2'})`,
+                      paddingLeft: 4,
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}>
+                      <Text size="10px" c="dimmed" fw={isNewDay ? 700 : 400}>
+                        {isNewDay ? new Date(m.ms).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' : ''}
+                        {m.label}
+                      </Text>
                     </div>
                   )
                 })}
               </div>
-            </ScrollArea>
+
+              {/* Linhas de grade (horas) */}
+              {hourMarkers.map((m, i) => {
+                const left = ((m.ms - minTime) / 60000) * pixelsPorMinuto
+                const isNewDay = new Date(m.ms).getHours() === 0
+                const totalRaiaHeight = gruposProcesso.reduce(
+                  (acc, g) => acc + 24 + g.raias.length * RAIA_HEIGHT, 0
+                )
+                return (
+                  <div key={i} style={{
+                    position: 'absolute',
+                    left,
+                    top: 28,
+                    height: totalRaiaHeight,
+                    borderLeft: `1px ${isNewDay ? 'solid' : 'dashed'} var(--mantine-color-gray-${isNewDay ? '4' : '1'})`,
+                    pointerEvents: 'none',
+                  }} />
+                )
+              })}
+
+              {/* Linha "agora" */}
+              {agora >= minTime && agora <= maxTime && (
+                <div style={{
+                  position: 'absolute',
+                  left: ((agora - minTime) / 60000) * pixelsPorMinuto,
+                  top: 0,
+                  height: '100%',
+                  width: 2,
+                  background: '#fa5252',
+                  zIndex: 10,
+                  pointerEvents: 'none',
+                }}>
+                  <div style={{
+                    position: 'absolute',
+                    top: 26,
+                    left: -3,
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: '#fa5252',
+                  }} />
+                </div>
+              )}
+
+              {/* Barras por raia */}
+              {gruposProcesso.map((grupo, gi) => {
+                const offsetY = 28 + gruposProcesso.slice(0, gi).reduce(
+                  (acc, g) => acc + 24 + g.raias.length * RAIA_HEIGHT, 0
+                )
+                return grupo.raias.map((raia, ri) => {
+                  const raiaTop = offsetY + 24 + ri * RAIA_HEIGHT
+                  return raia.barras.map((bar, bi) => {
+                    const barLeft = ((bar.inicioMs - minTime) / 60000) * pixelsPorMinuto
+                    const barWidth = Math.max(4, ((bar.fimMs - bar.inicioMs) / 60000) * pixelsPorMinuto)
+                    const color = INDICADOR_COLORS[bar.indicador] || '#868e96'
+                    const isEmAndamento = bar.status === 'EM_ANDAMENTO'
+
+                    return (
+                      <Tooltip
+                        key={`${gi}-${ri}-${bi}`}
+                        multiline
+                        w={280}
+                        label={
+                          <div>
+                            <Text size="xs" fw={700}>OP {bar.opNumero} — {bar.clienteNome || '—'}</Text>
+                            <Text size="xs">{bar.descricao}</Text>
+                            <Text size="xs" c="dimmed">
+                              Previsto: {formatMinutos(bar.tempoTotalPrevisto)}
+                              {bar.tempoRealMinutos !== null && ` | Real: ${formatMinutos(bar.tempoRealMinutos)}`}
+                            </Text>
+                            <Text size="xs" c="dimmed">
+                              {formatHora(bar.inicioMs)} → {formatHora(bar.fimMs)}
+                            </Text>
+                            {bar.inicioRealMs && (
+                              <Text size="xs" c="dimmed">
+                                Real: {formatHora(bar.inicioRealMs)} → {bar.fimRealMs ? formatHora(bar.fimRealMs) : 'em andamento'}
+                              </Text>
+                            )}
+                          </div>
+                        }
+                      >
+                        <div style={{
+                          position: 'absolute',
+                          top: raiaTop + 8,
+                          left: barLeft,
+                          width: barWidth,
+                          height: RAIA_HEIGHT - 16,
+                          background: color,
+                          opacity: bar.indicador === 'AGUARDANDO' ? 0.4 : 0.85,
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          overflow: 'hidden',
+                          border: isEmAndamento ? '2px solid #fff' : 'none',
+                          boxShadow: isEmAndamento ? `0 0 6px ${color}` : undefined,
+                          animation: isEmAndamento ? 'pulse-bar 2s infinite' : undefined,
+                        }}>
+                          {barWidth > 40 && (
+                            <Text size="9px" c="white" fw={600} lineClamp={1} px={4}>
+                              {bar.opNumero}
+                            </Text>
+                          )}
+                        </div>
+                      </Tooltip>
+                    )
+                  })
+                })
+              })}
+            </div>
           </div>
-        </ScrollArea>
+        </div>
       </Paper>
 
       {/* CSS para animação */}
