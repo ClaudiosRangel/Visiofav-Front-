@@ -331,87 +331,42 @@ export default function GanttPage() {
       </Group>
 
       {/* Gantt */}
-      <Paper withBorder radius="md" style={{ flex: 1, overflow: 'hidden' }}>
-        {/* Container ÚNICO com overflow em ambos os eixos — sticky funciona aqui */}
-        <div style={{ width: '100%', height: '100%', overflow: 'auto', position: 'relative' }}>
-          {/* Conteúdo interno: largura = coluna fixa + area gantt */}
-          <div style={{ width: LABEL_WIDTH + totalWidth, minHeight: '100%', position: 'relative' }}>
-
-            {/* ═══ COLUNA DE LABELS (sticky left) ═══ */}
-            <div style={{
-              position: 'sticky',
-              left: 0,
-              top: 0,
-              width: LABEL_WIDTH,
-              zIndex: 20,
-              float: 'left',
-              background: 'var(--mantine-color-dark-7)',
-              borderRight: '2px solid var(--mantine-color-gray-5)',
-              height: '100%',
-            }}>
-              {/* Header da coluna (sticky top + left) */}
-              <div style={{
-                height: 28,
-                display: 'flex',
-                alignItems: 'center',
-                padding: '0 8px',
-                borderBottom: '1px solid var(--mantine-color-gray-3)',
+      <Paper withBorder radius="md" style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
+        {/* Tabela virtual: grid com coluna fixa */}
+        <table style={{ borderCollapse: 'collapse', width: LABEL_WIDTH + totalWidth }}>
+          <thead style={{ position: 'sticky', top: 0, zIndex: 20 }}>
+            <tr>
+              <th style={{
                 position: 'sticky',
-                top: 0,
+                left: 0,
                 zIndex: 25,
+                width: LABEL_WIDTH,
+                minWidth: LABEL_WIDTH,
                 background: 'var(--mantine-color-dark-7)',
+                borderRight: '2px solid var(--mantine-color-gray-5)',
+                borderBottom: '1px solid var(--mantine-color-gray-3)',
+                padding: '0 8px',
+                height: 28,
+                textAlign: 'left',
               }}>
                 <Text size="xs" fw={600} c="dimmed">Processo / Máquina</Text>
-              </div>
-              {/* Labels das raias */}
-              {gruposProcesso.map((grupo, gi) => (
-                <div key={gi}>
-                  <div style={{
-                    height: 24,
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '0 8px',
-                    background: 'var(--mantine-color-dark-6)',
-                    borderBottom: '1px solid var(--mantine-color-dark-4)',
-                  }}>
-                    <Text size="10px" fw={700} tt="uppercase" c="yellow">{grupo.tipoProcesso}</Text>
-                  </div>
-                  {grupo.raias.map((raia, ri) => (
-                    <div key={ri} style={{
-                      height: RAIA_HEIGHT,
-                      display: 'flex',
-                      alignItems: 'center',
-                      padding: '0 8px',
-                      borderBottom: '1px solid var(--mantine-color-dark-4)',
-                      background: 'var(--mantine-color-dark-7)',
-                    }}>
-                      <Text size="xs" lineClamp={2} title={raia.centroProducao}>
-                        {raia.centroProducao}
-                      </Text>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-
-            {/* ═══ ÁREA DO GANTT (após a coluna fixa) ═══ */}
-            <div style={{ marginLeft: LABEL_WIDTH, width: totalWidth, position: 'absolute', top: 0, left: 0 }}>
-              {/* Eixo X (horas) — sticky no topo */}
-              <div style={{
+              </th>
+              <th style={{
                 height: 28,
-                position: 'sticky',
-                top: 0,
                 background: 'var(--mantine-color-dark-7)',
-                zIndex: 15,
                 borderBottom: '1px solid var(--mantine-color-gray-3)',
+                position: 'relative',
+                width: totalWidth,
+                padding: 0,
               }}>
+                {/* Marcadores de hora */}
                 {hourMarkers.map((m, i) => {
                   const left = ((m.ms - minTime) / 60000) * pixelsPorMinuto
                   const isNewDay = new Date(m.ms).getHours() === 0
                   return (
                     <div key={i} style={{
                       position: 'absolute',
-                      left: left + LABEL_WIDTH,
+                      left,
                       top: 0,
                       height: '100%',
                       borderLeft: `1px ${isNewDay ? 'solid' : 'dashed'} var(--mantine-color-gray-${isNewDay ? '5' : '3'})`,
@@ -426,122 +381,158 @@ export default function GanttPage() {
                     </div>
                   )
                 })}
-              </div>
-            </div>
-
-            {/* Linhas de grade (horas) — posicionamento absoluto */}
-            {hourMarkers.map((m, i) => {
-              const left = LABEL_WIDTH + ((m.ms - minTime) / 60000) * pixelsPorMinuto
-              const isNewDay = new Date(m.ms).getHours() === 0
-              const totalRaiaHeight = 28 + gruposProcesso.reduce(
-                (acc, g) => acc + 24 + g.raias.length * RAIA_HEIGHT, 0
-              )
-              return (
-                <div key={`grid-${i}`} style={{
-                  position: 'absolute',
-                  left,
-                  top: 28,
-                  height: totalRaiaHeight,
-                  borderLeft: `1px ${isNewDay ? 'solid' : 'dashed'} var(--mantine-color-gray-${isNewDay ? '5' : '2'})`,
-                  pointerEvents: 'none',
-                  zIndex: 1,
-                }} />
-              )
-            })}
-
-            {/* Linha "agora" */}
-            {agora >= minTime && agora <= maxTime && (
-              <div style={{
-                position: 'absolute',
-                left: LABEL_WIDTH + ((agora - minTime) / 60000) * pixelsPorMinuto,
-                top: 0,
-                height: '100%',
-                width: 2,
-                background: '#fa5252',
-                zIndex: 12,
-                pointerEvents: 'none',
-              }}>
-                <div style={{
-                  position: 'absolute',
-                  top: 26,
-                  left: -3,
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: '#fa5252',
-                }} />
-              </div>
-            )}
-
-            {/* Barras das OPs */}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
             {gruposProcesso.map((grupo, gi) => {
-              const offsetY = 28 + gruposProcesso.slice(0, gi).reduce(
+              const offsetBefore = gruposProcesso.slice(0, gi).reduce(
                 (acc, g) => acc + 24 + g.raias.length * RAIA_HEIGHT, 0
               )
-              return grupo.raias.map((raia, ri) => {
-                const raiaTop = offsetY + 24 + ri * RAIA_HEIGHT
-                return raia.barras.map((bar, bi) => {
-                  const barLeft = LABEL_WIDTH + ((bar.inicioMs - minTime) / 60000) * pixelsPorMinuto
-                  const barWidth = Math.max(4, ((bar.fimMs - bar.inicioMs) / 60000) * pixelsPorMinuto)
-                  const color = INDICADOR_COLORS[bar.indicador] || '#868e96'
-                  const isEmAndamento = bar.status === 'EM_ANDAMENTO'
-
+              return [
+                /* Header do grupo */
+                <tr key={`header-${gi}`}>
+                  <td style={{
+                    position: 'sticky',
+                    left: 0,
+                    zIndex: 10,
+                    height: 24,
+                    padding: '0 8px',
+                    background: 'var(--mantine-color-dark-6)',
+                    borderRight: '2px solid var(--mantine-color-gray-5)',
+                    borderBottom: '1px solid var(--mantine-color-dark-4)',
+                  }}>
+                    <Text size="10px" fw={700} tt="uppercase" c="yellow">{grupo.tipoProcesso}</Text>
+                  </td>
+                  <td style={{
+                    height: 24,
+                    background: 'var(--mantine-color-dark-6)',
+                    borderBottom: '1px solid var(--mantine-color-dark-4)',
+                  }} />
+                </tr>,
+                /* Raias */
+                ...grupo.raias.map((raia, ri) => {
+                  const raiaTop = offsetBefore + 24 + ri * RAIA_HEIGHT
                   return (
-                    <Tooltip
-                      key={`${gi}-${ri}-${bi}`}
-                      multiline
-                      w={280}
-                      label={
-                        <div>
-                          <Text size="xs" fw={700}>OP {bar.opNumero} — {bar.clienteNome || '—'}</Text>
-                          <Text size="xs">{bar.descricao}</Text>
-                          <Text size="xs" c="dimmed">
-                            Previsto: {formatMinutos(bar.tempoTotalPrevisto)}
-                            {bar.tempoRealMinutos !== null && ` | Real: ${formatMinutos(bar.tempoRealMinutos)}`}
-                          </Text>
-                          <Text size="xs" c="dimmed">
-                            {formatHora(bar.inicioMs)} → {formatHora(bar.fimMs)}
-                          </Text>
-                          {bar.inicioRealMs && (
-                            <Text size="xs" c="dimmed">
-                              Real: {formatHora(bar.inicioRealMs)} → {bar.fimRealMs ? formatHora(bar.fimRealMs) : 'em andamento'}
-                            </Text>
-                          )}
-                        </div>
-                      }
-                    >
-                      <div style={{
-                        position: 'absolute',
-                        top: raiaTop + 8,
-                        left: barLeft,
-                        width: barWidth,
-                        height: RAIA_HEIGHT - 16,
-                        background: color,
-                        opacity: bar.indicador === 'AGUARDANDO' ? 0.4 : 0.85,
-                        borderRadius: 4,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        overflow: 'hidden',
-                        border: isEmAndamento ? '2px solid #fff' : 'none',
-                        boxShadow: isEmAndamento ? `0 0 6px ${color}` : undefined,
-                        animation: isEmAndamento ? 'pulse-bar 2s infinite' : undefined,
-                        zIndex: 5,
+                    <tr key={`raia-${gi}-${ri}`}>
+                      <td style={{
+                        position: 'sticky',
+                        left: 0,
+                        zIndex: 10,
+                        height: RAIA_HEIGHT,
+                        padding: '0 8px',
+                        background: 'var(--mantine-color-dark-7)',
+                        borderRight: '2px solid var(--mantine-color-gray-5)',
+                        borderBottom: '1px solid var(--mantine-color-dark-4)',
+                        verticalAlign: 'middle',
                       }}>
-                        {barWidth > 40 && (
-                          <Text size="9px" c="white" fw={600} lineClamp={1} px={4}>
-                            {bar.opNumero}
-                          </Text>
+                        <Text size="xs" lineClamp={2} title={raia.centroProducao}>
+                          {raia.centroProducao}
+                        </Text>
+                      </td>
+                      <td style={{
+                        height: RAIA_HEIGHT,
+                        position: 'relative',
+                        borderBottom: '1px solid var(--mantine-color-dark-5)',
+                        padding: 0,
+                      }}>
+                        {/* Barras desta raia */}
+                        {raia.barras.map((bar, bi) => {
+                          const barLeft = ((bar.inicioMs - minTime) / 60000) * pixelsPorMinuto
+                          const barWidth = Math.max(4, ((bar.fimMs - bar.inicioMs) / 60000) * pixelsPorMinuto)
+                          const color = INDICADOR_COLORS[bar.indicador] || '#868e96'
+                          const isEmAndamento = bar.status === 'EM_ANDAMENTO'
+
+                          return (
+                            <Tooltip
+                              key={bi}
+                              multiline
+                              w={280}
+                              label={
+                                <div>
+                                  <Text size="xs" fw={700}>OP {bar.opNumero} — {bar.clienteNome || '—'}</Text>
+                                  <Text size="xs">{bar.descricao}</Text>
+                                  <Text size="xs" c="dimmed">
+                                    Previsto: {formatMinutos(bar.tempoTotalPrevisto)}
+                                    {bar.tempoRealMinutos !== null && ` | Real: ${formatMinutos(bar.tempoRealMinutos)}`}
+                                  </Text>
+                                  <Text size="xs" c="dimmed">
+                                    {formatHora(bar.inicioMs)} → {formatHora(bar.fimMs)}
+                                  </Text>
+                                  {bar.inicioRealMs && (
+                                    <Text size="xs" c="dimmed">
+                                      Real: {formatHora(bar.inicioRealMs)} → {bar.fimRealMs ? formatHora(bar.fimRealMs) : 'em andamento'}
+                                    </Text>
+                                  )}
+                                </div>
+                              }
+                            >
+                              <div style={{
+                                position: 'absolute',
+                                top: 6,
+                                left: barLeft,
+                                width: barWidth,
+                                height: RAIA_HEIGHT - 12,
+                                background: color,
+                                opacity: bar.indicador === 'AGUARDANDO' ? 0.4 : 0.85,
+                                borderRadius: 4,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                overflow: 'hidden',
+                                border: isEmAndamento ? '2px solid #fff' : 'none',
+                                boxShadow: isEmAndamento ? `0 0 6px ${color}` : undefined,
+                                animation: isEmAndamento ? 'pulse-bar 2s infinite' : undefined,
+                              }}>
+                                {barWidth > 40 && (
+                                  <Text size="9px" c="white" fw={600} lineClamp={1} px={4}>
+                                    {bar.opNumero}
+                                  </Text>
+                                )}
+                              </div>
+                            </Tooltip>
+                          )
+                        })}
+
+                        {/* Linhas de grade verticais dentro da célula */}
+                        {hourMarkers.map((m, hi) => {
+                          const left = ((m.ms - minTime) / 60000) * pixelsPorMinuto
+                          const isNewDay = new Date(m.ms).getHours() === 0
+                          return (
+                            <div key={hi} style={{
+                              position: 'absolute',
+                              left,
+                              top: 0,
+                              height: '100%',
+                              borderLeft: `1px ${isNewDay ? 'solid' : 'dashed'} var(--mantine-color-dark-${isNewDay ? '4' : '5'})`,
+                              pointerEvents: 'none',
+                              zIndex: 0,
+                            }} />
+                          )
+                        })}
+
+                        {/* Linha agora */}
+                        {agora >= minTime && agora <= maxTime && (
+                          <div style={{
+                            position: 'absolute',
+                            left: ((agora - minTime) / 60000) * pixelsPorMinuto,
+                            top: 0,
+                            height: '100%',
+                            width: 2,
+                            background: '#fa5252',
+                            zIndex: 3,
+                            pointerEvents: 'none',
+                          }} />
                         )}
-                      </div>
-                    </Tooltip>
+                      </td>
+                    </tr>
                   )
-                })
-              })
+                }),
+              ]
             })}
-          </div>
-        </div>
+          </tbody>
+        </table>
       </Paper>
 
       {/* CSS para animação */}
