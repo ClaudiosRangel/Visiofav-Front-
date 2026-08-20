@@ -11,28 +11,31 @@ export default function CentrosProducaoPage() {
 
   const [data, setData] = useState<any[]>([])
   const [tiposProcesso, setTiposProcesso] = useState<any[]>([])
+  const [turnos, setTurnos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
   const [editando, setEditando] = useState<any>(null)
-  const [form, setForm] = useState({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null as string | null, capacidadeHora: 0, custoHora: 0 })
+  const [form, setForm] = useState({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null as string | null, turnoProducaoId: null as string | null, capacidadeHora: 0, custoHora: 0 })
 
   async function carregar() {
     setLoading(true)
     try {
-      const [resCentros, resTipos] = await Promise.all([
+      const [resCentros, resTipos, resTurnos] = await Promise.all([
         api.get('/centros-producao', { params: { limit: 100 } }),
         api.get('/tipos-processo', { params: { status: 'true' } }),
+        api.get('/turnos-producao', { params: { limit: 50 } }),
       ])
       setData(resCentros.data.data || [])
       setTiposProcesso(resTipos.data.data || [])
+      setTurnos(resTurnos.data.data || resTurnos.data || [])
     }
     catch {} finally { setLoading(false) }
   }
 
   useEffect(() => { carregar() }, [])
 
-  function abrirNovo() { setEditando(null); setForm({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null, capacidadeHora: 0, custoHora: 0 }); setModalAberto(true) }
-  function abrirEdicao(item: any) { setEditando(item); setForm({ codigo: item.codigo, descricao: item.descricao, tipo: item.tipo, tipoProcessoId: item.tipoProcessoId || null, capacidadeHora: Number(item.capacidadeHora) || 0, custoHora: Number(item.custoHora) || 0 }); setModalAberto(true) }
+  function abrirNovo() { setEditando(null); setForm({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null, turnoProducaoId: null, capacidadeHora: 0, custoHora: 0 }); setModalAberto(true) }
+  function abrirEdicao(item: any) { setEditando(item); setForm({ codigo: item.codigo, descricao: item.descricao, tipo: item.tipo, tipoProcessoId: item.tipoProcessoId || null, turnoProducaoId: item.turnoProducaoId || null, capacidadeHora: Number(item.capacidadeHora) || 0, custoHora: Number(item.custoHora) || 0 }); setModalAberto(true) }
 
   async function salvar() {
     if (!form.tipoProcessoId) {
@@ -63,7 +66,7 @@ export default function CentrosProducaoPage() {
 
       {loading ? <Center py="xl"><Loader /></Center> : (
         <Table striped highlightOnHover>
-          <Table.Thead><Table.Tr><Table.Th>Código</Table.Th><Table.Th>Descrição</Table.Th><Table.Th>Tipo</Table.Th><Table.Th>Processo</Table.Th><Table.Th>Cap/Hora</Table.Th><Table.Th>Custo/Hora</Table.Th><Table.Th>Status</Table.Th><Table.Th></Table.Th></Table.Tr></Table.Thead>
+          <Table.Thead><Table.Tr><Table.Th>Código</Table.Th><Table.Th>Descrição</Table.Th><Table.Th>Tipo</Table.Th><Table.Th>Processo</Table.Th><Table.Th>Turno</Table.Th><Table.Th>Cap/Hora</Table.Th><Table.Th>Status</Table.Th><Table.Th></Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>
             {data.map((item) => (
               <Table.Tr key={item.id}>
@@ -71,8 +74,14 @@ export default function CentrosProducaoPage() {
                 <Table.Td>{item.descricao}</Table.Td>
                 <Table.Td><Badge variant="light">{item.tipo}</Badge></Table.Td>
                 <Table.Td><Badge variant="light" color="teal">{item.tipoProcesso?.descricao || '—'}</Badge></Table.Td>
+                <Table.Td>
+                  {item.turnoProducao ? (
+                    <Badge variant="light" color="indigo">{item.turnoProducao.descricao} ({item.turnoProducao.horaInicio}-{item.turnoProducao.horaFim})</Badge>
+                  ) : (
+                    <Text size="xs" c="dimmed">24h</Text>
+                  )}
+                </Table.Td>
                 <Table.Td>{Number(item.capacidadeHora) || '—'}</Table.Td>
-                <Table.Td>{Number(item.custoHora) ? `R$ ${Number(item.custoHora)}` : '—'}</Table.Td>
                 <Table.Td><Badge color={item.status ? 'green' : 'red'}>{item.status ? 'Ativo' : 'Inativo'}</Badge></Table.Td>
                 <Table.Td>
                   <Group gap={4}>
@@ -99,6 +108,16 @@ export default function CentrosProducaoPage() {
             onChange={(v) => setForm({ ...form, tipoProcessoId: v })}
             required
             nothingFoundMessage="Nenhum tipo cadastrado — cadastre em Cadastros → Tipo de Processo"
+          />
+          <Select
+            label="Turno Operacional"
+            placeholder="24h (sem restrição)"
+            description="Define quando esta máquina opera — usado no Gantt para projetar horários reais"
+            data={turnos.map((t: any) => ({ value: t.id, label: `${t.descricao} (${t.horaInicio}-${t.horaFim})` }))}
+            value={form.turnoProducaoId}
+            onChange={(v) => setForm({ ...form, turnoProducaoId: v })}
+            clearable
+            nothingFoundMessage="Nenhum turno cadastrado — cadastre em Cadastros → Turnos"
           />
           <Group grow>
             <NumberInput label="Capacidade/Hora" value={form.capacidadeHora} onChange={(v) => setForm({ ...form, capacidadeHora: typeof v === 'number' ? v : 0 })} min={0} />
