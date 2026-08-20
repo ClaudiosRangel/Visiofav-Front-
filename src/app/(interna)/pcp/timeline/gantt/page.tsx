@@ -331,77 +331,77 @@ export default function GanttPage() {
       </Group>
 
       {/* Gantt */}
-      <Paper withBorder radius="md" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {/* Layout: coluna fixa + área scrollável lado a lado */}
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          {/* Coluna fixa de labels (NÃO scrollável horizontalmente) */}
-          <div style={{
-            width: LABEL_WIDTH,
-            minWidth: LABEL_WIDTH,
-            borderRight: '2px solid var(--mantine-color-gray-4)',
-            overflowY: 'auto',
-            overflowX: 'hidden',
-            flexShrink: 0,
-          }} className="gantt-labels">
-            {/* Header */}
+      <Paper withBorder radius="md" style={{ flex: 1, overflow: 'hidden' }}>
+        {/* Container ÚNICO com overflow em ambos os eixos — sticky funciona aqui */}
+        <div style={{ width: '100%', height: '100%', overflow: 'auto', position: 'relative' }}>
+          {/* Conteúdo interno: largura = coluna fixa + area gantt */}
+          <div style={{ width: LABEL_WIDTH + totalWidth, minHeight: '100%', position: 'relative' }}>
+
+            {/* ═══ COLUNA DE LABELS (sticky left) ═══ */}
             <div style={{
-              height: 28,
-              display: 'flex',
-              alignItems: 'center',
-              padding: '0 8px',
-              borderBottom: '1px solid var(--mantine-color-gray-3)',
               position: 'sticky',
+              left: 0,
               top: 0,
-              background: 'var(--mantine-color-body)',
-              zIndex: 5,
+              width: LABEL_WIDTH,
+              zIndex: 20,
+              float: 'left',
+              background: 'var(--mantine-color-dark-7)',
+              borderRight: '2px solid var(--mantine-color-gray-5)',
+              height: '100%',
             }}>
-              <Text size="xs" fw={600} c="dimmed">Processo / Máquina</Text>
-            </div>
-            {/* Labels */}
-            {gruposProcesso.map((grupo, gi) => (
-              <div key={gi}>
-                <div style={{
-                  height: 24,
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '0 8px',
-                  background: 'var(--mantine-color-dark-6)',
-                  borderBottom: '1px solid var(--mantine-color-gray-7)',
-                }}>
-                  <Text size="10px" fw={700} tt="uppercase" c="yellow">{grupo.tipoProcesso}</Text>
-                </div>
-                {grupo.raias.map((raia, ri) => (
-                  <div key={ri} style={{
-                    height: RAIA_HEIGHT,
+              {/* Header da coluna (sticky top + left) */}
+              <div style={{
+                height: 28,
+                display: 'flex',
+                alignItems: 'center',
+                padding: '0 8px',
+                borderBottom: '1px solid var(--mantine-color-gray-3)',
+                position: 'sticky',
+                top: 0,
+                zIndex: 25,
+                background: 'var(--mantine-color-dark-7)',
+              }}>
+                <Text size="xs" fw={600} c="dimmed">Processo / Máquina</Text>
+              </div>
+              {/* Labels das raias */}
+              {gruposProcesso.map((grupo, gi) => (
+                <div key={gi}>
+                  <div style={{
+                    height: 24,
                     display: 'flex',
                     alignItems: 'center',
                     padding: '0 8px',
+                    background: 'var(--mantine-color-dark-6)',
                     borderBottom: '1px solid var(--mantine-color-dark-4)',
                   }}>
-                    <Text size="xs" lineClamp={2} title={raia.centroProducao}>
-                      {raia.centroProducao}
-                    </Text>
+                    <Text size="10px" fw={700} tt="uppercase" c="yellow">{grupo.tipoProcesso}</Text>
                   </div>
-                ))}
-              </div>
-            ))}
-          </div>
+                  {grupo.raias.map((raia, ri) => (
+                    <div key={ri} style={{
+                      height: RAIA_HEIGHT,
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '0 8px',
+                      borderBottom: '1px solid var(--mantine-color-dark-4)',
+                      background: 'var(--mantine-color-dark-7)',
+                    }}>
+                      <Text size="xs" lineClamp={2} title={raia.centroProducao}>
+                        {raia.centroProducao}
+                      </Text>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
 
-          {/* Área do Gantt (scrollável em X e Y independentemente) */}
-          <div style={{ flex: 1, overflow: 'auto' }} className="gantt-area"
-            onScroll={(e) => {
-              // Sincronizar scroll vertical entre labels e área do gantt
-              const labelsDiv = document.querySelector('.gantt-labels') as HTMLElement
-              if (labelsDiv) labelsDiv.scrollTop = e.currentTarget.scrollTop
-            }}
-          >
-            <div style={{ width: totalWidth, position: 'relative', minHeight: '100%' }}>
+            {/* ═══ ÁREA DO GANTT (após a coluna fixa) ═══ */}
+            <div style={{ marginLeft: LABEL_WIDTH, width: totalWidth, position: 'absolute', top: 0, left: 0 }}>
               {/* Eixo X (horas) — sticky no topo */}
               <div style={{
                 height: 28,
                 position: 'sticky',
                 top: 0,
-                background: 'var(--mantine-color-body)',
+                background: 'var(--mantine-color-dark-7)',
                 zIndex: 15,
                 borderBottom: '1px solid var(--mantine-color-gray-3)',
               }}>
@@ -411,7 +411,7 @@ export default function GanttPage() {
                   return (
                     <div key={i} style={{
                       position: 'absolute',
-                      left,
+                      left: left + LABEL_WIDTH,
                       top: 0,
                       height: '100%',
                       borderLeft: `1px ${isNewDay ? 'solid' : 'dashed'} var(--mantine-color-gray-${isNewDay ? '5' : '3'})`,
@@ -427,117 +427,119 @@ export default function GanttPage() {
                   )
                 })}
               </div>
+            </div>
 
-              {/* Linhas de grade (horas) */}
-              {hourMarkers.map((m, i) => {
-                const left = ((m.ms - minTime) / 60000) * pixelsPorMinuto
-                const isNewDay = new Date(m.ms).getHours() === 0
-                const totalRaiaHeight = gruposProcesso.reduce(
-                  (acc, g) => acc + 24 + g.raias.length * RAIA_HEIGHT, 0
-                )
-                return (
-                  <div key={i} style={{
-                    position: 'absolute',
-                    left,
-                    top: 28,
-                    height: totalRaiaHeight,
-                    borderLeft: `1px ${isNewDay ? 'solid' : 'dashed'} var(--mantine-color-gray-${isNewDay ? '5' : '2'})`,
-                    pointerEvents: 'none',
-                  }} />
-                )
-              })}
+            {/* Linhas de grade (horas) — posicionamento absoluto */}
+            {hourMarkers.map((m, i) => {
+              const left = LABEL_WIDTH + ((m.ms - minTime) / 60000) * pixelsPorMinuto
+              const isNewDay = new Date(m.ms).getHours() === 0
+              const totalRaiaHeight = 28 + gruposProcesso.reduce(
+                (acc, g) => acc + 24 + g.raias.length * RAIA_HEIGHT, 0
+              )
+              return (
+                <div key={`grid-${i}`} style={{
+                  position: 'absolute',
+                  left,
+                  top: 28,
+                  height: totalRaiaHeight,
+                  borderLeft: `1px ${isNewDay ? 'solid' : 'dashed'} var(--mantine-color-gray-${isNewDay ? '5' : '2'})`,
+                  pointerEvents: 'none',
+                  zIndex: 1,
+                }} />
+              )
+            })}
 
-              {/* Linha "agora" */}
-              {agora >= minTime && agora <= maxTime && (
+            {/* Linha "agora" */}
+            {agora >= minTime && agora <= maxTime && (
+              <div style={{
+                position: 'absolute',
+                left: LABEL_WIDTH + ((agora - minTime) / 60000) * pixelsPorMinuto,
+                top: 0,
+                height: '100%',
+                width: 2,
+                background: '#fa5252',
+                zIndex: 12,
+                pointerEvents: 'none',
+              }}>
                 <div style={{
                   position: 'absolute',
-                  left: ((agora - minTime) / 60000) * pixelsPorMinuto,
-                  top: 0,
-                  height: '100%',
-                  width: 2,
+                  top: 26,
+                  left: -3,
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
                   background: '#fa5252',
-                  zIndex: 10,
-                  pointerEvents: 'none',
-                }}>
-                  <div style={{
-                    position: 'absolute',
-                    top: 26,
-                    left: -3,
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    background: '#fa5252',
-                  }} />
-                </div>
-              )}
+                }} />
+              </div>
+            )}
 
-              {/* Barras por raia */}
-              {gruposProcesso.map((grupo, gi) => {
-                const offsetY = 28 + gruposProcesso.slice(0, gi).reduce(
-                  (acc, g) => acc + 24 + g.raias.length * RAIA_HEIGHT, 0
-                )
-                return grupo.raias.map((raia, ri) => {
-                  const raiaTop = offsetY + 24 + ri * RAIA_HEIGHT
-                  return raia.barras.map((bar, bi) => {
-                    const barLeft = ((bar.inicioMs - minTime) / 60000) * pixelsPorMinuto
-                    const barWidth = Math.max(4, ((bar.fimMs - bar.inicioMs) / 60000) * pixelsPorMinuto)
-                    const color = INDICADOR_COLORS[bar.indicador] || '#868e96'
-                    const isEmAndamento = bar.status === 'EM_ANDAMENTO'
+            {/* Barras das OPs */}
+            {gruposProcesso.map((grupo, gi) => {
+              const offsetY = 28 + gruposProcesso.slice(0, gi).reduce(
+                (acc, g) => acc + 24 + g.raias.length * RAIA_HEIGHT, 0
+              )
+              return grupo.raias.map((raia, ri) => {
+                const raiaTop = offsetY + 24 + ri * RAIA_HEIGHT
+                return raia.barras.map((bar, bi) => {
+                  const barLeft = LABEL_WIDTH + ((bar.inicioMs - minTime) / 60000) * pixelsPorMinuto
+                  const barWidth = Math.max(4, ((bar.fimMs - bar.inicioMs) / 60000) * pixelsPorMinuto)
+                  const color = INDICADOR_COLORS[bar.indicador] || '#868e96'
+                  const isEmAndamento = bar.status === 'EM_ANDAMENTO'
 
-                    return (
-                      <Tooltip
-                        key={`${gi}-${ri}-${bi}`}
-                        multiline
-                        w={280}
-                        label={
-                          <div>
-                            <Text size="xs" fw={700}>OP {bar.opNumero} — {bar.clienteNome || '—'}</Text>
-                            <Text size="xs">{bar.descricao}</Text>
+                  return (
+                    <Tooltip
+                      key={`${gi}-${ri}-${bi}`}
+                      multiline
+                      w={280}
+                      label={
+                        <div>
+                          <Text size="xs" fw={700}>OP {bar.opNumero} — {bar.clienteNome || '—'}</Text>
+                          <Text size="xs">{bar.descricao}</Text>
+                          <Text size="xs" c="dimmed">
+                            Previsto: {formatMinutos(bar.tempoTotalPrevisto)}
+                            {bar.tempoRealMinutos !== null && ` | Real: ${formatMinutos(bar.tempoRealMinutos)}`}
+                          </Text>
+                          <Text size="xs" c="dimmed">
+                            {formatHora(bar.inicioMs)} → {formatHora(bar.fimMs)}
+                          </Text>
+                          {bar.inicioRealMs && (
                             <Text size="xs" c="dimmed">
-                              Previsto: {formatMinutos(bar.tempoTotalPrevisto)}
-                              {bar.tempoRealMinutos !== null && ` | Real: ${formatMinutos(bar.tempoRealMinutos)}`}
-                            </Text>
-                            <Text size="xs" c="dimmed">
-                              {formatHora(bar.inicioMs)} → {formatHora(bar.fimMs)}
-                            </Text>
-                            {bar.inicioRealMs && (
-                              <Text size="xs" c="dimmed">
-                                Real: {formatHora(bar.inicioRealMs)} → {bar.fimRealMs ? formatHora(bar.fimRealMs) : 'em andamento'}
-                              </Text>
-                            )}
-                          </div>
-                        }
-                      >
-                        <div style={{
-                          position: 'absolute',
-                          top: raiaTop + 8,
-                          left: barLeft,
-                          width: barWidth,
-                          height: RAIA_HEIGHT - 16,
-                          background: color,
-                          opacity: bar.indicador === 'AGUARDANDO' ? 0.4 : 0.85,
-                          borderRadius: 4,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          overflow: 'hidden',
-                          border: isEmAndamento ? '2px solid #fff' : 'none',
-                          boxShadow: isEmAndamento ? `0 0 6px ${color}` : undefined,
-                          animation: isEmAndamento ? 'pulse-bar 2s infinite' : undefined,
-                        }}>
-                          {barWidth > 40 && (
-                            <Text size="9px" c="white" fw={600} lineClamp={1} px={4}>
-                              {bar.opNumero}
+                              Real: {formatHora(bar.inicioRealMs)} → {bar.fimRealMs ? formatHora(bar.fimRealMs) : 'em andamento'}
                             </Text>
                           )}
                         </div>
-                      </Tooltip>
-                    )
-                  })
+                      }
+                    >
+                      <div style={{
+                        position: 'absolute',
+                        top: raiaTop + 8,
+                        left: barLeft,
+                        width: barWidth,
+                        height: RAIA_HEIGHT - 16,
+                        background: color,
+                        opacity: bar.indicador === 'AGUARDANDO' ? 0.4 : 0.85,
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        overflow: 'hidden',
+                        border: isEmAndamento ? '2px solid #fff' : 'none',
+                        boxShadow: isEmAndamento ? `0 0 6px ${color}` : undefined,
+                        animation: isEmAndamento ? 'pulse-bar 2s infinite' : undefined,
+                        zIndex: 5,
+                      }}>
+                        {barWidth > 40 && (
+                          <Text size="9px" c="white" fw={600} lineClamp={1} px={4}>
+                            {bar.opNumero}
+                          </Text>
+                        )}
+                      </div>
+                    </Tooltip>
+                  )
                 })
-              })}
-            </div>
+              })
+            })}
           </div>
         </div>
       </Paper>
