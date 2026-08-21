@@ -19,6 +19,7 @@ interface EtapaTimeline {
   descricao: string
   centroProducao: string | null
   tipoProcesso: string | null
+  tipoProcessoPosicao: number
   status: string
   tempoSetupMinutos: number
   tempoOperacaoMinutos: number
@@ -81,6 +82,7 @@ interface GanttBar {
 
 interface Raia {
   tipoProcesso: string
+  tipoProcessoPosicao: number
   centroProducao: string
   barras: GanttBar[]
 }
@@ -222,7 +224,7 @@ export default function GanttProducaoPage() {
 
         const key = `${etapa.tipoProcesso}||${etapa.centroProducao}`
         if (!raiaMap.has(key)) {
-          raiaMap.set(key, { tipoProcesso: etapa.tipoProcesso, centroProducao: etapa.centroProducao, barras: [] })
+          raiaMap.set(key, { tipoProcesso: etapa.tipoProcesso, tipoProcessoPosicao: etapa.tipoProcessoPosicao || 999, centroProducao: etapa.centroProducao, barras: [] })
         }
 
         const inicioMs = new Date(etapa.inicioPrevistoAt).getTime()
@@ -267,7 +269,7 @@ export default function GanttProducaoPage() {
 
     const raiasArr = Array.from(raiaMap.values())
     raiasArr.sort((a, b) => {
-      if (a.tipoProcesso !== b.tipoProcesso) return a.tipoProcesso.localeCompare(b.tipoProcesso)
+      if (a.tipoProcessoPosicao !== b.tipoProcessoPosicao) return a.tipoProcessoPosicao - b.tipoProcessoPosicao
       return a.centroProducao.localeCompare(b.centroProducao)
     })
 
