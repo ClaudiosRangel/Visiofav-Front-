@@ -142,6 +142,7 @@ export default function GanttProducaoPage() {
 
   const [loading, setLoading] = useState(true)
   const [timeline, setTimeline] = useState<OpTimeline[]>([])
+  const [conflitos, setConflitos] = useState<any[]>([])
   const [busca, setBusca] = useState('')
   const [visao, setVisao] = useState<'12h' | '24h' | '3d' | '7d'>('24h')
 
@@ -165,6 +166,7 @@ export default function GanttProducaoPage() {
     try {
       const { data } = await api.get('/pcp/timeline')
       setTimeline(data.timeline)
+      setConflitos(data.conflitos || [])
     } catch {
       notifications.show({ title: 'Erro', message: 'Falha ao carregar dados', color: 'red' })
     } finally {
@@ -370,6 +372,33 @@ export default function GanttProducaoPage() {
         })}
         {timeline.length > 8 && <Text size="xs" c="dimmed">+{timeline.length - 8} OPs</Text>}
       </Group>
+
+      {/* Alertas de Conflitos */}
+      {conflitos.length > 0 && (
+        <Paper p="xs" radius="sm" withBorder style={{ borderColor: 'var(--mantine-color-red-7)', background: 'var(--mantine-color-red-9)' }}>
+          <Group gap="xs" mb={4}>
+            <Text size="xs" fw={700} c="red.3">⚠️ {conflitos.length} conflito{conflitos.length > 1 ? 's' : ''} detectado{conflitos.length > 1 ? 's' : ''}</Text>
+            <Text size="xs" c="dimmed">(sobreposição de OPs na mesma máquina)</Text>
+          </Group>
+          <Group gap="xs" wrap="wrap">
+            {conflitos.slice(0, 5).map((c: any, i: number) => (
+              <Tooltip key={i} multiline w={300} label={
+                <div>
+                  <Text size="xs" fw={700}>{c.centroProducao}</Text>
+                  <Text size="xs">OP {c.etapa1.opNumero} ({c.etapa1.descricao})</Text>
+                  <Text size="xs">× OP {c.etapa2.opNumero} ({c.etapa2.descricao})</Text>
+                  <Text size="xs" c="red.3">Sobreposição: {formatMinutos(c.sobreposicaoMinutos)}</Text>
+                </div>
+              }>
+                <Badge size="xs" color="red" variant="light" style={{ cursor: 'help' }}>
+                  {c.centroProducao}: OP{c.etapa1.opNumero} × OP{c.etapa2.opNumero} ({formatMinutos(c.sobreposicaoMinutos)})
+                </Badge>
+              </Tooltip>
+            ))}
+            {conflitos.length > 5 && <Text size="xs" c="red.3">+{conflitos.length - 5} conflitos</Text>}
+          </Group>
+        </Paper>
+      )}
 
       {/* Gantt Container */}
       <Paper withBorder radius="md" style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
