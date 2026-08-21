@@ -19,6 +19,8 @@ import {
   IconKey, IconWebhook, IconUpload, IconCloudDownload, IconDownload, IconPlugConnected,
   // PCP
   IconAssembly, IconListDetails, IconCalendarEvent, IconRoute, IconSitemap, IconTool, IconClock, IconPalette, IconLink, IconCategory,
+  // Orçamento Gráfico
+  IconPlus,
   // Configurador
   IconBuilding, IconBell,
 } from '@tabler/icons-react'
@@ -401,6 +403,21 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       { icon: IconHistory, label: 'Logs de Auditoria', href: '/pcp/logs' },
     ],
   },
+  'orcamento-grafico': {
+    title: 'Orçamento Gráfico',
+    entries: [
+      { icon: IconListDetails, label: 'Orçamentos', href: '/orcamento-grafico' },
+      { icon: IconPlus, label: 'Novo Orçamento', href: '/orcamento-grafico/novo' },
+      {
+        label: 'Cadastros', icon: IconDatabase, items: [
+          { icon: IconPackage, label: 'Tipos de Embalagem', href: '/orcamento-grafico/cadastros/tipos-embalagem' },
+          { icon: IconCash, label: 'Preços Materiais', href: '/orcamento-grafico/cadastros/precos-materiais' },
+          { icon: IconChartBar, label: 'Parâmetros Perda', href: '/orcamento-grafico/cadastros/parametros-perda' },
+          { icon: IconTags, label: 'Tabelas de Margem', href: '/orcamento-grafico/cadastros/tabelas-margem' },
+        ],
+      },
+    ],
+  },
 }
 
 /** Rótulo em português de cada módulo, para compor o título da aba do
@@ -414,9 +431,11 @@ export const MODULE_LABELS: Record<string, string> = {
   wms: 'WMS',
   configurador: 'Configurador',
   pcp: 'PCP',
+  'orcamento-grafico': 'Orçamento Gráfico',
 }
 
 export function detectModule(pathname: string): string | null {
+  if (pathname.startsWith('/orcamento-grafico')) return 'orcamento-grafico'
   if (pathname.startsWith('/compras')) return 'compras'
   if (pathname.startsWith('/vendas')) return 'vendas'
   if (pathname.startsWith('/financeiro')) return 'financeiro'

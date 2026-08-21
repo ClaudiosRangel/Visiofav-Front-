@@ -11,6 +11,7 @@ import {
   IconFileText,
   IconSettings,
   IconMenu2,
+  IconCalculator,
 } from '@tabler/icons-react'
 import { useRouter } from 'next/navigation'
 import { useEmpresa } from '@/providers/EmpresaProvider'
@@ -82,6 +83,14 @@ const MODULOS_CONFIG = [
     icon: IconSettings,
     href: '/configurador',
     color: '#EC4899',
+  },
+  {
+    modulo: 'ORCAMENTO_GRAFICO',
+    label: 'Orçamento Gráfico',
+    description: 'Orçamentos gráficos, custos de produção e precificação.',
+    icon: IconCalculator,
+    href: '/orcamento-grafico',
+    color: '#0D9488',
   },
 ] as const
 

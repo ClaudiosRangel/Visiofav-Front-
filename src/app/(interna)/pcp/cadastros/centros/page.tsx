@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Title, Stack, Table, Group, Button, Badge, Text, Loader, Center, Modal, TextInput, Select, NumberInput, ActionIcon } from '@mantine/core'
+import { Title, Stack, Table, Group, Button, Badge, Text, Loader, Center, Modal, TextInput, Select, NumberInput, ActionIcon, Divider, SimpleGrid } from '@mantine/core'
 import { IconPlus, IconEdit, IconPower } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
@@ -15,7 +15,7 @@ export default function CentrosProducaoPage() {
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
   const [editando, setEditando] = useState<any>(null)
-  const [form, setForm] = useState({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null as string | null, turnoProducaoId: null as string | null, capacidadeHora: 0, custoHora: 0 })
+  const [form, setForm] = useState({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null as string | null, turnoProducaoId: null as string | null, capacidadeHora: 0, custoHora: 0, velocidade: 0, unidadeVelocidade: null as string | null, formatoFolhaLargura: 0, formatoFolhaAltura: 0, pincaMm: 0 })
 
   async function carregar() {
     setLoading(true)
@@ -34,8 +34,8 @@ export default function CentrosProducaoPage() {
 
   useEffect(() => { carregar() }, [])
 
-  function abrirNovo() { setEditando(null); setForm({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null, turnoProducaoId: null, capacidadeHora: 0, custoHora: 0 }); setModalAberto(true) }
-  function abrirEdicao(item: any) { setEditando(item); setForm({ codigo: item.codigo, descricao: item.descricao, tipo: item.tipo, tipoProcessoId: item.tipoProcessoId || null, turnoProducaoId: item.turnoProducaoId || null, capacidadeHora: Number(item.capacidadeHora) || 0, custoHora: Number(item.custoHora) || 0 }); setModalAberto(true) }
+  function abrirNovo() { setEditando(null); setForm({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null, turnoProducaoId: null, capacidadeHora: 0, custoHora: 0, velocidade: 0, unidadeVelocidade: null, formatoFolhaLargura: 0, formatoFolhaAltura: 0, pincaMm: 0 }); setModalAberto(true) }
+  function abrirEdicao(item: any) { setEditando(item); setForm({ codigo: item.codigo, descricao: item.descricao, tipo: item.tipo, tipoProcessoId: item.tipoProcessoId || null, turnoProducaoId: item.turnoProducaoId || null, capacidadeHora: Number(item.capacidadeHora) || 0, custoHora: Number(item.custoHora) || 0, velocidade: Number(item.velocidade) || 0, unidadeVelocidade: item.unidadeVelocidade || null, formatoFolhaLargura: Number(item.formatoFolhaLargura) || 0, formatoFolhaAltura: Number(item.formatoFolhaAltura) || 0, pincaMm: Number(item.pincaMm) || 0 }); setModalAberto(true) }
 
   async function salvar() {
     if (!form.tipoProcessoId) {
@@ -123,6 +123,31 @@ export default function CentrosProducaoPage() {
             <NumberInput label="Capacidade/Hora" value={form.capacidadeHora} onChange={(v) => setForm({ ...form, capacidadeHora: typeof v === 'number' ? v : 0 })} min={0} />
             <NumberInput label="Custo/Hora (R$)" value={form.custoHora} onChange={(v) => setForm({ ...form, custoHora: typeof v === 'number' ? v : 0 })} min={0} decimalScale={2} />
           </Group>
+
+          <Divider label="Parâmetros de Orçamento" labelPosition="left" mt="sm" />
+
+          <Group grow>
+            <NumberInput label="Velocidade" value={form.velocidade} onChange={(v) => setForm({ ...form, velocidade: typeof v === 'number' ? v : 0 })} min={0} decimalScale={2} />
+            <Select
+              label="Unidade de Velocidade"
+              placeholder="Selecione"
+              data={[
+                { value: 'FOLHAS_HORA', label: 'Folhas/Hora' },
+                { value: 'METROS_HORA', label: 'Metros/Hora' },
+                { value: 'UNIDADES_HORA', label: 'Unidades/Hora' },
+              ]}
+              value={form.unidadeVelocidade}
+              onChange={(v) => setForm({ ...form, unidadeVelocidade: v })}
+              clearable
+            />
+          </Group>
+
+          <SimpleGrid cols={3}>
+            <NumberInput label="Formato Folha — Largura (mm)" value={form.formatoFolhaLargura} onChange={(v) => setForm({ ...form, formatoFolhaLargura: typeof v === 'number' ? v : 0 })} min={0} />
+            <NumberInput label="Formato Folha — Altura (mm)" value={form.formatoFolhaAltura} onChange={(v) => setForm({ ...form, formatoFolhaAltura: typeof v === 'number' ? v : 0 })} min={0} />
+            <NumberInput label="Pinça (mm)" value={form.pincaMm} onChange={(v) => setForm({ ...form, pincaMm: typeof v === 'number' ? v : 0 })} min={0} decimalScale={2} />
+          </SimpleGrid>
+
           <Button onClick={salvar} fullWidth>{editando ? 'Salvar' : 'Criar'}</Button>
         </Stack>
       </Modal>
