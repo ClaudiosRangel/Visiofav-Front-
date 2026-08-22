@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Modal, Group, Stack, Text, Badge, Table, Select, NumberInput, Button, Loader, Center, Box } from '@mantine/core'
+import { Modal, Group, Stack, Text, Badge, Table, Select, NumberInput, Button, Loader, Center, Box, Tooltip } from '@mantine/core'
 import { IconDeviceFloppy } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
@@ -157,30 +157,42 @@ export default function ModalMaquinasTempos({ opened, onClose, opId, onSaved }: 
           {op && (
             <Box p="sm" style={{ background: 'var(--mantine-color-dark-6)', borderRadius: 8 }}>
               <Group gap="lg" wrap="wrap">
+                <Tooltip label="Número da OP (referência externa do GPrint ou sequencial do Vizor)">
                 <Box>
                   <Text size="xs" c="dimmed">Nº OP</Text>
                   <Text size="sm" fw={600}>{opNumeroDisplay}</Text>
                 </Box>
+                </Tooltip>
+                <Tooltip label="Data de criação/importação da Ordem de Produção">
                 <Box>
                   <Text size="xs" c="dimmed">Emissão</Text>
                   <Text size="sm">{op.dataEmissao ? new Date(op.dataEmissao).toLocaleDateString('pt-BR') : '—'}</Text>
                 </Box>
+                </Tooltip>
+                <Tooltip label="Nome do cliente desta OP">
                 <Box>
                   <Text size="xs" c="dimmed">Cliente</Text>
                   <Text size="sm">{op.clienteNome || '—'}</Text>
                 </Box>
+                </Tooltip>
+                <Tooltip label="Quantidade total de peças a produzir nesta OP">
                 <Box>
                   <Text size="xs" c="dimmed">Quantidade</Text>
                   <Text size="sm" fw={600}>{op.quantidade?.toLocaleString('pt-BR')}</Text>
                 </Box>
+                </Tooltip>
+                <Tooltip label="Produto/serviço sendo produzido">
                 <Box>
                   <Text size="xs" c="dimmed">Serviço / Produto</Text>
                   <Text size="sm">{op.produtoNome || '—'}</Text>
                 </Box>
+                </Tooltip>
+                <Tooltip label="Data de entrega prometida ao cliente — referência para os indicadores de prazo">
                 <Box>
                   <Text size="xs" c="dimmed">Entrega</Text>
                   <Text size="sm">{op.dataEntregaPrevista ? new Date(op.dataEntregaPrevista).toLocaleDateString('pt-BR') : '—'}</Text>
                 </Box>
+                </Tooltip>
               </Group>
             </Box>
           )}
@@ -190,14 +202,14 @@ export default function ModalMaquinasTempos({ opened, onClose, opId, onSaved }: 
             <Table striped highlightOnHover withTableBorder withColumnBorders>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th style={{ width: 40 }}>#</Table.Th>
-                  <Table.Th>Componente / Descrição</Table.Th>
-                  <Table.Th>Atividade / Processo</Table.Th>
-                  <Table.Th style={{ width: 220 }}>Máquina</Table.Th>
-                  <Table.Th style={{ width: 100 }}>T. Acerto (min)</Table.Th>
-                  <Table.Th style={{ width: 120 }}>T. Produção (min)</Table.Th>
-                  <Table.Th style={{ width: 120 }}>Prev. Conclusão</Table.Th>
-                  <Table.Th style={{ width: 80 }}>Status</Table.Th>
+                  <Table.Th style={{ width: 40 }}><Tooltip label="Sequência da etapa no roteiro"><span>#</span></Tooltip></Table.Th>
+                  <Table.Th><Tooltip label="Descrição da etapa/componente (ex: Capa, Miolo, etc.)"><span>Componente / Descrição</span></Tooltip></Table.Th>
+                  <Table.Th><Tooltip label="Tipo de processo produtivo (Impressão, Corte Vinco, Colagem, etc.)"><span>Atividade / Processo</span></Tooltip></Table.Th>
+                  <Table.Th style={{ width: 220 }}><Tooltip label="Máquina atribuída — clique para alterar (só etapas pendentes/pausadas)"><span>Máquina</span></Tooltip></Table.Th>
+                  <Table.Th style={{ width: 100 }}><Tooltip label="Tempo de acerto/setup da máquina (em minutos). Tempo fixo gasto antes de iniciar a produção."><span>T. Acerto (min)</span></Tooltip></Table.Th>
+                  <Table.Th style={{ width: 120 }}><Tooltip label="Tempo de produção/operação (em minutos). Calculado com base na tiragem e velocidade da máquina."><span>T. Produção (min)</span></Tooltip></Table.Th>
+                  <Table.Th style={{ width: 120 }}><Tooltip label="Data prevista de conclusão desta etapa. 🟢 No prazo, 🟡 Atenção (falta &lt;1 dia), 🔴 Atrasado (passa da entrega)"><span>Prev. Conclusão</span></Tooltip></Table.Th>
+                  <Table.Th style={{ width: 80 }}><Tooltip label="Status atual da etapa: PENDENTE (aguardando), EM_ANDAMENTO (produzindo), PAUSADA, CONCLUÍDA"><span>Status</span></Tooltip></Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -387,7 +399,9 @@ export default function ModalMaquinasTempos({ opened, onClose, opId, onSaved }: 
 
             return (
               <Box mt="md" p="sm" style={{ background: 'var(--mantine-color-dark-7)', borderRadius: 8, overflowX: 'auto' }}>
-                <Text size="sm" fw={600} mb="xs">Timeline</Text>
+                <Tooltip label="Visualização gráfica da sequência de produção. Barras mostram cada etapa com duração proporcional ao tempo. Linha azul = Hoje, linha vermelha tracejada = Data de Entrega." multiline w={320}>
+                <Text size="sm" fw={600} mb="xs" style={{ cursor: 'help' }}>Timeline</Text>
+                </Tooltip>
                 <div style={{ position: 'relative', minHeight: CHART_HEIGHT, display: 'flex' }}>
                   {/* Labels à esquerda */}
                   <div style={{ width: LABEL_WIDTH, flexShrink: 0 }}>
@@ -458,7 +472,10 @@ export default function ModalMaquinasTempos({ opened, onClose, opId, onSaved }: 
 
           {/* Botões */}
           <Group justify="flex-end">
+            <Tooltip label="Fecha sem salvar alterações">
             <Button variant="default" onClick={onClose}>Cancelar</Button>
+            </Tooltip>
+            <Tooltip label="Salva as atribuições de máquina e tempos alterados para esta OP">
             <Button
               leftSection={<IconDeviceFloppy size={16} />}
               onClick={salvarAlteracoes}
@@ -467,6 +484,7 @@ export default function ModalMaquinasTempos({ opened, onClose, opId, onSaved }: 
             >
               Salvar Alterações
             </Button>
+            </Tooltip>
           </Group>
         </Stack>
       )}
