@@ -59,7 +59,7 @@ export default function ParametrosPerdaPage() {
       const [resParams, resTipos, resCentros] = await Promise.all([
         api.get('/orcamento-grafico/parametros-perda'),
         api.get('/tipos-processo', { params: { status: 'true' } }),
-        api.get('/centros-producao', { params: { limit: 200 } }),
+        api.get('/centros-producao', { params: { limit: 100 } }),
       ])
       setData(resParams.data.data || resParams.data || [])
       setTiposProcesso(resTipos.data.data || resTipos.data || [])
