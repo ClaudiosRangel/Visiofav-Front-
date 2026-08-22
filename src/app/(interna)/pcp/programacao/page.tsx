@@ -14,6 +14,8 @@ import VisaoDetalhadaProgramacao from '@/components/pcp/VisaoDetalhadaProgramaca
 import { useCentrosOrdenacao } from '@/hooks/useCentrosOrdenacao'
 import { IconLayoutGrid, IconListDetails } from '@tabler/icons-react'
 import { getUserPerfil, getEmpresaId } from '@/hooks/usePerfilGuard'
+import ModalMaquinasTempos from '@/components/pcp/ModalMaquinasTempos'
+import ModalApontamentoCompleto from '@/components/pcp/ModalApontamentoCompleto'
 
 const PRIORIDADE_COLORS: Record<string, string> = { BAIXA: 'gray', NORMAL: 'blue', ALTA: 'orange', URGENTE: 'red' }
 const STATUS_COLORS: Record<string, string> = { PENDENTE: 'gray', EM_ANDAMENTO: 'blue', PAUSADA: 'orange', CONCLUIDA: 'green' }
@@ -63,7 +65,7 @@ function getRowBackground(etapa: any, usaCoresStatus: boolean = true): string | 
   return undefined
 }
 
-function SortableRow({ etapa, children, background, highlighted, selected, onToggleSelect }: { etapa: { id: string }; children: React.ReactNode; background?: string; highlighted?: boolean; selected?: boolean; onToggleSelect?: () => void }) {
+function SortableRow({ etapa, children, background, highlighted, selected, onToggleSelect, onContextMenu }: { etapa: { id: string }; children: React.ReactNode; background?: string; highlighted?: boolean; selected?: boolean; onToggleSelect?: () => void; onContextMenu?: (e: React.MouseEvent) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: etapa.id })
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -74,7 +76,7 @@ function SortableRow({ etapa, children, background, highlighted, selected, onTog
   }
 
   return (
-    <Table.Tr ref={setNodeRef} style={style} {...attributes} data-etapa-id={etapa.id}>
+    <Table.Tr ref={setNodeRef} style={style} {...attributes} data-etapa-id={etapa.id} onContextMenu={onContextMenu}>
       <Table.Td style={{ width: 30, cursor: 'grab' }} {...listeners}>
         <IconGripVertical size={14} color="gray" />
       </Table.Td>
@@ -315,6 +317,25 @@ export default function ProgramacaoPage() {
   const [acaoLoteLoading, setAcaoLoteLoading] = useState(false)
   const [modalMoverLote, setModalMoverLote] = useState(false)
   const [centroDestinoLote, setCentroDestinoLote] = useState<string | null>(null)
+
+  // Feature: Modal Máquinas e Tempos (context menu)
+  const [modalMaquinasTempos, setModalMaquinasTempos] = useState<{ opId: string } | null>(null)
+  // Feature: Modal Apontamento Completo (context menu)
+  const [modalApontamentoCompleto, setModalApontamentoCompleto] = useState<any>(null)
+  // Context menu position
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; etapa: any; centro: any } | null>(null)
+
+  // Close context menu on click-away
+  useEffect(() => {
+    if (!contextMenu) return
+    const handler = () => setContextMenu(null)
+    window.addEventListener('click', handler)
+    window.addEventListener('scroll', handler, true)
+    return () => {
+      window.removeEventListener('click', handler)
+      window.removeEventListener('scroll', handler, true)
+    }
+  }, [contextMenu])
 
   function toggleSelectEtapa(etapaId: string) {
     setSelectedEtapas(prev => {
@@ -1944,7 +1965,7 @@ export default function ProgramacaoPage() {
                       </Table.Thead>
                       <Table.Tbody>
                         {centro.etapas.map((etapa: any) => (
-                          <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa, usaCoresStatus)} highlighted={highlightedEtapa === etapa.id} selected={selectedEtapas.has(etapa.id)} onToggleSelect={() => toggleSelectEtapa(etapa.id)}>
+                          <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa, usaCoresStatus)} highlighted={highlightedEtapa === etapa.id} selected={selectedEtapas.has(etapa.id)} onToggleSelect={() => toggleSelectEtapa(etapa.id)} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, etapa, centro }) }}>
                             <Table.Td style={{ width: 28, padding: '0 4px' }}>
                               {etapa.etapaAnteriorConcluida === true && <IconCheck size={20} color="#00d26a" strokeWidth={3} />}
                               {etapa.etapaAnteriorConcluida === false && <span style={{ color: '#adb5bd', fontSize: 10 }}>—</span>}
@@ -2144,7 +2165,7 @@ export default function ProgramacaoPage() {
                       </Table.Thead>
                       <Table.Tbody>
                         {centro.etapas.map((etapa: any) => (
-                          <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa, usaCoresStatus)} highlighted={highlightedEtapa === etapa.id} selected={selectedEtapas.has(etapa.id)} onToggleSelect={() => toggleSelectEtapa(etapa.id)}>
+                          <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa, usaCoresStatus)} highlighted={highlightedEtapa === etapa.id} selected={selectedEtapas.has(etapa.id)} onToggleSelect={() => toggleSelectEtapa(etapa.id)} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, etapa, centro }) }}>
                             <Table.Td style={{ width: 28, padding: '0 4px' }}>
                               {etapa.etapaAnteriorConcluida === true && <IconCheck size={20} color="#00d26a" strokeWidth={3} />}
                               {etapa.etapaAnteriorConcluida === false && <span style={{ color: '#adb5bd', fontSize: 10 }}>—</span>}
@@ -2877,6 +2898,119 @@ export default function ProgramacaoPage() {
           </Group>
         </Stack>
       </Modal>
+
+      {/* Context menu (right-click) para etapas */}
+      {contextMenu && (
+        <Box
+          style={{
+            position: 'fixed',
+            top: contextMenu.y,
+            left: contextMenu.x,
+            zIndex: 9999,
+            background: 'var(--mantine-color-body)',
+            border: '1px solid var(--mantine-color-default-border)',
+            borderRadius: 6,
+            padding: 4,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            minWidth: 200,
+          }}
+          onClick={() => setContextMenu(null)}
+        >
+          <Stack gap={0}>
+            <UnstyledButton
+              px="sm" py={6}
+              style={{ borderRadius: 4, fontSize: 13 }}
+              className="mantine-Menu-item"
+              onClick={() => {
+                setModalMaquinasTempos({ opId: contextMenu.etapa.opId })
+                setContextMenu(null)
+              }}
+            >
+              Máquinas e Tempos
+            </UnstyledButton>
+            <UnstyledButton
+              px="sm" py={6}
+              style={{ borderRadius: 4, fontSize: 13 }}
+              className="mantine-Menu-item"
+              onClick={() => {
+                setModalApontamentoCompleto({
+                  id: contextMenu.etapa.id,
+                  opId: contextMenu.etapa.opId,
+                  opNumero: contextMenu.etapa.opNumero,
+                  clienteNome: contextMenu.etapa.clienteNome,
+                  produtoNome: contextMenu.etapa.produtoNome,
+                  descricao: contextMenu.etapa.descricao,
+                  status: contextMenu.etapa.status,
+                  quantidade: contextMenu.etapa.quantidade,
+                  quantidadeProduzida: contextMenu.etapa.quantidadeProduzida,
+                  percentual: contextMenu.etapa.percentual,
+                  dataEntrega: contextMenu.etapa.dataEntrega,
+                  dataInicioReal: contextMenu.etapa.dataInicioReal,
+                  centroNome: contextMenu.centro?.centro?.descricao || contextMenu.centro?.centro?.codigo || null,
+                  tipoProcessoCodigo: contextMenu.centro?.centro?.tipoProcesso?.codigo || null,
+                  tiragem: contextMenu.etapa.tiragem,
+                  tempoSetupMinutos: contextMenu.etapa.tempoSetupMinutos,
+                  tempoOperacaoCalculado: contextMenu.etapa.tempoOperacaoCalculado,
+                  prioridade: contextMenu.etapa.prioridade,
+                })
+                setContextMenu(null)
+              }}
+            >
+              Apontamento Completo
+            </UnstyledButton>
+            <UnstyledButton
+              px="sm" py={6}
+              style={{ borderRadius: 4, fontSize: 13 }}
+              className="mantine-Menu-item"
+              onClick={() => {
+                setModalMover({
+                  etapaId: contextMenu.etapa.id,
+                  opNumero: contextMenu.etapa.opNumero,
+                  centroAtualId: contextMenu.centro?.centro?.id || '',
+                  centroDescricao: contextMenu.centro?.centro?.descricao || '',
+                })
+                setContextMenu(null)
+              }}
+            >
+              Mover para outro grupo
+            </UnstyledButton>
+            {contextMenu.etapa.status === 'PENDENTE' && (
+              <UnstyledButton
+                px="sm" py={6}
+                style={{ borderRadius: 4, fontSize: 13 }}
+                className="mantine-Menu-item"
+                onClick={() => {
+                  setModalDesmembrar({
+                    etapaId: contextMenu.etapa.id,
+                    opNumero: contextMenu.etapa.opNumero,
+                    quantidade: contextMenu.etapa.quantidade,
+                    descricao: contextMenu.etapa.descricao || contextMenu.etapa.produtoNome || '',
+                  })
+                  setContextMenu(null)
+                }}
+              >
+                Desmembrar
+              </UnstyledButton>
+            )}
+          </Stack>
+        </Box>
+      )}
+
+      {/* Modal: Máquinas e Tempos */}
+      <ModalMaquinasTempos
+        opened={!!modalMaquinasTempos}
+        onClose={() => setModalMaquinasTempos(null)}
+        opId={modalMaquinasTempos?.opId || null}
+        onSaved={() => carregar()}
+      />
+
+      {/* Modal: Apontamento Completo */}
+      <ModalApontamentoCompleto
+        opened={!!modalApontamentoCompleto}
+        onClose={() => setModalApontamentoCompleto(null)}
+        etapa={modalApontamentoCompleto}
+        onAction={() => carregar()}
+      />
 
       {/* CSS for flash highlight animation + print styles */}
       <style>{`
