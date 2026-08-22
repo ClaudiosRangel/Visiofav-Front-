@@ -196,11 +196,45 @@ export default function ModalMaquinasTempos({ opened, onClose, opId, onSaved }: 
                   <Table.Th style={{ width: 220 }}>Máquina</Table.Th>
                   <Table.Th style={{ width: 100 }}>T. Acerto (min)</Table.Th>
                   <Table.Th style={{ width: 120 }}>T. Produção (min)</Table.Th>
+                  <Table.Th style={{ width: 120 }}>Prev. Conclusão</Table.Th>
                   <Table.Th style={{ width: 80 }}>Status</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {etapas.map((etapa) => {
+                {(() => {
+                  // Calcular previsão de conclusão acumulada por etapa
+                  const agora = new Date()
+                  let relogio = new Date(agora)
+                  const previsoes: Record<string, { data: Date | null; statusPrazo: string | null }> = {}
+                  for (const etapa of etapas) {
+                    if (etapa.status === 'CONCLUIDA') {
+                      previsoes[etapa.id] = { data: etapa.dataFimReal ? new Date(etapa.dataFimReal) : null, statusPrazo: null }
+                      continue
+                    }
+                    const tempoTotal = (etapa.tempoSetupMinutos || 0) + (etapa.tempoOperacaoCalculado || 0)
+                    if (tempoTotal <= 0) {
+                      previsoes[etapa.id] = { data: null, statusPrazo: null }
+                      continue
+                    }
+                    let minutosRestantes = tempoTotal
+                    if (etapa.status === 'EM_ANDAMENTO' && etapa.dataInicioReal) {
+                      const elapsed = (agora.getTime() - new Date(etapa.dataInicioReal).getTime()) / 60000
+                      minutosRestantes = Math.max(0, tempoTotal - elapsed)
+                    }
+                    const previsao = new Date(relogio.getTime() + minutosRestantes * 60000)
+                    // Comparar com entrega da OP
+                    let statusPrazo: string | null = null
+                    if (op?.dataEntregaPrevista) {
+                      const entrega = new Date(op.dataEntregaPrevista)
+                      const umDiaAntes = new Date(entrega.getTime() - 24 * 60 * 60 * 1000)
+                      if (previsao > entrega) statusPrazo = 'ATRASADO'
+                      else if (previsao > umDiaAntes) statusPrazo = 'ATENCAO'
+                      else statusPrazo = 'NO_PRAZO'
+                    }
+                    previsoes[etapa.id] = { data: previsao, statusPrazo }
+                    relogio = previsao
+                  }
+                  return etapas.map((etapa) => {
                   const edit = edits[etapa.id]
                   const isEditable = etapa.status === 'PENDENTE' || etapa.status === 'PAUSADA'
                   return (
@@ -253,13 +287,28 @@ export default function ModalMaquinasTempos({ opened, onClose, opId, onSaved }: 
                         )}
                       </Table.Td>
                       <Table.Td>
+                        {(() => {
+                          const prev = previsoes[etapa.id]
+                          if (!prev?.data) return <Text size="xs" c="dimmed">—</Text>
+                          const cor = prev.statusPrazo === 'ATRASADO' ? 'red' : prev.statusPrazo === 'ATENCAO' ? 'orange' : prev.statusPrazo === 'NO_PRAZO' ? 'green' : 'dimmed'
+                          return (
+                            <Text size="sm" fw={500} c={cor}>
+                              {prev.data.toLocaleDateString('pt-BR')}
+                              {prev.statusPrazo === 'ATRASADO' && ' 🔴'}
+                              {prev.statusPrazo === 'ATENCAO' && ' 🟡'}
+                              {prev.statusPrazo === 'NO_PRAZO' && ' 🟢'}
+                            </Text>
+                          )
+                        })()}
+                      </Table.Td>
+                      <Table.Td>
                         <Badge color={STATUS_COLORS[etapa.status] || 'gray'} size="sm">
                           {etapa.status === 'EM_ANDAMENTO' ? 'Andamento' : etapa.status === 'CONCLUIDA' ? 'Concluída' : etapa.status}
                         </Badge>
                       </Table.Td>
                     </Table.Tr>
                   )
-                })}
+                })})()}
               </Table.Tbody>
             </Table>
           </Box>
