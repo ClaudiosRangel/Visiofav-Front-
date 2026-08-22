@@ -160,9 +160,10 @@ export default function ProgramacaoPage() {
     { id: 'produzida', label: 'Produzida' },
     { id: 'prioridade', label: 'Prioridade' },
     { id: 'observacao', label: 'Acompanhamento' },
+    { id: 'previsaoConclusao', label: 'Prev. Conclusão' },
   ]
   const COLUNAS_DEFAULT_CORTADEIRA = ['os', 'cliente', 'produto', 'quantidade', 'tiragem', 'produzida', 'entrega', 'material', 'gramatura', 'formato', 'kg']
-  const COLUNAS_DEFAULT_OUTROS = ['os', 'cliente', 'produto', 'tipoOp', 'quantidade', 'tiragem', 'produzida', 'entrega', 'material', 'gramatura', 'formato', 'matriz', 'cores', 'pantone01', 'pantone02', 'pantone03', 'kg']
+  const COLUNAS_DEFAULT_OUTROS = ['os', 'cliente', 'produto', 'tipoOp', 'quantidade', 'tiragem', 'produzida', 'entrega', 'previsaoConclusao', 'material', 'gramatura', 'formato', 'matriz', 'cores', 'pantone01', 'pantone02', 'pantone03', 'kg']
 
   const [colunasImpressao, setColunasImpressao] = useState<Record<string, string[]>>(() => {
     if (typeof window === 'undefined') return {}
@@ -1932,6 +1933,7 @@ export default function ProgramacaoPage() {
                           {colVis('tiragem') && <Table.Th>Tiragem</Table.Th>}
                           {colVis('produzida') && <Table.Th>Produzida</Table.Th>}
                           {colVis('entrega') && <Table.Th>Entrega</Table.Th>}
+                          {colVis('previsaoConclusao') && <Table.Th>Prev. Conclusão</Table.Th>}
                           {colVis('material') && <Table.Th>Cartão</Table.Th>}
                           {colVis('gramatura') && <Table.Th>Gramatura</Table.Th>}
                           {colVis('formato') && <Table.Th>Formato</Table.Th>}
@@ -2001,6 +2003,20 @@ export default function ProgramacaoPage() {
                                   {new Date(etapa.dataEntrega).toLocaleDateString('pt-BR')}
                                 </Text>
                               ) : '—'}
+                            </Table.Td>}
+                            {colVis('previsaoConclusao') && <Table.Td>
+                              {etapa.dataPrevisaoConclusao ? (
+                                <Text size="sm" fw={500} c={
+                                  etapa.statusPrazo === 'ATRASADO' ? 'red' :
+                                  etapa.statusPrazo === 'ATENCAO' ? 'orange' :
+                                  etapa.statusPrazo === 'NO_PRAZO' ? 'green' : 'dimmed'
+                                }>
+                                  {new Date(etapa.dataPrevisaoConclusao).toLocaleDateString('pt-BR')}
+                                  {etapa.statusPrazo === 'ATRASADO' && ' 🔴'}
+                                  {etapa.statusPrazo === 'ATENCAO' && ' 🟡'}
+                                  {etapa.statusPrazo === 'NO_PRAZO' && ' 🟢'}
+                                </Text>
+                              ) : <Text size="xs" c="dimmed">—</Text>}
                             </Table.Td>}
                             {colVis('material') && <Table.Td><Text size="sm" style={{ wordBreak: 'break-word' }}>{etapa.materialPrincipal || '—'}</Text></Table.Td>}
                             {colVis('gramatura') && <Table.Td>{etapa.gramatura || '—'}</Table.Td>}
@@ -2114,6 +2130,7 @@ export default function ProgramacaoPage() {
                           {temApontamento && <Table.Th>Perda</Table.Th>}
                           {temApontamento && <Table.Th>%</Table.Th>}
                           <Table.Th>Entrega</Table.Th>
+                          <Table.Th>Prev. Concl.</Table.Th>
                           <Table.Th>Prio.</Table.Th>
                           <Table.Th>Status</Table.Th>
                           <Table.Th>Matriz</Table.Th>
@@ -2221,6 +2238,20 @@ export default function ProgramacaoPage() {
                                   {etapa.vezesPostergada >= 2 && <Text size="sm">🔴</Text>}
                                 </Group>
                               ) : '—'}
+                            </Table.Td>
+                            <Table.Td>
+                              {etapa.dataPrevisaoConclusao ? (
+                                <Text size="sm" fw={500} c={
+                                  etapa.statusPrazo === 'ATRASADO' ? 'red' :
+                                  etapa.statusPrazo === 'ATENCAO' ? 'orange' :
+                                  etapa.statusPrazo === 'NO_PRAZO' ? 'green' : 'dimmed'
+                                }>
+                                  {new Date(etapa.dataPrevisaoConclusao).toLocaleDateString('pt-BR')}
+                                  {etapa.statusPrazo === 'ATRASADO' && ' 🔴'}
+                                  {etapa.statusPrazo === 'ATENCAO' && ' 🟡'}
+                                  {etapa.statusPrazo === 'NO_PRAZO' && ' 🟢'}
+                                </Text>
+                              ) : <Text size="xs" c="dimmed">—</Text>}
                             </Table.Td>
                             <Table.Td>
                               <Text size="xs" fw={600} c={PRIORIDADE_COLORS[etapa.prioridade]} style={{ whiteSpace: 'nowrap', fontSize: '10px', cursor: podeExecutar('podeAlterarPrioridade', centro.centro.tipoProcessoId) ? 'pointer' : 'default' }}

@@ -744,6 +744,21 @@ export default function VisaoDetalhadaProgramacao({
                                 ) : <Text size="sm" fw={600}>—</Text>}
                               </div>
                               <div>
+                                <Text size="10px" c="dimmed">Prev. Conclusão</Text>
+                                {etapa.dataPrevisaoConclusao ? (
+                                  <Text size="sm" fw={600} c={
+                                    etapa.statusPrazo === 'ATRASADO' ? 'red' :
+                                    etapa.statusPrazo === 'ATENCAO' ? 'orange' :
+                                    etapa.statusPrazo === 'NO_PRAZO' ? 'green' : 'dimmed'
+                                  }>
+                                    {new Date(etapa.dataPrevisaoConclusao).toLocaleDateString('pt-BR')}
+                                    {etapa.statusPrazo === 'ATRASADO' && ' 🔴'}
+                                    {etapa.statusPrazo === 'ATENCAO' && ' 🟡'}
+                                    {etapa.statusPrazo === 'NO_PRAZO' && ' 🟢'}
+                                  </Text>
+                                ) : <Text size="sm" fw={600} c="dimmed">—</Text>}
+                              </div>
+                              <div>
                                 <Text size="10px" c="dimmed">Prioridade</Text>
                                 <Text
                                   size="sm"
