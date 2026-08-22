@@ -313,6 +313,149 @@ export default function ModalMaquinasTempos({ opened, onClose, opId, onSaved }: 
             </Table>
           </Box>
 
+          {/* Mini-Gantt Timeline */}
+          {etapas.length > 0 && (() => {
+            const agora = new Date()
+            // Calcular timeline: início, duração acumulada por etapa, e range total
+            let timelineStart = agora
+            const firstInProgress = etapas.find(e => e.status === 'EM_ANDAMENTO' && e.dataInicioReal)
+            if (firstInProgress?.dataInicioReal) {
+              timelineStart = new Date(firstInProgress.dataInicioReal)
+            }
+            // Conclusões passadas podem estar antes de "agora"
+            const firstConcluida = etapas.find(e => e.status === 'CONCLUIDA' && e.dataInicioReal)
+            if (firstConcluida?.dataInicioReal && new Date(firstConcluida.dataInicioReal) < timelineStart) {
+              timelineStart = new Date(firstConcluida.dataInicioReal)
+            }
+
+            // Calcular posição e duração de cada etapa
+            interface GanttBar { id: string; label: string; startMin: number; durationMin: number; status: string }
+            const bars: GanttBar[] = []
+            let acumulado = 0
+            for (const etapa of etapas) {
+              const setup = edits[etapa.id]?.tempoSetupMinutos ?? etapa.tempoSetupMinutos ?? 0
+              const operacao = edits[etapa.id]?.tempoOperacaoCalculado ?? etapa.tempoOperacaoCalculado ?? 0
+              const duracao = setup + operacao
+
+              let startMin = acumulado
+              // Se a etapa já tem data real de início, usar essa referência
+              if (etapa.dataInicioReal) {
+                const diffMs = new Date(etapa.dataInicioReal).getTime() - timelineStart.getTime()
+                startMin = Math.max(0, diffMs / 60000)
+              }
+
+              bars.push({
+                id: etapa.id,
+                label: etapa.descricao || `Etapa ${etapa.sequencia}`,
+                startMin,
+                durationMin: duracao,
+                status: etapa.status,
+              })
+              acumulado = startMin + duracao
+            }
+
+            // Range total da timeline
+            const entregaDate = op?.dataEntregaPrevista ? new Date(op.dataEntregaPrevista) : null
+            const lastEnd = bars.length > 0 ? Math.max(...bars.map(b => b.startMin + b.durationMin)) : 0
+            const entregaMin = entregaDate ? Math.max(0, (entregaDate.getTime() - timelineStart.getTime()) / 60000) : 0
+            const hojeMin = Math.max(0, (agora.getTime() - timelineStart.getTime()) / 60000)
+            const totalRange = Math.max(lastEnd, entregaMin, hojeMin) * 1.1 || 1440 // +10% buffer, mínimo 1 dia
+
+            const BAR_HEIGHT = 28
+            const ROW_GAP = 4
+            const LABEL_WIDTH = 140
+            const CHART_HEIGHT = bars.length * (BAR_HEIGHT + ROW_GAP) + 40
+
+            const STATUS_BAR_COLORS: Record<string, string> = {
+              CONCLUIDA: '#2f9e44',
+              EM_ANDAMENTO: '#228be6',
+              PAUSADA: '#f08c00',
+              PENDENTE: '#868e96',
+            }
+
+            // Calcular labels de data no eixo X (a cada ~8h ou 1 dia dependendo do range)
+            const totalDays = totalRange / 1440
+            const stepDays = totalDays <= 2 ? 0.5 : totalDays <= 7 ? 1 : 2
+            const dateLabels: { label: string; pct: number }[] = []
+            for (let d = 0; d * 1440 <= totalRange; d += stepDays) {
+              const dt = new Date(timelineStart.getTime() + d * 24 * 60 * 60 * 1000)
+              dateLabels.push({
+                label: dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                pct: (d * 1440 / totalRange) * 100,
+              })
+            }
+
+            return (
+              <Box mt="md" p="sm" style={{ background: 'var(--mantine-color-dark-7)', borderRadius: 8, overflowX: 'auto' }}>
+                <Text size="sm" fw={600} mb="xs">Timeline</Text>
+                <div style={{ position: 'relative', minHeight: CHART_HEIGHT, display: 'flex' }}>
+                  {/* Labels à esquerda */}
+                  <div style={{ width: LABEL_WIDTH, flexShrink: 0 }}>
+                    {bars.map((bar, i) => (
+                      <div key={bar.id} style={{ height: BAR_HEIGHT, marginBottom: ROW_GAP, display: 'flex', alignItems: 'center' }}>
+                        <Text size="xs" c="dimmed" lineClamp={1} style={{ fontSize: 10 }}>{bar.label}</Text>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Chart area */}
+                  <div style={{ flex: 1, position: 'relative', minWidth: 300 }}>
+                    {/* Bars */}
+                    {bars.map((bar, i) => {
+                      const leftPct = (bar.startMin / totalRange) * 100
+                      const widthPct = Math.max((bar.durationMin / totalRange) * 100, 0.5)
+                      return (
+                        <div
+                          key={bar.id}
+                          style={{
+                            position: 'absolute',
+                            top: i * (BAR_HEIGHT + ROW_GAP),
+                            left: `${leftPct}%`,
+                            width: `${widthPct}%`,
+                            height: BAR_HEIGHT,
+                            background: STATUS_BAR_COLORS[bar.status] || '#868e96',
+                            borderRadius: 4,
+                            opacity: 0.85,
+                            display: 'flex',
+                            alignItems: 'center',
+                            paddingLeft: 4,
+                            minWidth: 2,
+                          }}
+                          title={`${bar.label}: ${Math.round(bar.durationMin)} min`}
+                        >
+                          {widthPct > 8 && (
+                            <Text size="xs" c="white" fw={500} style={{ fontSize: 9, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                              {Math.round(bar.durationMin)}min
+                            </Text>
+                          )}
+                        </div>
+                      )
+                    })}
+                    {/* Linha "Hoje" — sólida azul */}
+                    {hojeMin > 0 && hojeMin < totalRange && (
+                      <div style={{ position: 'absolute', top: 0, bottom: 20, left: `${(hojeMin / totalRange) * 100}%`, width: 2, background: '#228be6', zIndex: 2 }}>
+                        <Text size="xs" c="blue" fw={600} style={{ position: 'absolute', top: -14, left: -10, fontSize: 9 }}>Hoje</Text>
+                      </div>
+                    )}
+                    {/* Linha "Entrega" — tracejada vermelha */}
+                    {entregaDate && entregaMin > 0 && entregaMin < totalRange && (
+                      <div style={{ position: 'absolute', top: 0, bottom: 20, left: `${(entregaMin / totalRange) * 100}%`, width: 0, borderLeft: '2px dashed #e03131', zIndex: 2 }}>
+                        <Text size="xs" c="red" fw={600} style={{ position: 'absolute', top: -14, left: -16, fontSize: 9 }}>Entrega</Text>
+                      </div>
+                    )}
+                    {/* Eixo de datas no fundo */}
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 16, borderTop: '1px solid var(--mantine-color-dark-4)' }}>
+                      {dateLabels.map((dl, i) => (
+                        <Text key={i} size="xs" c="dimmed" style={{ position: 'absolute', left: `${dl.pct}%`, bottom: 0, fontSize: 9, transform: 'translateX(-50%)' }}>
+                          {dl.label}
+                        </Text>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </Box>
+            )
+          })()}
+
           {/* Botões */}
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>Cancelar</Button>

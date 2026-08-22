@@ -2140,26 +2140,26 @@ export default function ProgramacaoPage() {
                             <Table.Th style={{ width: 24 }} title="Pré-Impressão"><IconPrinter size={12} /></Table.Th>
                           )}
                           <Table.Th style={{ minWidth: 200 }}>OP / Cliente / Produto</Table.Th>
-                          <Table.Th>Tipo OP</Table.Th>
-                          <Table.Th>Tir.</Table.Th>
-                          <Table.Th>Material</Table.Th>
-                          <Table.Th>Gram.</Table.Th>
-                          <Table.Th>Fmt.</Table.Th>
-                          <Table.Th>KG</Table.Th>
-                          <Table.Th>Qtd</Table.Th>
-                          <Table.Th>Prod.</Table.Th>
+                          {colVis('tipoOp') && <Table.Th>Tipo OP</Table.Th>}
+                          {colVis('tiragem') && <Table.Th>Tir.</Table.Th>}
+                          {colVis('material') && <Table.Th>Material</Table.Th>}
+                          {colVis('gramatura') && <Table.Th>Gram.</Table.Th>}
+                          {colVis('formato') && <Table.Th>Fmt.</Table.Th>}
+                          {colVis('kg') && <Table.Th>KG</Table.Th>}
+                          {colVis('quantidade') && <Table.Th>Qtd</Table.Th>}
+                          {colVis('produzida') && <Table.Th>Prod.</Table.Th>}
                           {temApontamento && <Table.Th>Perda</Table.Th>}
                           {temApontamento && <Table.Th>%</Table.Th>}
-                          <Table.Th>Entrega</Table.Th>
-                          <Table.Th>Prev. Concl.</Table.Th>
-                          <Table.Th>Prio.</Table.Th>
+                          {colVis('entrega') && <Table.Th>Entrega</Table.Th>}
+                          {colVis('previsaoConclusao') && <Table.Th>Prev. Concl.</Table.Th>}
+                          {colVis('prioridade') && <Table.Th>Prio.</Table.Th>}
                           <Table.Th>Status</Table.Th>
-                          <Table.Th>Matriz</Table.Th>
-                          <Table.Th>Cores</Table.Th>
-                          <Table.Th>Pantone 1</Table.Th>
-                          <Table.Th>Pantone 2</Table.Th>
-                          <Table.Th>Pantone 3</Table.Th>
-                          <Table.Th>Acomp.</Table.Th>
+                          {colVis('matriz') && <Table.Th>Matriz</Table.Th>}
+                          {colVis('cores') && <Table.Th>Cores</Table.Th>}
+                          {colVis('pantone01') && <Table.Th>Pantone 1</Table.Th>}
+                          {colVis('pantone02') && <Table.Th>Pantone 2</Table.Th>}
+                          {colVis('pantone03') && <Table.Th>Pantone 3</Table.Th>}
+                          {colVis('observacao') && <Table.Th>Acomp.</Table.Th>}
                           <Table.Th>Ações</Table.Th>
                         </Table.Tr>
                       </Table.Thead>
@@ -2204,13 +2204,13 @@ export default function ProgramacaoPage() {
                               </Text>
                               {etapa.materialEncomendado && <Text size="xs" c="red" fw={700}>* Aguardando restante cartão</Text>}
                             </Table.Td>
-                            <Table.Td><Text size="xs" fw={600} c={etapa.tipoOp?.includes('NOVO') ? 'green' : etapa.tipoOp?.includes('REPETI') ? 'blue' : etapa.tipoOp?.includes('ALTERA') ? 'orange' : etapa.tipoOp?.includes('PILOTO') ? 'violet' : 'gray'} style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>{etapa.tipoOp || '—'}</Text></Table.Td>
-                            <Table.Td>{etapa.tiragem ? etapa.tiragem.toLocaleString('pt-BR') : '—'}</Table.Td>
-                            <Table.Td><Text size="sm" style={{ wordBreak: 'break-word' }}>{etapa.materialPrincipal || '—'}</Text></Table.Td>
-                            <Table.Td>{etapa.gramatura || '—'}</Table.Td>
-                            <Table.Td>{etapa.formato || '—'}</Table.Td>
-                            <Table.Td>{etapa.pesoKg ? `${etapa.pesoKg.toLocaleString('pt-BR')} kg` : '—'}</Table.Td>
-                            <Table.Td>
+                            {colVis('tipoOp') && <Table.Td><Text size="xs" fw={600} c={etapa.tipoOp?.includes('NOVO') ? 'green' : etapa.tipoOp?.includes('REPETI') ? 'blue' : etapa.tipoOp?.includes('ALTERA') ? 'orange' : etapa.tipoOp?.includes('PILOTO') ? 'violet' : 'gray'} style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>{etapa.tipoOp || '—'}</Text></Table.Td>}
+                            {colVis('tiragem') && <Table.Td>{etapa.tiragem ? etapa.tiragem.toLocaleString('pt-BR') : '—'}</Table.Td>}
+                            {colVis('material') && <Table.Td><Text size="sm" style={{ wordBreak: 'break-word' }}>{etapa.materialPrincipal || '—'}</Text></Table.Td>}
+                            {colVis('gramatura') && <Table.Td>{etapa.gramatura || '—'}</Table.Td>}
+                            {colVis('formato') && <Table.Td>{etapa.formato || '—'}</Table.Td>}
+                            {colVis('kg') && <Table.Td>{etapa.pesoKg ? `${etapa.pesoKg.toLocaleString('pt-BR')} kg` : '—'}</Table.Td>}
+                            {colVis('quantidade') && <Table.Td>
                               {editingQtd?.etapaId === etapa.id ? (
                                 <TextInput
                                   size="xs"
@@ -2227,8 +2227,8 @@ export default function ProgramacaoPage() {
                                   {etapa.quantidade.toLocaleString('pt-BR')} {etapa.unidade}
                                 </Text>
                               )}
-                            </Table.Td>
-                            <Table.Td>
+                            </Table.Td>}
+                            {colVis('produzida') && <Table.Td>
                               {editingProd?.etapaId === etapa.id ? (
                                 <TextInput
                                   size="xs"
@@ -2245,10 +2245,10 @@ export default function ProgramacaoPage() {
                                   {etapa.quantidadeProduzida > 0 ? etapa.quantidadeProduzida.toLocaleString('pt-BR') : '—'}
                                 </Text>
                               )}
-                            </Table.Td>
+                            </Table.Td>}
                             {temApontamento && <Table.Td>{etapa.quantidadePerda > 0 ? <Text c="red" size="sm">{etapa.quantidadePerda}</Text> : '—'}</Table.Td>}
                             {temApontamento && <Table.Td w={100}><Progress value={etapa.percentual} size="lg" color={etapa.percentual >= 100 ? 'green' : 'blue'} /><Text size="xs" ta="center">{etapa.percentual}%</Text></Table.Td>}
-                            <Table.Td style={{ minWidth: 100 }}>
+                            {colVis('entrega') && <Table.Td style={{ minWidth: 100 }}>
                               {etapa.dataEntrega ? (
                                 <Group gap={4} wrap="nowrap">
                                   <Text size="sm" style={{ cursor: podeExecutar('podePostergarEntrega', centro.centro.tipoProcessoId) ? 'pointer' : 'default' }} onClick={() => { if (podeExecutar('podePostergarEntrega', centro.centro.tipoProcessoId)) setModalPostData({ opId: etapa.opId, opNumero: etapa.opNumero, dataAtual: etapa.dataEntrega }) }}>
@@ -2259,8 +2259,8 @@ export default function ProgramacaoPage() {
                                   {etapa.vezesPostergada >= 2 && <Text size="sm">🔴</Text>}
                                 </Group>
                               ) : '—'}
-                            </Table.Td>
-                            <Table.Td>
+                            </Table.Td>}
+                            {colVis('previsaoConclusao') && <Table.Td>
                               {etapa.dataPrevisaoConclusao ? (
                                 <Text size="sm" fw={500} c={
                                   etapa.statusPrazo === 'ATRASADO' ? 'red' :
@@ -2273,8 +2273,8 @@ export default function ProgramacaoPage() {
                                   {etapa.statusPrazo === 'NO_PRAZO' && ' 🟢'}
                                 </Text>
                               ) : <Text size="xs" c="dimmed">—</Text>}
-                            </Table.Td>
-                            <Table.Td>
+                            </Table.Td>}
+                            {colVis('prioridade') && <Table.Td>
                               <Text size="xs" fw={600} c={PRIORIDADE_COLORS[etapa.prioridade]} style={{ whiteSpace: 'nowrap', fontSize: '10px', cursor: podeExecutar('podeAlterarPrioridade', centro.centro.tipoProcessoId) ? 'pointer' : 'default' }}
                                 onClick={() => {
                                   if (!podeExecutar('podeAlterarPrioridade', centro.centro.tipoProcessoId)) return
@@ -2293,14 +2293,14 @@ export default function ProgramacaoPage() {
                               >
                                 {etapa.prioridade}
                               </Text>
-                            </Table.Td>
+                            </Table.Td>}
                             <Table.Td><Text size="xs" fw={600} c={STATUS_COLORS[etapa.status]} style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>{etapa.status === 'EM_ANDAMENTO' ? 'EM ANDAMENTO' : etapa.status}</Text></Table.Td>
-                            <Table.Td><Text size="xs" fw={500}>{etapa.matriz || '—'}</Text></Table.Td>
-                            <Table.Td><Text size="xs" fw={600} c="indigo">{etapa.qtdCores || '—'}</Text></Table.Td>
-                            <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone01 || '—'}</Text></Table.Td>
-                            <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone02 || '—'}</Text></Table.Td>
-                            <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone03 || '—'}</Text></Table.Td>
-                            <Table.Td style={{ minWidth: 150, ...(etapa.observacaoOperador?.replace('[MATRIZ_OK]', '').trim() ? { background: '#2dd4a8', borderRadius: 2 } : {}) }}>
+                            {colVis('matriz') && <Table.Td><Text size="xs" fw={500}>{etapa.matriz || '—'}</Text></Table.Td>}
+                            {colVis('cores') && <Table.Td><Text size="xs" fw={600} c="indigo">{etapa.qtdCores || '—'}</Text></Table.Td>}
+                            {colVis('pantone01') && <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone01 || '—'}</Text></Table.Td>}
+                            {colVis('pantone02') && <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone02 || '—'}</Text></Table.Td>}
+                            {colVis('pantone03') && <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone03 || '—'}</Text></Table.Td>}
+                            {colVis('observacao') && <Table.Td style={{ minWidth: 150, ...(etapa.observacaoOperador?.replace('[MATRIZ_OK]', '').trim() ? { background: '#2dd4a8', borderRadius: 2 } : {}) }}>
                               {editingObs?.id === etapa.id ? (
                                 <TextInput
                                   size="xs"
@@ -2322,7 +2322,7 @@ export default function ProgramacaoPage() {
                                   {etapa.observacaoOperador?.replace('[MATRIZ_OK]', '').trim() || 'Clique para editar'}
                                 </Text>
                               )}
-                            </Table.Td>
+                            </Table.Td>}
                             <Table.Td>
                               <Group gap={2} wrap="nowrap">
                                 <ActionIcon color="gray" variant="light" size="sm" onClick={() => verPdfOp(etapa.opId)} title="Ver PDF da OP">
