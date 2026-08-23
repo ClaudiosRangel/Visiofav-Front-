@@ -23,10 +23,13 @@ import {
   IconPlus,
   // Configurador
   IconBuilding, IconBell,
+  // Portal Representante
+  IconUserCheck,
 } from '@tabler/icons-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEmpresaAtual, deveExibirLinkKardex } from '@/hooks/useEmpresaAtual'
+import { getUserPerfil } from '@/hooks/usePerfilGuard'
 import { voltarParaModulos, abrirOuFocarAba } from '@/lib/abasModulo'
 import { useModuleSidebarCollapsed } from '@/lib/moduleSidebarStore'
 import { confirmarNavegacaoOuBloquear } from '@/lib/navigationGuardStore'
@@ -419,6 +422,15 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       },
     ],
   },
+  'portal-representante': {
+    title: 'Portal Representante',
+    entries: [
+      { icon: IconUsers, label: 'Representantes', href: '/portal-representante/representantes' },
+      { icon: IconFileText, label: 'Solicitações de Orçamento', href: '/portal-representante/solicitacoes-orcamento' },
+      { icon: IconSettings, label: 'Configuração de Comissão', href: '/portal-representante/configuracao-comissao' },
+      { icon: IconUserCheck, label: 'Aprovações de Clientes', href: '/portal-representante/aprovacoes-cliente' },
+    ],
+  },
 }
 
 /** Rótulo em português de cada módulo, para compor o título da aba do
@@ -433,9 +445,11 @@ export const MODULE_LABELS: Record<string, string> = {
   configurador: 'Configurador',
   pcp: 'PCP',
   'orcamento-grafico': 'Orçamento Gráfico',
+  'portal-representante': 'Portal Representante',
 }
 
 export function detectModule(pathname: string): string | null {
+  if (pathname.startsWith('/portal-representante')) return 'portal-representante'
   if (pathname.startsWith('/orcamento-grafico')) return 'orcamento-grafico'
   if (pathname.startsWith('/compras')) return 'compras'
   if (pathname.startsWith('/vendas')) return 'vendas'
@@ -603,6 +617,12 @@ export default function ModuleSidebar() {
 
   const moduleConfig = MODULE_MENUS[moduleName]
   if (!moduleConfig) return null
+
+  // Portal Representante: restrito a ADMIN e SUPER_ADMIN
+  if (moduleName === 'portal-representante') {
+    const perfil = getUserPerfil()
+    if (!perfil || !['ADMIN', 'SUPER_ADMIN'].includes(perfil)) return null
+  }
 
   // Requirements 9.1, 9.2 — o link para a Tela_Kardex só aparece no grupo "Estoque" do
   // módulo WMS quando a empresa autenticada não usa WMS (deveExibirLinkKardex).
