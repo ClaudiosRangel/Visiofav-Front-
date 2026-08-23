@@ -12,6 +12,7 @@ import {
   IconSettings,
   IconMenu2,
   IconCalculator,
+  IconUsers,
 } from '@tabler/icons-react'
 import { useRouter } from 'next/navigation'
 import { useEmpresa } from '@/providers/EmpresaProvider'
@@ -92,6 +93,14 @@ const MODULOS_CONFIG = [
     href: '/orcamento-grafico',
     color: '#0D9488',
   },
+  {
+    modulo: 'PORTAL_REPRESENTANTE',
+    label: 'Portal Representante',
+    description: 'Gerencie representantes, orçamentos, comissões e aprovações.',
+    icon: IconUsers,
+    href: '/portal-representante/representantes',
+    color: '#6366F1',
+  },
 ] as const
 
 const MODULOS_LIMPEZA = [
@@ -134,8 +143,13 @@ export default function ModulosPage() {
   const [loading, setLoading] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
 
+  const perfil = getUserPerfil()
   const modulosVisiveis = MODULOS_CONFIG.filter(
-    (m) => m.modulo === 'CONFIGURADOR' || modulos.includes(m.modulo)
+    (m) => {
+      if (m.modulo === 'CONFIGURADOR') return true
+      if (m.modulo === 'PORTAL_REPRESENTANTE') return perfil === 'ADMIN' || perfil === 'SUPER_ADMIN'
+      return modulos.includes(m.modulo)
+    }
   )
 
   useEffect(() => {
