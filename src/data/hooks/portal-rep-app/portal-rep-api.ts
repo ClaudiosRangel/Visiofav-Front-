@@ -4,7 +4,7 @@ const STORAGE_KEY_TOKEN = 'portal-rep-token'
 const STORAGE_KEY_REFRESH = 'portal-rep-refresh-token'
 
 export const portalRepApi = axios.create({
-  baseURL: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'}/portal-rep`,
+  baseURL: `${process.env.NEXT_PUBLIC_API_URL || 'https://api.vizorerp.com.br/api'}/portal-rep`,
 })
 
 // Flag para evitar loop infinito de refresh
