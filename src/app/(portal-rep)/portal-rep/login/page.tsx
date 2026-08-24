@@ -20,6 +20,8 @@ export default function PortalRepLoginPage() {
   const router = useRouter()
   const loginMutation = useLogin()
 
+  console.log('[portal-rep-login] versão: 2024-08-24-v2, baseURL do hook ativo')
+
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [empresaId, setEmpresaId] = useState('')
@@ -37,6 +39,7 @@ export default function PortalRepLoginPage() {
       },
       {
         onSuccess: (data) => {
+          console.log('[portal-rep-login] onSuccess:', JSON.stringify(data).substring(0, 100))
           if (data.representante.senhaTemporaria) {
             router.replace('/portal-rep/trocar-senha')
           } else {
@@ -44,6 +47,7 @@ export default function PortalRepLoginPage() {
           }
         },
         onError: (error: any) => {
+          console.error('[portal-rep-login] onError:', error?.response?.status, error?.response?.data, error?.message)
           const status = error?.response?.status
           const code = error?.response?.data?.code
 
