@@ -49,11 +49,24 @@ export interface ResetarSenhaResponse {
 
 export interface SolicitacaoOrcamento {
   id: string
-  representanteNome: string
-  clienteNome: string
+  representanteId: string
+  representante?: {
+    email: string
+    vendedor: { nome: string }
+  }
+  representanteNome?: string
+  clienteNome: string | null
   status: StatusSolicitacao
   criadoEm: string
-  itens: SolicitacaoItem[]
+  tipoEmbalagem: string
+  quantidade: number
+  medidaLargura?: number | null
+  medidaAltura?: number | null
+  medidaComprimento?: number | null
+  acabamentos?: string | null
+  observacoes?: string | null
+  precoVenda?: number | null
+  precoUnitario?: number | null
 }
 
 export interface SolicitacaoItem {
@@ -73,10 +86,11 @@ export interface SolicitacoesFilters {
 }
 
 export interface PaginatedResponse<T> {
-  data: T[]
+  solicitacoes: T[]
   total: number
   page: number
   pageSize: number
+  totalPages: number
 }
 
 // ─── Configuração de Comissão ────────────────────────────────────

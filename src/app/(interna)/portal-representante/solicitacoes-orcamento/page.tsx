@@ -57,7 +57,7 @@ export default function SolicitacoesOrcamentoPage() {
   const calcular = useCalcularOrcamento()
   const converter = useConverterEmPedido()
 
-  const items = response?.data || []
+  const items = response?.solicitacoes || []
   const total = response?.total || 0
   const totalPages = Math.ceil(total / pageSize)
 
@@ -183,8 +183,8 @@ export default function SolicitacoesOrcamentoPage() {
           <Table.Tbody>
             {items.map((item) => (
               <Table.Tr key={item.id}>
-                <Table.Td>{item.representanteNome}</Table.Td>
-                <Table.Td>{item.clienteNome}</Table.Td>
+                <Table.Td>{item.representante?.vendedor?.nome || item.representanteNome || '—'}</Table.Td>
+                <Table.Td>{item.clienteNome || '—'}</Table.Td>
                 <Table.Td>
                   <Badge color={statusSolicitacaoColors[item.status] || 'gray'}>
                     {item.status}
