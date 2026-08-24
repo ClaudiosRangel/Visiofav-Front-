@@ -24,3 +24,14 @@ export function useCalcularOrcamento() {
     onSuccess: () => qc.invalidateQueries({ queryKey: [QUERY_KEY] }),
   })
 }
+
+export function useConverterEmPedido() {
+  const qc = useQueryClient()
+  return useMutation<{ message: string; pedido: { id: string; numero: number } }, Error, string>({
+    mutationFn: async (id: string) => {
+      const { data } = await api.post(`/portal-rep/admin/solicitacoes-orcamento/${id}/converter-pedido`)
+      return data
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: [QUERY_KEY] }),
+  })
+}

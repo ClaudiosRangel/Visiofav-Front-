@@ -8,10 +8,10 @@ import {
 } from '@mantine/core'
 import { DateInput } from '@mantine/dates'
 import { useDebouncedValue } from '@mantine/hooks'
-import { IconCalculator, IconRefresh, IconSearch } from '@tabler/icons-react'
+import { IconCalculator, IconRefresh, IconSearch, IconReceipt } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { usePerfilGuard } from '@/hooks/usePerfilGuard'
-import { useSolicitacoesOrcamento, useCalcularOrcamento } from '@/data/hooks/portal-representante/useSolicitacoesOrcamento'
+import { useSolicitacoesOrcamento, useCalcularOrcamento, useConverterEmPedido } from '@/data/hooks/portal-representante/useSolicitacoesOrcamento'
 import type { StatusSolicitacao, SolicitacoesFilters } from '@/data/hooks/portal-representante/types'
 import { statusSolicitacaoColors } from '@/data/hooks/portal-representante/types'
 
@@ -55,6 +55,7 @@ export default function SolicitacoesOrcamentoPage() {
 
   const { data: response, isLoading, refetch } = useSolicitacoesOrcamento(filters)
   const calcular = useCalcularOrcamento()
+  const converter = useConverterEmPedido()
 
   const items = response?.data || []
   const total = response?.total || 0
@@ -62,6 +63,7 @@ export default function SolicitacoesOrcamentoPage() {
 
   // Track which item is being calculated
   const [calculandoId, setCalculandoId] = useState<string | null>(null)
+  const [convertendoId, setConvertendoId] = useState<string | null>(null)
 
   function handleCalcular(id: string) {
     if (confirm('Confirmar cálculo do orçamento? O orçamento será processado pelo motor de cálculo.')) {
@@ -88,6 +90,26 @@ export default function SolicitacoesOrcamentoPage() {
             color: 'red',
           })
           setCalculandoId(null)
+        },
+      })
+    }
+  }
+
+  function handleConverter(id: string) {
+    if (confirm('Converter este orçamento em Pedido de Venda? O pedido será criado com status CONFIRMADO.')) {
+      setConvertendoId(id)
+      converter.mutate(id, {
+        onSuccess: (data) => {
+          notifications.show({ title: 'Sucesso', message: data.message, color: 'green' })
+          setConvertendoId(null)
+        },
+        onError: (err: any) => {
+          notifications.show({
+            title: 'Erro',
+            message: err?.response?.data?.message || 'Falha ao converter em pedido',
+            color: 'red',
+          })
+          setConvertendoId(null)
         },
       })
     }
@@ -183,6 +205,19 @@ export default function SolicitacoesOrcamentoPage() {
                           loading={calcular.isPending && calculandoId === item.id}
                         >
                           <IconCalculator size={18} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
+                    {item.status === 'CALCULADO' && (
+                      <Tooltip label="Converter em Pedido de Venda">
+                        <ActionIcon
+                          variant="subtle"
+                          color="green"
+                          onClick={() => handleConverter(item.id)}
+                          disabled={converter.isPending && convertendoId === item.id}
+                          loading={converter.isPending && convertendoId === item.id}
+                        >
+                          <IconReceipt size={18} />
                         </ActionIcon>
                       </Tooltip>
                     )}
