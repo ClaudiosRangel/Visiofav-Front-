@@ -26,9 +26,7 @@ export function useVendedoresDisponiveis() {
   return useQuery<VendedorDisponivel[]>({
     queryKey: [VENDEDORES_QUERY_KEY],
     queryFn: async () => {
-      const { data } = await api.get('/portal-rep/admin/representantes', {
-        params: { 'vendedores-disponiveis': true },
-      })
+      const { data } = await api.get('/portal-rep/admin/vendedores-disponiveis')
       return data
     },
   })

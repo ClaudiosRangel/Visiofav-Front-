@@ -337,6 +337,8 @@ export default function RepresentantesPage() {
           value={vendedorId}
           onChange={setVendedorId}
           searchable
+          nothingFoundMessage="Nenhum vendedor disponível"
+          allowDeselect={false}
           mb="md"
         />
         <TextInput
