@@ -1,7 +1,7 @@
 // Service Worker — Portal do Representante Externo
 // Cache do app shell no install, serve do cache quando offline (cache-first para shell, network-first para API)
 
-const CACHE_NAME = 'portal-rep-shell-v1'
+const CACHE_NAME = 'portal-rep-shell-v2'
 
 const APP_SHELL_URLS = [
   '/portal-rep/dashboard',
