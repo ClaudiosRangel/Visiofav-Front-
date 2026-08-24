@@ -12,7 +12,7 @@ export function useLogin() {
       return data
     },
     onSuccess: (data) => {
-      localStorage.setItem(STORAGE_KEY_TOKEN, data.token)
+      localStorage.setItem(STORAGE_KEY_TOKEN, data.accessToken)
       localStorage.setItem(STORAGE_KEY_REFRESH, data.refreshToken)
     },
   })

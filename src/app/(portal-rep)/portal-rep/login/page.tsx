@@ -37,7 +37,7 @@ export default function PortalRepLoginPage() {
       },
       {
         onSuccess: (data) => {
-          if (data.senhaTemporaria) {
+          if (data.representante.senhaTemporaria) {
             router.replace('/portal-rep/trocar-senha')
           } else {
             router.replace('/portal-rep/dashboard')

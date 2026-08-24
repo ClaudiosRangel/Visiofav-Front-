@@ -6,13 +6,15 @@ export interface LoginPayload {
 }
 
 export interface LoginResponse {
-  token: string
+  accessToken: string
   refreshToken: string
-  senhaTemporaria: boolean
   representante: {
     id: string
     nome: string
     email: string
+    empresaId: string
+    vendedorId: string
+    senhaTemporaria: boolean
   }
 }
 
