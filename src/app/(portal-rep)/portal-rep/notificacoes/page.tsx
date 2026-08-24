@@ -27,7 +27,7 @@ export default function NotificacoesPage() {
   const marcarLida = useMarcarLida()
   const marcarTodasLidas = useMarcarTodasLidas()
 
-  const notificacoes = data?.data ?? []
+  const notificacoes = data?.notificacoes ?? []
   const total = data?.total ?? 0
   const temMais = notificacoes.length < total && page * PAGE_SIZE < total
 

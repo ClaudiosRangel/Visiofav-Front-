@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { portalRepApi } from './portal-rep-api'
-import type { DashboardData, SolicitacaoOrcamento, PedidoPipeline, ResumoComissao, StatusPedido } from './types'
+import type { DashboardData, PedidoPipeline, ResumoComissao, StatusPedido } from './types'
 
 const QUERY_KEY = 'portal-rep-dashboard'
 
@@ -12,18 +12,24 @@ export function usePortalRepDashboard() {
   const orcamentosQuery = useQuery<number>({
     queryKey: [QUERY_KEY, 'orcamentos-pendentes'],
     queryFn: async () => {
-      const { data } = await portalRepApi.get<SolicitacaoOrcamento[]>(
+      const { data } = await portalRepApi.get(
         '/solicitacoes-orcamento',
         { params: { status: 'PENDENTE' } },
       )
-      return data.length
+      // A API retorna objeto paginado { dados: [...], total, ... }
+      if (Array.isArray(data)) return data.length
+      if (data && typeof data.total === 'number') return data.total
+      if (data && Array.isArray(data.dados)) return data.dados.length
+      return 0
     },
   })
 
   const pipelineQuery = useQuery<Record<StatusPedido, number>>({
     queryKey: [QUERY_KEY, 'pipeline'],
     queryFn: async () => {
-      const { data } = await portalRepApi.get<PedidoPipeline[]>('/pipeline')
+      const { data } = await portalRepApi.get('/pipeline')
+      // A API retorna objeto paginado { data: [...], total, pagina, porPagina }
+      const pedidos: PedidoPipeline[] = Array.isArray(data) ? data : (data?.data ?? [])
       const summary: Record<StatusPedido, number> = {
         ORCAMENTO: 0,
         PV: 0,
@@ -32,8 +38,11 @@ export function usePortalRepDashboard() {
         EXPEDICAO: 0,
         ENTREGUE: 0,
       }
-      for (const pedido of data) {
-        summary[pedido.statusAtual]++
+      for (const pedido of pedidos) {
+        const etapa = pedido.etapaAtual as StatusPedido
+        if (etapa in summary) {
+          summary[etapa]++
+        }
       }
       return summary
     },

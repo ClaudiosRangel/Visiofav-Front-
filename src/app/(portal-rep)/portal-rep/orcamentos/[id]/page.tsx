@@ -10,7 +10,6 @@ import {
   Group,
   Modal,
   Stack,
-  Table,
   Text,
   Title,
 } from '@mantine/core'
@@ -109,7 +108,7 @@ export default function OrcamentoDetalhePage() {
                 Cliente
               </Text>
               <Text size="sm" fw={500}>
-                {solicitacao.clienteNome}
+                {solicitacao.clienteNome || '—'}
               </Text>
             </div>
             <Badge
@@ -130,65 +129,77 @@ export default function OrcamentoDetalhePage() {
         </Stack>
       </Card>
 
-      {/* Tabela de itens */}
+      {/* Card com dados da solicitação */}
       <Card padding="md">
         <Stack gap="sm">
           <Text fw={600} size="sm">
-            Itens
+            Dados da Solicitação
           </Text>
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Produto</Table.Th>
-                <Table.Th style={{ textAlign: 'right' }}>Qtd</Table.Th>
-                {exibirPrecos && (
-                  <>
-                    <Table.Th style={{ textAlign: 'right' }}>Preço Unit.</Table.Th>
-                    <Table.Th style={{ textAlign: 'right' }}>Total</Table.Th>
-                  </>
-                )}
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {solicitacao.itens.map((item, index) => (
-                <Table.Tr key={index}>
-                  <Table.Td>
-                    <Text size="sm">{item.produtoNome}</Text>
-                    {item.especificacao && (
-                      <Text size="xs" c="dimmed">
-                        {item.especificacao}
-                      </Text>
-                    )}
-                  </Table.Td>
-                  <Table.Td style={{ textAlign: 'right' }}>
-                    <Text size="sm">
-                      {item.quantidade.toLocaleString('pt-BR')}
-                    </Text>
-                  </Table.Td>
-                  {exibirPrecos && (
-                    <>
-                      <Table.Td style={{ textAlign: 'right' }}>
-                        <Text size="sm">
-                          {item.precoUnitario != null
-                            ? formatarMoeda(item.precoUnitario)
-                            : '—'}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td style={{ textAlign: 'right' }}>
-                        <Text size="sm">
-                          {item.precoTotal != null
-                            ? formatarMoeda(item.precoTotal)
-                            : '—'}
-                        </Text>
-                      </Table.Td>
-                    </>
-                  )}
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
+
+          <Group grow>
+            <div>
+              <Text size="xs" c="dimmed">Tipo de Embalagem</Text>
+              <Text size="sm">{solicitacao.tipoEmbalagem}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed">Quantidade</Text>
+              <Text size="sm">{solicitacao.quantidade.toLocaleString('pt-BR')}</Text>
+            </div>
+          </Group>
+
+          {(solicitacao.medidaLargura || solicitacao.medidaAltura || solicitacao.medidaComprimento) && (
+            <div>
+              <Text size="xs" c="dimmed">Medidas (mm)</Text>
+              <Text size="sm">
+                {[
+                  solicitacao.medidaLargura && `L: ${solicitacao.medidaLargura}`,
+                  solicitacao.medidaAltura && `A: ${solicitacao.medidaAltura}`,
+                  solicitacao.medidaComprimento && `C: ${solicitacao.medidaComprimento}`,
+                ].filter(Boolean).join(' × ')}
+              </Text>
+            </div>
+          )}
+
+          {solicitacao.acabamentos && (
+            <div>
+              <Text size="xs" c="dimmed">Acabamentos</Text>
+              <Text size="sm">{solicitacao.acabamentos}</Text>
+            </div>
+          )}
+
+          {solicitacao.observacoes && (
+            <div>
+              <Text size="xs" c="dimmed">Observações</Text>
+              <Text size="sm">{solicitacao.observacoes}</Text>
+            </div>
+          )}
         </Stack>
       </Card>
+
+      {/* Card de preço — apenas quando calculado */}
+      {exibirPrecos && (solicitacao.precoVenda != null || solicitacao.precoUnitario != null) && (
+        <Card padding="md">
+          <Stack gap="sm">
+            <Text fw={600} size="sm">
+              Preço
+            </Text>
+            <Group grow>
+              {solicitacao.precoUnitario != null && (
+                <div>
+                  <Text size="xs" c="dimmed">Preço Unitário</Text>
+                  <Text size="sm" fw={500}>{formatarMoeda(solicitacao.precoUnitario)}</Text>
+                </div>
+              )}
+              {solicitacao.precoVenda != null && (
+                <div>
+                  <Text size="xs" c="dimmed">Preço Total</Text>
+                  <Text size="lg" fw={700} c="green">{formatarMoeda(solicitacao.precoVenda)}</Text>
+                </div>
+              )}
+            </Group>
+          </Stack>
+        </Card>
+      )}
 
       {/* Botão cancelar apenas para PENDENTE */}
       {solicitacao.status === 'PENDENTE' && (

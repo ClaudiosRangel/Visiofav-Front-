@@ -103,21 +103,21 @@ export default function PipelinePage() {
           <Stack gap="sm">
             {pipelineQuery.data.map((pedido) => (
               <Card
-                key={pedido.id}
+                key={pedido.pedidoVendaId}
                 className="portal-rep-touchable"
                 style={{ cursor: 'pointer' }}
-                onClick={() => router.push(`/portal-rep/pipeline/${pedido.id}`)}
+                onClick={() => router.push(`/portal-rep/pipeline/${pedido.pedidoVendaId}`)}
                 padding="sm"
               >
                 <Stack gap="xs">
                   {/* Cabeçalho: número + cliente */}
                   <Group justify="space-between" wrap="nowrap">
                     <Text fw={600} size="sm" truncate>
-                      Pedido #{pedido.numero}
+                      Pedido #{pedido.numeroPedido}
                     </Text>
-                    {pedido.dataEntregaPrevista && (
+                    {pedido.dataEntrega && (
                       <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
-                        Entrega: {formatarData(pedido.dataEntregaPrevista)}
+                        Entrega: {formatarData(pedido.dataEntrega)}
                       </Text>
                     )}
                   </Group>
@@ -127,7 +127,7 @@ export default function PipelinePage() {
                   </Text>
 
                   {/* Timeline compacta */}
-                  <PipelineTimeline statusAtual={pedido.statusAtual} compacto />
+                  <PipelineTimeline statusAtual={pedido.etapaAtual as StatusPedido} compacto />
                 </Stack>
               </Card>
             ))}

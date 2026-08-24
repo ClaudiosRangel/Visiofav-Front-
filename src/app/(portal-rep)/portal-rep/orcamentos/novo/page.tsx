@@ -5,29 +5,17 @@ import { useRouter } from 'next/navigation'
 import {
   Card,
   TextInput,
+  Textarea,
   NumberInput,
   Select,
   Button,
-  ActionIcon,
   Stack,
   Group,
   Title,
-  Text,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { IconTrash, IconPlus } from '@tabler/icons-react'
 import { usePortalRepClientes } from '@/data/hooks/portal-rep-app/usePortalRepClientes'
 import { useCriarSolicitacao } from '@/data/hooks/portal-rep-app/usePortalRepOrcamentos'
-
-interface ItemForm {
-  produtoNome: string
-  quantidade: number | ''
-  especificacao: string
-}
-
-function criarItemVazio(): ItemForm {
-  return { produtoNome: '', quantidade: '', especificacao: '' }
-}
 
 export default function NovaSolicitacaoPage() {
   const router = useRouter()
@@ -35,31 +23,24 @@ export default function NovaSolicitacaoPage() {
   const criarSolicitacao = useCriarSolicitacao()
 
   const [clienteId, setClienteId] = useState<string | null>(null)
-  const [itens, setItens] = useState<ItemForm[]>([criarItemVazio()])
+  const [tipoEmbalagem, setTipoEmbalagem] = useState('')
+  const [quantidade, setQuantidade] = useState<number | ''>('')
+  const [medidaLargura, setMedidaLargura] = useState<number | ''>('')
+  const [medidaAltura, setMedidaAltura] = useState<number | ''>('')
+  const [medidaComprimento, setMedidaComprimento] = useState<number | ''>('')
+  const [acabamentos, setAcabamentos] = useState('')
+  const [observacoes, setObservacoes] = useState('')
 
   const clienteOptions = (clientes ?? []).map((c) => ({
     value: c.id,
     label: c.razaoSocial + (c.nomeFantasia ? ` (${c.nomeFantasia})` : ''),
   }))
 
-  function adicionarItem() {
-    setItens((prev) => [...prev, criarItemVazio()])
-  }
-
-  function removerItem(index: number) {
-    setItens((prev) => prev.filter((_, i) => i !== index))
-  }
-
-  function atualizarItem(index: number, campo: keyof ItemForm, valor: string | number | '') {
-    setItens((prev) =>
-      prev.map((item, i) => (i === index ? { ...item, [campo]: valor } : item)),
-    )
-  }
-
-  const itensValidos = itens.filter(
-    (item) => item.produtoNome.trim().length > 0 && typeof item.quantidade === 'number' && item.quantidade > 0,
-  )
-  const formValido = !!clienteId && itensValidos.length > 0 && itensValidos.length === itens.length
+  const formValido =
+    !!clienteId &&
+    tipoEmbalagem.trim().length > 0 &&
+    typeof quantidade === 'number' &&
+    quantidade > 0
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -68,11 +49,19 @@ export default function NovaSolicitacaoPage() {
     criarSolicitacao.mutate(
       {
         clienteId,
-        itens: itens.map((item) => ({
-          produtoNome: item.produtoNome.trim(),
-          quantidade: item.quantidade as number,
-          especificacao: item.especificacao.trim() || undefined,
-        })),
+        tipoEmbalagem: tipoEmbalagem.trim(),
+        quantidade: quantidade as number,
+        ...(typeof medidaLargura === 'number' && medidaLargura > 0
+          ? { medidaLargura }
+          : {}),
+        ...(typeof medidaAltura === 'number' && medidaAltura > 0
+          ? { medidaAltura }
+          : {}),
+        ...(typeof medidaComprimento === 'number' && medidaComprimento > 0
+          ? { medidaComprimento }
+          : {}),
+        ...(acabamentos.trim() ? { acabamentos: acabamentos.trim() } : {}),
+        ...(observacoes.trim() ? { observacoes: observacoes.trim() } : {}),
       },
       {
         onSuccess: () => {
@@ -115,70 +104,66 @@ export default function NovaSolicitacaoPage() {
             />
           </Card>
 
-          <Group justify="space-between" align="center">
-            <Text fw={500}>Itens</Text>
-            <Button
-              variant="light"
-              size="xs"
-              leftSection={<IconPlus size={14} />}
-              onClick={adicionarItem}
-            >
-              Adicionar item
-            </Button>
-          </Group>
+          <Card>
+            <Stack gap="sm">
+              <TextInput
+                label="Tipo de embalagem"
+                placeholder="Ex: Caixa, Cartucho, Display"
+                value={tipoEmbalagem}
+                onChange={(e) => setTipoEmbalagem(e.currentTarget.value)}
+                required
+              />
 
-          {itens.map((item, index) => (
-            <Card key={index}>
-              <Stack gap="sm">
-                <Group justify="space-between" align="center">
-                  <Text size="sm" fw={500} c="dimmed">
-                    Item {index + 1}
-                  </Text>
-                  {itens.length > 1 && (
-                    <ActionIcon
-                      variant="subtle"
-                      color="red"
-                      size="sm"
-                      onClick={() => removerItem(index)}
-                      aria-label={`Remover item ${index + 1}`}
-                    >
-                      <IconTrash size={16} />
-                    </ActionIcon>
-                  )}
-                </Group>
+              <NumberInput
+                label="Quantidade"
+                placeholder="Quantidade desejada"
+                min={1}
+                value={quantidade}
+                onChange={(val) => setQuantidade(val === '' ? '' : Number(val))}
+                required
+              />
 
-                <TextInput
-                  label="Produto"
-                  placeholder="Nome ou descrição do produto"
-                  value={item.produtoNome}
-                  onChange={(e) => atualizarItem(index, 'produtoNome', e.currentTarget.value)}
-                  required
-                />
-
+              <Group grow>
                 <NumberInput
-                  label="Quantidade"
-                  placeholder="Qtd"
-                  min={1}
-                  value={item.quantidade}
-                  onChange={(val) => atualizarItem(index, 'quantidade', val === '' ? '' : Number(val))}
-                  required
+                  label="Largura (mm)"
+                  placeholder="mm"
+                  min={0}
+                  value={medidaLargura}
+                  onChange={(val) => setMedidaLargura(val === '' ? '' : Number(val))}
                 />
-
-                <TextInput
-                  label="Especificação técnica"
-                  placeholder="Opcional — detalhes técnicos"
-                  value={item.especificacao}
-                  onChange={(e) => atualizarItem(index, 'especificacao', e.currentTarget.value)}
+                <NumberInput
+                  label="Altura (mm)"
+                  placeholder="mm"
+                  min={0}
+                  value={medidaAltura}
+                  onChange={(val) => setMedidaAltura(val === '' ? '' : Number(val))}
                 />
-              </Stack>
-            </Card>
-          ))}
+                <NumberInput
+                  label="Comprimento (mm)"
+                  placeholder="mm"
+                  min={0}
+                  value={medidaComprimento}
+                  onChange={(val) => setMedidaComprimento(val === '' ? '' : Number(val))}
+                />
+              </Group>
 
-          {itens.length === 0 && (
-            <Text size="sm" c="red" ta="center">
-              Adicione ao menos 1 item para enviar a solicitação.
-            </Text>
-          )}
+              <TextInput
+                label="Acabamentos"
+                placeholder="Ex: Laminação fosca, Hot stamping"
+                value={acabamentos}
+                onChange={(e) => setAcabamentos(e.currentTarget.value)}
+              />
+
+              <Textarea
+                label="Observações"
+                placeholder="Informações adicionais sobre a solicitação"
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.currentTarget.value)}
+                minRows={3}
+                autosize
+              />
+            </Stack>
+          </Card>
 
           <Button
             type="submit"

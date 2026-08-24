@@ -208,8 +208,7 @@ export default function OrcamentosListagemPage() {
                         •
                       </Text>
                       <Text size="sm" c="dimmed">
-                        {solicitacao.itens.length}{' '}
-                        {solicitacao.itens.length === 1 ? 'item' : 'itens'}
+                        {solicitacao.tipoEmbalagem} — Qtd: {solicitacao.quantidade}
                       </Text>
                     </Group>
                   </Stack>

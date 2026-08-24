@@ -88,20 +88,33 @@ export interface ItemSolicitacao {
 
 export interface SolicitacaoOrcamento {
   id: string
-  clienteId: string
-  clienteNome: string
+  clienteId: string | null
+  clienteNome: string | null
   status: StatusSolicitacao
   criadoEm: string
-  itens: ItemSolicitacao[]
+  atualizadoEm?: string
+  tipoEmbalagem: string
+  quantidade: number
+  medidaLargura?: number | null
+  medidaAltura?: number | null
+  medidaComprimento?: number | null
+  acabamentos?: string | null
+  observacoes?: string | null
+  precoVenda?: number | null
+  precoUnitario?: number | null
 }
 
 export interface CriarSolicitacaoPayload {
-  clienteId: string
-  itens: Array<{
-    produtoNome: string
-    quantidade: number
-    especificacao?: string
-  }>
+  clienteId?: string
+  clienteNome?: string
+  clienteCpfCnpj?: string
+  tipoEmbalagem: string
+  quantidade: number
+  medidaLargura?: number
+  medidaAltura?: number
+  medidaComprimento?: number
+  acabamentos?: string
+  observacoes?: string
 }
 
 // ─── Pipeline ────────────────────────────────────────────────────
@@ -114,12 +127,16 @@ export type StatusPedido =
   | 'ENTREGUE'
 
 export interface PedidoPipeline {
-  id: string
-  numero: string
+  pedidoVendaId: string
+  numeroPedido: number
   clienteNome: string
-  statusAtual: StatusPedido
+  clienteId: string | null
+  valorTotal: number
+  dataEntrega: string | null
   criadoEm: string
-  dataEntregaPrevista: string | null
+  etapaAtual: string
+  etapaIndex: number
+  progressoProducao: number | null
 }
 
 export interface DetalhePipeline {
@@ -143,11 +160,15 @@ export interface ResumoComissao {
 }
 
 export interface DetalheComissao {
-  pedidoNumero: string
-  clienteNome: string
-  valorVenda: number
-  percentualComissao: number
-  valorComissao: number
+  pedidoVendaId: string
+  numeroPedido: number
+  clienteNome: string | null
+  precoVenda: number
+  comissaoPercentual: number
+  comissaoValor: number
+  status: 'PROJETADA' | 'REALIZADA'
+  dataPedido: string
+  dataRealizacao: string | null
 }
 
 // ─── Notificações ────────────────────────────────────────────────

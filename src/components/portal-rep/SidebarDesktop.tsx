@@ -17,6 +17,7 @@ import {
 interface SidebarDesktopProps {
   notificationCount: number
   onLogout: () => void
+  representanteNome?: string
 }
 
 interface NavItem {
@@ -36,7 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { icon: IconUser, label: 'Perfil', href: '/portal-rep/perfil' },
 ]
 
-export default function SidebarDesktop({ notificationCount, onLogout }: SidebarDesktopProps) {
+export default function SidebarDesktop({ notificationCount, onLogout, representanteNome }: SidebarDesktopProps) {
   const pathname = usePathname()
 
   function isActive(href: string) {
@@ -73,6 +74,11 @@ export default function SidebarDesktop({ notificationCount, onLogout }: SidebarD
         <Text fw={700} size="lg" c="green">
           Vizor Rep
         </Text>
+        {representanteNome && (
+          <Text size="xs" c="dimmed" mt={-4}>
+            {representanteNome}
+          </Text>
+        )}
       </div>
 
       {/* Navigation items */}

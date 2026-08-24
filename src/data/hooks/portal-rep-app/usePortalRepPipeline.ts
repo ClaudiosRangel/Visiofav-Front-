@@ -9,7 +9,10 @@ export function usePortalRepPipeline(params?: Record<string, unknown>) {
     queryKey: [QUERY_KEY, params],
     queryFn: async () => {
       const { data } = await portalRepApi.get('/pipeline', { params })
-      return data
+      // A API retorna objeto paginado { data: [...], total, pagina, porPagina }
+      if (Array.isArray(data)) return data
+      if (data && Array.isArray(data.data)) return data.data
+      return []
     },
   })
 }

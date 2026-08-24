@@ -51,6 +51,7 @@ function PortalRepLayoutInner({ children }: { children: React.ReactNode }) {
   const queryClientInner = useQueryClient()
 
   const [isChecking, setIsChecking] = useState(true)
+  const [representanteNome, setRepresentanteNome] = useState('')
   const [notificationCount, setNotificationCount] = useState(0)
   const [isOffline, setIsOffline] = useState(false)
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null)
@@ -81,6 +82,7 @@ function PortalRepLayoutInner({ children }: { children: React.ReactNode }) {
       return
     }
 
+    setRepresentanteNome((payload?.nome as string) || '')
     setIsChecking(false)
   }, [pathname, isAuthFreePage, router])
 
@@ -229,6 +231,7 @@ function PortalRepLayoutInner({ children }: { children: React.ReactNode }) {
       <SidebarDesktop
         notificationCount={notificationCount}
         onLogout={handleLogout}
+        representanteNome={representanteNome}
       />
 
       {/* Conteúdo principal */}

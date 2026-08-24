@@ -68,7 +68,7 @@ export default function ComissoesPage() {
   // Totalizador
   const totalComissao = useMemo(() => {
     if (!detalheQuery.data) return 0
-    return detalheQuery.data.reduce((acc, item) => acc + item.valorComissao, 0)
+    return detalheQuery.data.reduce((acc, item) => acc + item.comissaoValor, 0)
   }, [detalheQuery.data])
 
   // Pull to refresh
@@ -183,17 +183,17 @@ export default function ComissoesPage() {
               </Table.Thead>
               <Table.Tbody>
                 {detalheQuery.data.map((item, idx) => (
-                  <Table.Tr key={`${item.pedidoNumero}-${idx}`}>
-                    <Table.Td>{item.pedidoNumero}</Table.Td>
+                  <Table.Tr key={`${item.numeroPedido}-${idx}`}>
+                    <Table.Td>#{item.numeroPedido}</Table.Td>
                     <Table.Td>{item.clienteNome}</Table.Td>
                     <Table.Td style={{ textAlign: 'right' }}>
-                      {formatarMoeda(item.valorVenda)}
+                      {formatarMoeda(item.precoVenda)}
                     </Table.Td>
                     <Table.Td style={{ textAlign: 'right' }}>
-                      {item.percentualComissao.toFixed(1)}%
+                      {item.comissaoPercentual.toFixed(1)}%
                     </Table.Td>
                     <Table.Td style={{ textAlign: 'right' }}>
-                      {formatarMoeda(item.valorComissao)}
+                      {formatarMoeda(item.comissaoValor)}
                     </Table.Td>
                   </Table.Tr>
                 ))}

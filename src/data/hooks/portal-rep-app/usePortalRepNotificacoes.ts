@@ -6,10 +6,11 @@ const QUERY_KEY = 'portal-rep-notificacoes'
 const COUNT_QUERY_KEY = 'portal-rep-notificacoes-count'
 
 interface NotificacoesPaginadas {
-  data: Notificacao[]
+  notificacoes: Notificacao[]
   total: number
   page: number
   pageSize: number
+  totalPages: number
 }
 
 export function usePortalRepNotificacoes(params?: Record<string, unknown>) {

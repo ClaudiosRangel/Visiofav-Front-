@@ -20,7 +20,10 @@ export function usePortalRepComissoesDetalhe(params?: Record<string, unknown>) {
     queryKey: [QUERY_KEY_DETALHE, params],
     queryFn: async () => {
       const { data } = await portalRepApi.get('/comissoes/detalhe', { params })
-      return data
+      // A API retorna objeto paginado { data: [...], total, page, limit }
+      if (Array.isArray(data)) return data
+      if (data && Array.isArray(data.data)) return data.data
+      return []
     },
   })
 }

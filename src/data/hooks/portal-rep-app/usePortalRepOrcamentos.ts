@@ -9,7 +9,10 @@ export function usePortalRepOrcamentos(params?: Record<string, unknown>) {
     queryKey: [QUERY_KEY, params],
     queryFn: async () => {
       const { data } = await portalRepApi.get('/solicitacoes-orcamento', { params })
-      return data
+      // A API retorna objeto paginado { dados, total, page, limit, totalPages }
+      if (Array.isArray(data)) return data
+      if (data && Array.isArray(data.dados)) return data.dados
+      return []
     },
   })
 }
