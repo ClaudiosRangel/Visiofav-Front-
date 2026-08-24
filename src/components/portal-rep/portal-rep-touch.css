@@ -1,0 +1,74 @@
+/* 
+ * Estilos touch-friendly para o Portal do Representante.
+ * Fornece feedback visual imediato (active state) em elementos interativos.
+ * Requisitos: 23.2 (transições visuais hover/active em tocáveis)
+ */
+
+/* Card interativo — feedback ao tocar */
+.portal-rep-touchable {
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.portal-rep-touchable:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.portal-rep-touchable:active {
+  transform: scale(0.98);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Menu de contexto (long-press) para ações secundárias em listas */
+.portal-rep-context-menu {
+  position: fixed;
+  z-index: 1000;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  padding: 4px 0;
+  min-width: 180px;
+  animation: portal-rep-context-menu-in 0.15s ease;
+}
+
+@keyframes portal-rep-context-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.portal-rep-context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  font-size: 14px;
+  color: inherit;
+  transition: background-color 0.1s ease;
+}
+
+.portal-rep-context-menu-item:hover,
+.portal-rep-context-menu-item:active {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.portal-rep-context-menu-item--danger {
+  color: var(--mantine-color-red-6);
+}
+
+/* Overlay para fechar o menu ao tocar fora */
+.portal-rep-context-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
