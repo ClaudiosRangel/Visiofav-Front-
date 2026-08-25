@@ -1717,7 +1717,17 @@ export default function ProgramacaoPage() {
                   <Table.Td fw={700}>{item.opNumero}</Table.Td>
                   <Table.Td>{item.cliente || '—'}</Table.Td>
                   <Table.Td>{item.produto || '—'}</Table.Td>
-                  <Table.Td>{item.quantidade?.toLocaleString('pt-BR')} {item.unidade}</Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{item.quantidade?.toLocaleString('pt-BR')} {item.unidade}</Text>
+                    {item.liberacaoParcial && (
+                      <Text size="xs" c="green" fw={600} mt={2}>
+                        ✓ {item.quantidadeLiberada?.toLocaleString('pt-BR')} liberado ({item.percentualLiberado}%)
+                      </Text>
+                    )}
+                    {item.liberacaoParcial && (
+                      <Text size="xs" c="orange">aguardando: {item.quantidade?.toLocaleString('pt-BR')}</Text>
+                    )}
+                  </Table.Td>
                   <Table.Td>
                     <Text size="sm">{item.materialPrincipal || '—'}</Text>
                     {item.bobinas?.length > 0 && (
@@ -1998,6 +2008,11 @@ export default function ProgramacaoPage() {
                                   {etapa.quantidade.toLocaleString('pt-BR')}
                                 </Text>
                               )}
+                              {etapa.liberacaoParcial && (
+                                <Text size="xs" c="green" fw={600} style={{ lineHeight: 1.1 }} title={`Estoque cobre ${etapa.liberacaoParcial.percentualLiberado}% da tiragem. Restante (${etapa.liberacaoParcial.quantidadeAguardando.toLocaleString('pt-BR')}) aguarda material encomendado.`}>
+                                  ✓ liberado {etapa.liberacaoParcial.quantidadeLiberada.toLocaleString('pt-BR')} ({etapa.liberacaoParcial.percentualLiberado}%)
+                                </Text>
+                              )}
                             </Table.Td>}
                             {colVis('tiragem') && <Table.Td>{etapa.tiragem ? etapa.tiragem.toLocaleString('pt-BR') : '—'}</Table.Td>}
                             {colVis('produzida') && <Table.Td>
@@ -2202,7 +2217,12 @@ export default function ProgramacaoPage() {
                               <Text size="xs" fw={600} c={etapa.preImpressaoStatus ? 'white' : 'dimmed'} style={{ lineHeight: 1.2 }}>
                                 {etapa.clienteNome || etapa.observacoes?.match(/\[Cliente\]\s*(.+)/)?.[1] || ''}
                               </Text>
-                              {etapa.materialEncomendado && <Text size="xs" c="red" fw={700}>* Aguardando restante cartão</Text>}
+                              {etapa.materialEncomendado && !etapa.liberacaoParcial && <Text size="xs" c="red" fw={700}>* Aguardando restante cartão</Text>}
+                              {etapa.liberacaoParcial && (
+                                <Text size="xs" c="green" fw={700} style={{ lineHeight: 1.1 }}>
+                                  ✓ Liberado {etapa.liberacaoParcial.quantidadeLiberada.toLocaleString('pt-BR')} ({etapa.liberacaoParcial.percentualLiberado}%) — restante {etapa.liberacaoParcial.quantidadeAguardando.toLocaleString('pt-BR')} aguarda cartão
+                                </Text>
+                              )}
                             </Table.Td>
                             {colVis('tipoOp') && <Table.Td><Text size="xs" fw={600} c={etapa.tipoOp?.includes('NOVO') ? 'green' : etapa.tipoOp?.includes('REPETI') ? 'blue' : etapa.tipoOp?.includes('ALTERA') ? 'orange' : etapa.tipoOp?.includes('PILOTO') ? 'violet' : 'gray'} style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>{etapa.tipoOp || '—'}</Text></Table.Td>}
                             {colVis('tiragem') && <Table.Td>{etapa.tiragem ? etapa.tiragem.toLocaleString('pt-BR') : '—'}</Table.Td>}
@@ -2225,6 +2245,11 @@ export default function ProgramacaoPage() {
                               ) : (
                                 <Text size="sm" style={{ cursor: 'pointer' }} onClick={() => setEditingQtd({ opId: etapa.opId, etapaId: etapa.id, value: String(etapa.quantidade) })} title="Clique para editar quantidade">
                                   {etapa.quantidade.toLocaleString('pt-BR')} {etapa.unidade}
+                                </Text>
+                              )}
+                              {etapa.liberacaoParcial && (
+                                <Text size="xs" c="green" fw={600} style={{ lineHeight: 1.1 }} title={`Estoque cobre ${etapa.liberacaoParcial.percentualLiberado}% da tiragem.`}>
+                                  ✓ {etapa.liberacaoParcial.quantidadeLiberada.toLocaleString('pt-BR')} liberado
                                 </Text>
                               )}
                             </Table.Td>}
