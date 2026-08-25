@@ -7,7 +7,7 @@ import {
 } from '@mantine/core'
 import {
   IconClipboardCheck, IconPackage, IconFlask, IconCheck, IconAlertTriangle,
-  IconRefresh, IconSearch,
+  IconRefresh, IconSearch, IconLock,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { api } from '@/lib/api'
@@ -101,6 +101,8 @@ export default function AnaliseProducaoPage() {
 
   useEffect(() => { carregarOps() }, [carregarOps])
 
+  const [reservando, setReservando] = useState(false)
+
   // Analisar estoque da OP selecionada
   const analisar = useCallback(async (opId: string) => {
     setLoadingAnalise(true)
@@ -118,6 +120,31 @@ export default function AnaliseProducaoPage() {
       setLoadingAnalise(false)
     }
   }, [])
+
+  // Reservar materiais da OP selecionada
+  const reservar = useCallback(async () => {
+    if (!opSelecionada) return
+    setReservando(true)
+    try {
+      const res = await api.post(`/pcp/analise-producao/${opSelecionada}/reservar`)
+      const { reservasCriadas, reservasIgnoradas } = res.data
+      notifications.show({
+        title: 'Reservas processadas',
+        message: `${reservasCriadas} material(is) reservado(s), ${reservasIgnoradas} ignorado(s).`,
+        color: reservasCriadas > 0 ? 'green' : 'yellow',
+      })
+      // Recarregar análise para refletir novos reservados
+      await analisar(opSelecionada)
+    } catch (err: any) {
+      notifications.show({
+        title: 'Erro',
+        message: err?.response?.data?.message || 'Falha ao reservar materiais',
+        color: 'red',
+      })
+    } finally {
+      setReservando(false)
+    }
+  }, [opSelecionada, analisar])
 
   function handleSelecionar(opId: string | null) {
     setOpSelecionada(opId)
@@ -215,15 +242,29 @@ export default function AnaliseProducaoPage() {
             <Group gap="xs" mb="sm">
               <ThemeIcon variant="light" color="grape" size="md"><IconFlask size={16} /></ThemeIcon>
               <Text fw={600}>Materiais (Matéria-Prima)</Text>
-              {resultado.resumo.todosDisponiveis ? (
-                <Badge color="green" ml="auto" leftSection={<IconCheck size={12} />}>
-                  Todos disponíveis
-                </Badge>
-              ) : (
-                <Badge color="red" ml="auto" leftSection={<IconAlertTriangle size={12} />}>
-                  {resultado.resumo.materiaisComFalta} com falta
-                </Badge>
-              )}
+              <Group gap="xs" ml="auto">
+                {resultado.resumo.todosDisponiveis ? (
+                  <Badge color="green" leftSection={<IconCheck size={12} />}>
+                    Todos disponíveis
+                  </Badge>
+                ) : (
+                  <Badge color="red" leftSection={<IconAlertTriangle size={12} />}>
+                    {resultado.resumo.materiaisComFalta} com falta
+                  </Badge>
+                )}
+                {resultado.materiais.some((m) => m.produtoComponenteId) && (
+                  <Button
+                    size="xs"
+                    variant="light"
+                    color="grape"
+                    leftSection={<IconLock size={14} />}
+                    onClick={reservar}
+                    loading={reservando}
+                  >
+                    Reservar Materiais
+                  </Button>
+                )}
+              </Group>
             </Group>
 
             {resultado.materiais.length === 0 ? (
