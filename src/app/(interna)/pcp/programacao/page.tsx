@@ -1921,9 +1921,16 @@ export default function ProgramacaoPage() {
             <Group gap="xs">
               {/* Totalizador de Tiragem do grupo — soma da coluna Tiragem de
                   todas as etapas visíveis (já filtradas por busca/status/etc,
-                  igual ao total exibido no relatório impresso). */}
+                  igual ao total exibido no relatório impresso).
+                  EXCEÇÃO Colagem: a colagem conta em unidade de embalagem
+                  (unitário), não em folhas — por isso o totalizador soma a
+                  coluna Qtd (quantidade) em vez da tiragem. */}
               {(() => {
-                const totalTiragem = centro.etapas.reduce((acc: number, e: any) => acc + (e.tiragem || 0), 0)
+                const isColagem = centro.centro.tipoProcesso?.codigo === 'COLAGEM'
+                const totalTiragem = centro.etapas.reduce(
+                  (acc: number, e: any) => acc + ((isColagem ? e.quantidade : e.tiragem) || 0),
+                  0,
+                )
                 const totalProduzida = centro.etapas.reduce((acc: number, e: any) => acc + (e.quantidadeProduzida || 0), 0)
                 const saldo = totalTiragem - totalProduzida
                 return totalTiragem > 0 ? (
