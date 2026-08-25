@@ -334,9 +334,27 @@ export default function DetalheOpPage() {
               window.open(`${apiUrl}/pcp/op-pdf/${id}?token=${token}`, '_blank')
             }}
           >
-            Ver PDF
+            Ver PDF Original
           </Button>
         )}
+        <Button
+          size="xs"
+          variant="light"
+          color="green"
+          leftSection={<IconFileTypePdf size={14} />}
+          onClick={() => {
+            api.get(`/ordens-producao/${id}/pdf-gerado`, { responseType: 'blob' })
+              .then((res) => {
+                const blob = new Blob([res.data], { type: 'application/pdf' })
+                window.open(URL.createObjectURL(blob), '_blank')
+              })
+              .catch(() => {
+                notifications.show({ title: 'Erro', message: 'Falha ao gerar PDF da OP', color: 'red' })
+              })
+          }}
+        >
+          Imprimir OP
+        </Button>
       </Group>
 
       {/* Botões de transição de status */}
