@@ -2,12 +2,13 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useQuery } from '@tanstack/react-query'
 import {
   Card,
-  TextInput,
   Textarea,
   NumberInput,
   Select,
+  MultiSelect,
   Button,
   Stack,
   Group,
@@ -16,19 +17,45 @@ import {
 import { notifications } from '@mantine/notifications'
 import { usePortalRepClientes } from '@/data/hooks/portal-rep-app/usePortalRepClientes'
 import { useCriarSolicitacao } from '@/data/hooks/portal-rep-app/usePortalRepOrcamentos'
+import { portalRepApi } from '@/data/hooks/portal-rep-app/portal-rep-api'
+
+// Hooks para buscar catálogo
+function useTiposEmbalagem() {
+  return useQuery<Array<{ id: string; codigo: string; descricao: string }>>({
+    queryKey: ['portal-rep-catalogo-tipos-embalagem'],
+    queryFn: async () => {
+      const { data } = await portalRepApi.get('/catalogo/tipos-embalagem')
+      return data
+    },
+    staleTime: 5 * 60 * 1000, // 5 min cache
+  })
+}
+
+function useAcabamentos() {
+  return useQuery<Array<{ codigo: string; descricao: string }>>({
+    queryKey: ['portal-rep-catalogo-acabamentos'],
+    queryFn: async () => {
+      const { data } = await portalRepApi.get('/catalogo/acabamentos')
+      return data
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+}
 
 export default function NovaSolicitacaoPage() {
   const router = useRouter()
   const { data: clientes, isLoading: carregandoClientes } = usePortalRepClientes()
+  const { data: tiposEmbalagem, isLoading: carregandoTipos } = useTiposEmbalagem()
+  const { data: acabamentosDisponiveis, isLoading: carregandoAcabamentos } = useAcabamentos()
   const criarSolicitacao = useCriarSolicitacao()
 
   const [clienteId, setClienteId] = useState<string | null>(null)
-  const [tipoEmbalagem, setTipoEmbalagem] = useState('')
+  const [tipoEmbalagem, setTipoEmbalagem] = useState<string | null>(null)
   const [quantidade, setQuantidade] = useState<number | ''>('')
   const [medidaLargura, setMedidaLargura] = useState<number | ''>('')
   const [medidaAltura, setMedidaAltura] = useState<number | ''>('')
   const [medidaComprimento, setMedidaComprimento] = useState<number | ''>('')
-  const [acabamentos, setAcabamentos] = useState('')
+  const [acabamentosSelecionados, setAcabamentosSelecionados] = useState<string[]>([])
   const [observacoes, setObservacoes] = useState('')
 
   const clienteOptions = (clientes ?? []).map((c) => ({
@@ -36,20 +63,30 @@ export default function NovaSolicitacaoPage() {
     label: c.razaoSocial + (c.nomeFantasia ? ` (${c.nomeFantasia})` : ''),
   }))
 
+  const tipoEmbalagemOptions = (tiposEmbalagem ?? []).map((t) => ({
+    value: t.descricao,
+    label: t.descricao,
+  }))
+
+  const acabamentosOptions = (acabamentosDisponiveis ?? []).map((a) => ({
+    value: a.descricao,
+    label: a.descricao,
+  }))
+
   const formValido =
     !!clienteId &&
-    tipoEmbalagem.trim().length > 0 &&
+    !!tipoEmbalagem &&
     typeof quantidade === 'number' &&
     quantidade > 0
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!formValido || !clienteId) return
+    if (!formValido || !clienteId || !tipoEmbalagem) return
 
     criarSolicitacao.mutate(
       {
         clienteId,
-        tipoEmbalagem: tipoEmbalagem.trim(),
+        tipoEmbalagem,
         quantidade: quantidade as number,
         ...(typeof medidaLargura === 'number' && medidaLargura > 0
           ? { medidaLargura }
@@ -60,7 +97,9 @@ export default function NovaSolicitacaoPage() {
         ...(typeof medidaComprimento === 'number' && medidaComprimento > 0
           ? { medidaComprimento }
           : {}),
-        ...(acabamentos.trim() ? { acabamentos: acabamentos.trim() } : {}),
+        ...(acabamentosSelecionados.length > 0
+          ? { acabamentos: acabamentosSelecionados.join(', ') }
+          : {}),
         ...(observacoes.trim() ? { observacoes: observacoes.trim() } : {}),
       },
       {
@@ -106,11 +145,15 @@ export default function NovaSolicitacaoPage() {
 
           <Card>
             <Stack gap="sm">
-              <TextInput
+              <Select
                 label="Tipo de embalagem"
-                placeholder="Ex: Caixa, Cartucho, Display"
+                placeholder="Selecione o tipo de embalagem"
+                data={tipoEmbalagemOptions}
                 value={tipoEmbalagem}
-                onChange={(e) => setTipoEmbalagem(e.currentTarget.value)}
+                onChange={setTipoEmbalagem}
+                searchable
+                nothingFoundMessage="Nenhum tipo encontrado"
+                disabled={carregandoTipos}
                 required
               />
 
@@ -147,11 +190,15 @@ export default function NovaSolicitacaoPage() {
                 />
               </Group>
 
-              <TextInput
+              <MultiSelect
                 label="Acabamentos"
-                placeholder="Ex: Laminação fosca, Hot stamping"
-                value={acabamentos}
-                onChange={(e) => setAcabamentos(e.currentTarget.value)}
+                placeholder="Selecione os acabamentos desejados"
+                data={acabamentosOptions}
+                value={acabamentosSelecionados}
+                onChange={setAcabamentosSelecionados}
+                searchable
+                nothingFoundMessage="Nenhum acabamento encontrado"
+                disabled={carregandoAcabamentos}
               />
 
               <Textarea
