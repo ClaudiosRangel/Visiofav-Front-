@@ -164,9 +164,13 @@ export default function NovoOrcamentoGraficoPage() {
         // Determinar gramatura e precoKg — usar os salvos se existirem
         const gramaturaCarregada = data.gramatura ? Number(data.gramatura) : 0
         // precoKg do papel não é salvo diretamente no orçamento; tentar extrair do resultadoCalculo
+        // Se não encontrar, usar valor aproximado de mercado (R$ 4.50/kg para papel cartão)
         let precoKgCarregado = 0
         if (data.resultadoCalculo?.papel?.precoKg) {
           precoKgCarregado = Number(data.resultadoCalculo.papel.precoKg)
+        }
+        if (precoKgCarregado <= 0) {
+          precoKgCarregado = 4.50 // preço fictício padrão para não bloquear edição
         }
 
         const formCarregado: WizardFormData = {
