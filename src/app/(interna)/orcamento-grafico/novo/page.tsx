@@ -122,34 +122,51 @@ export default function NovoOrcamentoGraficoPage() {
         }))
 
         // Mapear acabamentos da API para AcabamentoItem[]
+        // Se a API retorna acabamentos, usa-os; senão mantém defaults do INITIAL_FORM
         const acabamentosDaApi = data.acabamentos || []
-        const acabamentosMapeados: AcabamentoItem[] = INITIAL_FORM.acabamentos.map(acabDefault => {
-          const encontrado = acabamentosDaApi.find((a: any) => a.tipo === acabDefault.tipo)
-          if (encontrado) {
-            return {
-              ...acabDefault,
-              ativo: true,
-              custoHora: encontrado.custoHora ?? acabDefault.custoHora,
-              velocidade: encontrado.velocidade ?? acabDefault.velocidade,
-              custoMaterialM2: encontrado.custoMaterialM2 ?? acabDefault.custoMaterialM2,
+        let acabamentosMapeados: AcabamentoItem[]
+
+        if (acabamentosDaApi.length > 0) {
+          // Tem acabamentos salvos — mapear com base nos defaults
+          acabamentosMapeados = INITIAL_FORM.acabamentos.map(acabDefault => {
+            const encontrado = acabamentosDaApi.find((a: any) => a.tipo === acabDefault.tipo)
+            if (encontrado) {
+              return {
+                ...acabDefault,
+                ativo: true,
+                custoHora: encontrado.custoHora ?? acabDefault.custoHora,
+                velocidade: encontrado.velocidade ?? acabDefault.velocidade,
+                custoMaterialM2: encontrado.custoMaterialM2 ?? acabDefault.custoMaterialM2,
+              }
+            }
+            return { ...acabDefault, ativo: false }
+          })
+
+          // Acabamentos da resposta que não estão no default
+          for (const acab of acabamentosDaApi) {
+            const jaExiste = acabamentosMapeados.some(a => a.tipo === acab.tipo)
+            if (!jaExiste) {
+              acabamentosMapeados.push({
+                tipo: acab.tipo,
+                label: acab.tipo,
+                ativo: true,
+                custoHora: acab.custoHora ?? 0,
+                velocidade: acab.velocidade ?? 0,
+                custoMaterialM2: acab.custoMaterialM2 ?? 0,
+              })
             }
           }
-          return { ...acabDefault, ativo: false }
-        })
+        } else {
+          // Sem acabamentos salvos — usar defaults com os dois primeiros ativos
+          acabamentosMapeados = INITIAL_FORM.acabamentos.map(a => ({ ...a }))
+        }
 
-        // Acabamentos da resposta que não estão no default
-        for (const acab of acabamentosDaApi) {
-          const jaExiste = acabamentosMapeados.some(a => a.tipo === acab.tipo)
-          if (!jaExiste) {
-            acabamentosMapeados.push({
-              tipo: acab.tipo,
-              label: acab.tipo,
-              ativo: true,
-              custoHora: acab.custoHora ?? 0,
-              velocidade: acab.velocidade ?? 0,
-              custoMaterialM2: acab.custoMaterialM2 ?? 0,
-            })
-          }
+        // Determinar gramatura e precoKg — usar os salvos se existirem
+        const gramaturaCarregada = data.gramatura ? Number(data.gramatura) : 0
+        // precoKg do papel não é salvo diretamente no orçamento; tentar extrair do resultadoCalculo
+        let precoKgCarregado = 0
+        if (data.resultadoCalculo?.papel?.precoKg) {
+          precoKgCarregado = Number(data.resultadoCalculo.papel.precoKg)
         }
 
         const formCarregado: WizardFormData = {
@@ -161,8 +178,8 @@ export default function NovoOrcamentoGraficoPage() {
           medidas: data.medidas ?? {},
           papelId: data.papelId ?? null,
           papelDescricao: data.papelDescricao ?? '',
-          gramatura: data.gramatura ?? 0,
-          precoKg: 0, // não vem da API, usuário re-informa
+          gramatura: gramaturaCarregada,
+          precoKg: precoKgCarregado,
           cores: coresMapeadas.length > 0 ? coresMapeadas : INITIAL_FORM.cores,
           acabamentos: acabamentosMapeados,
           quantidade: data.quantidade ?? 10000,
@@ -203,7 +220,7 @@ export default function NovoOrcamentoGraficoPage() {
         const params = formData.tipoEmbalagem.parametros as any[]
         return params.filter((p: any) => p.obrigatorio).every((p: any) => formData.medidas[p.nome] > 0)
       }
-      case 3: return formData.gramatura > 0 && formData.precoKg > 0
+      case 3: return isEditing || (formData.gramatura > 0 && formData.precoKg > 0)
       case 4: return formData.cores.length > 0
       case 5: return true
       case 6: return formData.quantidade > 0
