@@ -373,8 +373,8 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
     title: 'PCP',
     entries: [
       { icon: IconHome, label: 'Dashboard', href: '/pcp/dashboard' },
-      { icon: IconListDetails, label: 'Ordens de Produção', href: '/pcp/ordens-producao' },
       { icon: IconClipboardCheck, label: 'Análise de Produção', href: '/pcp/analise-producao' },
+      { icon: IconListDetails, label: 'Ordens de Produção', href: '/pcp/ordens-producao' },
       { icon: IconUpload, label: 'Importar OP (PDF)', href: '/pcp/importar-op' },
       { icon: IconLink, label: 'De/Para (Vínculos)', href: '/pcp/de-para' },
       { icon: IconAssembly, label: 'Kanban', href: '/pcp/kanban' },
