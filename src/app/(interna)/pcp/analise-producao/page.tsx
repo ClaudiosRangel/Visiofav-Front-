@@ -7,7 +7,7 @@ import {
 } from '@mantine/core'
 import {
   IconClipboardCheck, IconPackage, IconFlask, IconCheck, IconAlertTriangle,
-  IconRefresh, IconSearch, IconLock,
+  IconRefresh, IconSearch, IconLock, IconCalendarClock, IconClock,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { api } from '@/lib/api'
@@ -61,6 +61,29 @@ interface ResultadoEstoque {
   }
 }
 
+interface EtapaCalculada {
+  sequencia: number
+  descricao: string
+  centroNome: string | null
+  tempoTotalMin: number
+  filaAnteriorMin: number
+}
+
+interface ResultadoData {
+  tempoProducaoTotalMin: number
+  tempoProducaoTotalHoras: number
+  filaTotalMin: number
+  dataInicioEstimada: string
+  dataFimEstimada: string
+  dataEntregaViavel: string
+  dataEntregaDesejada: string | null
+  atendeDataDesejada: boolean | null
+  diasAtraso: number
+  horasUteisPorDia: number
+  etapas: EtapaCalculada[]
+  avisos: string[]
+}
+
 const SITUACAO_CONFIG: Record<string, { color: string; label: string }> = {
   SUFICIENTE: { color: 'green', label: 'Suficiente' },
   PARCIAL: { color: 'yellow', label: 'Parcial' },
@@ -72,6 +95,18 @@ const STATUS_ANALISE = ['PLANEJADA', 'PROGRAMADA', 'RASCUNHO']
 
 function formatNum(n: number): string {
   return n.toLocaleString('pt-BR', { maximumFractionDigits: 4 })
+}
+
+function formatData(iso: string | null): string {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('pt-BR')
+}
+
+function formatHoras(min: number): string {
+  const h = Math.floor(min / 60)
+  const m = Math.round(min % 60)
+  if (h > 0) return `${h}h${m > 0 ? ` ${m}min` : ''}`
+  return `${m}min`
 }
 
 export default function AnaliseProducaoPage() {
@@ -102,14 +137,20 @@ export default function AnaliseProducaoPage() {
   useEffect(() => { carregarOps() }, [carregarOps])
 
   const [reservando, setReservando] = useState(false)
+  const [resultadoData, setResultadoData] = useState<ResultadoData | null>(null)
 
-  // Analisar estoque da OP selecionada
+  // Analisar estoque + data de entrega da OP selecionada
   const analisar = useCallback(async (opId: string) => {
     setLoadingAnalise(true)
     setResultado(null)
+    setResultadoData(null)
     try {
-      const res = await api.get(`/pcp/analise-producao/${opId}/estoque`)
-      setResultado(res.data)
+      const [estoqueRes, dataRes] = await Promise.all([
+        api.get(`/pcp/analise-producao/${opId}/estoque`),
+        api.get(`/pcp/analise-producao/${opId}/data-entrega`).catch(() => null),
+      ])
+      setResultado(estoqueRes.data)
+      if (dataRes) setResultadoData(dataRes.data)
     } catch (err: any) {
       notifications.show({
         title: 'Erro',
@@ -311,9 +352,97 @@ export default function AnaliseProducaoPage() {
             )}
           </Card>
 
+          {/* Bloco 3 — Data de Entrega e Capacidade */}
+          {resultadoData && (
+            <Card withBorder>
+              <Group gap="xs" mb="sm">
+                <ThemeIcon variant="light" color="teal" size="md"><IconCalendarClock size={16} /></ThemeIcon>
+                <Text fw={600}>Data de Entrega e Capacidade</Text>
+                {resultadoData.atendeDataDesejada === true && (
+                  <Badge color="green" ml="auto" leftSection={<IconCheck size={12} />}>Atende o prazo</Badge>
+                )}
+                {resultadoData.atendeDataDesejada === false && (
+                  <Badge color="red" ml="auto" leftSection={<IconAlertTriangle size={12} />}>
+                    {resultadoData.diasAtraso} dia(s) de atraso
+                  </Badge>
+                )}
+              </Group>
+
+              <Group gap="xl" mb="sm">
+                <div>
+                  <Text size="xs" c="dimmed">Tempo de produção</Text>
+                  <Text fw={500}>{formatHoras(resultadoData.tempoProducaoTotalMin)}</Text>
+                </div>
+                <div>
+                  <Text size="xs" c="dimmed">Fila nas máquinas (gargalo)</Text>
+                  <Text fw={500} c={resultadoData.filaTotalMin > 0 ? 'orange' : 'green'}>
+                    {formatHoras(resultadoData.filaTotalMin)}
+                  </Text>
+                </div>
+                <div>
+                  <Text size="xs" c="dimmed">Início estimado</Text>
+                  <Text fw={500}>{formatData(resultadoData.dataInicioEstimada)}</Text>
+                </div>
+                <div>
+                  <Text size="xs" c="dimmed">Fim de produção</Text>
+                  <Text fw={500}>{formatData(resultadoData.dataFimEstimada)}</Text>
+                </div>
+                <div>
+                  <Text size="xs" c="dimmed">Entrega viável</Text>
+                  <Text fw={700} c="teal">{formatData(resultadoData.dataEntregaViavel)}</Text>
+                </div>
+                {resultadoData.dataEntregaDesejada && (
+                  <div>
+                    <Text size="xs" c="dimmed">Data desejada</Text>
+                    <Text fw={500}>{formatData(resultadoData.dataEntregaDesejada)}</Text>
+                  </div>
+                )}
+              </Group>
+
+              {resultadoData.etapas.length > 0 && (
+                <Table striped>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>#</Table.Th>
+                      <Table.Th>Etapa</Table.Th>
+                      <Table.Th>Centro/Máquina</Table.Th>
+                      <Table.Th style={{ textAlign: 'right' }}>Tempo</Table.Th>
+                      <Table.Th style={{ textAlign: 'right' }}>Fila no centro</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {resultadoData.etapas.map((e) => (
+                      <Table.Tr key={e.sequencia}>
+                        <Table.Td>{e.sequencia}</Table.Td>
+                        <Table.Td>{e.descricao}</Table.Td>
+                        <Table.Td>{e.centroNome || '—'}</Table.Td>
+                        <Table.Td style={{ textAlign: 'right' }}>{formatHoras(e.tempoTotalMin)}</Table.Td>
+                        <Table.Td style={{ textAlign: 'right' }}>
+                          {e.filaAnteriorMin > 0 ? (
+                            <Text component="span" c="orange" size="sm">{formatHoras(e.filaAnteriorMin)}</Text>
+                          ) : '—'}
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              )}
+
+              {resultadoData.avisos.length > 0 && (
+                <Stack gap={2} mt="sm">
+                  {resultadoData.avisos.map((a, i) => (
+                    <Text key={i} size="xs" c="dimmed">
+                      <IconClock size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />{a}
+                    </Text>
+                  ))}
+                </Stack>
+              )}
+            </Card>
+          )}
+
           <Divider label="Próximos passos (em breve)" labelPosition="center" />
           <Text size="xs" c="dimmed" ta="center">
-            Cálculo de data de entrega, capacidade das máquinas, requisição de compra e geração da OP serão adicionados nas próximas etapas.
+            Requisição de compra dos materiais em falta e geração da Ordem de Produção serão adicionados nas próximas etapas.
           </Text>
         </Stack>
       )}
