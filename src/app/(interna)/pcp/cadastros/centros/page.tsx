@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Title, Stack, Table, Group, Button, Badge, Text, Loader, Center, Modal, TextInput, Select, NumberInput, ActionIcon, Divider, SimpleGrid } from '@mantine/core'
+import { Title, Stack, Table, Group, Button, Badge, Text, Loader, Center, Modal, TextInput, Select, NumberInput, ActionIcon, Divider, SimpleGrid, Switch } from '@mantine/core'
 import { IconPlus, IconEdit, IconPower } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
@@ -15,7 +15,7 @@ export default function CentrosProducaoPage() {
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
   const [editando, setEditando] = useState<any>(null)
-  const [form, setForm] = useState({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null as string | null, turnoProducaoId: null as string | null, capacidadeHora: 0, custoHora: 0, velocidade: 0, unidadeVelocidade: null as string | null, formatoFolhaLargura: 0, formatoFolhaAltura: 0, pincaMm: 0 })
+  const [form, setForm] = useState({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null as string | null, turnoProducaoId: null as string | null, capacidadeHora: 0, custoHora: 0, velocidade: 0, unidadeVelocidade: null as string | null, formatoFolhaLargura: 0, formatoFolhaAltura: 0, pincaMm: 0, disponivelProgramacao: true })
 
   async function carregar() {
     setLoading(true)
@@ -34,8 +34,8 @@ export default function CentrosProducaoPage() {
 
   useEffect(() => { carregar() }, [])
 
-  function abrirNovo() { setEditando(null); setForm({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null, turnoProducaoId: null, capacidadeHora: 0, custoHora: 0, velocidade: 0, unidadeVelocidade: null, formatoFolhaLargura: 0, formatoFolhaAltura: 0, pincaMm: 0 }); setModalAberto(true) }
-  function abrirEdicao(item: any) { setEditando(item); setForm({ codigo: item.codigo, descricao: item.descricao, tipo: item.tipo, tipoProcessoId: item.tipoProcessoId || null, turnoProducaoId: item.turnoProducaoId || null, capacidadeHora: Number(item.capacidadeHora) || 0, custoHora: Number(item.custoHora) || 0, velocidade: Number(item.velocidade) || 0, unidadeVelocidade: item.unidadeVelocidade || null, formatoFolhaLargura: Number(item.formatoFolhaLargura) || 0, formatoFolhaAltura: Number(item.formatoFolhaAltura) || 0, pincaMm: Number(item.pincaMm) || 0 }); setModalAberto(true) }
+  function abrirNovo() { setEditando(null); setForm({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null, turnoProducaoId: null, capacidadeHora: 0, custoHora: 0, velocidade: 0, unidadeVelocidade: null, formatoFolhaLargura: 0, formatoFolhaAltura: 0, pincaMm: 0, disponivelProgramacao: true }); setModalAberto(true) }
+  function abrirEdicao(item: any) { setEditando(item); setForm({ codigo: item.codigo, descricao: item.descricao, tipo: item.tipo, tipoProcessoId: item.tipoProcessoId || null, turnoProducaoId: item.turnoProducaoId || null, capacidadeHora: Number(item.capacidadeHora) || 0, custoHora: Number(item.custoHora) || 0, velocidade: Number(item.velocidade) || 0, unidadeVelocidade: item.unidadeVelocidade || null, formatoFolhaLargura: Number(item.formatoFolhaLargura) || 0, formatoFolhaAltura: Number(item.formatoFolhaAltura) || 0, pincaMm: Number(item.pincaMm) || 0, disponivelProgramacao: item.disponivelProgramacao ?? true }); setModalAberto(true) }
 
   async function salvar() {
     if (!form.tipoProcessoId) {
@@ -82,7 +82,14 @@ export default function CentrosProducaoPage() {
                   )}
                 </Table.Td>
                 <Table.Td>{Number(item.capacidadeHora) || '—'}</Table.Td>
-                <Table.Td><Badge color={item.status ? 'green' : 'red'}>{item.status ? 'Ativo' : 'Inativo'}</Badge></Table.Td>
+                <Table.Td>
+                  <Group gap={4}>
+                    <Badge color={item.status ? 'green' : 'red'}>{item.status ? 'Ativo' : 'Inativo'}</Badge>
+                    {item.disponivelProgramacao === false && (
+                      <Badge color="gray" variant="light" title="Não aparece no painel de Programação">Fora da Programação</Badge>
+                    )}
+                  </Group>
+                </Table.Td>
                 <Table.Td>
                   <Group gap={4}>
                     <ActionIcon variant="subtle" onClick={() => abrirEdicao(item)}><IconEdit size={16} /></ActionIcon>
@@ -123,6 +130,13 @@ export default function CentrosProducaoPage() {
             <NumberInput label="Capacidade/Hora" value={form.capacidadeHora} onChange={(v) => setForm({ ...form, capacidadeHora: typeof v === 'number' ? v : 0 })} min={0} />
             <NumberInput label="Custo/Hora (R$)" value={form.custoHora} onChange={(v) => setForm({ ...form, custoHora: typeof v === 'number' ? v : 0 })} min={0} decimalScale={2} />
           </Group>
+
+          <Switch
+            label="Disponível na Programação"
+            description="Quando desligado, este centro não aparece no painel de Programação"
+            checked={form.disponivelProgramacao}
+            onChange={(e) => setForm({ ...form, disponivelProgramacao: e.currentTarget.checked })}
+          />
 
           <Divider label="Parâmetros de Orçamento" labelPosition="left" mt="sm" />
 
