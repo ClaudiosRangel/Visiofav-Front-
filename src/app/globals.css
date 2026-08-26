@@ -38,3 +38,62 @@ body {
   --mantine-spacing-sm: 0.875rem;
   --mantine-spacing-md: 1.25rem;
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Responsividade em telas pequenas (mobile / tablet)
+
+   O módulo PCP (e outras telas densas do ERP) tem muitas <Table> largas e
+   grupos de filtros com larguras fixas que estouravam a largura da viewport
+   em celular, gerando scroll horizontal na página inteira em vez de só na
+   tabela. Estas regras, aplicadas apenas abaixo de 768px (breakpoint md do
+   Mantine/Tailwind usado no projeto), forçam:
+     - tabelas a rolarem horizontalmente dentro do próprio container;
+     - grupos de filtros (Mantine Group) a quebrarem em várias linhas;
+     - inputs/selects a ocuparem a largura disponível em vez de largura fixa.
+   O <main> das páginas de módulo já tem `overflow-x-hidden`, então o scroll
+   horizontal fica contido na tabela, não na página.
+   ────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Toda Table do Mantine ganha scroll horizontal próprio, sem espremer
+     colunas nem estourar a página. */
+  main .mantine-Table-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+
+  /* Wrapper de scroll do Mantine (Table.ScrollContainer / ScrollArea) também
+     limitado à largura da viewport. */
+  main .mantine-ScrollArea-root,
+  main .mantine-Table-scrollContainer {
+    max-width: 100%;
+  }
+
+  /* Grupos de filtros/ações no topo das telas quebram em várias linhas em vez
+     de forçar scroll horizontal na página. */
+  main .mantine-Group-root {
+    flex-wrap: wrap;
+  }
+
+  /* Inputs, selects e date pickers usados como filtro deixam de ter largura
+     fixa e passam a ocupar a largura disponível (mínimo confortável de 140px,
+     crescendo para preencher a linha). */
+  main .mantine-TextInput-root,
+  main .mantine-Select-root,
+  main .mantine-MultiSelect-root,
+  main .mantine-NumberInput-root,
+  main .mantine-DateInput-root,
+  main .mantine-DatePickerInput-root,
+  main .mantine-Autocomplete-root {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+
+  /* Cards e Paper não devem estourar horizontalmente. */
+  main .mantine-Card-root,
+  main .mantine-Paper-root {
+    max-width: 100%;
+  }
+}

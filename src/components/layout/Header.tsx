@@ -7,7 +7,10 @@ import { useEffect, useState } from 'react'
 import { useDisclosure } from '@mantine/hooks'
 import { useEmpresa } from '@/providers/EmpresaProvider'
 import { formatarCnpj } from '@/app/(interna)/selecionar-empresa/selecaoEmpresa.utils'
+import { usePathname } from 'next/navigation'
 import { voltarParaModulos } from '@/lib/abasModulo'
+import { detectModule } from '@/components/layout/ModuleSidebar'
+import { useMobileMenuStore } from '@/lib/moduleSidebarStore'
 import { useNotificacoes, type Notificacao } from '@/data/hooks/useNotificacoes'
 import { NotificacaoModal } from '@/components/notificacoes/NotificacaoModal'
 
@@ -38,6 +41,8 @@ function tempoRelativo(data: string): string {
 
 export default function Header() {
   const router = useRouter()
+  const pathname = usePathname()
+  const { open: abrirMenuMobile } = useMobileMenuStore()
   const { empresa, trocarEmpresa, podeTrocarEmpresa, logout } = useEmpresa()
   const [userName, setUserName] = useState('')
   const [popoverOpened, { toggle: togglePopover, close: closePopover }] = useDisclosure(false)
@@ -76,7 +81,19 @@ export default function Header() {
     <>
       <header className="h-14 bg-white dark:bg-[#1a1b1e] border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-3 md:px-6">
         <Group gap="sm">
-          <ActionIcon variant="subtle" color="gray" size="lg" className="md:hidden" onClick={() => voltarParaModulos(router)}>
+          {/* Hambúrguer (mobile/tablet): dentro de um módulo abre o drawer do
+              menu do módulo; fora de qualquer módulo, volta para a tela de
+              Módulos (comportamento anterior). */}
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            size="lg"
+            className="md:hidden"
+            onClick={() => {
+              if (detectModule(pathname)) abrirMenuMobile()
+              else voltarParaModulos(router)
+            }}
+          >
             <IconMenu2 size={20} />
           </ActionIcon>
           <Text

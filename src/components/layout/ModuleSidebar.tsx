@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { UnstyledButton, Stack, Text, Divider, Collapse, Tooltip, Menu, ActionIcon } from '@mantine/core'
+import { UnstyledButton, Stack, Text, Divider, Collapse, Tooltip, Menu, ActionIcon, Drawer } from '@mantine/core'
 import {
   IconArrowLeft, IconChevronDown, IconChevronRight, IconChevronLeft,
   // Compras
@@ -31,7 +31,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEmpresaAtual, deveExibirLinkKardex } from '@/hooks/useEmpresaAtual'
 import { getUserPerfil } from '@/hooks/usePerfilGuard'
 import { voltarParaModulos, abrirOuFocarAba } from '@/lib/abasModulo'
-import { useModuleSidebarCollapsed } from '@/lib/moduleSidebarStore'
+import { useModuleSidebarCollapsed, useMobileMenuStore } from '@/lib/moduleSidebarStore'
 import { confirmarNavegacaoOuBloquear } from '@/lib/navigationGuardStore'
 
 interface NavItem {
@@ -596,12 +596,19 @@ function NavGroupComponent({ group, pathname, collapsed }: { group: NavGroup; pa
   )
 }
 
-export default function ModuleSidebar() {
-  const pathname = usePathname()
-  const router = useRouter()
-  const moduleName = detectModule(pathname)
+/**
+ * Monta as `entries` do módulo atual aplicando as mesmas regras de negócio
+ * (link Kardex condicional no WMS, filtro de permissões do PCP, restrição de
+ * perfil no Portal Representante). Extraído para ser reutilizado tanto pela
+ * sidebar fixa do desktop (`ModuleSidebar`) quanto pelo drawer mobile
+ * (`MobileModuleDrawer`) — as duas telas precisam exatamente da mesma lista.
+ *
+ * Retorna `null` em `moduleConfig` quando não há módulo detectado ou o
+ * usuário não tem permissão de ver o módulo (mesma semântica do `return null`
+ * anterior do componente).
+ */
+function useModuleEntries(pathname: string): { moduleName: string | null; moduleConfig: ModuleConfig | null; entries: MenuEntry[] } {
   const { usaWms } = useEmpresaAtual()
-  const { collapsed, toggle } = useModuleSidebarCollapsed()
   const [acessoMenusPcp, setAcessoMenusPcp] = useState<Record<string, { habilitado: boolean }> | null>(null)
 
   // Carregar permissões de acesso a menus do PCP (uma vez)
@@ -614,15 +621,18 @@ export default function ModuleSidebar() {
     })
   }, [])
 
-  if (!moduleName) return null
+  const moduleName = detectModule(pathname)
+  if (!moduleName) return { moduleName: null, moduleConfig: null, entries: [] }
 
   const moduleConfig = MODULE_MENUS[moduleName]
-  if (!moduleConfig) return null
+  if (!moduleConfig) return { moduleName, moduleConfig: null, entries: [] }
 
   // Portal Representante: restrito a ADMIN e SUPER_ADMIN
   if (moduleName === 'portal-representante') {
     const perfil = getUserPerfil()
-    if (!perfil || !['ADMIN', 'SUPER_ADMIN'].includes(perfil)) return null
+    if (!perfil || !['ADMIN', 'SUPER_ADMIN'].includes(perfil)) {
+      return { moduleName, moduleConfig: null, entries: [] }
+    }
   }
 
   // Requirements 9.1, 9.2 — o link para a Tela_Kardex só aparece no grupo "Estoque" do
@@ -672,6 +682,69 @@ export default function ModuleSidebar() {
       return true
     })
   }
+
+  return { moduleName, moduleConfig, entries }
+}
+
+/**
+ * Drawer do menu do módulo para telas pequenas (mobile/tablet). Renderiza as
+ * MESMAS entries da sidebar de desktop (via `useModuleEntries`), aberto pelo
+ * botão hambúrguer do `Header`. Sem `hidden md:...`: fica sempre disponível,
+ * mas só é acionado pelo botão que por sua vez é `md:hidden`.
+ */
+export function MobileModuleDrawer() {
+  const pathname = usePathname()
+  const router = useRouter()
+  const { opened, close } = useMobileMenuStore()
+  const { moduleConfig, entries } = useModuleEntries(pathname)
+
+  // Fecha o drawer sempre que a rota muda (ex.: após clicar num item)
+  useEffect(() => {
+    close()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname])
+
+  if (!moduleConfig) return null
+
+  return (
+    <Drawer
+      opened={opened}
+      onClose={close}
+      size={280}
+      padding={0}
+      withCloseButton={false}
+      className="md:hidden"
+      title={
+        <UnstyledButton
+          onClick={() => { if (confirmarNavegacaoOuBloquear()) { close(); voltarParaModulos(router) } }}
+          className="flex items-center gap-2 text-gray-500 hover:text-gray-700 transition-colors px-2"
+        >
+          <IconArrowLeft size={18} />
+          <Text size="sm" fw={700} c="primary" tt="uppercase">{moduleConfig.title}</Text>
+        </UnstyledButton>
+      }
+    >
+      <Divider mb="xs" />
+      <Stack gap={2} className="px-2 pb-4">
+        {entries.map((entry) =>
+          isGroup(entry) ? (
+            <NavGroupComponent key={entry.label} group={entry} pathname={pathname} />
+          ) : (
+            <NavLink key={entry.href} item={entry} pathname={pathname} />
+          ),
+        )}
+      </Stack>
+    </Drawer>
+  )
+}
+
+export default function ModuleSidebar() {
+  const pathname = usePathname()
+  const router = useRouter()
+  const { collapsed, toggle } = useModuleSidebarCollapsed()
+  const { moduleConfig, entries } = useModuleEntries(pathname)
+
+  if (!moduleConfig) return null
 
   return (
     <nav

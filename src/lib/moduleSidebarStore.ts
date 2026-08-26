@@ -52,3 +52,48 @@ export function useModuleSidebarCollapsed() {
 
   return { collapsed: isCollapsed, toggle }
 }
+
+/**
+ * Estado de abertura do menu de módulo em telas pequenas (mobile/tablet).
+ *
+ * No desktop o `ModuleSidebar` fica fixo à esquerda (`hidden md:flex`). Em
+ * telas menores esse `<nav>` é ocultado — sem este store não havia NENHUMA
+ * forma de navegar entre as telas de um módulo (ex.: PCP) pelo celular. O
+ * botão hambúrguer do `Header` (visível só em `md:hidden`) passa a abrir um
+ * `<Drawer>` do Mantine com as MESMAS entries do módulo atual.
+ *
+ * Store externo próprio (não reaproveita o de colapso do desktop) porque as
+ * duas decisões são independentes: recolher a sidebar do desktop não tem
+ * relação com abrir/fechar o drawer mobile.
+ */
+let mobileOpen = false
+const mobileListeners = new Set<() => void>()
+
+function subscribeMobile(callback: () => void) {
+  mobileListeners.add(callback)
+  return () => mobileListeners.delete(callback)
+}
+
+function getMobileSnapshot() {
+  return mobileOpen
+}
+
+function getMobileServerSnapshot() {
+  return false
+}
+
+function setMobileOpen(value: boolean) {
+  mobileOpen = value
+  mobileListeners.forEach((listener) => listener())
+}
+
+export function useMobileMenuStore() {
+  const opened = useSyncExternalStore(subscribeMobile, getMobileSnapshot, getMobileServerSnapshot)
+
+  return {
+    opened,
+    open: () => setMobileOpen(true),
+    close: () => setMobileOpen(false),
+    toggle: () => setMobileOpen(!mobileOpen),
+  }
+}
