@@ -3,11 +3,12 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   Title, Stack, Card, Group, Text, Table, Badge, Button, Select,
-  LoadingOverlay, Center, Loader, Divider, ThemeIcon,
+  LoadingOverlay, Center, Loader, ThemeIcon,
 } from '@mantine/core'
 import {
   IconClipboardCheck, IconPackage, IconFlask, IconCheck, IconAlertTriangle,
   IconRefresh, IconSearch, IconLock, IconCalendarClock, IconClock,
+  IconShoppingCart, IconCircleCheck,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { api } from '@/lib/api'
@@ -184,6 +185,60 @@ export default function AnaliseProducaoPage() {
       })
     } finally {
       setReservando(false)
+    }
+  }, [opSelecionada, analisar])
+
+  const [gerandoCompras, setGerandoCompras] = useState(false)
+  const [confirmando, setConfirmando] = useState(false)
+
+  // Gerar sugestões de compra dos materiais em falta
+  const gerarCompras = useCallback(async () => {
+    if (!opSelecionada) return
+    setGerandoCompras(true)
+    try {
+      const res = await api.post(`/pcp/analise-producao/${opSelecionada}/sugestoes-compra`)
+      const { sugestoesCriadas, sugestoesIgnoradas } = res.data
+      notifications.show({
+        title: 'Sugestões de compra',
+        message: `${sugestoesCriadas} sugestão(ões) criada(s), ${sugestoesIgnoradas} ignorada(s).`,
+        color: sugestoesCriadas > 0 ? 'green' : 'yellow',
+      })
+    } catch (err: any) {
+      notifications.show({
+        title: 'Erro',
+        message: err?.response?.data?.message || 'Falha ao gerar sugestões de compra',
+        color: 'red',
+      })
+    } finally {
+      setGerandoCompras(false)
+    }
+  }, [opSelecionada])
+
+  // Confirmar análise: reserva + compras + data + avança status (Gerar OP)
+  const confirmar = useCallback(async () => {
+    if (!opSelecionada) return
+    if (!confirm('Confirmar a análise? Isso vai reservar os materiais disponíveis, gerar sugestões de compra dos que faltam e avançar a OP para Programada.')) return
+    setConfirmando(true)
+    try {
+      const res = await api.post(`/pcp/analise-producao/${opSelecionada}/confirmar`, {})
+      const { reservasCriadas, sugestoesCompraCriadas, statusNovo, avisos } = res.data
+      notifications.show({
+        title: 'Ordem de Produção confirmada',
+        message: `${reservasCriadas} reserva(s), ${sugestoesCompraCriadas} sugestão(ões) de compra. Status: ${statusNovo}.`,
+        color: 'green',
+      })
+      if (avisos && avisos.length > 0) {
+        notifications.show({ title: 'Avisos', message: avisos.join(' '), color: 'yellow' })
+      }
+      await analisar(opSelecionada)
+    } catch (err: any) {
+      notifications.show({
+        title: 'Erro',
+        message: err?.response?.data?.message || 'Falha ao confirmar análise',
+        color: 'red',
+      })
+    } finally {
+      setConfirmando(false)
     }
   }, [opSelecionada, analisar])
 
@@ -440,10 +495,63 @@ export default function AnaliseProducaoPage() {
             </Card>
           )}
 
-          <Divider label="Próximos passos (em breve)" labelPosition="center" />
-          <Text size="xs" c="dimmed" ta="center">
-            Requisição de compra dos materiais em falta e geração da Ordem de Produção serão adicionados nas próximas etapas.
-          </Text>
+          {/* Bloco 4 — Compras Necessárias */}
+          {resultado.resumo.materiaisComFalta > 0 && (
+            <Card withBorder>
+              <Group gap="xs" mb="sm">
+                <ThemeIcon variant="light" color="orange" size="md"><IconShoppingCart size={16} /></ThemeIcon>
+                <Text fw={600}>Compras Necessárias</Text>
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="orange"
+                  ml="auto"
+                  leftSection={<IconShoppingCart size={14} />}
+                  onClick={gerarCompras}
+                  loading={gerandoCompras}
+                >
+                  Gerar Requisições de Compra
+                </Button>
+              </Group>
+
+              <Table striped highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Material</Table.Th>
+                    <Table.Th style={{ textAlign: 'right' }}>Falta</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {resultado.materiais.filter((m) => m.falta > 0).map((m, idx) => (
+                    <Table.Tr key={idx}>
+                      <Table.Td>{m.descricao}</Table.Td>
+                      <Table.Td style={{ textAlign: 'right' }}>
+                        <Text c="red" fw={600} component="span">{formatNum(m.falta)} {m.unidade}</Text>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Card>
+          )}
+
+          {/* Bloco 5 — Gerar Ordem de Produção */}
+          <Card withBorder style={{ backgroundColor: 'var(--mantine-color-green-0)' }}>
+            <Text size="sm" c="dimmed" mb="md">
+              Ao confirmar, os materiais disponíveis serão reservados, as compras dos materiais em falta serão sugeridas e a OP avançará para Programada.
+            </Text>
+            <Group justify="flex-end">
+              <Button
+                size="md"
+                color="green"
+                leftSection={<IconCircleCheck size={18} />}
+                onClick={confirmar}
+                loading={confirmando}
+              >
+                Gerar Ordem de Produção
+              </Button>
+            </Group>
+          </Card>
         </Stack>
       )}
     </Stack>
