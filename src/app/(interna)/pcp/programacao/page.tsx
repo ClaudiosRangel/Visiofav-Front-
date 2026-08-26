@@ -236,6 +236,9 @@ export default function ProgramacaoPage() {
   }
   // Filtros
   const [busca, setBusca] = useState('')
+  // Quando false (padrão), a busca considera apenas o processo (aba) ativo.
+  // Quando true, busca em todos os Tipos de Processo (todas as abas).
+  const [buscarTodosProcessos, setBuscarTodosProcessos] = useState(false)
   const [filtroStatus, setFiltroStatus] = useState<string | null>(null)
   const [filtroPrioridade, setFiltroPrioridade] = useState<string | null>(null)
   const [filtroGrupo, setFiltroGrupo] = useState<string | null>(null)
@@ -1141,15 +1144,20 @@ export default function ProgramacaoPage() {
   function localizarOS() {
     if (!painel || !busca.trim()) return
     const numero = busca.trim()
-    // Search all centros (unfiltered) for the OS number
-    for (const centro of painel.centros) {
+    // Por padrão, procura apenas nos centros do processo (aba) ativo. Quando
+    // "Buscar em todos os processos" está marcado, varre todos os centros e
+    // troca automaticamente para a aba onde a OS foi encontrada.
+    const centrosParaBuscar = (buscarTodosProcessos || layoutView === 'detalhado')
+      ? painel.centros
+      : painel.centros.filter((c: any) => getCategoriaCentro(c.centro.tipoProcesso?.codigo) === activeTab)
+    for (const centro of centrosParaBuscar) {
       const etapa = centro.etapas.find((e: any) => String(e.opNumero) === numero)
       if (etapa) {
         // Expand this centro
         setAbertos(prev => ({ ...prev, [centro.centro.id]: true }))
-        // Switch to the correct tab
+        // Switch to the correct tab (só quando busca é em todos os processos)
         const categoriaCentro = getCategoriaCentro(centro.centro.tipoProcesso?.codigo)
-        if (layoutView === 'grid' && activeTab !== categoriaCentro) {
+        if (buscarTodosProcessos && layoutView === 'grid' && activeTab !== categoriaCentro) {
           setActiveTab(categoriaCentro)
         }
         // Highlight the row
@@ -1164,7 +1172,13 @@ export default function ProgramacaoPage() {
         return
       }
     }
-    notifications.show({ title: 'OS não encontrada', message: `Nenhuma OS #${numero} encontrada no painel`, color: 'orange' })
+    notifications.show({
+      title: 'OS não encontrada',
+      message: buscarTodosProcessos
+        ? `Nenhuma OS #${numero} encontrada no painel`
+        : `Nenhuma OS #${numero} neste processo. Marque "Buscar em todos os processos" para procurar nas demais abas.`,
+      color: 'orange',
+    })
   }
 
   // Feature 5a: Criar novo grupo (centro de produção)
@@ -1469,7 +1483,12 @@ export default function ProgramacaoPage() {
   })
   const mostrarAguardandoCartao = aguardandoCartaoFiltrado.length > 0
 
-  const centrosFiltrados = (layoutView === 'detalhado'
+  // No layout grid, normalmente só os centros da aba (processo) ativa são
+  // exibidos. Mas quando há uma busca ativa E o usuário marcou "Buscar em
+  // todos os processos", ignoramos o filtro de aba para procurar em todos os
+  // Tipos de Processo.
+  const buscarEmTodos = buscarTodosProcessos && !!busca
+  const centrosFiltrados = (layoutView === 'detalhado' || buscarEmTodos
     ? painel.centros
     : painel.centros.filter((c: any) => getCategoriaCentro(c.centro.tipoProcesso?.codigo) === activeTab)
   ).filter((c: any) => {
@@ -1509,9 +1528,22 @@ export default function ProgramacaoPage() {
     return true // Sem filtro: mostrar todos os grupos (inclusive vazios)
   })
 
+  // Nome do processo (aba) atualmente selecionado, exibido no título. No
+  // layout Detalhado não há aba única, então fica vazio.
+  const processoAtivoNome = layoutView === 'detalhado'
+    ? ''
+    : (tiposProcesso.find((t: any) => t.codigo.toLowerCase() === activeTab)?.descricao || '')
+
   return (
     <Stack gap="md">
-      <Title order={3}>Painel Operacional — Programação por Centro</Title>
+      <Title order={3}>
+        {processoAtivoNome || 'Painel Operacional — Programação por Centro'}
+        {busca.trim() && (
+          <Text component="span" c="blue" inherit>
+            {' '}(Filtrado por "{busca.trim()}"{buscarEmTodos ? ' — todos os processos' : ''})
+          </Text>
+        )}
+      </Title>
       <Text size="sm" c="dimmed">Controle em tempo real: inicie, aponte produção, registre paradas e conclua etapas.</Text>
 
       {/* Legenda de cores — mesmo código de cores usado em getRowBackground,
@@ -1609,6 +1641,13 @@ export default function ProgramacaoPage() {
           onKeyDown={(e) => { if (e.key === 'Enter') localizarOS() }}
           style={{ flex: 1, minWidth: 200 }}
           size="sm"
+        />
+        <Checkbox
+          label="Buscar em todos os processos"
+          checked={buscarTodosProcessos}
+          onChange={(e) => setBuscarTodosProcessos(e.currentTarget.checked)}
+          size="sm"
+          title="Quando desmarcado, a busca considera apenas o processo (aba) selecionado"
         />
         <DatePickerInput
           type="range"
