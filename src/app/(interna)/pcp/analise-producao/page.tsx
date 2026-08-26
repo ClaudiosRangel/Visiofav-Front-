@@ -3,26 +3,41 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   Title, Stack, Card, Group, Text, Table, Badge, Button, Select,
-  LoadingOverlay, Center, Loader, ThemeIcon,
+  LoadingOverlay, Center, Loader, ThemeIcon, Tabs,
 } from '@mantine/core'
 import {
   IconClipboardCheck, IconPackage, IconFlask, IconCheck, IconAlertTriangle,
   IconRefresh, IconSearch, IconLock, IconCalendarClock, IconClock,
-  IconShoppingCart, IconCircleCheck,
+  IconShoppingCart, IconCirclePlus, IconCircleCheck,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { api } from '@/lib/api'
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
 
-interface OpResumo {
+interface PedidoElegivel {
+  id: string
+  numero: number
+  clienteNome: string | null
+  valorTotal: number
+  origemPedido: string
+  origemOrcamentoGrafico: boolean
+  criadoEm: string
+  itens: Array<{ id: string; produtoId: string; produtoNome: string; quantidade: number; unidade: string }>
+}
+
+interface OpNativa {
   id: string
   numero: number
   referenciaExterna: string | null
   status: string
   quantidade: number
-  clienteNome?: string | null
-  produtoNome?: string | null
+  unidadeMedida: string
+  origemImportacao: string | null
+  dataEntregaPrevista: string | null
+  clienteNome: string | null
+  produtoNome: string | null
+  criadoEm: string
 }
 
 interface DisponibilidadePA {
@@ -91,9 +106,6 @@ const SITUACAO_CONFIG: Record<string, { color: string; label: string }> = {
   SEM_ESTOQUE: { color: 'red', label: 'Sem estoque' },
 }
 
-// Status de OP elegíveis para análise (antes de liberar para produção)
-const STATUS_ANALISE = ['PLANEJADA', 'PROGRAMADA', 'RASCUNHO']
-
 function formatNum(n: number): string {
   return n.toLocaleString('pt-BR', { maximumFractionDigits: 4 })
 }
@@ -110,21 +122,144 @@ function formatHoras(min: number): string {
   return `${m}min`
 }
 
-export default function AnaliseProducaoPage() {
-  useEffect(() => { document.title = 'Vizor - PCP - Análise de Produção' }, [])
+function formatMoeda(n: number): string {
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
 
-  const [ops, setOps] = useState<OpResumo[]>([])
+// ── ABA 1: Gerar OP a partir de pedidos aprovados ────────────────────────────
+
+function AbaGerarOp() {
+  const [pedidos, setPedidos] = useState<PedidoElegivel[]>([])
+  const [loading, setLoading] = useState(true)
+  const [gerandoId, setGerandoId] = useState<string | null>(null)
+
+  const carregarPedidos = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await api.get('/pcp/analise-producao/pedidos-elegiveis')
+      setPedidos(res.data.data || res.data || [])
+    } catch {
+      notifications.show({ title: 'Erro', message: 'Falha ao carregar pedidos elegíveis', color: 'red' })
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { carregarPedidos() }, [carregarPedidos])
+
+  const gerarOp = useCallback(async (pedidoId: string) => {
+    setGerandoId(pedidoId)
+    try {
+      const res = await api.post(`/pcp/analise-producao/pedidos/${pedidoId}/gerar-op`)
+      const { opsGeradas, avisos } = res.data
+      const numeros = (opsGeradas || []).map((op: { numero: number }) => `#${op.numero}`).join(', ')
+      notifications.show({
+        title: 'OPs geradas',
+        message: `${(opsGeradas || []).length} OP(s) gerada(s)${numeros ? `: ${numeros}` : ''}.`,
+        color: 'green',
+      })
+      if (avisos && avisos.length > 0) {
+        notifications.show({ title: 'Avisos', message: avisos.join(' '), color: 'yellow' })
+      }
+      await carregarPedidos()
+    } catch (err: any) {
+      notifications.show({
+        title: 'Erro',
+        message: err?.response?.data?.message || 'Falha ao gerar OP a partir do pedido',
+        color: 'red',
+      })
+    } finally {
+      setGerandoId(null)
+    }
+  }, [carregarPedidos])
+
+  return (
+    <Card withBorder pos="relative" mt="md">
+      <LoadingOverlay visible={loading} />
+      <Group gap="xs" mb="sm">
+        <ThemeIcon variant="light" color="green" size="md"><IconCirclePlus size={16} /></ThemeIcon>
+        <Text fw={600}>Pedidos Aprovados Aguardando Geração de OP</Text>
+        <Button
+          size="xs"
+          variant="default"
+          ml="auto"
+          leftSection={<IconRefresh size={14} />}
+          onClick={carregarPedidos}
+        >
+          Atualizar
+        </Button>
+      </Group>
+
+      {pedidos.length === 0 && !loading ? (
+        <Center h={120}>
+          <Text size="sm" c="dimmed">Nenhum pedido aprovado aguardando geração de OP.</Text>
+        </Center>
+      ) : (
+        <Table striped highlightOnHover>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Pedido</Table.Th>
+              <Table.Th>Cliente</Table.Th>
+              <Table.Th style={{ textAlign: 'right' }}>Valor</Table.Th>
+              <Table.Th>Origem</Table.Th>
+              <Table.Th style={{ textAlign: 'center' }}>Itens</Table.Th>
+              <Table.Th style={{ textAlign: 'right' }}>Ação</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {pedidos.map((p) => (
+              <Table.Tr key={p.id}>
+                <Table.Td fw={600}>#{p.numero}</Table.Td>
+                <Table.Td>{p.clienteNome || '—'}</Table.Td>
+                <Table.Td style={{ textAlign: 'right' }}>{formatMoeda(p.valorTotal)}</Table.Td>
+                <Table.Td>
+                  <Badge variant="light" color={p.origemOrcamentoGrafico ? 'grape' : 'blue'} size="sm">
+                    {p.origemOrcamentoGrafico ? 'Orçamento Gráfico' : p.origemPedido}
+                  </Badge>
+                </Table.Td>
+                <Table.Td style={{ textAlign: 'center' }}>{p.itens?.length ?? 0}</Table.Td>
+                <Table.Td style={{ textAlign: 'right' }}>
+                  <Button
+                    size="xs"
+                    color="green"
+                    leftSection={<IconCircleCheck size={14} />}
+                    onClick={() => gerarOp(p.id)}
+                    loading={gerandoId === p.id}
+                    disabled={gerandoId !== null && gerandoId !== p.id}
+                  >
+                    Gerar OP
+                  </Button>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      )}
+    </Card>
+  )
+}
+
+// ── ABA 2: Cálculos / Análises de OPs nativas ────────────────────────────────
+
+// Status de OP elegíveis para análise (antes de liberar para produção)
+const STATUS_ANALISE = ['PLANEJADA', 'PROGRAMADA', 'RASCUNHO']
+
+function AbaAnalises() {
+  const [ops, setOps] = useState<OpNativa[]>([])
   const [loadingOps, setLoadingOps] = useState(true)
   const [opSelecionada, setOpSelecionada] = useState<string | null>(null)
   const [resultado, setResultado] = useState<ResultadoEstoque | null>(null)
   const [loadingAnalise, setLoadingAnalise] = useState(false)
+  const [reservando, setReservando] = useState(false)
+  const [resultadoData, setResultadoData] = useState<ResultadoData | null>(null)
+  const [gerandoCompras, setGerandoCompras] = useState(false)
 
-  // Carregar OPs elegíveis para análise
+  // Carregar OPs nativas elegíveis para análise
   const carregarOps = useCallback(async () => {
     setLoadingOps(true)
     try {
-      const res = await api.get('/ordens-producao', { params: { limit: 100 } })
-      const lista: OpResumo[] = (res.data.data || []).filter((op: OpResumo) =>
+      const res = await api.get('/pcp/analise-producao/ops-nativas')
+      const lista: OpNativa[] = (res.data.data || res.data || []).filter((op: OpNativa) =>
         STATUS_ANALISE.includes(op.status),
       )
       setOps(lista)
@@ -136,9 +271,6 @@ export default function AnaliseProducaoPage() {
   }, [])
 
   useEffect(() => { carregarOps() }, [carregarOps])
-
-  const [reservando, setReservando] = useState(false)
-  const [resultadoData, setResultadoData] = useState<ResultadoData | null>(null)
 
   // Analisar estoque + data de entrega da OP selecionada
   const analisar = useCallback(async (opId: string) => {
@@ -188,9 +320,6 @@ export default function AnaliseProducaoPage() {
     }
   }, [opSelecionada, analisar])
 
-  const [gerandoCompras, setGerandoCompras] = useState(false)
-  const [confirmando, setConfirmando] = useState(false)
-
   // Gerar sugestões de compra dos materiais em falta
   const gerarCompras = useCallback(async () => {
     if (!opSelecionada) return
@@ -214,38 +343,10 @@ export default function AnaliseProducaoPage() {
     }
   }, [opSelecionada])
 
-  // Confirmar análise: reserva + compras + data + avança status (Gerar OP)
-  const confirmar = useCallback(async () => {
-    if (!opSelecionada) return
-    if (!confirm('Confirmar a análise? Isso vai reservar os materiais disponíveis, gerar sugestões de compra dos que faltam e avançar a OP para Programada.')) return
-    setConfirmando(true)
-    try {
-      const res = await api.post(`/pcp/analise-producao/${opSelecionada}/confirmar`, {})
-      const { reservasCriadas, sugestoesCompraCriadas, statusNovo, avisos } = res.data
-      notifications.show({
-        title: 'Ordem de Produção confirmada',
-        message: `${reservasCriadas} reserva(s), ${sugestoesCompraCriadas} sugestão(ões) de compra. Status: ${statusNovo}.`,
-        color: 'green',
-      })
-      if (avisos && avisos.length > 0) {
-        notifications.show({ title: 'Avisos', message: avisos.join(' '), color: 'yellow' })
-      }
-      await analisar(opSelecionada)
-    } catch (err: any) {
-      notifications.show({
-        title: 'Erro',
-        message: err?.response?.data?.message || 'Falha ao confirmar análise',
-        color: 'red',
-      })
-    } finally {
-      setConfirmando(false)
-    }
-  }, [opSelecionada, analisar])
-
   function handleSelecionar(opId: string | null) {
     setOpSelecionada(opId)
     if (opId) analisar(opId)
-    else setResultado(null)
+    else { setResultado(null); setResultadoData(null) }
   }
 
   const opOptions = ops.map((op) => ({
@@ -254,15 +355,7 @@ export default function AnaliseProducaoPage() {
   }))
 
   return (
-    <Stack gap="lg" p="md">
-      <Group gap="sm">
-        <ThemeIcon variant="light" color="green" size="lg"><IconClipboardCheck size={20} /></ThemeIcon>
-        <Title order={3}>Análise de Produção</Title>
-      </Group>
-      <Text size="sm" c="dimmed" mt={-10}>
-        Verifique a disponibilidade de estoque (produto acabado e materiais) antes de liberar a OP para produção.
-      </Text>
-
+    <Stack gap="md" mt="md">
       {/* Seleção de OP */}
       <Card withBorder pos="relative">
         <LoadingOverlay visible={loadingOps} />
@@ -284,6 +377,15 @@ export default function AnaliseProducaoPage() {
             onClick={() => { carregarOps(); if (opSelecionada) analisar(opSelecionada) }}
           >
             Atualizar
+          </Button>
+          <Button
+            color="green"
+            leftSection={<IconClipboardCheck size={16} />}
+            onClick={() => { if (opSelecionada) analisar(opSelecionada) }}
+            disabled={!opSelecionada}
+            loading={loadingAnalise}
+          >
+            Recalcular
           </Button>
         </Group>
         {ops.length === 0 && !loadingOps && (
@@ -534,26 +636,43 @@ export default function AnaliseProducaoPage() {
               </Table>
             </Card>
           )}
-
-          {/* Bloco 5 — Gerar Ordem de Produção */}
-          <Card withBorder style={{ backgroundColor: 'var(--mantine-color-green-0)' }}>
-            <Text size="sm" c="dimmed" mb="md">
-              Ao confirmar, os materiais disponíveis serão reservados, as compras dos materiais em falta serão sugeridas e a OP avançará para Programada.
-            </Text>
-            <Group justify="flex-end">
-              <Button
-                size="md"
-                color="green"
-                leftSection={<IconCircleCheck size={18} />}
-                onClick={confirmar}
-                loading={confirmando}
-              >
-                Gerar Ordem de Produção
-              </Button>
-            </Group>
-          </Card>
         </Stack>
       )}
+    </Stack>
+  )
+}
+
+export default function AnaliseProducaoPage() {
+  useEffect(() => { document.title = 'Vizor - PCP - Análise de Produção' }, [])
+
+  return (
+    <Stack gap="lg" p="md">
+      <Group gap="sm">
+        <ThemeIcon variant="light" color="green" size="lg"><IconClipboardCheck size={20} /></ThemeIcon>
+        <Title order={3}>Análise de Produção</Title>
+      </Group>
+      <Text size="sm" c="dimmed" mt={-10}>
+        Gere Ordens de Produção a partir de pedidos aprovados ou analise a disponibilidade de estoque das OPs existentes.
+      </Text>
+
+      <Tabs defaultValue="gerar">
+        <Tabs.List>
+          <Tabs.Tab value="gerar" leftSection={<IconCirclePlus size={16} />}>
+            Gerar OP
+          </Tabs.Tab>
+          <Tabs.Tab value="analises" leftSection={<IconClipboardCheck size={16} />}>
+            Cálculos / Análises
+          </Tabs.Tab>
+        </Tabs.List>
+
+        <Tabs.Panel value="gerar">
+          <AbaGerarOp />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="analises">
+          <AbaAnalises />
+        </Tabs.Panel>
+      </Tabs>
     </Stack>
   )
 }
