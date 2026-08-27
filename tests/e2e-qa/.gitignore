@@ -1,0 +1,16 @@
+# Ambiente virtual Python
+.venv/
+
+# Estado de autenticação (contém token)
+.auth-state.json
+
+# Evidências geradas nos testes
+evidencias/
+
+# Relatório HTML
+report.html
+assets/
+
+# Cache do pytest
+__pycache__/
+.pytest_cache/

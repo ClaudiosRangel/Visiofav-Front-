@@ -29,7 +29,7 @@ A implementação segue a estratégia do design: primeiro extrair a validação 
     - **Validates: Requirements 4.1, 4.2, 4.3, 4.4, 4.5, 5.1, 5.2**
     - Geradores: `fc.oneof(fc.constant(null), fc.string())` para `estadoLogo`, `fc.constantFrom('criar', 'editar')` para `modo`, `fc.boolean()` para `logoFoiTocado`
 
-- [~] 2. Checkpoint - Ensure all tests pass, ask the user if questions arise.
+- [x] 2. Checkpoint - Ensure all tests pass, ask the user if questions arise.
 
 - [x] 3. Implementar e testar as funções puras de decisão visual do Campo_Logo (preview e botão de remover)
   - [x] 3.1 Implementar `deveExibirPreviewLogo(estadoLogo: string | null | undefined): boolean` e `deveExibirBotaoRemoverLogo(estadoLogo: string | null | undefined): boolean` em `logoEmpresa.utils.ts`
