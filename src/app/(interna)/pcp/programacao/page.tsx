@@ -163,6 +163,7 @@ export default function ProgramacaoPage() {
     { id: 'prioridade', label: 'Prioridade' },
     { id: 'observacao', label: 'Acompanhamento' },
     { id: 'previsaoConclusao', label: 'Prev. Conclusão' },
+    { id: 'tipoColagem', label: 'Tipo Colagem' },
   ]
   const COLUNAS_DEFAULT_CORTADEIRA = ['os', 'cliente', 'produto', 'quantidade', 'tiragem', 'produzida', 'entrega', 'material', 'gramatura', 'formato', 'kg']
   const COLUNAS_DEFAULT_OUTROS = ['os', 'cliente', 'produto', 'tipoOp', 'quantidade', 'tiragem', 'produzida', 'entrega', 'previsaoConclusao', 'material', 'gramatura', 'formato', 'matriz', 'cores', 'pantone01', 'pantone02', 'pantone03', 'kg']
@@ -2220,6 +2221,7 @@ export default function ProgramacaoPage() {
                           {colVis('pantone01') && <Table.Th>Pantone 1</Table.Th>}
                           {colVis('pantone02') && <Table.Th>Pantone 2</Table.Th>}
                           {colVis('pantone03') && <Table.Th>Pantone 3</Table.Th>}
+                          {centro.centro.tipoProcesso?.codigo === 'COLAGEM' && <Table.Th>Tipo Colagem</Table.Th>}
                           {colVis('observacao') && <Table.Th>Acomp.</Table.Th>}
                           <Table.Th>Ações</Table.Th>
                         </Table.Tr>
@@ -2371,6 +2373,7 @@ export default function ProgramacaoPage() {
                             {colVis('pantone01') && <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone01 || '—'}</Text></Table.Td>}
                             {colVis('pantone02') && <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone02 || '—'}</Text></Table.Td>}
                             {colVis('pantone03') && <Table.Td><Text size="xs" style={{ whiteSpace: 'nowrap' }}>{etapa.pantone03 || '—'}</Text></Table.Td>}
+                            {centro.centro.tipoProcesso?.codigo === 'COLAGEM' && <Table.Td><Text size="sm" fw={500} style={{ whiteSpace: 'nowrap' }}>{etapa.tipoColagem || '—'}</Text></Table.Td>}
                             {colVis('observacao') && <Table.Td style={{ minWidth: 150, ...(etapa.observacaoOperador?.replace('[MATRIZ_OK]', '').trim() ? { background: '#2dd4a8', borderRadius: 2 } : {}) }}>
                               {editingObs?.id === etapa.id ? (
                                 <TextInput
