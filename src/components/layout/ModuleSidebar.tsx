@@ -75,6 +75,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconUsers, label: 'Representantes', href: '/configurador/vendedores' },
         ],
       },
+      { icon: IconClipboardCheck, label: 'Requisições de Compra', href: '/compras/requisicoes' },
       { icon: IconFileText, label: 'Pedidos de Compra', href: '/compras/pedidos' },
       { icon: IconUpload, label: 'Importar XML (NF-e)', href: '/compras/importar-xml' },
       { icon: IconTruckDelivery, label: 'Compras Efetivadas', href: '/compras/compras-efetivadas' },
