@@ -73,6 +73,9 @@ function SortableRow({ etapa, children, background, highlighted, selected, onTog
     opacity: isDragging ? 0.5 : 1,
     background: highlighted ? 'var(--mantine-color-yellow-light-hover)' : (background || undefined),
     animation: highlighted ? 'flash-highlight 2s ease-out' : undefined,
+    // Borda azul à esquerda reforça que a linha faz parte da seleção — ao
+    // arrastar uma linha selecionada, todas as selecionadas se movem juntas.
+    boxShadow: selected ? 'inset 3px 0 0 0 #228be6' : undefined,
   }
 
   return (
@@ -705,12 +708,52 @@ export default function ProgramacaoPage() {
     const centroData = painel.centros.find((c: any) => c.centro.id === centroId)
     if (!centroData) return
 
-    const oldIndex = centroData.etapas.findIndex((e: any) => e.id === active.id)
-    const newIndex = centroData.etapas.findIndex((e: any) => e.id === over.id)
+    const fila: any[] = centroData.etapas
+    const oldIndex = fila.findIndex((e: any) => e.id === active.id)
+    const newIndex = fila.findIndex((e: any) => e.id === over.id)
     if (oldIndex === -1 || newIndex === -1) return
 
+    // ── Arrasto de MÚLTIPLAS selecionadas ──
+    // Se a etapa arrastada está entre as selecionadas E há mais de uma
+    // selecionada NESTE centro, movemos o bloco inteiro de selecionadas para
+    // a posição de destino, preservando a ordem relativa entre elas. Caso
+    // contrário, cai no comportamento clássico (arrasta só a linha).
+    const idsSelecionadasNoCentro = fila.filter((e: any) => selectedEtapas.has(e.id)).map((e: any) => e.id)
+    const arrastandoBloco = selectedEtapas.has(String(active.id)) && idsSelecionadasNoCentro.length > 1
+
+    let novaOrdem: any[]
+
+    if (arrastandoBloco) {
+      const selecionadas = fila.filter((e: any) => selectedEtapas.has(e.id))
+      const naoSelecionadas = fila.filter((e: any) => !selectedEtapas.has(e.id))
+
+      // Posição-alvo: índice do item sobre o qual soltou, medido entre as
+      // NÃO selecionadas (o bloco é inserido antes desse item de referência).
+      const overEstaSelecionada = selectedEtapas.has(String(over.id))
+      let alvoIdx: number
+      if (overEstaSelecionada) {
+        // Soltou sobre outra selecionada — usa a posição da primeira
+        // selecionada entre as não selecionadas como referência de destino.
+        const primeiraSelIdxNaFila = fila.findIndex((e: any) => selectedEtapas.has(e.id))
+        alvoIdx = naoSelecionadas.filter((e: any) => fila.indexOf(e) < primeiraSelIdxNaFila).length
+      } else {
+        const refId = String(over.id)
+        alvoIdx = naoSelecionadas.findIndex((e: any) => e.id === refId)
+        if (alvoIdx === -1) alvoIdx = naoSelecionadas.length
+        // Se arrastou para baixo (bloco estava acima do alvo), insere depois do alvo
+        if (oldIndex < newIndex) alvoIdx += 1
+      }
+
+      novaOrdem = [
+        ...naoSelecionadas.slice(0, alvoIdx),
+        ...selecionadas,
+        ...naoSelecionadas.slice(alvoIdx),
+      ]
+    } else {
+      novaOrdem = arrayMove(fila, oldIndex, newIndex)
+    }
+
     // Optimistic update
-    const novaOrdem = arrayMove(centroData.etapas, oldIndex, newIndex)
     setPainel((prev: any) => {
       if (!prev) return prev
       const centros = prev.centros.map((c: any) =>
@@ -719,15 +762,19 @@ export default function ProgramacaoPage() {
       return { ...prev, centros }
     })
 
-    // Persist — active.id é a etapa que o usuário efetivamente arrastou;
-    // só ela é marcada como ordemManual=true no backend (posição fixa,
-    // sobrepõe os critérios automáticos de nº OP → data de entrega).
+    // Persist — a rota reordenar renumera posicaoFila 1..N na ordem recebida.
+    // No arrasto de bloco não enviamos etapaMovidaId (todas as selecionadas
+    // foram posicionadas de forma intencional pelo usuário — o backend marca
+    // a fila inteira como ordemManual).
     try {
       await api.patch('/pcp/etapas/reordenar', {
         centroProducaoId: centroId,
         etapaIds: novaOrdem.map((e: any) => e.id),
-        etapaMovidaId: String(active.id),
+        ...(arrastandoBloco ? {} : { etapaMovidaId: String(active.id) }),
       })
+      if (arrastandoBloco) {
+        notifications.show({ title: 'Reordenado', message: `${idsSelecionadasNoCentro.length} etapas movidas em conjunto`, color: 'green' })
+      }
     } catch (err: any) {
       notifications.show({ title: 'Erro ao reordenar', message: err?.response?.data?.message || 'Falha ao salvar ordem', color: 'red' })
       carregar() // Revert on error
