@@ -321,6 +321,9 @@ export default function ProgramacaoPage() {
   const [acaoLoteLoading, setAcaoLoteLoading] = useState(false)
   const [modalMoverLote, setModalMoverLote] = useState(false)
   const [centroDestinoLote, setCentroDestinoLote] = useState<string | null>(null)
+  // Mover selecionadas para uma posição específica na fila (dentro do mesmo centro)
+  const [modalMoverPosicao, setModalMoverPosicao] = useState(false)
+  const [posicaoDestinoLote, setPosicaoDestinoLote] = useState<number | ''>('')
 
   // Feature: Modal Máquinas e Tempos (context menu)
   const [modalMaquinasTempos, setModalMaquinasTempos] = useState<{ opId: string } | null>(null)
@@ -378,7 +381,7 @@ export default function ProgramacaoPage() {
       } catch { /* ignora falhas individuais */ }
     }
     notifications.show({ title: 'Lote concluído', message: `${sucesso} etapa(s) iniciada(s)`, color: 'green' })
-    limparSelecao()
+    // Mantém a seleção para permitir ações encadeadas — usuário limpa com "Limpar".
     setAcaoLoteLoading(false)
     // Recarrega silenciosamente
     try { const { data } = await api.get('/pcp/programacao/painel'); setPainel(data) } catch {}
@@ -395,7 +398,7 @@ export default function ProgramacaoPage() {
       } catch { /* ignora falhas individuais */ }
     }
     notifications.show({ title: 'Lote concluído', message: `${sucesso} etapa(s) finalizada(s)`, color: 'green' })
-    limparSelecao()
+    // Mantém a seleção para permitir ações encadeadas — usuário limpa com "Limpar".
     setAcaoLoteLoading(false)
     try { const { data } = await api.get('/pcp/programacao/painel'); setPainel(data) } catch {}
   }
@@ -411,9 +414,68 @@ export default function ProgramacaoPage() {
       } catch { /* ignora falhas individuais */ }
     }
     notifications.show({ title: 'Lote concluído', message: `${sucesso} etapa(s) movida(s)`, color: 'green' })
-    limparSelecao()
+    // Mantém a seleção (as etapas continuam selecionadas no centro destino).
     setModalMoverLote(false)
     setCentroDestinoLote(null)
+    setAcaoLoteLoading(false)
+    try { const { data } = await api.get('/pcp/programacao/painel'); setPainel(data) } catch {}
+  }
+
+  // Retorna o centro que contém TODAS as etapas selecionadas, ou null se elas
+  // estão espalhadas em centros diferentes (mover posição só vale dentro de
+  // uma mesma fila).
+  function centroUnicoDasSelecionadas(): any | null {
+    const centrosComSelecao = (painel?.centros || []).filter((c: any) =>
+      c.etapas.some((e: any) => selectedEtapas.has(e.id)),
+    )
+    if (centrosComSelecao.length !== 1) return null
+    return centrosComSelecao[0]
+  }
+
+  // Move as etapas selecionadas EM BLOCO para uma posição-alvo na fila do
+  // centro, preservando a ordem relativa entre elas. Reaproveita a rota
+  // /pcp/etapas/reordenar (renumera posicaoFila 1..N a partir do array).
+  async function acaoLoteMoverPosicao() {
+    const centro = centroUnicoDasSelecionadas()
+    if (!centro) {
+      notifications.show({ title: 'Seleção inválida', message: 'Selecione etapas de um único grupo para reordenar a posição.', color: 'orange' })
+      return
+    }
+    const posDestino = typeof posicaoDestinoLote === 'number' ? posicaoDestinoLote : parseInt(String(posicaoDestinoLote))
+    if (!posDestino || posDestino < 1) {
+      notifications.show({ title: 'Posição inválida', message: 'Informe uma posição válida (1 ou maior).', color: 'orange' })
+      return
+    }
+
+    setAcaoLoteLoading(true)
+
+    // Ordem atual da fila do centro
+    const filaAtual: any[] = centro.etapas
+    const selecionadas = filaAtual.filter((e) => selectedEtapas.has(e.id))
+    const naoSelecionadas = filaAtual.filter((e) => !selectedEtapas.has(e.id))
+
+    // Insere o bloco de selecionadas na posição-alvo (1-based) entre as não
+    // selecionadas. Clamp para não estourar os limites.
+    const alvoIdx = Math.min(Math.max(posDestino - 1, 0), naoSelecionadas.length)
+    const novaOrdem = [
+      ...naoSelecionadas.slice(0, alvoIdx),
+      ...selecionadas,
+      ...naoSelecionadas.slice(alvoIdx),
+    ]
+
+    try {
+      await api.patch('/pcp/etapas/reordenar', {
+        centroProducaoId: centro.centro.id,
+        etapaIds: novaOrdem.map((e) => e.id),
+      })
+      notifications.show({ title: 'Reordenado', message: `${selecionadas.length} etapa(s) movida(s) para a posição ${posDestino}`, color: 'green' })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro ao reordenar', message: err?.response?.data?.message || 'Falha ao salvar ordem', color: 'red' })
+    }
+
+    // Mantém a seleção para permitir ações encadeadas.
+    setModalMoverPosicao(false)
+    setPosicaoDestinoLote('')
     setAcaoLoteLoading(false)
     try { const { data } = await api.get('/pcp/programacao/painel'); setPainel(data) } catch {}
   }
@@ -436,7 +498,7 @@ export default function ProgramacaoPage() {
       } catch { /* ignora falhas individuais */ }
     }
     notifications.show({ title: 'Lote concluído', message: `${sucesso} OP(s) re-extraída(s)`, color: 'green' })
-    limparSelecao()
+    // Mantém a seleção para permitir ações encadeadas — usuário limpa com "Limpar".
     setAcaoLoteLoading(false)
     try { const { data } = await api.get('/pcp/programacao/painel'); setPainel(data) } catch {}
   }
@@ -1854,6 +1916,9 @@ export default function ProgramacaoPage() {
               <Button size="compact-xs" color="blue" loading={acaoLoteLoading} onClick={() => setModalMoverLote(true)}>
                 Mover p/ Grupo
               </Button>
+              <Button size="compact-xs" color="grape" loading={acaoLoteLoading} onClick={() => setModalMoverPosicao(true)}>
+                Mover p/ Posição
+              </Button>
               <Button size="compact-xs" color="cyan" loading={acaoLoteLoading} onClick={acaoLoteReextrair}>
                 Re-extrair PDF
               </Button>
@@ -2878,6 +2943,50 @@ export default function ProgramacaoPage() {
           >
             Confirmar Mover
           </Button>
+        </Stack>
+      </Modal>
+
+      {/* Modal: Mover em lote para uma posição específica na fila (mesmo grupo) */}
+      <Modal opened={modalMoverPosicao} onClose={() => { setModalMoverPosicao(false); setPosicaoDestinoLote('') }} title={`Mover ${selectedEtapas.size} etapa(s) para uma posição`} centered>
+        <Stack gap="md">
+          {(() => {
+            const centro = centroUnicoDasSelecionadas()
+            if (!centro) {
+              return (
+                <Text size="sm" c="orange">
+                  As etapas selecionadas estão em grupos diferentes. Para reordenar a posição na fila,
+                  selecione apenas etapas de um mesmo grupo.
+                </Text>
+              )
+            }
+            const total = centro.etapas.length
+            return (
+              <>
+                <Text size="sm" c="dimmed">
+                  Grupo <strong>{centro.centro.descricao}</strong> ({total} na fila). As etapas selecionadas
+                  vão para a posição informada, mantendo a ordem entre elas.
+                </Text>
+                <NumberInput
+                  label="Posição de destino"
+                  description={`1 = topo da fila, ${total} = final`}
+                  placeholder="Ex: 1"
+                  min={1}
+                  max={total}
+                  value={posicaoDestinoLote}
+                  onChange={(v) => setPosicaoDestinoLote(typeof v === 'number' ? v : '')}
+                />
+                <Button
+                  fullWidth
+                  color="grape"
+                  loading={acaoLoteLoading}
+                  disabled={!posicaoDestinoLote}
+                  onClick={acaoLoteMoverPosicao}
+                >
+                  Confirmar Reordenação
+                </Button>
+              </>
+            )
+          })()}
         </Stack>
       </Modal>
 
