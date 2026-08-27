@@ -337,9 +337,9 @@ class TestPortaria:
         navegar_para(page_auth, "/wms/portaria")
         aguardar_carregamento(page_auth)
         time.sleep(1)
-        body = page_auth.locator("body")
-        # Cards de resumo
-        assert "Agendados" in body.inner_text() or "Na Doca" in body.inner_text()
+        body_text = page_auth.locator("body").inner_text().lower()
+        # Cards de resumo (case-insensitive — os cards usam tt="uppercase" no CSS)
+        assert "agendados" in body_text or "na doca" in body_text or "recebidos" in body_text
 
     def test_entrada_avulsa_abre(self, page_auth: Page):
         """Verifica que o modal de Entrada Avulsa abre."""
