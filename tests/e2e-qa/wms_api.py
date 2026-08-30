@@ -3282,3 +3282,35 @@ class WmsApiClient:
         """GET /conferencia-entrada/:notaId — detalhe da nota com itens/status."""
         resp = self._get(f"/conferencia-entrada/{nota_id}")
         return resp.json() if resp.ok else {}
+
+    # ──────────────────────────────────────────────────────────────
+    # Segunda conferência / HOLD (Requirement 8)
+    # ──────────────────────────────────────────────────────────────
+
+    def segunda_conferencia(self, nota_id: str, itens: list) -> Any:
+        """POST /conferencia-entrada/segunda-conferencia/:notaId (APIResponse cru).
+
+        Cada item: {itemNotaEntradaId, quantidadeConferida, lote?, validade?,
+        aceitarDivergenciaQuantidade?}.
+        """
+        return self._post(
+            f"/conferencia-entrada/segunda-conferencia/{nota_id}",
+            data={"itens": itens},
+        )
+
+    def colocar_item_em_hold(self, nota_id: str, item_id: str, motivo: str,
+                             motivo_detalhe: Optional[str] = None) -> Any:
+        """POST /conferencia-entrada/segunda-conferencia/:notaId/hold (APIResponse cru)."""
+        data: dict = {"itemNotaEntradaId": item_id, "motivo": motivo}
+        if motivo_detalhe is not None:
+            data["motivoDetalhe"] = motivo_detalhe
+        return self._post(f"/conferencia-entrada/segunda-conferencia/{nota_id}/hold", data=data)
+
+    def confirmar_conferencia_raw(self, nota_id: str) -> Any:
+        """POST /conferencia-entrada/confirmar/:notaId (APIResponse cru, sem assert)."""
+        return self._post(f"/conferencia-entrada/confirmar/{nota_id}")
+
+    def status_conferencia_itens(self, nota_id: str) -> dict:
+        """Mapa {itemId: statusConferencia} lido do detalhe da nota."""
+        nota = self.obter_nota(nota_id)
+        return {it["id"]: it.get("statusConferencia") for it in nota.get("itens", [])}
