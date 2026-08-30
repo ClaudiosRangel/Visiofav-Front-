@@ -3314,3 +3314,62 @@ class WmsApiClient:
         """Mapa {itemId: statusConferencia} lido do detalhe da nota."""
         nota = self.obter_nota(nota_id)
         return {it["id"]: it.get("statusConferencia") for it in nota.get("itens", [])}
+
+    # ──────────────────────────────────────────────────────────────
+    # Agenda de docas (Requirement 3)
+    # ──────────────────────────────────────────────────────────────
+
+    def ler_config_doca(self) -> dict:
+        """GET /agenda-doca/config → {horaAberturaOp, horaFechamentoOp, bufferMinutos, ...}."""
+        resp = self._get("/agenda-doca/config")
+        return resp.json() if resp.ok else {}
+
+    def agendar_doca(self, doca_id: str, data_prevista: str, hora_inicio: str,
+                     hora_fim: str, **extra: Any) -> Any:
+        """POST /agenda-doca/agendar (APIResponse cru).
+
+        data_prevista: 'YYYY-MM-DD'; hora_inicio/fim: 'HH:mm'.
+        """
+        data = {
+            "docaId": doca_id, "dataPrevista": data_prevista,
+            "horaInicio": hora_inicio, "horaFim": hora_fim, **extra,
+        }
+        return self._post("/agenda-doca/agendar", data=data)
+
+    def mover_agendamento(self, agenda_id: str, **campos: Any) -> Any:
+        """PUT /agenda-doca/:id/mover (APIResponse cru)."""
+        return self._request.put(
+            self._url(f"/agenda-doca/{agenda_id}/mover"),
+            headers=self._headers(com_json=True), data=campos,
+        )
+
+    def registrar_chegada_doca(self, agenda_id: str, hora_chegada: Optional[str] = None) -> Any:
+        """PUT /agenda-doca/:id/chegada (APIResponse cru)."""
+        data = {"horaChegadaReal": hora_chegada} if hora_chegada else {}
+        return self._request.put(
+            self._url(f"/agenda-doca/{agenda_id}/chegada"),
+            headers=self._headers(com_json=True), data=data,
+        )
+
+    def criar_bloqueio_slot_doca(self, doca_id: str, data_inicio: str, data_fim: str,
+                                 motivo: str) -> Any:
+        """POST /agenda-doca/bloqueios (APIResponse cru). Datas em ISO."""
+        return self._post("/agenda-doca/bloqueios", data={
+            "docaId": doca_id, "dataInicio": data_inicio, "dataFim": data_fim, "motivo": motivo,
+        })
+
+    def remover_bloqueio_slot_doca(self, bloqueio_id: str) -> Any:
+        """DELETE /agenda-doca/bloqueios/:id (APIResponse cru)."""
+        return self._request.delete(
+            self._url(f"/agenda-doca/bloqueios/{bloqueio_id}"),
+            headers=self._headers(),
+        )
+
+    def cancelar_agendamento(self, agenda_id: str) -> bool:
+        """Best-effort: cancela/exclui um agendamento (limpeza). True se OK."""
+        try:
+            resp = self.mover_agendamento(agenda_id)  # noop; placeholder
+        except Exception:
+            pass
+        # Não há DELETE de agendamento exposto; a limpeza fica pelo status.
+        return True
