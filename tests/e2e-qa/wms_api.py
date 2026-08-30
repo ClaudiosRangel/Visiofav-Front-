@@ -3264,3 +3264,21 @@ class WmsApiClient:
         """Retorna o cadastro completo do produto (GET /produtos/:id) ou {}."""
         resp = self._get(f"/produtos/{produto_id}")
         return resp.json() if resp.ok else {}
+
+    # ──────────────────────────────────────────────────────────────
+    # Config de conferência da empresa (recebimento parcial, cega, tolerância)
+    # ──────────────────────────────────────────────────────────────
+
+    def ler_config_conferencia_empresa(self) -> dict:
+        """GET /conferencia-entrada/config-empresa → flags de conferência."""
+        resp = self._get("/conferencia-entrada/config-empresa")
+        return resp.json() if resp.ok else {}
+
+    def set_config_conferencia_empresa(self, **campos: Any) -> Any:
+        """PATCH /conferencia-entrada/config-empresa. Retorna APIResponse cru."""
+        return self._patch("/conferencia-entrada/config-empresa", data=campos)
+
+    def obter_nota(self, nota_id: str) -> dict:
+        """GET /conferencia-entrada/:notaId — detalhe da nota com itens/status."""
+        resp = self._get(f"/conferencia-entrada/{nota_id}")
+        return resp.json() if resp.ok else {}
