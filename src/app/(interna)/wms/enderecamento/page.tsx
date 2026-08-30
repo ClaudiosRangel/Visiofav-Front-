@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, Group, Text, Table, Badge, Button, Tabs, LoadingOverlay, Modal } from '@mantine/core'
-import { IconMapPin, IconCheck, IconRefresh, IconArrowRight, IconMap2 } from '@tabler/icons-react'
+import { Card, Group, Text, Table, Badge, Button, Tabs, LoadingOverlay, Modal, Alert, List } from '@mantine/core'
+import { IconMapPin, IconCheck, IconRefresh, IconArrowRight, IconMap2, IconAlertTriangle } from '@tabler/icons-react'
 import Link from 'next/link'
 import { notifications } from '@mantine/notifications'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -54,12 +54,44 @@ export default function EnderecamentoPage() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['enderecamento-conferidas'] })
       queryClient.invalidateQueries({ queryKey: ['notas-enderecadas'] })
-      notifications.show({ title: '✅ Endereçamento concluído', message: `${data.itens?.length || 0} posições endereçadas`, color: 'green' })
+      // Política PARCIAL: pode concluir com mercadoria pendente — avisar sem bloquear.
+      if (data.incompleto) {
+        notifications.show({
+          title: '⚠️ Endereçamento parcial',
+          message: `${data.itens?.length || 0} posições endereçadas. Parte da mercadoria ficou sem destino — trate na sequência.`,
+          color: 'yellow', autoClose: 8000,
+        })
+      } else {
+        notifications.show({ title: '✅ Endereçamento concluído', message: `${data.itens?.length || 0} posições endereçadas`, color: 'green' })
+      }
       setSimulacaoData(null)
       setSimulacaoNotaId(null)
     },
-    onError: (err: any) => { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao confirmar', color: 'red' }) },
+    onError: (err: any) => {
+      const resp = err?.response?.data
+      // Política BLOQUEAR (padrão): backend recusa a confirmação com mercadoria
+      // sem destino (HTTP 422, bloqueio PUTAWAY_INCOMPLETO). Orientar o operador.
+      if (resp?.bloqueio === 'PUTAWAY_INCOMPLETO') {
+        const itens = (resp.itensSemDestino || [])
+          .map((i: any) => `${i.produto}: ${i.quantidadeRestante} un`)
+          .join(' • ')
+        notifications.show({
+          title: '🚫 Endereçamento bloqueado',
+          message: `Há mercadoria sem endereço disponível (${itens}). Libere posições/overflow ou ajuste a configuração de put-away antes de confirmar.`,
+          color: 'red', autoClose: 10000,
+        })
+        return
+      }
+      notifications.show({ title: 'Erro', message: resp?.message || 'Falha ao confirmar', color: 'red' })
+    },
   })
+
+  // Consolida os itens sem destino da simulação (mercadoria que não coube).
+  const itensSemDestino: Array<{ produto: string; quantidadeRestante: number }> =
+    (simulacaoData?.distribuicoes || [])
+      .filter((d: any) => d.quantidadeRestante > 0)
+      .map((d: any) => ({ produto: d.produto, quantidadeRestante: d.quantidadeRestante }))
+  const temMercadoriaSemDestino = itensSemDestino.length > 0
 
   const conferidas = conferidasResp?.data || []
   const enderecadas = notasEnderecadasResp?.data || []
@@ -167,6 +199,23 @@ export default function EnderecamentoPage() {
               Revise a distribuição proposta e confirme para gravar no estoque:
             </Text>
 
+            {temMercadoriaSemDestino && (
+              <Alert color="red" icon={<IconAlertTriangle size={16} />} mb="md" title="Mercadoria sem endereço disponível">
+                <Text size="sm" mb={4}>
+                  Parte da mercadoria não coube em nenhum endereço (fixo, consolidação, livre ou overflow):
+                </Text>
+                <List size="sm" spacing={2}>
+                  {itensSemDestino.map((i, k) => (
+                    <List.Item key={k}>{i.produto}: <b>{i.quantidadeRestante} un</b></List.Item>
+                  ))}
+                </List>
+                <Text size="xs" c="dimmed" mt={6}>
+                  Libere posições, marque endereços como overflow ou ajuste a configuração de put-away.
+                  Se a política estiver como "Bloquear", a confirmação será recusada.
+                </Text>
+              </Alert>
+            )}
+
             {(simulacaoData.distribuicoes || []).map((dist: any, idx: number) => (
               <Card key={idx} withBorder mb="sm" padding="sm">
                 <Text fw={500} size="sm" mb="xs">{dist.produto}</Text>
@@ -199,12 +248,12 @@ export default function EnderecamentoPage() {
                 Cancelar
               </Button>
               <Button
-                color="teal"
-                leftSection={<IconCheck size={16} />}
+                color={temMercadoriaSemDestino ? 'orange' : 'teal'}
+                leftSection={temMercadoriaSemDestino ? <IconAlertTriangle size={16} /> : <IconCheck size={16} />}
                 onClick={() => simulacaoNotaId && confirmarEnderecamento.mutate(simulacaoNotaId)}
                 loading={confirmarEnderecamento.isPending}
               >
-                Confirmar Endereçamento
+                {temMercadoriaSemDestino ? 'Confirmar mesmo assim' : 'Confirmar Endereçamento'}
               </Button>
             </Group>
           </div>

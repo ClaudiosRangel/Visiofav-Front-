@@ -230,6 +230,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconBarcode, label: 'Impressoras', href: '/wms/etiquetas/impressoras' },
           { icon: IconBarcode, label: 'Fila de Impressão', href: '/wms/etiquetas/fila' },
           { icon: IconPlugConnected, label: 'Integração WMS', href: '/wms/configuracoes/integracao' },
+          { icon: IconBuildingWarehouse, label: 'Endereçamento (Put-away)', href: '/wms/configuracoes/put-away' },
         ],
       },
 

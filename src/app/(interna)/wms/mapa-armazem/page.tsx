@@ -21,8 +21,9 @@ import {
   Progress,
 } from '@mantine/core'
 import { IconPackage, IconCheck, IconAlertTriangle, IconBuildingWarehouse } from '@tabler/icons-react'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
+import { Switch } from '@mantine/core'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 
@@ -94,6 +95,30 @@ export default function MapaArmazemPage() {
     mutationFn: async (body: any) => {
       const { data } = await api.post('/enderecamento-inteligente/confirmar', body)
       return data
+    },
+  })
+
+  const queryClient = useQueryClient()
+
+  // Marca/desmarca o endereço como overflow (transbordo). Padrão de mercado:
+  // área de transbordo é opt-in por endereço e usada como último recurso no
+  // put-away. Consome PUT /enderecos/:id { permiteOverflow }.
+  const overflowMutation = useMutation({
+    mutationFn: async ({ id, permiteOverflow }: { id: string; permiteOverflow: boolean }) => {
+      const { data } = await api.put(`/enderecos/${id}`, { permiteOverflow })
+      return data
+    },
+    onSuccess: (_data, vars) => {
+      setSelectedEnd((prev: any) => (prev ? { ...prev, permiteOverflow: vars.permiteOverflow } : prev))
+      queryClient.invalidateQueries({ queryKey: ['mapa-armazem-posicionamento'] })
+      notifications.show({
+        title: 'Endereço atualizado',
+        message: vars.permiteOverflow ? 'Marcado como overflow (transbordo).' : 'Overflow desativado.',
+        color: 'green',
+      })
+    },
+    onError: (err: any) => {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao atualizar endereço', color: 'red' })
     },
   })
 
@@ -352,8 +377,21 @@ export default function MapaArmazemPage() {
             <Group mb="md">
               <Badge color={selectedEnd.ocupacao === 'LIVRE' ? 'green' : selectedEnd.ocupacao === 'CHEIO' ? 'red' : selectedEnd.ocupacao === 'PARCIAL' ? 'yellow' : 'gray'} size="lg">{selectedEnd.ocupacao}</Badge>
               <Badge color={selectedEnd.areaArmazenagem === 'PICKING' ? 'orange' : 'blue'} size="lg">{selectedEnd.areaArmazenagem === 'PICKING' ? 'Picking' : 'Pulmão'}</Badge>
+              {selectedEnd.permiteOverflow && <Badge color="grape" size="lg">Overflow</Badge>}
               <Text size="sm" c="dimmed">Tipo: {selectedEnd.tipo}</Text>
             </Group>
+
+            {/* Overflow (transbordo): opt-in por endereço, usado como último
+                recurso no put-away quando fixo/consolidação/livre não cobrem. */}
+            <Card withBorder padding="sm" mb="md" bg="var(--mantine-color-grape-0)">
+              <Switch
+                label="Endereço de overflow (transbordo)"
+                description="Aceita put-away como último recurso quando o armazém está cheio, respeitando a capacidade configurada."
+                checked={!!selectedEnd.permiteOverflow}
+                disabled={overflowMutation.isPending}
+                onChange={(e) => overflowMutation.mutate({ id: selectedEnd.enderecoId, permiteOverflow: e.currentTarget.checked })}
+              />
+            </Card>
 
             {selectedEnd.produtos.length > 0 ? (
               <Table striped>
