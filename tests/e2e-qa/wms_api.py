@@ -3170,3 +3170,97 @@ class WmsApiClient:
         payload = {k: v for k, v in payload.items() if v is not None}
         self._post("/enderecos/gerar", data=payload)
         return self.garantir_enderecos_livres(minimo=minimo)
+
+    # ──────────────────────────────────────────────────────────────
+    # Seed de produto configurado (conferência real: lote/validade/shelf/tolerância)
+    # ──────────────────────────────────────────────────────────────
+
+    def garantir_produto_configurado(
+        self,
+        run_id: str,
+        *,
+        exige_lote: bool = False,
+        shelf_life_minimo: Optional[int] = None,
+        tolerancia_percentual: Optional[float] = None,
+        curva_abc: Optional[str] = None,
+        ambiente_exigido: Optional[str] = None,
+        sufixo: str = "",
+        com_sku: bool = True,
+        lastro: int = 9,
+        camada: int = 5,
+    ) -> dict:
+        """Cria (ou reutiliza) um produto de QA com regras de recebimento já
+        configuradas — base para testar conferência e put-away de VERDADE.
+
+        Cria com código rastreável ``QA-{sufixo}{run_id}`` (idempotente: reusa
+        se já existir nesta execução) e aplica as regras via POST/PUT. Com
+        ``com_sku=True``, garante um SKU com lastro/camada (produto endereçável).
+
+        Campos aplicados quando informados: ``exigeLote``, ``shelfLifeMinimo``,
+        ``toleranciaQuantidadePercentual``, ``curvaAbc``, ``ambienteExigido``.
+        """
+        codigo = f"QA-{sufixo}{run_id}"
+
+        # Reutiliza se já existe nesta execução.
+        resp_busca = self._get("/produtos", params={"search": codigo, "limit": 5})
+        existentes = resp_busca.json().get("data", []) if resp_busca.ok else []
+        produto = next((p for p in existentes if p.get("codigo") == codigo), None)
+
+        if not produto:
+            payload: dict = {
+                "codigo": codigo,
+                "nome": f"PRODUTO QA {sufixo}{run_id}".strip(),
+                "unidade": "CX",
+                "status": True,
+            }
+            if exige_lote:
+                payload["exigeLote"] = True
+            if shelf_life_minimo is not None:
+                payload["shelfLifeMinimo"] = shelf_life_minimo
+            if tolerancia_percentual is not None:
+                payload["toleranciaQuantidadePercentual"] = tolerancia_percentual
+            if curva_abc is not None:
+                payload["curvaAbc"] = curva_abc
+            if ambiente_exigido is not None:
+                payload["ambienteExigido"] = ambiente_exigido
+            r = self._post("/produtos", data=payload)
+            assert r.status in (200, 201), (
+                f"Falha ao criar produto configurado {codigo}: {r.status} — {r.text()}"
+            )
+            produto = r.json()
+        else:
+            # Já existe: garante as regras via PUT (idempotente).
+            put_data: dict = {}
+            if exige_lote:
+                put_data["exigeLote"] = True
+            if shelf_life_minimo is not None:
+                put_data["shelfLifeMinimo"] = shelf_life_minimo
+            if tolerancia_percentual is not None:
+                put_data["toleranciaQuantidadePercentual"] = tolerancia_percentual
+            if curva_abc is not None:
+                put_data["curvaAbc"] = curva_abc
+            if ambiente_exigido is not None:
+                put_data["ambienteExigido"] = ambiente_exigido
+            if put_data:
+                self._request.put(
+                    self._url(f"/produtos/{produto['id']}"),
+                    headers=self._headers(com_json=True),
+                    data=put_data,
+                )
+
+        if com_sku:
+            skus = self._skus_do_produto(produto["id"])
+            sku_ok = next(
+                (s for s in skus if self._sku_tem_paletizacao(s, lastro, camada)),
+                None,
+            )
+            if not sku_ok:
+                sku_ok = self._criar_sku(produto, run_id, lastro, camada, skus)
+            produto = {**produto, "sku": sku_ok}
+
+        return produto
+
+    def obter_produto(self, produto_id: str) -> dict:
+        """Retorna o cadastro completo do produto (GET /produtos/:id) ou {}."""
+        resp = self._get(f"/produtos/{produto_id}")
+        return resp.json() if resp.ok else {}
