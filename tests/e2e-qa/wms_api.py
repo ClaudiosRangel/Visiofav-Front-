@@ -20,6 +20,7 @@ verificação de estado (``iniciar_conferencia`` etc.) são declarados aqui como
 stubs e serão implementados nas tasks 1.3 e 1.4.
 """
 
+import os
 import random
 from datetime import datetime, timedelta
 from typing import Any, Optional
@@ -49,6 +50,12 @@ class WmsApiClient:
         self._request = request
         self._api_url = api_url.rstrip("/")
         self._token = token
+        # Chave de habilitação das rotas de seed de QA (/api/qa-seed/*).
+        # Lida da env; deve bater com WMS_QA_SEED_KEY do backend. Valor
+        # default alinhado ao declarado em render.yaml do backend.
+        self._qa_seed_key = os.environ.get(
+            "WMS_QA_SEED_KEY", "qa-seed-visiofab-2026"
+        )
 
     # ──────────────────────────────────────────────────────────────
     # Helpers internos
@@ -2051,6 +2058,191 @@ class WmsApiClient:
         return {}
 
     # ──────────────────────────────────────────────────────────────
+    # SEED DE QA — habilitador de onda/expedição (test_15)
+    #
+    # Em produção, um ``PedidoVenda`` só chega a ``EM_SEPARACAO`` por
+    # efetivação fiscal real (``POST /vendas`` → emissão de NF-e à SEFAZ),
+    # inviável numa suíte de QA. O backend expõe um caminho de seed restrito
+    # (``POST /api/qa-seed/pedido-em-separacao``, protegido por JWT + header
+    # ``x-qa-seed-key``, só ativo quando a env ``WMS_QA_SEED_KEY`` existe) que
+    # cria o pedido já em ``EM_SEPARACAO``. Com isso montamos a cadeia real:
+    # pedido EM_SEPARACAO → ``POST /ondas-separacao`` (auto-inicia, gera os
+    # ``ItemSeparacao`` por FEFO/FIFO + reserva estoque) → confirmar cada item
+    # (``PATCH /itens-separacao/:id/confirmar``) → onda vira ``SEPARADA`` e a
+    # conferência de saída é criada automaticamente. Nenhuma NF-e envolvida.
+    # ──────────────────────────────────────────────────────────────
+
+    def _headers_seed(self) -> dict:
+        """Cabeçalhos com a chave de seed de QA (Authorization + x-qa-seed-key)."""
+        headers = {
+            "Authorization": f"Bearer {self._token}",
+            "Content-Type": "application/json",
+            "x-qa-seed-key": self._qa_seed_key,
+        }
+        return headers
+
+    def seed_pedido_em_separacao(
+        self, itens: list, doca_id: Optional[str] = None
+    ) -> Any:
+        """Cria um ``PedidoVenda`` já em ``EM_SEPARACAO`` via rota de seed de QA.
+
+        ``POST /api/qa-seed/pedido-em-separacao`` com ``{itens:[{produtoId,
+        quantidade}], docaId?}``. Reaproveita/cria cliente e tabela de preço
+        mínimos de QA no backend. Retorna o ``APIResponse`` cru — o chamador
+        avalia o status (403 quando a env de seed não está ativa no backend;
+        201 no sucesso).
+        """
+        data: dict = {"itens": itens}
+        if doca_id:
+            data["docaId"] = doca_id
+        return self._request.post(
+            self._url("/qa-seed/pedido-em-separacao"),
+            headers=self._headers_seed(),
+            data=data,
+        )
+
+    def criar_onda(
+        self, pedido_venda_ids: list, doca_id: str, prioridade: str = "MEDIA"
+    ) -> Any:
+        """Cria uma onda de separação a partir de pedidos ``EM_SEPARACAO``.
+
+        ``POST /ondas-separacao`` com ``{pedidoVendaIds, prioridade, docaId}``.
+        A rota já auto-inicia a onda (gera ``ItemSeparacao`` por FEFO/FIFO e
+        reserva estoque). Retorna o ``APIResponse`` cru.
+        """
+        return self._request.post(
+            self._url("/ondas-separacao"),
+            headers=self._headers(com_json=True),
+            data={
+                "pedidoVendaIds": pedido_venda_ids,
+                "prioridade": prioridade,
+                "docaId": doca_id,
+            },
+        )
+
+    def primeira_doca(self) -> dict:
+        """Retorna a primeira doca ativa da empresa (para a onda). ``{}`` se não houver."""
+        resp = self._get("/docas", params={"limit": 50})
+        if not resp.ok:
+            return {}
+        data = resp.json()
+        lista = data.get("data", data) if isinstance(data, dict) else data
+        if not isinstance(lista, list):
+            return {}
+        for d in lista:
+            if d.get("status") in (True, None, "ATIVO"):
+                return d
+        return lista[0] if lista else {}
+
+    def separar_todos_itens_onda(self, onda_id: str) -> int:
+        """Confirma a separação de TODOS os itens PENDENTES de uma onda.
+
+        Para cada ``ItemSeparacao`` pendente, confirma com
+        ``quantidadeSeparada == quantidadeSolicitada`` (separação completa, sem
+        divergência). Quando o último item é confirmado, o backend promove a
+        onda a ``SEPARADA`` e cria a conferência de saída automaticamente.
+        Retorna o número de itens confirmados com sucesso.
+        """
+        confirmados = 0
+        for item in self.itens_separacao_da_onda(onda_id):
+            if item.get("status") != "PENDENTE":
+                continue
+            item_id = item.get("id")
+            solicitada = item.get("quantidadeSolicitada")
+            try:
+                q = float(str(solicitada).replace(",", ".")) if solicitada else 0.0
+            except (ValueError, TypeError):
+                q = 0.0
+            if not item_id or q <= 0:
+                continue
+            resp = self.confirmar_item_separacao(item_id, q)
+            if resp.status in (200, 201):
+                confirmados += 1
+        return confirmados
+
+    def produto_com_saldo_endereco(self, minimo: float = 2) -> dict:
+        """Retorna um produto com ``SaldoEndereco`` (origem WMS) e físico >= ``minimo``.
+
+        Necessário para o seed de onda: a onda só gera ``ItemSeparacao`` quando
+        o produto tem saldo em endereço (a alocação FEFO/FIFO parte dos
+        ``SaldoEndereco``). Percorre o saldo consolidado, filtra origem WMS com
+        físico suficiente e retorna ``{"produtoId": str, "fisico": float}`` ou
+        ``{}`` quando nenhum atende.
+        """
+        try:
+            saldos = self.listar_saldos_consolidados()
+        except Exception:
+            return {}
+        for s in saldos:
+            if (s.get("origem") or "").upper() != "WMS":
+                continue
+            produto_id = s.get("produtoId")
+            fisico = s.get("fisico") or s.get("disponivel") or 0
+            try:
+                fisico = float(str(fisico).replace(",", "."))
+            except (ValueError, TypeError):
+                fisico = 0.0
+            if produto_id and fisico >= minimo:
+                return {"produtoId": produto_id, "fisico": fisico}
+        return {}
+
+    def seed_onda_separada(
+        self, produto_id: str, quantidade: float = 3
+    ) -> dict:
+        """Monta a cadeia completa e retorna uma onda em ``SEPARADA``.
+
+        Passos (todos via API real, sem NF-e):
+          1. Cria um ``PedidoVenda`` em ``EM_SEPARACAO`` (rota de seed de QA).
+          2. Cria a onda (``POST /ondas-separacao``, que auto-inicia e gera os
+             itens por FEFO/FIFO — exige que o produto tenha ``SaldoEndereco``).
+          3. Confirma todos os itens → onda vira ``SEPARADA``.
+
+        Retorna ``{"onda": {...}, "itens": [...], "pedidoId": str}`` em caso de
+        sucesso, ou ``{}`` quando algum pré-requisito de ambiente falha (ex.:
+        rota de seed não habilitada, produto sem saldo em endereço, sem doca) —
+        o chamador decide se faz ``pytest.skip``.
+        """
+        doca = self.primeira_doca()
+        doca_id = doca.get("id")
+        if not doca_id:
+            return {}
+
+        resp_ped = self.seed_pedido_em_separacao(
+            [{"produtoId": produto_id, "quantidade": quantidade}], doca_id
+        )
+        if resp_ped.status not in (200, 201):
+            return {}
+        pedido = resp_ped.json()
+        pedido_id = pedido.get("id")
+        if not pedido_id:
+            return {}
+
+        resp_onda = self.criar_onda([pedido_id], doca_id)
+        if resp_onda.status not in (200, 201):
+            return {}
+        onda_resp = resp_onda.json()
+        onda_id = onda_resp.get("id")
+        if not onda_id:
+            return {}
+
+        # A onda precisa ter gerado itens (produto com saldo em endereço).
+        itens = self.itens_separacao_da_onda(onda_id)
+        if not itens:
+            return {}
+
+        # Separar todos os itens → onda vira SEPARADA + conferência criada.
+        self.separar_todos_itens_onda(onda_id)
+
+        onda_final = self.obter_onda(onda_id)
+        if (onda_final.get("status") or "").upper() != "SEPARADA":
+            return {}
+        return {
+            "onda": onda_final,
+            "itens": self.itens_separacao_da_onda(onda_id),
+            "pedidoId": pedido_id,
+        }
+
+    # ──────────────────────────────────────────────────────────────
     # Ondas × pedidos, conferência de saída (test_15 — Requirements 5.1, 5.2, 5.3)
     #
     # Prefixos reais (ver ``server.ts``):
@@ -2408,6 +2600,199 @@ class WmsApiClient:
             if pid:
                 ids.append(pid)
         return ids
+
+    # ──────────────────────────────────────────────────────────────
+    # SEED DE CARREGAMENTO CONFIRMÁVEL (test_15 — Requirement 5.4)
+    #
+    # Estende o seed de onda SEPARADA até um carregamento pronto para expedir,
+    # exercitando a cadeia real de saída sem NF-e:
+    #   onda SEPARADA → aprovar conferência de saída (→ CONFERIDA) → criar
+    #   volume (nasce EMBALADO) → vincular todos os itens separados (→ onda
+    #   EMBALADA) → criar carregamento → adicionar o volume. O carregamento
+    #   resultante é confirmável (``PATCH /carregamentos/:id/confirmar`` deduz
+    #   o físico global do ERP — a baixa que o Requirement 5.4 verifica).
+    # ──────────────────────────────────────────────────────────────
+
+    def aprovar_conferencia_saida(self, conferencia_id: str) -> Any:
+        """Aprova a conferência de saída → onda vira ``CONFERIDA``. Chamada CRUA.
+
+        ``PATCH /conferencias-saida/:id/aprovar``. Exige a conferência em
+        ``EM_CONFERENCIA``. Retorna o ``APIResponse`` cru.
+        """
+        return self._request.patch(
+            self._url(f"/conferencias-saida/{conferencia_id}/aprovar"),
+            headers=self._headers(com_json=True),
+            data={},
+        )
+
+    def criar_volume(
+        self,
+        onda_id: str,
+        pedido_venda_id: str,
+        tipo: str = "CAIXA",
+        peso_kg: float = 1.0,
+        comprimento_cm: float = 20,
+        largura_cm: float = 20,
+        altura_cm: float = 20,
+    ) -> Any:
+        """Cria um volume para a onda (``POST /volumes``). Chamada CRUA.
+
+        A onda precisa estar ``CONFERIDA`` (ou ``EMBALADA``). O volume nasce
+        ``EMBALADO``. Retorna o ``APIResponse`` cru.
+        """
+        return self._request.post(
+            self._url("/volumes"),
+            headers=self._headers(com_json=True),
+            data={
+                "ondaSeparacaoId": onda_id,
+                "pedidoVendaId": pedido_venda_id,
+                "tipo": tipo,
+                "pesoKg": peso_kg,
+                "comprimentoCm": comprimento_cm,
+                "larguraCm": largura_cm,
+                "alturaCm": altura_cm,
+            },
+        )
+
+    def vincular_itens_volume(self, volume_id: str, itens: list) -> Any:
+        """Vincula itens de separação a um volume (``POST /volumes/:id/itens``).
+
+        ``itens`` = ``[{itemSeparacaoId, quantidade}]``. Quando todos os itens
+        da onda ficam vinculados, o backend promove a onda a ``EMBALADA``.
+        Retorna o ``APIResponse`` cru.
+        """
+        return self._request.post(
+            self._url(f"/volumes/{volume_id}/itens"),
+            headers=self._headers(com_json=True),
+            data={"itens": itens},
+        )
+
+    def criar_carregamento(self, doca_id: str, placa: str = "QAA0000") -> Any:
+        """Cria um carregamento (``POST /carregamentos``). Chamada CRUA.
+
+        Retorna o ``APIResponse`` cru.
+        """
+        return self._request.post(
+            self._url("/carregamentos"),
+            headers=self._headers(com_json=True),
+            data={"docaId": doca_id, "veiculoPlaca": placa},
+        )
+
+    def adicionar_volumes_carregamento(
+        self, carregamento_id: str, volumes: list
+    ) -> Any:
+        """Adiciona volumes a um carregamento (``POST /carregamentos/:id/volumes``).
+
+        ``volumes`` = ``[{volumeId, sequencia}]``. Exige volumes ``EMBALADO``.
+        Retorna o ``APIResponse`` cru.
+        """
+        return self._request.post(
+            self._url(f"/carregamentos/{carregamento_id}/volumes"),
+            headers=self._headers(com_json=True),
+            data={"volumes": volumes},
+        )
+
+    def seed_carregamento_confirmavel(
+        self, produto_id: str, quantidade: float = 3
+    ) -> dict:
+        """Monta a cadeia completa e retorna um carregamento pronto para expedir.
+
+        Passos (todos via API real, sem NF-e):
+          1. ``seed_onda_separada`` → onda ``SEPARADA`` + conferência criada.
+          2. Confere todos os itens de saída CONFORME e aprova → onda
+             ``CONFERIDA``.
+          3. Cria um volume por pedido e vincula todos os itens separados →
+             onda ``EMBALADA``, volumes ``EMBALADO``.
+          4. Cria um carregamento e adiciona os volumes.
+
+        Retorna ``{"carregamentoId": str, "produtoId": str}`` no sucesso, ou
+        ``{}`` quando algum pré-requisito de ambiente falha — o chamador decide
+        se faz ``pytest.skip``.
+        """
+        semeada = self.seed_onda_separada(produto_id, quantidade=quantidade)
+        if not semeada:
+            return {}
+        onda = semeada["onda"]
+        onda_id = onda["id"]
+        itens = semeada["itens"]
+        pedidos = onda.get("pedidos", []) or []
+        pedido_ids = [p.get("pedidoVendaId") for p in pedidos if p.get("pedidoVendaId")]
+        if not pedido_ids:
+            return {}
+
+        # ── Conferência de saída: criar, conferir CONFORME e aprovar ──
+        conferente = self.primeiro_funcionario()
+        if not conferente.get("id"):
+            return {}
+        resp_conf = self.criar_conferencia_saida(onda_id, conferente["id"])
+        if resp_conf.status not in (200, 201):
+            return {}
+        conferencia_id = resp_conf.json().get("id")
+        if not conferencia_id:
+            return {}
+        for item in itens:
+            q_sep = item.get("quantidadeSeparada")
+            try:
+                q = float(str(q_sep).replace(",", ".")) if q_sep else 0.0
+            except (ValueError, TypeError):
+                q = 0.0
+            if item.get("id") and q > 0:
+                self.conferir_item_saida(conferencia_id, item["id"], q)
+        resp_aprovar = self.aprovar_conferencia_saida(conferencia_id)
+        if resp_aprovar.status not in (200, 201):
+            return {}
+
+        # ── Volume: 1 por pedido, vinculando os itens separados daquele pedido ──
+        # Reobter os itens com quantidadeSeparada e pedidoVendaId atualizados.
+        itens_atuais = self.itens_separacao_da_onda(onda_id)
+        volumes_criados = []
+        for pedido_id in pedido_ids:
+            itens_pedido = [
+                i for i in itens_atuais if i.get("pedidoVendaId") == pedido_id
+            ]
+            if not itens_pedido:
+                continue
+            resp_vol = self.criar_volume(onda_id, pedido_id)
+            if resp_vol.status not in (200, 201):
+                return {}
+            volume_id = resp_vol.json().get("id")
+            if not volume_id:
+                return {}
+            vinculos = []
+            for i in itens_pedido:
+                q_sep = i.get("quantidadeSeparada")
+                try:
+                    q = float(str(q_sep).replace(",", ".")) if q_sep else 0.0
+                except (ValueError, TypeError):
+                    q = 0.0
+                if i.get("id") and q > 0:
+                    vinculos.append({"itemSeparacaoId": i["id"], "quantidade": q})
+            if vinculos:
+                self.vincular_itens_volume(volume_id, vinculos)
+            volumes_criados.append(volume_id)
+
+        if not volumes_criados:
+            return {}
+
+        # ── Carregamento: criar e adicionar os volumes (EMBALADO) ──
+        doca_id = onda.get("docaId") or (self.primeira_doca().get("id"))
+        if not doca_id:
+            return {}
+        resp_carr = self.criar_carregamento(doca_id)
+        if resp_carr.status not in (200, 201):
+            return {}
+        carregamento_id = resp_carr.json().get("id")
+        if not carregamento_id:
+            return {}
+        volumes_payload = [
+            {"volumeId": vid, "sequencia": idx + 1}
+            for idx, vid in enumerate(volumes_criados)
+        ]
+        resp_add = self.adicionar_volumes_carregamento(carregamento_id, volumes_payload)
+        if resp_add.status not in (200, 201):
+            return {}
+
+        return {"carregamentoId": carregamento_id, "produtoId": produto_id}
 
     def confirmar_carregamento(self, carregamento_id: str) -> Any:
         """Confirma (expede) um carregamento — chamada CRUA (sem assert 2xx).
