@@ -1759,7 +1759,13 @@ class WmsApiClient:
             ``criar_nota_entrada``), evitando shelf life no caminho feliz.
           - A conferência usa validade no formato brasileiro (``dd/mm/aaaa``),
             exigido por ``conferir-todos`` (mesma regra do test_11).
+          - Garante uma malha de endereços VAZIOS antes de endereçar: como a
+            demo tem poucos endereços e eles saturam ao longo da suíte, sem
+            posições vazias o motor RF008 não sugere alocação e o put-away
+            não endereça nada. ``garantir_enderecos_para_qa`` gera novos
+            endereços quando os existentes estão ocupados por saldo.
         """
+        self.garantir_enderecos_para_qa(minimo=4)
         nota = self.criar_nota_entrada(run_id, produto, quantidade=quantidade)
         nota_id = nota["id"]
 
@@ -2184,6 +2190,57 @@ class WmsApiClient:
                 fisico = 0.0
             if produto_id and fisico >= minimo:
                 return {"produtoId": produto_id, "fisico": fisico}
+        return {}
+
+    def seed_onda_com_item_pendente(
+        self, produto_id: str, quantidade: float = 3
+    ) -> dict:
+        """Cria uma onda com item(ns) ``PENDENTE`` (sem separar) para um produto.
+
+        Ao contrário de ``seed_onda_separada``, NÃO confirma a separação — a
+        onda fica ``EM_SEPARACAO`` com itens ``PENDENTE``, cada um apontando um
+        ``enderecoOrigemId`` com saldo. Ideal para exercitar a confirmação de
+        separação de forma isolada (Requirement 4.3), sem depender de encontrar
+        um item pendente de outra onda (que poderia ter o saldo já consumido).
+
+        Retorna ``{"onda":..., "item":..., "saldoOrigem": float}`` (o primeiro
+        item pendente com saldo > 0) ou ``{}`` quando não foi possível semear.
+        """
+        doca = self.primeira_doca()
+        doca_id = doca.get("id")
+        if not doca_id:
+            return {}
+
+        resp_ped = self.seed_pedido_em_separacao(
+            [{"produtoId": produto_id, "quantidade": quantidade}], doca_id
+        )
+        if resp_ped.status not in (200, 201):
+            return {}
+        pedido_id = resp_ped.json().get("id")
+        if not pedido_id:
+            return {}
+
+        resp_onda = self.criar_onda([pedido_id], doca_id)
+        if resp_onda.status not in (200, 201):
+            return {}
+        onda_id = resp_onda.json().get("id")
+        if not onda_id:
+            return {}
+
+        for item in self.itens_separacao_da_onda(onda_id):
+            if item.get("status") != "PENDENTE":
+                continue
+            pid = item.get("produtoId")
+            eid = item.get("enderecoOrigemId")
+            if not pid or not eid:
+                continue
+            saldo = self.saldo_no_endereco(pid, eid)
+            if saldo > 0:
+                return {
+                    "onda": self.obter_onda(onda_id),
+                    "item": item,
+                    "saldoOrigem": saldo,
+                }
         return {}
 
     def seed_onda_separada(
@@ -3513,21 +3570,49 @@ class WmsApiClient:
             return data[0]
         return None
 
+    def enderecos_vazios(self) -> list:
+        """Endereços ARMAZENAGEM/LIVRE ativos SEM ``SaldoEndereco`` (vacância real).
+
+        Diferente de ``garantir_enderecos_livres`` (que só olha o ``status``
+        do endereço), aqui cruzamos com os saldos por endereço para excluir os
+        que já têm mercadoria armazenada. É a medida correta de "endereço
+        disponível para put-away" — o motor RF008 rejeita endereços ocupados
+        mesmo que o ``status`` diga LIVRE. Retorna a lista de endereços vazios.
+        """
+        livres = self.garantir_enderecos_livres(minimo=0)
+        # Conjunto de enderecoId com saldo > 0.
+        resp = self._get("/saldos", params={"limit": 1000})
+        registros = resp.json().get("data", []) if resp.ok else []
+        ocupados = set()
+        for r in registros:
+            try:
+                q = float(str(r.get("quantidade")).replace(",", "."))
+            except (ValueError, TypeError):
+                q = 0.0
+            if q > 0 and r.get("enderecoId"):
+                ocupados.add(r["enderecoId"])
+        return [e for e in livres if e.get("id") not in ocupados]
+
     def garantir_enderecos_para_qa(self, minimo: int = 6) -> list:
-        """Garante uma malha mínima de endereços ARMAZENAGEM/LIVRE para o QA.
+        """Garante uma malha mínima de endereços ARMAZENAGEM/LIVRE VAZIOS para o QA.
 
-        Idempotente: se já houver >= ``minimo`` endereços de armazenagem/livre
-        ativos, não gera nada. Caso contrário, usa os cadastros-base existentes
-        (CD, Depósito, Zona, Estrutura) para gerar uma malha pequena via
-        ``POST /enderecos/gerar`` (rua 1, prédios 1..N, 1 nível, 1 apto).
+        Idempotente na intenção: se já houver >= ``minimo`` endereços VAZIOS
+        (sem ``SaldoEndereco`` — vacância real, ver ``enderecos_vazios``), não
+        gera nada. Caso contrário, usa os cadastros-base existentes (CD,
+        Depósito, Zona, Estrutura) para gerar uma malha nova via
+        ``POST /enderecos/gerar``. A geração é dimensionada para cobrir o
+        déficit de vazios (não só o total de endereços), com uma faixa de rua
+        deslocada para não colidir com a malha já existente.
 
-        Retorna a lista de endereços livres após a operação. Se faltar algum
+        Retorna a lista de endereços VAZIOS após a operação. Se faltar algum
         cadastro-base (CD/Depósito), retorna a lista atual sem gerar — o teste
         decide se faz skip.
         """
-        atuais = self.garantir_enderecos_livres(minimo=minimo)
-        if len(atuais) >= minimo:
-            return atuais
+        vazios = self.enderecos_vazios()
+        if len(vazios) >= minimo:
+            return vazios
+
+        deficit = minimo - len(vazios)
 
         cd = self._primeiro("/centros-distribuicao", {"limit": 5})
         dep = self._primeiro("/depositos", {"limit": 5})
@@ -3536,25 +3621,30 @@ class WmsApiClient:
         if not cd or not dep:
             return atuais  # sem cadastro-base para gerar — chamador faz skip
 
+        # Gera numa rua "alta" (9) para não colidir com a malha existente
+        # (rua 1). Prédios suficientes para cobrir o déficit de VAZIOS, com
+        # folga. O backend ignora combinações já existentes (unique), então
+        # gerar de novo é seguro/idempotente.
+        predios = max(8, deficit + 4)
         payload = {
             "centroDistribuicaoId": cd["id"],
             "depositoId": dep["id"],
             "codigoDeposito": "001",
-            "codigoZona": "001",
+            "codigoZona": "009",
             "zonaId": zona["id"] if zona else None,
             "estruturaId": estrutura["id"] if estrutura else None,
             "areaArmazenagem": "PULMAO",
             "tipo": "ARMAZENAGEM",
             "lado": "AMBOS",
-            "ruaInicio": 1, "ruaFim": 1,
-            "predioInicio": 1, "predioFim": max(6, minimo),
+            "ruaInicio": 9, "ruaFim": 9,
+            "predioInicio": 1, "predioFim": predios,
             "nivelInicio": 1, "nivelFim": 1,
             "aptoInicio": 1, "aptoFim": 1,
         }
         # Remove chaves None (o backend valida uuid opcional).
         payload = {k: v for k, v in payload.items() if v is not None}
         self._post("/enderecos/gerar", data=payload)
-        return self.garantir_enderecos_livres(minimo=minimo)
+        return self.enderecos_vazios()
 
     # ──────────────────────────────────────────────────────────────
     # Seed de produto configurado (conferência real: lote/validade/shelf/tolerância)
