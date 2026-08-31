@@ -2087,6 +2087,184 @@ class WmsApiClient:
         }
         return headers
 
+    # ──────────────────────────────────────────────────────────────
+    # SEED + operações de MONTAGEM DE CARGA (mapa) e GEO (test_30)
+    #
+    # A montagem de carga (``/api/mapas-carregamento``) parte de NFs
+    # (``DocumentoFiscal`` tipo NFE ligado a ``VendaEfetivada→PedidoVenda``),
+    # estado que em produção só nasce por emissão de NF-e à SEFAZ. A rota de
+    # seed ``POST /api/qa-seed/nfe-para-mapa`` cria essa cadeia fiscal fake
+    # (sem SEFAZ), com cliente que pode ter coordenadas e rota — habilitando o
+    # fluxo real: NFs disponíveis → marcar → totalização → gerar mapa →
+    # otimizar rota (geo) → fechar. Geo usa Nominatim (OpenStreetMap).
+    # ──────────────────────────────────────────────────────────────
+
+    def seed_rota_qa(self, codigo: str = "QA-MAPA") -> dict:
+        """Cria/reaproveita uma Rota de QA (``POST /qa-seed/rota``). ``{}`` em falha."""
+        resp = self._request.post(
+            self._url("/qa-seed/rota"),
+            headers=self._headers_seed(),
+            data={"codigo": codigo},
+        )
+        if resp.status not in (200, 201):
+            return {}
+        return resp.json()
+
+    def seed_nfe_para_mapa(
+        self,
+        itens: list,
+        rota_id: Optional[str] = None,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None,
+        cliente_doc: Optional[str] = None,
+    ) -> Any:
+        """Cria uma NFE fake disponível para montagem de carga (chamada CRUA).
+
+        ``POST /qa-seed/nfe-para-mapa`` com ``{itens, rotaId?, latitude?,
+        longitude?, clienteDoc?}``. Cria cliente (com coords/rota opcionais) →
+        pedido → VendaEfetivada → DocumentoFiscal NFE. Retorna o ``APIResponse``
+        cru (o chamador lê ``nfeId``, ``clienteId``).
+        """
+        data: dict = {"itens": itens}
+        if rota_id:
+            data["rotaId"] = rota_id
+        if latitude is not None:
+            data["latitude"] = latitude
+        if longitude is not None:
+            data["longitude"] = longitude
+        if cliente_doc:
+            data["clienteDoc"] = cliente_doc
+        return self._request.post(
+            self._url("/qa-seed/nfe-para-mapa"),
+            headers=self._headers_seed(),
+            data=data,
+        )
+
+    # ── Operações do mapa de carregamento ──
+
+    def nfs_disponiveis_mapa(self, rota_id: Optional[str] = None) -> dict:
+        """Lista NFs disponíveis para montagem (``GET /mapas-carregamento/nfs-disponiveis``)."""
+        params = {"limit": 100}
+        if rota_id:
+            params["rotaId"] = rota_id
+        resp = self._get("/mapas-carregamento/nfs-disponiveis", params=params)
+        return resp.json() if resp.ok else {"data": [], "total": 0}
+
+    def marcar_nfs_mapa(self, nfe_ids: list) -> Any:
+        """Marca NFs para o mapa (``POST /mapas-carregamento/nfs/marcar``)."""
+        return self._request.post(
+            self._url("/mapas-carregamento/nfs/marcar"),
+            headers=self._headers(com_json=True),
+            data={"nfeIds": nfe_ids},
+        )
+
+    def totalizacao_mapa(self) -> dict:
+        """Totalização das NFs marcadas por rota (``GET /mapas-carregamento/totalizacao``)."""
+        resp = self._get("/mapas-carregamento/totalizacao")
+        return resp.json() if resp.ok else {"porRota": [], "geral": {}}
+
+    def gerar_mapa(self, placa: str = "QAM0001", rota_id: Optional[str] = None) -> Any:
+        """Gera o mapa a partir das NFs marcadas (``POST /mapas-carregamento``)."""
+        data: dict = {"veiculoPlaca": placa}
+        if rota_id:
+            data["rotaId"] = rota_id
+        return self._request.post(
+            self._url("/mapas-carregamento"),
+            headers=self._headers(com_json=True),
+            data=data,
+        )
+
+    def otimizar_rota_mapa(self, mapa_id: str) -> Any:
+        """Otimiza a sequência de entrega do mapa (``POST /geo/mapas/:id/otimizar``)."""
+        return self._request.post(
+            self._url(f"/geo/mapas/{mapa_id}/otimizar"),
+            headers=self._headers(com_json=True),
+            data={},
+        )
+
+    def transicao_status_mapa(self, mapa_id: str, status: str) -> Any:
+        """Transiciona o status do mapa (``PATCH /mapas-carregamento/:id/status``)."""
+        return self._request.patch(
+            self._url(f"/mapas-carregamento/{mapa_id}/status"),
+            headers=self._headers(com_json=True),
+            data={"status": status},
+        )
+
+    def fechar_mapa(self, mapa_id: str, nfs: list) -> Any:
+        """Fecha o mapa (``POST /mapas-carregamento/:id/fechar``).
+
+        ``nfs`` = ``[{nfeId, statusEntrega:'ENTREGUE'|'DEVOLVIDO', motivoDevolucao?}]``.
+        """
+        return self._request.post(
+            self._url(f"/mapas-carregamento/{mapa_id}/fechar"),
+            headers=self._headers(com_json=True),
+            data={"nfs": nfs},
+        )
+
+    def obter_mapa(self, mapa_id: str) -> dict:
+        """Detalhe do mapa (``GET /mapas-carregamento/:id``)."""
+        resp = self._get(f"/mapas-carregamento/{mapa_id}")
+        return resp.json() if resp.ok else {}
+
+    def cancelar_mapa(self, mapa_id: str, motivo: str = "QA cleanup") -> Any:
+        """Cancela o mapa (``POST /mapas-carregamento/:id/cancelar``)."""
+        return self._request.post(
+            self._url(f"/mapas-carregamento/{mapa_id}/cancelar"),
+            headers=self._headers(com_json=True),
+            data={"motivoCancelamento": motivo},
+        )
+
+    # ── Geocodificação de cliente ──
+
+    def geocodificar_cliente(self, cliente_id: str) -> Any:
+        """Geocodifica o endereço de um cliente (``POST /geo/clientes/:id/geocodificar``)."""
+        return self._request.post(
+            self._url(f"/geo/clientes/{cliente_id}/geocodificar"),
+            headers=self._headers(com_json=True),
+            data={},
+        )
+
+    def obter_cliente(self, cliente_id: str, busca: str = "") -> dict:
+        """Detalhe de um cliente pela listagem (não há GET /clientes/:id).
+
+        A rota de cliente expõe apenas ``GET /`` (lista paginada com filtro
+        ``busca``). Buscamos e filtramos pelo ``id``. ``busca`` acelera a
+        localização (razão social/doc); sem ela, varre as primeiras páginas.
+        Retorna o dicionário do cliente ou ``{}`` quando não encontrado.
+        """
+        params = {"limit": 100}
+        if busca:
+            params["busca"] = busca
+        resp = self._get("/clientes", params=params)
+        data = resp.json().get("data", []) if resp.ok else []
+        return next((c for c in data if c.get("id") == cliente_id), {})
+
+    def criar_cliente(self, dados: dict) -> Any:
+        """Cria um cliente (``POST /clientes``) — chamada CRUA."""
+        return self._request.post(
+            self._url("/clientes"),
+            headers=self._headers(com_json=True),
+            data=dados,
+        )
+
+    def excluir_cliente(self, cliente_id: str) -> bool:
+        """Exclui um cliente (best-effort). Retorna True em 2xx/204."""
+        try:
+            resp = self._request.delete(
+                self._url(f"/clientes/{cliente_id}"),
+                headers=self._headers(),
+            )
+            return resp.status in (200, 204)
+        except Exception:
+            return False
+
+    def distancia_empresa_cliente(self, cliente_id: str) -> Any:
+        """Distância empresa→cliente (``GET /geo/distancia/cliente/:id``) — CRUA."""
+        return self._request.get(
+            self._url(f"/geo/distancia/cliente/{cliente_id}"),
+            headers=self._headers(),
+        )
+
     def seed_pedido_em_separacao(
         self, itens: list, doca_id: Optional[str] = None
     ) -> Any:
