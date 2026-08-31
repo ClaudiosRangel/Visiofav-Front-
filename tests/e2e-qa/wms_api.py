@@ -3373,3 +3373,53 @@ class WmsApiClient:
             pass
         # Não há DELETE de agendamento exposto; a limpeza fica pelo status.
         return True
+
+    # ──────────────────────────────────────────────────────────────
+    # Portaria (Requirement 4) — estados chegada → liberação → saída
+    # ──────────────────────────────────────────────────────────────
+
+    def portaria_conferir(self, agenda_id: str, placa: str, motorista: str,
+                          **extra: Any) -> Any:
+        """POST /portaria/conferir/:id (APIResponse cru). AGENDADO → ESPERA."""
+        data = {"placa": placa, "motorista": motorista, **extra}
+        return self._post(f"/portaria/conferir/{agenda_id}", data=data)
+
+    def portaria_autorizar_entrada(self, agenda_id: str, usuario: Optional[str] = None,
+                                   senha: Optional[str] = None) -> Any:
+        """POST /portaria/autorizar-entrada/:id (APIResponse cru). Exige CONFIRMADO."""
+        data: dict = {}
+        if usuario is not None:
+            data["usuario"] = usuario
+        if senha is not None:
+            data["senha"] = senha
+        return self._post(f"/portaria/autorizar-entrada/{agenda_id}", data=data)
+
+    def portaria_registrar_saida(self, agenda_id: str) -> Any:
+        """POST /portaria/registrar-saida/:id (APIResponse cru). NA_DOCA/CONFERIDO → RECEBIDO."""
+        return self._post(f"/portaria/registrar-saida/{agenda_id}")
+
+    def portaria_entrada_avulsa(self, placa: str, motorista: str,
+                                motivo: str = "DESCARGA") -> Any:
+        """POST /portaria/entrada-avulsa (APIResponse cru). Cria agendamento NA_DOCA."""
+        return self._post("/portaria/entrada-avulsa", data={
+            "placa": placa, "motorista": motorista, "motivo": motivo,
+        })
+
+    def portaria_walk_in(self, placa: str, motorista_nome: str, motorista_doc: str,
+                         tipo_operacao: str, cd_id: str,
+                         transportadora_id: Optional[str] = None) -> Any:
+        """POST /portaria/walk-in (APIResponse cru). Veículo sem agendamento na fila."""
+        data = {
+            "placa": placa, "motoristaNome": motorista_nome,
+            "motoristaDocumento": motorista_doc, "tipoOperacao": tipo_operacao,
+            "cdId": cd_id,
+        }
+        if transportadora_id:
+            data["transportadoraId"] = transportadora_id
+        return self._post("/portaria/walk-in", data=data)
+
+    def primeiro_cd(self) -> dict:
+        """Retorna o primeiro Centro de Distribuição (para walk-in). {} se não houver."""
+        resp = self._get("/centros-distribuicao", params={"limit": 5})
+        data = resp.json().get("data", []) if resp.ok else []
+        return data[0] if data else {}
