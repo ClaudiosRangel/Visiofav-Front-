@@ -224,12 +224,31 @@ def confirmar_dialog(page: Page):
     page.on("dialog", lambda dialog: dialog.accept())
 
 
-def screenshot_com_nome(page: Page, nome: str):
-    """Tira screenshot com nome descritivo na pasta de evidências."""
-    pasta = Path(__file__).parent / "evidencias"
-    pasta.mkdir(exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    page.screenshot(path=str(pasta / f"{nome}_{timestamp}.png"), full_page=True)
+def screenshot_com_nome(page: Page, nome: str) -> str | None:
+    """Tira screenshot com nome descritivo (+ horário) na pasta de evidências.
+
+    Requisito 14.1: a evidência é nomeada de forma descritiva e recebe o
+    horário da captura (sufixo ``_{AAAAMMDD_HHMMSS}``).
+
+    Requisito 14.4: a gravação de evidência é *best-effort* — qualquer falha
+    ao capturar/gravar (página já fechada, disco cheio, permissão, etc.) NÃO
+    interrompe o teste. A falha é apenas reportada separadamente (impressa no
+    log da execução, que o pytest-html consolida no relatório) e a função
+    retorna ``None``.
+
+    Retorna o caminho do arquivo gravado em caso de sucesso, ou ``None`` se a
+    evidência não pôde ser gravada.
+    """
+    try:
+        pasta = Path(__file__).parent / "evidencias"
+        pasta.mkdir(exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        destino = pasta / f"{nome}_{timestamp}.png"
+        page.screenshot(path=str(destino), full_page=True)
+        return str(destino)
+    except Exception as exc:  # best-effort: nunca derruba o teste (Req 14.4)
+        print(f"[evidencia] falha ao gravar screenshot '{nome}': {type(exc).__name__}: {exc}")
+        return None
 
 
 # Importar Path aqui para não poluir o topo

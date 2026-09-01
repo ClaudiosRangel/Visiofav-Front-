@@ -377,23 +377,29 @@ class WmsApiClient:
         return livres
 
     def _empresa_id_sessao(self) -> Optional[str]:
-        """Descobre o ``empresaId`` da sessão autenticada via ``GET /auth/me``.
+        """Descobre o ``empresaId`` da sessão decodificando o JWT da sessão.
 
-        Usado para o filtro multi-tenant defensivo em
-        ``garantir_enderecos_livres``. Retorna ``None`` se não conseguir
-        resolver (nesse caso o filtro por empresa é simplesmente pulado).
+        Fonte confiável e sem dependência de rota: o próprio access token
+        (``self._token``) carrega o ``empresaId`` da empresa selecionada no
+        payload JWT. (Antes usava ``GET /auth/me``, que NÃO existe no backend —
+        retornava 404 e fazia o multi-tenant helper escolher a própria empresa
+        como "outra", gerando falso vazamento.) Retorna ``None`` se não
+        conseguir decodificar.
         """
         try:
-            resp = self._get("/auth/me")
-            if not resp.ok:
+            import base64
+            import json
+
+            partes = (self._token or "").split(".")
+            if len(partes) < 2:
                 return None
-            corpo = resp.json()
-            # A resposta pode expor o empresaId direto ou aninhado.
-            return (
-                corpo.get("empresaId")
-                or (corpo.get("user") or {}).get("empresaId")
-                or (corpo.get("empresa") or {}).get("id")
+            payload_b64 = partes[1]
+            # Padding base64url para múltiplo de 4.
+            payload_b64 += "=" * (-len(payload_b64) % 4)
+            payload = json.loads(
+                base64.urlsafe_b64decode(payload_b64.encode()).decode()
             )
+            return payload.get("empresaId")
         except Exception:
             return None
 
@@ -4076,3 +4082,276 @@ class WmsApiClient:
         resp = self._get("/centros-distribuicao", params={"limit": 5})
         data = resp.json().get("data", []) if resp.ok else []
         return data[0] if data else {}
+
+    # ──────────────────────────────────────────────────────────────
+    # MÓDULOS AVANÇADOS (test_32..test_42) — multi-tenant + leitura + seed
+    #
+    # Cobertura de Faturamento, Picking Zona, LMS, Pátio, Multi-CD,
+    # Demanda/IA, BI Avançado, Wave Planning, Portal 3PL e Gestão. Todos os
+    # módulos aplicam authenticate + moduloGuard('WMS') e filtram por
+    # empresaId. O foco é: (a) estrutura/leitura 200, (b) semeadura de dado
+    # real quando a rota permite, (c) ISOLAMENTO multi-tenant (a segunda
+    # empresa não vê o dado de QA da primeira).
+    # ──────────────────────────────────────────────────────────────
+
+    # ── Multi-tenant ──
+
+    def empresas_do_usuario(self) -> list:
+        """Lista as empresas vinculadas ao usuário da sessão.
+
+        Tenta ``GET /empresas/minhas`` (lista dedicada); cai para
+        ``GET /empresas`` (todas as acessíveis pelo admin). Retorna a lista de
+        dicts de empresa (``{id, razaoSocial, ...}``) ou ``[]``.
+        """
+        for path in ("/empresas/minhas", "/empresas"):
+            resp = self._get(path)
+            if not resp.ok:
+                continue
+            corpo = resp.json()
+            lista = corpo if isinstance(corpo, list) else corpo.get("data", [])
+            if isinstance(lista, list) and lista:
+                return lista
+        return []
+
+    def token_de_outra_empresa(self) -> tuple:
+        """Retorna ``(token, empresaId)`` de uma empresa DIFERENTE da sessão.
+
+        Descobre o empresaId atual (via ``/auth/me``), escolhe outra empresa
+        vinculada e a seleciona (``POST /empresas/:id/selecionar``), devolvendo
+        o token dela SEM alterar o token da sessão principal (o novo token só é
+        usado explicitamente em ``get_com_token``). Retorna ``(None, None)``
+        quando o usuário só tem uma empresa — o teste de isolamento então faz
+        ``pytest.skip``.
+        """
+        atual = self._empresa_id_sessao()
+        empresas = self.empresas_do_usuario()
+        outra = next(
+            (e for e in empresas if e.get("id") and e.get("id") != atual), None
+        )
+        if not outra:
+            return (None, None)
+        resp = self._request.post(
+            self._url(f"/empresas/{outra['id']}/selecionar"),
+            headers=self._headers(com_json=True),
+            data={},
+        )
+        if resp.status not in (200, 201):
+            return (None, None)
+        token = resp.json().get("token")
+        return (token, outra["id"]) if token else (None, None)
+
+    def get_com_token(self, path: str, token: str, params: Optional[dict] = None) -> Any:
+        """GET numa rota usando um token ARBITRÁRIO (para consultar como outra empresa).
+
+        Não usa o token da sessão — monta o header Authorization com o ``token``
+        informado. 5xx continua sendo falha dura (assert). Retorna o
+        ``APIResponse`` cru.
+        """
+        resp = self._request.get(
+            self._url(path),
+            headers={"Authorization": f"Bearer {token}"},
+            params=params or {},
+        )
+        assert resp.status < 500, f"Falha dura (5xx) em GET {path} (token alt): {resp.status}"
+        return resp
+
+    @staticmethod
+    def _lista_do_corpo(corpo: Any) -> list:
+        """Extrai a lista de itens de um corpo de resposta (``data`` ou lista direta)."""
+        if isinstance(corpo, list):
+            return corpo
+        if isinstance(corpo, dict):
+            for chave in ("data", "itens", "items", "ranking", "sugestoes", "previsoes"):
+                v = corpo.get(chave)
+                if isinstance(v, list):
+                    return v
+        return []
+
+    def empresas_ids_de_lista(self, corpo: Any) -> set:
+        """Conjunto de ``empresaId`` distintos presentes nos itens de uma listagem."""
+        return {
+            x.get("empresaId")
+            for x in self._lista_do_corpo(corpo)
+            if isinstance(x, dict) and x.get("empresaId")
+        }
+
+    # ── Faturamento (/faturamento) ──
+
+    def fat_resumo(self) -> Any:
+        return self._get("/faturamento/resumo")
+
+    def fat_contratos(self) -> Any:
+        return self._get("/faturamento/contratos", params={"limit": 100})
+
+    def fat_faturas(self) -> Any:
+        return self._get("/faturamento/faturas", params={"limit": 100})
+
+    def criar_contrato_armazenagem(self, cliente_id: str) -> Any:
+        """POST /faturamento/contratos (APIResponse cru). Contrato de QA com 1 tarifa."""
+        from datetime import datetime, timedelta, timezone
+        inicio = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        fim = (datetime.now(timezone.utc) + timedelta(days=365)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return self._request.post(
+            self._url("/faturamento/contratos"),
+            headers=self._headers(com_json=True),
+            data={
+                "clienteId": cliente_id,
+                "dataInicio": inicio,
+                "dataFim": fim,
+                "periodicidade": "MENSAL",
+                "moeda": "BRL",
+                "observacao": "Contrato de QA (nao usar em producao)",
+                "tarifas": [{"tipo": "PALLET_DIA", "valorUnitario": "1.50", "descricao": "QA"}],
+            },
+        )
+
+    # ── Picking Zona (/picking-zona) ──
+
+    def pz_zonas(self) -> Any:
+        return self._get("/picking-zona/zonas", params={"limit": 100})
+
+    def pz_zona(self, zona_id: str) -> Any:
+        return self._get(f"/picking-zona/zonas/{zona_id}")
+
+    def pz_painel(self) -> Any:
+        return self._get("/picking-zona/painel")
+
+    def criar_zona_picking(self, run_id: str, cd_id: Optional[str] = None) -> Any:
+        """POST /picking-zona/zonas (APIResponse cru). Exige header x-cd-id.
+
+        Zona de QA com codigo curto (<=10 chars). Usa o primeiro CD da empresa
+        como cdId (via header ``x-cd-id``, exigido pelo backend).
+        """
+        cid = cd_id or (self.primeiro_cd().get("id"))
+        cod = ("QZ" + "".join(c for c in run_id if c.isdigit())[-6:])[:10]
+        headers = self._headers(com_json=True)
+        if cid:
+            headers["x-cd-id"] = cid
+        return self._request.post(
+            self._url("/picking-zona/zonas"),
+            headers=headers,
+            data={"nome": f"ZONA QA {run_id}"[:50], "codigo": cod, "cor": "#3366CC"},
+        )
+
+    # ── LMS (/lms) ──
+
+    def lms_dashboard(self) -> Any:
+        return self._get("/lms/dashboard")
+
+    def lms_metas(self) -> Any:
+        return self._get("/lms/metas")
+
+    def lms_meta(self, meta_id: str) -> Any:
+        return self._get(f"/lms/metas/{meta_id}")
+
+    def lms_ranking(self) -> Any:
+        return self._get("/lms/ranking", params={"periodo": "SEMANA"})
+
+    def criar_meta_lms(self) -> Any:
+        """POST /lms/metas (APIResponse cru). Meta de QA de SEPARACAO."""
+        return self._request.post(
+            self._url("/lms/metas"),
+            headers=self._headers(com_json=True),
+            data={
+                "tipoOperacao": "SEPARACAO",
+                "tempoMetaMinutos": 5,
+                "unidadeMedida": "POR_ITEM",
+                "toleranciaPercentual": 10,
+            },
+        )
+
+    # ── Pátio (/patio) ──
+
+    def patio_fila(self, cd_id: Optional[str] = None) -> Any:
+        """GET /patio/fila — exige query cdId. Usa o primeiro CD se não informado."""
+        cid = cd_id or (self.primeiro_cd().get("id"))
+        return self._get("/patio/fila", params={"cdId": cid} if cid else None)
+
+    def patio_config(self, cd_id: Optional[str] = None) -> Any:
+        """GET /patio/config — exige query cdId. Usa o primeiro CD se não informado."""
+        cid = cd_id or (self.primeiro_cd().get("id"))
+        return self._get("/patio/config", params={"cdId": cid} if cid else None)
+
+    def patio_kpis(self) -> Any:
+        return self._get("/patio/kpis")
+
+    # ── Multi-CD (/multi-cd) ──
+
+    def multicd_painel(self) -> Any:
+        from datetime import datetime, timedelta, timezone
+        # O schema exige datetime ISO com timezone (z.string().datetime()).
+        di = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        df = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return self._get("/multi-cd/painel", params={"dataInicio": di, "dataFim": df})
+
+    def multicd_solicitacoes(self) -> Any:
+        return self._get("/multi-cd/solicitacoes", params={"limit": 100})
+
+    def multicd_transito(self) -> Any:
+        return self._get("/multi-cd/transito", params={"limit": 100})
+
+    # ── Demanda/IA (/demanda) ──
+
+    def demanda_dashboard(self) -> Any:
+        return self._get("/demanda/dashboard")
+
+    def demanda_abc(self) -> Any:
+        """GET /demanda/abc — exige query 'criterio' (FREQUENCIA|VALOR|VOLUME)."""
+        return self._get("/demanda/abc", params={"criterio": "VALOR"})
+
+    def demanda_previsoes(self) -> Any:
+        return self._get("/demanda/previsoes")
+
+    def demanda_slotting(self) -> Any:
+        return self._get("/demanda/slotting/sugestoes")
+
+    def demanda_config(self) -> Any:
+        return self._get("/demanda/config")
+
+    # ── BI Avançado (/bi) ──
+
+    def bi_dashboard(self) -> Any:
+        return self._get("/bi/dashboard")
+
+    def bi_custos(self) -> Any:
+        return self._get("/bi/custos")
+
+    def bi_alertas(self) -> Any:
+        return self._get("/bi/alertas")
+
+    def bi_config(self) -> Any:
+        return self._get("/bi/config")
+
+    # ── Wave Planning (/wave) ──
+
+    def wave_dashboard(self) -> Any:
+        return self._get("/wave/dashboard")
+
+    def wave_regras(self) -> Any:
+        return self._get("/wave/regras", params={"limit": 100})
+
+    def wave_planejamentos(self) -> Any:
+        return self._get("/wave/planejamentos", params={"limit": 100})
+
+    def criar_regra_onda(self, run_id: str) -> Any:
+        """POST /wave/regras (APIResponse cru). Regra de QA (corte de horário)."""
+        return self._request.post(
+            self._url("/wave/regras"),
+            headers=self._headers(com_json=True),
+            data={
+                "nome": f"REGRA QA {run_id}"[:100],
+                "prioridade": 99,
+                "tipo": "CORTE_HORARIO",
+                "parametros": {"horaCorte": "18:00"},
+            },
+        )
+
+    # ── Gestão (dashboards consolidados) ──
+
+    def dashboard_wms(self) -> Any:
+        """GET /dashboard-wms (indicadores gerenciais do WMS)."""
+        return self._get("/dashboard-wms")
+
+    def dashboard_unificado(self) -> Any:
+        """GET /pcp/dashboard/unificado (visão 360 PCP+WMS+Vendas+Financeiro)."""
+        return self._get("/pcp/dashboard/unificado")

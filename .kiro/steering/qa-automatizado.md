@@ -10,7 +10,7 @@ tests/e2e-qa/
 
 Suite de testes E2E em **Python + Playwright** que simula um usuário real
 navegando pelo sistema, clicando em menus, preenchendo formulários e
-validando que tudo funciona. Cobre 78 testes em 6 módulos:
+validando que tudo funciona. Principais módulos:
 
 | Módulo | Arquivo | Testes |
 |--------|---------|--------|
@@ -23,6 +23,17 @@ validando que tudo funciona. Cobre 78 testes em 6 módulos:
 | Estoque / WMS | `test_07_estoque.py` | 12 |
 | Fluxo Integrado + Resiliência | `test_08_fluxo_integrado.py` | 14 |
 | Fluxo Recebimento WMS (completo) | `test_09_fluxo_recebimento_wms.py` | 25 |
+| Faturamento (3PL) | `test_32_faturamento.py` | 3 |
+| Picking por Zona | `test_33_picking_zona.py` | 3 |
+| LMS (produtividade) | `test_34_lms.py` | 4 |
+| Pátio (yard) | `test_35_patio.py` | 3 |
+| Multi-CD | `test_36_multi_cd.py` | 2 |
+| Demanda/IA | `test_37_demanda_ia.py` | 3 |
+| BI Avançado | `test_38_bi_avancado.py` | 4 |
+| Wave Planning | `test_39_wave_planning.py` | 3 |
+| Portal 3PL | `test_40_portal_3pl.py` | 3 |
+| Gestão (dashboards) | `test_41_gestao.py` | 2 |
+| Isolamento transversal (10 módulos) | `test_42_isolamento_modulos_avancados.py` | 2 |
 
 O `test_09` cobre o fluxo ponta a ponta de entrada de mercadoria: Nota
 Fiscal de Entrada → Dados Logísticos → SKU (lastro/camada) → Criação de
@@ -144,6 +155,54 @@ endereços ocupados mesmo com `status=LIVRE`. Por isso:
   saldo entre testes. **Regra**: teste que precisa de físico endereçado deve
   usar produto EXCLUSIVO por execução (`garantir_produto_configurado(sufixo=)`)
   e garantir endereços vazios antes.
+
+## Módulos avançados do WMS (test_32 a test_42)
+
+Cobertura de QA de negócio para os dez módulos avançados solicitados
+(Faturamento/3PL, Picking por Zona, LMS, Pátio, Multi-CD, Demanda/IA, BI
+Avançado, Wave Planning, Portal 3PL, Gestão) mais um teste transversal de
+isolamento multi-tenant. Spec em `.kiro/specs/qa-modulos-avancados-wms/`.
+
+Cada módulo valida três coisas: **estrutura** (rotas GET respondem 200 com o
+schema esperado), **valor/seed** (quando aplicável, cria um registro de QA e
+confirma que aparece na listagem e por id) e **isolamento** (o registro de QA
+não aparece para uma segunda empresa do mesmo usuário — usa
+`token_de_outra_empresa`).
+
+### Helpers no `wms_api.py` (adicionados nesta leva)
+
+- **Multi-tenant**: `empresas_do_usuario` (via `GET /empresas/minhas`),
+  `token_de_outra_empresa`, `get_com_token`, `_lista_do_corpo`,
+  `empresas_ids_de_lista`. `_empresa_id_sessao()` decodifica o JWT
+  (`self._token`) via base64 — **não** existe rota `/auth/me` (retornava 404 e
+  causava falso positivo de vazamento; corrigido).
+- **Por módulo** (leitura + seed): `fat_*`/`criar_contrato_armazenagem`,
+  `pz_*`/`criar_zona_picking`, `lms_*`/`criar_meta_lms`, `patio_*`,
+  `multicd_*`, `demanda_*`, `bi_*`, `wave_*`/`criar_regra_onda`,
+  `dashboard_wms`/`dashboard_unificado`.
+
+### Bug de backend encontrado e corrigido pelo QA
+
+- `GET /multi-cd/transito` usava `orderBy: { dataSaida }` (campo inexistente
+  no schema) → trocado para `dataExpedicao` (campo real). Commitado/deployado
+  (`e8205cc38`).
+
+### Dívida técnica documentada (não corrigida — baixa severidade)
+
+Várias rotas dos módulos avançados retornam **HTTP 500 em erro de validação
+Zod** (parâmetro obrigatório faltando) em vez de 400: `/demanda/abc` (exige
+`criterio`), `/patio/fila` e `/patio/config` (exigem `cdId`), `/patio/kpis`
+(exige `dataInicio/dataFim`), `/bi/custos/detalhado` (exige `data`). Os
+helpers do cliente passam os params corretos; o Zod→500 permanece como
+dívida de qualidade (ideal: handler global mapear ZodError → 400).
+
+### Skips honestos nesta leva (3)
+
+- Faturamento: criação de contrato pula quando já existe contrato vigente no
+  período (2ª execução) ou não há cliente.
+- Picking Zona: isolamento pula por colisão de código único na 2ª criação.
+- Portal 3PL: rotas de usuário externo (portalAuth) fora do escopo do token
+  admin — skip com motivo.
 
 ## Retrato consolidado da suíte (última execução: 31/08/2026)
 

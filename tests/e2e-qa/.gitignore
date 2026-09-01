@@ -14,3 +14,6 @@ assets/
 # Cache do pytest
 __pycache__/
 .pytest_cache/
+
+# Logs de execução da suíte (temporários)
+*.log
