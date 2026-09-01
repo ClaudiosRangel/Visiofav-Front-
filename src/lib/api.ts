@@ -1,8 +1,19 @@
 import axios, { AxiosError } from 'axios'
+import {
+  getAuthToken,
+  setAuthToken,
+  getRefreshToken,
+  setRefreshToken,
+  clearAuthSession,
+} from './authStorage'
 
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api',
-  withCredentials: true, // ← Envia cookies httpOnly em todas as requests
+  // NÃO enviar cookies: o cookie de auth é GLOBAL por domínio e faria abas de
+  // empresas diferentes colidirem (o backend aceita cookie como fallback).
+  // O isolamento por aba depende do header Authorization vindo do
+  // sessionStorage (ver authStorage.ts). O token no header é a única fonte.
+  withCredentials: false,
 })
 
 // Flag para evitar loop infinito de refresh
@@ -43,17 +54,17 @@ function startTokenKeepAlive() {
     const isPcp = typeof window !== 'undefined' && window.location.pathname.startsWith('/pcp')
     if (!isPcp && inatividade > 5 * 60 * 1000) return // Mais de 5 min sem uso — não renova (exceto PCP)
 
-    const refreshToken = localStorage.getItem('visiofab-wms-refresh-token')
+    const refreshToken = getRefreshToken()
     if (!refreshToken) return
 
     try {
       const { data } = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'}/auth/refresh`,
         { refreshToken },
-        { withCredentials: true }
       )
-      if (data.token) localStorage.setItem('visiofab-wms-token', data.token)
-      if (data.refreshToken) localStorage.setItem('visiofab-wms-refresh-token', data.refreshToken)
+      // Grava só na sessão DESTA aba (e semente) — não migra outras abas.
+      if (data.token) setAuthToken(data.token)
+      if (data.refreshToken) setRefreshToken(data.refreshToken)
     } catch {
       // Silencioso — o interceptor de 401 cuida se falhar
     }
@@ -67,8 +78,9 @@ if (typeof window !== 'undefined') {
 
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
-    // Backward compatibility: enviar token via header (mobile, localStorage)
-    const token = localStorage.getItem('visiofab-wms-token')
+    // Token isolado POR ABA (sessionStorage) — impede que a troca de empresa
+    // em outra aba altere a empresa desta requisição (ver authStorage.ts).
+    const token = getAuthToken()
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -112,20 +124,19 @@ api.interceptors.response.use(
       isRefreshing = true
 
       try {
-        const refreshToken = localStorage.getItem('visiofab-wms-refresh-token')
+        const refreshToken = getRefreshToken()
 
         const { data } = await axios.post(
           `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'}/auth/refresh`,
           { refreshToken },
-          { withCredentials: true }
         )
 
-        // Salvar novo access token
+        // Salvar novo access token (apenas na sessão DESTA aba + semente).
         if (data.token) {
-          localStorage.setItem('visiofab-wms-token', data.token)
+          setAuthToken(data.token)
         }
         if (data.refreshToken) {
-          localStorage.setItem('visiofab-wms-refresh-token', data.refreshToken)
+          setRefreshToken(data.refreshToken)
         }
 
         // Processar fila de requests pendentes
@@ -137,8 +148,7 @@ api.interceptors.response.use(
       } catch (refreshError) {
         // Refresh falhou — limpar tudo e redirecionar ao login
         processQueue(refreshError as Error, null)
-        localStorage.removeItem('visiofab-wms-token')
-        localStorage.removeItem('visiofab-wms-refresh-token')
+        clearAuthSession()
         window.location.href = '/login'
         return Promise.reject(refreshError)
       } finally {

@@ -3,10 +3,11 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { notifications } from '@mantine/notifications'
+import { getAuthToken } from '@/lib/authStorage'
 
 function decodeToken(): { perfil?: string } | null {
   if (typeof window === 'undefined') return null
-  const token = localStorage.getItem('visiofab-wms-token')
+  const token = getAuthToken()
   if (!token) return null
   try {
     const payload = token.split('.')[1]

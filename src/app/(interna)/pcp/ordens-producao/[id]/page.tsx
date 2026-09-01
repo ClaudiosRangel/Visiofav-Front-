@@ -5,6 +5,7 @@ import { Title, Stack, Card, Group, Badge, Text, Table, Tabs, Button, Loader, Ce
 import { IconArrowLeft, IconPackage, IconRoute, IconClipboardCheck, IconTruck, IconPalette, IconFileTypePdf, IconPencil, IconCheck, IconX, IconPlus } from '@tabler/icons-react'
 import { useRouter, useParams } from 'next/navigation'
 import { api } from '@/lib/api'
+import { getAuthToken } from '@/lib/authStorage'
 import { notifications } from '@mantine/notifications'
 
 const STATUS_COLORS: Record<string, string> = {
@@ -329,7 +330,7 @@ export default function DetalheOpPage() {
             color="red"
             leftSection={<IconFileTypePdf size={14} />}
             onClick={() => {
-              const token = localStorage.getItem('visiofab-wms-token')
+              const token = getAuthToken()
               const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
               window.open(`${apiUrl}/pcp/op-pdf/${id}?token=${token}`, '_blank')
             }}

@@ -7,6 +7,12 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { notifications } from '@mantine/notifications'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
+import {
+  setAuthToken,
+  setRefreshToken,
+  setUserRaw,
+  clearAuthSession,
+} from '@/lib/authStorage'
 
 const schema = z.object({
   email: z.string().email('Email inválido'),
@@ -24,14 +30,15 @@ export default function LoginPage() {
   async function onSubmit(data: FormValues) {
     try {
       const response = await api.post('/auth/login', data)
-      localStorage.setItem('visiofab-wms-token', response.data.token)
-      localStorage.setItem('visiofab-wms-user', JSON.stringify(response.data.usuario))
+      // Nova sessão nesta aba: limpa qualquer resíduo (empresa anterior etc.)
+      // e grava o token no sessionStorage (isolado por aba) + semente.
+      clearAuthSession()
+      setAuthToken(response.data.token)
+      setUserRaw(JSON.stringify(response.data.usuario))
       // Armazenar refresh token para renovação automática
       if (response.data.refreshToken) {
-        localStorage.setItem('visiofab-wms-refresh-token', response.data.refreshToken)
+        setRefreshToken(response.data.refreshToken)
       }
-      // Limpar empresa anterior para forçar nova seleção
-      localStorage.removeItem('visiofab-wms-empresa-id')
 
       // Se é primeiro acesso (senha padrão nunca alterada), redirecionar para alteração obrigatória
       if (response.data.usuario?.primeiroLogin) {

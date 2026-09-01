@@ -6,6 +6,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { podeTrocarEmpresa as calcularPodeTrocarEmpresa } from '@/app/(interna)/selecionar-empresa/selecaoEmpresa.utils'
 import { fecharTodasAbasModulo } from '@/lib/abasModulo'
+import {
+  getAuthToken,
+  setAuthToken,
+  setRefreshToken,
+  getEmpresaRaw,
+  setEmpresaRaw,
+  clearAuthSession,
+} from '@/lib/authStorage'
 
 interface Empresa {
   id: string
@@ -53,9 +61,10 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
     ? true
     : calcularPodeTrocarEmpresa(empresasMinhas?.length ?? 0)
 
-  // Carregar empresa salva no localStorage ao montar
+  // Carregar empresa salva na sessão da ABA ao montar (isolada por aba;
+  // herda da semente do localStorage na primeira carga — ver authStorage.ts).
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY_EMPRESA)
+    const saved = getEmpresaRaw()
     if (saved) {
       try {
         const emp = JSON.parse(saved) as Empresa
@@ -93,10 +102,24 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
   // refresh automático de sessão; recarregar a página nesses casos derrubava
   // formulários em andamento (ex.: digitação na segunda conferência) sem
   // nenhuma troca de empresa de fato ter ocorrido.
+  // ── Isolamento por aba: NÃO recarregar quando outra aba troca de empresa ──
+  // Antes, esta aba recarregava ao detectar mudança de empresa no localStorage
+  // (evento `storage`), e então HERDAVA a empresa da outra aba — exatamente o
+  // vazamento multi-empresa (a aba da Empresa A passava a mostrar dados da
+  // Empresa B selecionada em outra aba). Agora o token/empresa ATIVOS ficam no
+  // sessionStorage (isolado por aba, ver authStorage.ts): cada aba mantém sua
+  // própria empresa independentemente do que as outras abas fizerem. Só o
+  // logout explícito (que limpa a sessão desta aba) encerra a sessão.
   useEffect(() => {
     function handleStorageChange(e: StorageEvent) {
-      if (e.key !== STORAGE_KEY_EMPRESA) return
-      window.location.reload()
+      // Reagir apenas ao LOGOUT global (token removido da semente). Trocas de
+      // empresa em outras abas são deliberadamente ignoradas.
+      if (e.key === STORAGE_KEY_TOKEN && e.newValue === null) {
+        // Se esta aba também não tem mais sessão própria, encerra.
+        if (!getAuthToken()) {
+          window.location.href = '/login'
+        }
+      }
     }
     window.addEventListener('storage', handleStorageChange)
     return () => window.removeEventListener('storage', handleStorageChange)
@@ -113,22 +136,25 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
         // empresa anterior dentro da janela de staleTime/gcTime.
         queryClient.clear()
 
-        // Obter token com empresaId
+        // Obter token com empresaId. Gravamos o token na sessão DESTA aba
+        // (sessionStorage via helper) ANTES de buscar módulos, para que a
+        // própria requisição de módulos já use o token da empresa recém
+        // selecionada — e para que a troca não afete abas já abertas.
         const { data } = await api.post(`/empresas/${emp.id}/selecionar`, {})
         if (data.token) {
-          localStorage.setItem(STORAGE_KEY_TOKEN, data.token)
+          setAuthToken(data.token)
         }
         if (data.refreshToken) {
-          localStorage.setItem('visiofab-wms-refresh-token', data.refreshToken)
+          setRefreshToken(data.refreshToken)
         }
 
         // Buscar módulos com o novo token
         const modulosResp = await api.get(`/empresas/${emp.id}/modulos`)
 
-        // Salvar no state e localStorage
+        // Salvar no state e na sessão da aba
         setEmpresa(emp)
         setModulos(modulosResp.data.modulos ?? [])
-        localStorage.setItem(STORAGE_KEY_EMPRESA, JSON.stringify(emp))
+        setEmpresaRaw(JSON.stringify(emp))
       } catch (err) {
         console.error('Erro ao selecionar empresa:', err)
         throw err
@@ -146,7 +172,12 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
     // que uma aba deixada aberta continue mostrando dados/ações da empresa
     // que o usuário acabou de trocar.
     fecharTodasAbasModulo()
-    localStorage.removeItem(STORAGE_KEY_EMPRESA)
+    // Remove a empresa selecionada da sessão da ABA (e da semente), para a
+    // tela de seleção reaparecer. O token permanece válido para reselecionar.
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(STORAGE_KEY_EMPRESA)
+      localStorage.removeItem(STORAGE_KEY_EMPRESA)
+    }
     setEmpresa(null)
     setModulos([])
     router.push('/selecionar-empresa')
@@ -155,19 +186,16 @@ export function EmpresaProvider({ children }: { children: ReactNode }) {
   // ── Segurança: Logout limpa todos os tokens e o cache do TanStack Query ──
   const logout = useCallback(async () => {
     try {
-      await api.post('/auth/logout', {
-        refreshToken: localStorage.getItem('visiofab-wms-refresh-token'),
-      })
+      const { getRefreshToken } = await import('@/lib/authStorage')
+      await api.post('/auth/logout', { refreshToken: getRefreshToken() })
     } catch { /* silenciar — limpar localmente mesmo se API falhar */ }
 
     queryClient.clear()
     // Fecha todas as abas de módulo abertas — nenhuma aba deve continuar
     // acessível/exibindo dados depois que o usuário saiu do sistema.
     fecharTodasAbasModulo()
-    localStorage.removeItem(STORAGE_KEY_TOKEN)
-    localStorage.removeItem(STORAGE_KEY_EMPRESA)
-    localStorage.removeItem('visiofab-wms-user')
-    localStorage.removeItem('visiofab-wms-refresh-token')
+    // Limpa a sessão da ABA e a semente (localStorage) — ver authStorage.ts.
+    clearAuthSession()
     setEmpresa(null)
     setModulos([])
     router.push('/login')

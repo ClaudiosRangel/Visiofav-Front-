@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
 import { api } from '@/lib/api'
 import { useTheme } from './ThemeProvider'
+import { getAuthToken } from '@/lib/authStorage'
 
 export interface UserPreferences {
   tema: 'light' | 'dark' | 'auto'
@@ -74,7 +75,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     }
 
     // Then try to load from API (takes precedence)
-    const token = localStorage.getItem('visiofab-wms-token')
+    const token = getAuthToken()
     if (token) {
       api.get('/usuarios/me/preferencias')
         .then(({ data }) => {

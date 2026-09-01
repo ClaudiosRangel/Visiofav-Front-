@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-
-const STORAGE_KEY_TOKEN = 'visiofab-wms-token'
+import { getAuthToken, getUserRaw } from '@/lib/authStorage'
 
 /**
  * Guard de autenticação client-side para as páginas internas (grupo de
@@ -26,7 +25,7 @@ export function useRequireAuth() {
   const [pronto, setPronto] = useState(false)
 
   useEffect(() => {
-    const token = localStorage.getItem(STORAGE_KEY_TOKEN)
+    const token = getAuthToken()
     if (!token) {
       router.replace('/login')
       return
@@ -34,7 +33,7 @@ export function useRequireAuth() {
 
     // Se é primeiro acesso (senha temporária não alterada), redirecionar
     // para a tela de alteração obrigatória
-    const userStr = localStorage.getItem('visiofab-wms-user')
+    const userStr = getUserRaw()
     if (userStr) {
       try {
         const user = JSON.parse(userStr)
