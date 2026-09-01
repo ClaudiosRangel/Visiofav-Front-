@@ -88,7 +88,7 @@ execução consolidada e a documentação.
   - Se algum teste revelar rota sem filtro `empresaId` (vazamento), corrigir no backend (filtro na query), commit + deploy + reteste — mesmo padrão da Conferência de Entrada.
   - _Requirements: 11.3_
 
-- [ ] 14. Execução consolidada e documentação
+- [x] 14. Execução consolidada e documentação
   - Rodar os novos módulos em modo visual; depois a suíte inteira (headless) para o retrato consolidado, sem regressão.
   - Atualizar o steering `qa-automatizado.md` com os novos módulos e o retrato.
   - _Requirements: 12.1, 12.2, 12.3, 12.4_
