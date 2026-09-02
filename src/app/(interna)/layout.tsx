@@ -11,6 +11,8 @@ import ChatWidget from '@/components/ai/ChatWidget'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { voltarParaModulos } from '@/lib/abasModulo'
 import { confirmarNavegacaoOuBloquear } from '@/lib/navigationGuardStore'
+import { registrarAcessoModulo } from '@/lib/registrarAcessoModulo'
+import { useEffect } from 'react'
 
 /**
  * Define "Vizor - <Módulo>" como título padrão da aba do navegador com base
@@ -29,6 +31,20 @@ function useModuleTitleFallback(pathname: string) {
   useLayoutEffect(() => {
     const modulo = detectModule(pathname)
     document.title = modulo ? `Vizor - ${MODULE_LABELS[modulo] ?? modulo}` : 'Vizor'
+  }, [pathname])
+}
+
+/**
+ * Registra no backend o acesso do usuário ao módulo atual (Log de Acesso).
+ * Dispara na troca de rota; o util deduplica chamadas repetidas do mesmo
+ * módulo/rota e ignora falhas silenciosamente.
+ */
+function useRegistrarAcessoModulo(pathname: string) {
+  useEffect(() => {
+    const modulo = detectModule(pathname)
+    if (modulo) {
+      registrarAcessoModulo(MODULE_LABELS[modulo] ?? modulo, pathname)
+    }
   }, [pathname])
 }
 
@@ -75,6 +91,7 @@ export default function InternaLayout({ children }: { children: React.ReactNode 
   const { collapsed: sidebarCollapsed } = useModuleSidebarCollapsed()
 
   useModuleTitleFallback(pathname)
+  useRegistrarAcessoModulo(pathname)
 
   // ── Segurança: bloqueia a renderização de qualquer página interna
   // (inclusive dados de listagens/telas) até confirmar que o usuário tem

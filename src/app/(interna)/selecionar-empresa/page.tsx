@@ -72,6 +72,7 @@ export default function SelecionarEmpresaPage() {
 
   const perfil = getUserPerfil()
   const isAdmin = perfil ? ADMIN_PROFILES.includes(perfil) : false
+  const isSuperAdmin = perfil === 'SUPER_ADMIN'
 
   // Query para seleção (todos os usuários)
   const { data: empresas, isLoading } = useQuery<EmpresaItem[]>({
@@ -288,6 +289,7 @@ export default function SelecionarEmpresaPage() {
         {deveExibirElementosRedesign(modoGerenciar) && (
           <RodapeAcessoRapido
             isAdmin={isAdmin}
+            isSuperAdmin={isSuperAdmin}
             onMeusDados={() => setPrefsOpened(true)}
             onNovaEmpresa={handleNovaEmpresa}
             onCentralDeAjuda={() => router.push('/suporte')}
@@ -345,6 +347,7 @@ export default function SelecionarEmpresaPage() {
       {deveExibirElementosRedesign(modoGerenciar) && (
         <RodapeAcessoRapido
           isAdmin={isAdmin}
+          isSuperAdmin={isSuperAdmin}
           onMeusDados={() => setPrefsOpened(true)}
           onNovaEmpresa={handleNovaEmpresa}
           onCentralDeAjuda={() => router.push('/suporte')}

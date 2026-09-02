@@ -1,11 +1,12 @@
 'use client'
 
 import { Group, UnstyledButton, Text } from '@mantine/core'
-import { IconUser, IconPlus, IconLifebuoy, IconBell } from '@tabler/icons-react'
+import { IconUser, IconPlus, IconLifebuoy, IconBell, IconHistory } from '@tabler/icons-react'
 import { useRouter } from 'next/navigation'
 
 interface RodapeAcessoRapidoProps {
   isAdmin: boolean
+  isSuperAdmin?: boolean
   onMeusDados: () => void
   onNovaEmpresa: () => void
   onCentralDeAjuda: () => void
@@ -13,6 +14,7 @@ interface RodapeAcessoRapidoProps {
 
 export default function RodapeAcessoRapido({
   isAdmin,
+  isSuperAdmin = false,
   onMeusDados,
   onNovaEmpresa,
   onCentralDeAjuda,
@@ -49,6 +51,15 @@ export default function RodapeAcessoRapido({
           <Group gap={6}>
             <IconBell size={18} className="text-gray-500" />
             <Text size="sm" c="dimmed">Enviar Notificação</Text>
+          </Group>
+        </UnstyledButton>
+      )}
+
+      {isSuperAdmin && (
+        <UnstyledButton onClick={() => router.push('/log-acesso')}>
+          <Group gap={6}>
+            <IconHistory size={18} className="text-gray-500" />
+            <Text size="sm" c="dimmed">Log de Acesso</Text>
           </Group>
         </UnstyledButton>
       )}
