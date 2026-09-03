@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import {
-  Paper, Title, Text, Grid, Select, Button, Group, Badge, Table, TextInput, Modal, Stack, SegmentedControl,
+  Paper, Title, Text, Grid, Select, Button, Group, Badge, Table, TagsInput, Modal, Stack, SegmentedControl,
 } from '@mantine/core'
 import { DateInput } from '@mantine/dates'
 import { notifications } from '@mantine/notifications'
 import { IconDownload, IconSearch, IconMail } from '@tabler/icons-react'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
+import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 
 const TIPOS_DOC = [
@@ -41,8 +42,15 @@ export default function ExportarXmlPage() {
   const [loading, setLoading] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [emailModalOpen, setEmailModalOpen] = useState(false)
-  const [emails, setEmails] = useState('')
+  const [emails, setEmails] = useState<string[]>([])
   const [enviando, setEnviando] = useState(false)
+
+  const { data: emailsUteis } = useQuery<Array<{ id: string; nome: string; email: string }>>({
+    queryKey: ['fiscal', 'cte', 'emails-uteis'],
+    queryFn: async () => { const { data } = await api.get('/fiscal/cte/emails-uteis', { params: { status: true } }); return data },
+    staleTime: 1000 * 60 * 5,
+    enabled: emailModalOpen,
+  })
 
   async function consultarResumo() {
     if (!dataInicio || !dataFim) {
@@ -85,7 +93,7 @@ export default function ExportarXmlPage() {
   }
 
   async function enviarPorEmail() {
-    const listaEmails = emails.split(',').map(e => e.trim()).filter(Boolean)
+    const listaEmails = emails.map(e => e.trim()).filter(Boolean)
     if (listaEmails.length === 0) {
       notifications.show({ title: 'Atenção', message: 'Informe ao menos um e-mail', color: 'yellow' })
       return
@@ -195,13 +203,21 @@ export default function ExportarXmlPage() {
           <Text size="sm">
             {resumo?.total || 0} documento(s) serão enviados como ZIP ({formato === 'xml' ? 'XMLs' : formato === 'pdf' ? 'PDFs' : 'XML + PDF'}).
           </Text>
-          <TextInput
-            label="E-mails (separados por vírgula)"
-            placeholder="contador@email.com, financeiro@email.com"
+          <TagsInput
+            label="Destinatários"
+            description="Escolha dos contatos cadastrados ou digite um e-mail e pressione Enter"
+            placeholder="Selecione ou digite um e-mail"
+            data={(emailsUteis || []).map(e => e.email)}
             value={emails}
-            onChange={(e) => setEmails(e.target.value)}
-            required
+            onChange={setEmails}
+            clearable
+            splitChars={[',', ' ', ';']}
           />
+          {emailsUteis && emailsUteis.length > 0 && (
+            <Text size="xs" c="dimmed">
+              Contatos: {emailsUteis.map(e => `${e.nome} (${e.email})`).join(', ')}
+            </Text>
+          )}
           <Group justify="flex-end" mt="md">
             <Button variant="light" onClick={() => setEmailModalOpen(false)}>Cancelar</Button>
             <Button leftSection={<IconMail size={16} />} onClick={enviarPorEmail} loading={enviando}>

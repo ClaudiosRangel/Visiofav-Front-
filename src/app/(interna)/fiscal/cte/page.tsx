@@ -21,6 +21,9 @@ import {
   Paper,
   Badge,
   ScrollArea,
+  CopyButton,
+  Tooltip,
+  TagsInput,
 } from '@mantine/core'
 import { DateInput } from '@mantine/dates'
 import { notifications } from '@mantine/notifications'
@@ -36,6 +39,7 @@ import {
   IconMail,
   IconSearch,
   IconHistory,
+  IconCheck,
 } from '@tabler/icons-react'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { StatusBadge } from '@/components/fiscal/StatusBadge'
@@ -75,7 +79,13 @@ function AcoesMenu({ item }: { item: CteItem }) {
   const [cceAberto, setCceAberto] = useState(false)
   const [textoCorrecao, setTextoCorrecao] = useState('')
   const [emailAberto, setEmailAberto] = useState(false)
-  const [emails, setEmails] = useState('')
+  const [emails, setEmails] = useState<string[]>([])
+  const { data: emailsUteisMenu } = useQuery<Array<{ id: string; nome: string; email: string }>>({
+    queryKey: ['fiscal', 'cte', 'emails-uteis'],
+    queryFn: async () => { const { data } = await api.get('/fiscal/cte/emails-uteis', { params: { status: true } }); return data },
+    staleTime: 1000 * 60 * 5,
+    enabled: emailAberto,
+  })
   const [eventosAberto, setEventosAberto] = useState(false)
   const [eventos, setEventos] = useState<any[]>([])
   const [eventosLoading, setEventosLoading] = useState(false)
@@ -169,7 +179,7 @@ function AcoesMenu({ item }: { item: CteItem }) {
   }
 
   function handleEnviarEmail() {
-    const lista = emails.split(',').map(e => e.trim()).filter(Boolean)
+    const lista = emails.map(e => e.trim()).filter(Boolean)
     if (lista.length === 0) { notifications.show({ title: 'Erro', message: 'Informe ao menos um e-mail', color: 'red' }); return }
     enviarEmailMutation.mutate({ id: item.id, emails: lista }, {
       onSuccess: () => { notifications.show({ title: 'Sucesso', message: 'E-mail enviado', color: 'green' }); setEmailAberto(false) },
@@ -259,7 +269,21 @@ function AcoesMenu({ item }: { item: CteItem }) {
       </Modal>
 
       <Modal opened={emailAberto} onClose={() => setEmailAberto(false)} title="Enviar CT-e por e-mail">
-        <TextInput label="E-mails (separados por vírgula)" value={emails} onChange={(e) => setEmails(e.target.value)} placeholder="email@exemplo.com" />
+        <TagsInput
+          label="Destinatários"
+          description="Escolha dos contatos cadastrados ou digite um e-mail e pressione Enter"
+          placeholder="Selecione ou digite um e-mail"
+          data={(emailsUteisMenu || []).map(e => e.email)}
+          value={emails}
+          onChange={setEmails}
+          clearable
+          splitChars={[',', ' ', ';']}
+        />
+        {emailsUteisMenu && emailsUteisMenu.length > 0 && (
+          <Text size="xs" c="dimmed" mt={4}>
+            Contatos: {emailsUteisMenu.map(e => `${e.nome} (${e.email})`).join(', ')}
+          </Text>
+        )}
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={() => setEmailAberto(false)}>Cancelar</Button>
           <Button color="blue" loading={enviarEmailMutation.isPending} onClick={handleEnviarEmail}>Enviar</Button>
@@ -368,8 +392,16 @@ export default function CtePage() {
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
   const [loteModalTipo, setLoteModalTipo] = useState<'transmitir' | 'cancelar' | 'email' | null>(null)
   const [loteJustificativa, setLoteJustificativa] = useState('')
-  const [loteEmails, setLoteEmails] = useState('')
+  const [loteEmails, setLoteEmails] = useState<string[]>([])
   const [loteProgresso, setLoteProgresso] = useState<{ total: number; processados: number } | null>(null)
+
+  // E-mails úteis cadastrados (para o seletor no envio por e-mail)
+  const { data: emailsUteis } = useQuery<Array<{ id: string; nome: string; email: string }>>({
+    queryKey: ['fiscal', 'cte', 'emails-uteis'],
+    queryFn: async () => { const { data } = await api.get('/fiscal/cte/emails-uteis', { params: { status: true } }); return data },
+    staleTime: 1000 * 60 * 5,
+  })
+  const emailsUteisOptions = (emailsUteis || []).map(e => ({ value: e.email, label: `${e.nome} <${e.email}>` }))
 
   // === Query ===
   const params: Record<string, unknown> = { page, limit }
@@ -436,7 +468,7 @@ export default function CtePage() {
   }
 
   function executarLoteEmail() {
-    const lista = loteEmails.split(',').map(e => e.trim()).filter(Boolean)
+    const lista = loteEmails.map(e => e.trim()).filter(Boolean)
     if (lista.length === 0) { notifications.show({ title: 'Erro', message: 'Informe e-mails', color: 'red' }); return }
     const ids = Array.from(selecionados).filter(id => ['AUTORIZADO', 'CANCELADO'].includes(items.find(i => i.id === id)?.status || ''))
     enviarEmailLoteMutation.mutate({ ids, emails: lista }, {
@@ -491,17 +523,24 @@ export default function CtePage() {
 
         {/* Barra de ações em lote */}
         {selecionados.size > 0 && (
-          <Paper p="xs" mb="sm" withBorder style={{ backgroundColor: 'var(--mantine-color-blue-0)' }}>
+          <Paper
+            p="xs"
+            mb="sm"
+            withBorder
+            // Cor que respeita o tema (claro/escuro). O azul-0 fixo anterior
+            // deixava os botões sem contraste no tema escuro.
+            bg="var(--mantine-color-blue-light)"
+          >
             <Group justify="space-between">
               <Text size="sm" fw={500}>{selecionados.size} selecionado(s)</Text>
               <Group gap="xs">
-                <Button size="xs" variant="light" color="blue" onClick={() => setLoteModalTipo('transmitir')}
+                <Button size="xs" variant="filled" color="blue" onClick={() => setLoteModalTipo('transmitir')}
                   leftSection={<IconSend size={14} />}>Transmitir</Button>
-                <Button size="xs" variant="light" color="teal" onClick={() => setLoteModalTipo('email')}
+                <Button size="xs" variant="filled" color="teal" onClick={() => setLoteModalTipo('email')}
                   leftSection={<IconMail size={14} />}>Enviar e-mail</Button>
-                <Button size="xs" variant="light" color="red" onClick={() => setLoteModalTipo('cancelar')}
+                <Button size="xs" variant="filled" color="red" onClick={() => setLoteModalTipo('cancelar')}
                   leftSection={<IconX size={14} />}>Cancelar</Button>
-                <Button size="xs" variant="subtle" onClick={limparSelecao}>Limpar seleção</Button>
+                <Button size="xs" variant="default" onClick={limparSelecao}>Limpar seleção</Button>
               </Group>
             </Group>
           </Paper>
@@ -519,6 +558,7 @@ export default function CtePage() {
               <Table.Th>Série</Table.Th>
               <Table.Th>Origem → Destino</Table.Th>
               <Table.Th>Tomador/Destinatário</Table.Th>
+              <Table.Th>Chave de Acesso</Table.Th>
               <Table.Th>Valor</Table.Th>
               <Table.Th>Status</Table.Th>
               <Table.Th>Dt. Emissão</Table.Th>
@@ -529,7 +569,7 @@ export default function CtePage() {
           <Table.Tbody>
             {items.length === 0 && !isLoading ? (
               <Table.Tr>
-                <Table.Td colSpan={10} style={{ textAlign: 'center', padding: '2rem' }}>
+                <Table.Td colSpan={11} style={{ textAlign: 'center', padding: '2rem' }}>
                   <Text c="dimmed">Nenhum CT-e encontrado</Text>
                 </Table.Td>
               </Table.Tr>
@@ -541,6 +581,26 @@ export default function CtePage() {
                   <Table.Td>{item.serie}</Table.Td>
                   <Table.Td><Text size="xs" c="dimmed">{item.origemDestino || '—'}</Text></Table.Td>
                   <Table.Td>{item.tomadorRazao || item.destRazao || '—'}</Table.Td>
+                  <Table.Td>
+                    {item.chaveAcesso ? (
+                      <Group gap={4} wrap="nowrap">
+                        <Text size="xs" c="dimmed" style={{ fontFamily: 'monospace' }}>
+                          {`${item.chaveAcesso.slice(0, 6)}…${item.chaveAcesso.slice(-6)}`}
+                        </Text>
+                        <CopyButton value={item.chaveAcesso} timeout={1500}>
+                          {({ copied, copy }) => (
+                            <Tooltip label={copied ? 'Copiada!' : 'Copiar chave'} withArrow>
+                              <ActionIcon size="sm" variant="subtle" color={copied ? 'teal' : 'gray'} onClick={copy}>
+                                {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
+                              </ActionIcon>
+                            </Tooltip>
+                          )}
+                        </CopyButton>
+                      </Group>
+                    ) : (
+                      <Text size="xs" c="dimmed">—</Text>
+                    )}
+                  </Table.Td>
                   <Table.Td>{item.valorTotal != null ? item.valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—'}</Table.Td>
                   <Table.Td><StatusBadge status={item.status} /></Table.Td>
                   <Table.Td>{item.dataEmissao ? new Date(item.dataEmissao).toLocaleDateString('pt-BR') : '—'}</Table.Td>
@@ -589,8 +649,21 @@ export default function CtePage() {
         <Text size="sm" mb="sm">
           Serão enviados {Array.from(selecionados).filter(id => ['AUTORIZADO', 'CANCELADO'].includes(items.find(i => i.id === id)?.status || '')).length} CT-e(s) (XML + PDF).
         </Text>
-        <TextInput label="E-mails (separados por vírgula)" value={loteEmails}
-          onChange={(e) => setLoteEmails(e.target.value)} placeholder="email@exemplo.com" />
+        <TagsInput
+          label="Destinatários"
+          description="Escolha dos contatos cadastrados ou digite um e-mail e pressione Enter"
+          placeholder="Selecione ou digite um e-mail"
+          data={emailsUteisOptions.map(o => o.value)}
+          value={loteEmails}
+          onChange={setLoteEmails}
+          clearable
+          splitChars={[',', ' ', ';']}
+        />
+        {emailsUteis && emailsUteis.length > 0 && (
+          <Text size="xs" c="dimmed" mt={4}>
+            Contatos: {emailsUteis.map(e => `${e.nome} (${e.email})`).join(', ')}
+          </Text>
+        )}
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={() => setLoteModalTipo(null)}>Cancelar</Button>
           <Button color="teal" loading={enviarEmailLoteMutation.isPending} onClick={executarLoteEmail}>Enviar</Button>

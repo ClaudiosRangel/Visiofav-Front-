@@ -259,15 +259,31 @@ export default function CteNovaPage() {
       return
     }
     api.get('/fiscal/cte/tabelas-frete', { params: { ufOrigem: ufIni, ufDestino: ufFim } }).then(({ data }) => {
-      const tabs = (data as Array<{ id: string; nome: string; valorFixo: any; ufOrigem: string; ufDestino: string; status: boolean }>)
+      const brutas = (data as Array<{ id: string; nome: string; valorFixo: any; ufOrigem: string; ufDestino: string; cMunOrigem?: string | null; cMunDestino?: string | null; status: boolean }>)
         .filter(t => t.status)
-        .map(t => ({
-          value: t.id,
-          label: `${t.nome}${t.valorFixo ? ` — R$ ${Number(t.valorFixo).toFixed(2)}` : ''}`,
-        }))
+
+      // Refino por cidade: se a tabela tem cidade cadastrada, ela só casa quando
+      // a cidade da emissão bate (cMunIni/cMunFim). Tabelas sem cidade servem de
+      // fallback por UF. Ordena colocando as que casam por cidade primeiro.
+      const casaCidade = (t: typeof brutas[number]) => {
+        const okOrigem = !t.cMunOrigem || (cMunIni && t.cMunOrigem === cMunIni)
+        const okDestino = !t.cMunDestino || (cMunFim && t.cMunDestino === cMunFim)
+        return okOrigem && okDestino
+      }
+      const especificidade = (t: typeof brutas[number]) =>
+        (t.cMunOrigem ? 1 : 0) + (t.cMunDestino ? 1 : 0)
+
+      const compativeis = brutas
+        .filter(casaCidade)
+        .sort((a, b) => especificidade(b) - especificidade(a)) // cidade-específica primeiro
+
+      const tabs = compativeis.map(t => ({
+        value: t.id,
+        label: `${t.nome}${t.valorFixo ? ` — R$ ${Number(t.valorFixo).toFixed(2)}` : ''}`,
+      }))
       setTabelasFreteOptions(tabs)
 
-      // Auto-selecionar a primeira tabela e aplicar valor
+      // Auto-selecionar a tabela mais específica que casa e aplicar valor
       if (tabs.length > 0 && vTPrest === 0) {
         const primeiraId = tabs[0].value
         setTabelaFreteSelecionada(primeiraId)
@@ -281,7 +297,7 @@ export default function CteNovaPage() {
         setTabelaFreteAutoLabel('')
       }
     }).catch(() => {})
-  }, [ufIni, ufFim])
+  }, [ufIni, ufFim, cMunIni, cMunFim])
   // Step 9 — Observações
   const [infCpl, setInfCpl] = useState('')
   const [rntrc, setRntrc] = useState('')

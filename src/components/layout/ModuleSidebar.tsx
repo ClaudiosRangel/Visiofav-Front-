@@ -146,6 +146,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconPalette, label: 'Cores de Veículo', href: '/fiscal/cadastros/cores-veiculo' },
           { icon: IconFileText, label: 'Observações CT-e', href: '/fiscal/cadastros/observacoes-cte' },
           { icon: IconTruck, label: 'Tabela de Serviço', href: '/fiscal/cadastros/tabela-servico' },
+          { icon: IconMail, label: 'E-mails Úteis', href: '/fiscal/cadastros/emails-uteis' },
         ],
       },
       {

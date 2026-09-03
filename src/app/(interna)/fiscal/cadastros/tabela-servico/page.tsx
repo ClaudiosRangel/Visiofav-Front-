@@ -7,6 +7,7 @@ import { IconPlus, IconEdit, IconTrash } from '@tabler/icons-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
+import { MunicipioAutocomplete } from '@/components/fiscal/MunicipioAutocomplete'
 
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO']
   .map(uf => ({ value: uf, label: uf }))
@@ -17,6 +18,10 @@ interface TabelaFrete {
   descricao: string | null
   ufOrigem: string | null
   ufDestino: string | null
+  cMunOrigem: string | null
+  municipioOrigem: string | null
+  cMunDestino: string | null
+  municipioDestino: string | null
   valorFixo: number | null
   valorFretePeso: number | null
   valorAdValorem: number | null
@@ -38,6 +43,10 @@ export default function TabelaServicoPage() {
   const [descricao, setDescricao] = useState('')
   const [ufOrigem, setUfOrigem] = useState<string | null>(null)
   const [ufDestino, setUfDestino] = useState<string | null>(null)
+  const [municipioOrigem, setMunicipioOrigem] = useState('')
+  const [cMunOrigem, setCMunOrigem] = useState('')
+  const [municipioDestino, setMunicipioDestino] = useState('')
+  const [cMunDestino, setCMunDestino] = useState('')
   const [valorFixo, setValorFixo] = useState<number>(0)
   const [valorFretePeso, setValorFretePeso] = useState<number>(0)
   const [valorAdValorem, setValorAdValorem] = useState<number>(0)
@@ -70,6 +79,7 @@ export default function TabelaServicoPage() {
 
   function abrirCriacao() {
     setEditando(null); setNome(''); setDescricao(''); setUfOrigem(null); setUfDestino(null)
+    setMunicipioOrigem(''); setCMunOrigem(''); setMunicipioDestino(''); setCMunDestino('')
     setValorFixo(0); setValorFretePeso(0); setValorAdValorem(0); setValorGris(0)
     setValorPedagio(0); setValorDespacho(0); setFreteMinimo(0)
     setModalOpen(true)
@@ -78,6 +88,8 @@ export default function TabelaServicoPage() {
   function abrirEdicao(t: TabelaFrete) {
     setEditando(t); setNome(t.nome); setDescricao(t.descricao || '')
     setUfOrigem(t.ufOrigem); setUfDestino(t.ufDestino)
+    setMunicipioOrigem(t.municipioOrigem || ''); setCMunOrigem(t.cMunOrigem || '')
+    setMunicipioDestino(t.municipioDestino || ''); setCMunDestino(t.cMunDestino || '')
     setValorFixo(Number(t.valorFixo) || 0); setValorFretePeso(Number(t.valorFretePeso) || 0)
     setValorAdValorem(Number(t.valorAdValorem) || 0); setValorGris(Number(t.valorGris) || 0)
     setValorPedagio(Number(t.valorPedagio) || 0); setValorDespacho(Number(t.valorDespacho) || 0)
@@ -92,6 +104,8 @@ export default function TabelaServicoPage() {
     const payload: any = {
       nome: nome.trim(), descricao: descricao || undefined,
       ufOrigem: ufOrigem || undefined, ufDestino: ufDestino || undefined,
+      municipioOrigem: municipioOrigem || undefined, cMunOrigem: cMunOrigem || undefined,
+      municipioDestino: municipioDestino || undefined, cMunDestino: cMunDestino || undefined,
       valorFixo: valorFixo || undefined, valorFretePeso: valorFretePeso || undefined,
       valorAdValorem: valorAdValorem || undefined, valorGris: valorGris || undefined,
       valorPedagio: valorPedagio || undefined, valorDespacho: valorDespacho || undefined,
@@ -128,7 +142,11 @@ export default function TabelaServicoPage() {
           {tabelas.map((t) => (
             <Table.Tr key={t.id}>
               <Table.Td><Text fw={500}>{t.nome}</Text></Table.Td>
-              <Table.Td>{t.ufOrigem && t.ufDestino ? `${t.ufOrigem} → ${t.ufDestino}` : '—'}</Table.Td>
+              <Table.Td>
+                {t.ufOrigem && t.ufDestino
+                  ? `${t.municipioOrigem ? t.municipioOrigem + '/' : ''}${t.ufOrigem} → ${t.municipioDestino ? t.municipioDestino + '/' : ''}${t.ufDestino}`
+                  : '—'}
+              </Table.Td>
               <Table.Td>{t.valorFixo ? `R$ ${Number(t.valorFixo).toFixed(2)}` : '—'}</Table.Td>
               <Table.Td>{t.valorFretePeso ? `R$ ${Number(t.valorFretePeso).toFixed(4)}/kg` : '—'}</Table.Td>
               <Table.Td>{t.freteMinimo ? `R$ ${Number(t.freteMinimo).toFixed(2)}` : '—'}</Table.Td>
@@ -152,8 +170,26 @@ export default function TabelaServicoPage() {
           <TextInput label="Nome" placeholder="Ex: Frete Niterói-Petrópolis" value={nome} onChange={(e) => setNome(e.target.value)} required />
           <TextInput label="Descrição" placeholder="Opcional" value={descricao} onChange={(e) => setDescricao(e.target.value)} />
           <Group grow>
-            <Select label="UF Origem" data={UFS} value={ufOrigem} onChange={setUfOrigem} clearable searchable />
-            <Select label="UF Destino" data={UFS} value={ufDestino} onChange={setUfDestino} clearable searchable />
+            <Select label="UF Origem" data={UFS} value={ufOrigem} onChange={(v) => { setUfOrigem(v); setMunicipioOrigem(''); setCMunOrigem('') }} clearable searchable />
+            <Select label="UF Destino" data={UFS} value={ufDestino} onChange={(v) => { setUfDestino(v); setMunicipioDestino(''); setCMunDestino('') }} clearable searchable />
+          </Group>
+          <Group grow>
+            <MunicipioAutocomplete
+              label="Cidade Origem (opcional)"
+              uf={ufOrigem || ''}
+              value={municipioOrigem}
+              onChange={(nome) => { setMunicipioOrigem(nome); setCMunOrigem('') }}
+              onSelect={(m) => { setMunicipioOrigem(m.nome); setCMunOrigem(m.codigo) }}
+              placeholder="Refina o match do frete por cidade"
+            />
+            <MunicipioAutocomplete
+              label="Cidade Destino (opcional)"
+              uf={ufDestino || ''}
+              value={municipioDestino}
+              onChange={(nome) => { setMunicipioDestino(nome); setCMunDestino('') }}
+              onSelect={(m) => { setMunicipioDestino(m.nome); setCMunDestino(m.codigo) }}
+              placeholder="Refina o match do frete por cidade"
+            />
           </Group>
           <NumberInput label="Valor Fixo do Serviço (R$)" description="Se preenchido, usado como valor padrão da prestação" value={valorFixo} onChange={(v) => setValorFixo(Number(v) || 0)} min={0} decimalScale={2} />
           <Group grow>
