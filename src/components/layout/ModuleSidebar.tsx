@@ -7,7 +7,7 @@ import {
   // Compras
   IconFileText, IconTruckDelivery, IconArrowBack, IconArrowsExchange, IconUsers, IconBuildingStore,
   // Vendas
-  IconReceipt, IconCash, IconTags, IconChartBar, IconUserCircle, IconFileDescription, IconReportAnalytics, IconCheck,
+  IconReceipt, IconCash, IconTags, IconChartBar, IconUserCircle, IconFileDescription, IconReportAnalytics, IconCheck, IconRadar2,
   // Financeiro
   IconCreditCard, IconWallet,
   // Fiscal
@@ -104,6 +104,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       { icon: IconTags, label: 'Campanhas', href: '/vendas/campanhas' },
       { icon: IconChartBar, label: 'Metas Vendedores', href: '/vendas/metas' },
       { icon: IconCheck, label: 'Aprovações', href: '/vendas/aprovacoes' },
+      { icon: IconRadar2, label: 'Prospectar Clientes', href: '/vendas/prospeccao' },
       { icon: IconPackage, label: 'Bonificações', href: '/vendas/bonificacoes' },
       { icon: IconClock, label: 'Encomendas', href: '/vendas/encomendas' },
       { icon: IconArrowsExchange, label: 'Consignadas', href: '/vendas/consignadas' },
