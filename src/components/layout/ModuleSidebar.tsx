@@ -11,7 +11,7 @@ import {
   // Financeiro
   IconCreditCard, IconWallet,
   // Fiscal
-  IconFileInvoice, IconTruck, IconCalculator, IconSearch, IconHash,
+  IconFileInvoice, IconTruck, IconCalculator, IconSearch, IconHash, IconMail,
   // WMS
   IconHome, IconPackage, IconClipboardCheck, IconBarcode, IconBuildingWarehouse, IconArrowsExchange as IconMovim, IconSettings,
   IconEye, IconDatabase, IconAlertCircle, IconHistory, IconClockPause, IconLock,
