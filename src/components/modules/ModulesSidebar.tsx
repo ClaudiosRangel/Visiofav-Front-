@@ -18,6 +18,7 @@ import {
   IconDownload,
   IconUpload,
   IconHash,
+  IconCashBanknote,
 } from '@tabler/icons-react'
 import { useEmpresa } from '@/providers/EmpresaProvider'
 import { useState } from 'react'
@@ -150,6 +151,9 @@ export default function ModulesSidebar({ collapsed, onToggle, isAdmin, onCleanup
         <SidebarItem icon={IconUsers} label="Usuários" onClick={() => router.push('/configurador/usuarios')} />
         <SidebarItem icon={IconShieldCheck} label="Permissões" onClick={() => router.push('/permissoes')} />
         <SidebarItem icon={IconFileText} label="Logs" onClick={() => router.push('/logs')} />
+        {perfilAtual === 'SUPER_ADMIN' && (
+          <SidebarItem icon={IconCashBanknote} label="Financeiro Vizor" onClick={() => router.push('/financeiro-vizor')} />
+        )}
       </Stack>
 
       {/* Footer */}

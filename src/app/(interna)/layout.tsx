@@ -8,6 +8,7 @@ import ModuleSidebar, { MobileModuleDrawer, detectModule, MODULE_LABELS } from '
 import { useModuleSidebarCollapsed } from '@/lib/moduleSidebarStore'
 import Header from '@/components/layout/Header'
 import ChatWidget from '@/components/ai/ChatWidget'
+import { BloqueioFinanceiroAviso } from '@/components/financeiro-vizor/BloqueioFinanceiroAviso'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { voltarParaModulos } from '@/lib/abasModulo'
 import { confirmarNavegacaoOuBloquear } from '@/lib/navigationGuardStore'
@@ -140,7 +141,10 @@ export default function InternaLayout({ children }: { children: React.ReactNode 
       <div className="min-h-screen flex flex-col">
         <Header />
         <VoltarModulosBar />
-        <main className="p-4 md:p-6 flex-1 overflow-x-hidden">{children}</main>
+        <main className="p-4 md:p-6 flex-1 overflow-x-hidden">
+          <BloqueioFinanceiroAviso />
+          {children}
+        </main>
         <ChatWidget />
       </div>
     )
@@ -154,7 +158,10 @@ export default function InternaLayout({ children }: { children: React.ReactNode 
       <MobileModuleDrawer />
       <div className={`flex-1 flex flex-col transition-[margin] duration-150 ${sidebarCollapsed ? 'md:ml-[64px]' : 'md:ml-[220px]'}`}>
         <Header />
-        <main className="p-4 md:p-6 flex-1 overflow-x-hidden">{children}</main>
+        <main className="p-4 md:p-6 flex-1 overflow-x-hidden">
+          <BloqueioFinanceiroAviso />
+          {children}
+        </main>
       </div>
       <ChatWidget />
     </div>
