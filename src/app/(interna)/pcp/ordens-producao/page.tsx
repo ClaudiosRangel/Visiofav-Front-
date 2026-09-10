@@ -96,6 +96,20 @@ export default function OrdensProducaoPage() {
 
   useEffect(() => { carregarOps() }, [page, statusFilter])
 
+  // Busca enquanto digita (debounce 400ms) para número, cliente e produto.
+  // Ao mudar um filtro de texto, volta para a página 1 e recarrega. O
+  // primeiro render é ignorado (o useEffect acima já faz a carga inicial).
+  const primeiroRender = useRef(true)
+  useEffect(() => {
+    if (primeiroRender.current) { primeiroRender.current = false; return }
+    const t = setTimeout(() => {
+      if (page !== 1) setPage(1) // dispara carregarOps via effect de page
+      else carregarOps()
+    }, 400)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busca, filtroCliente, filtroProduto])
+
   // Coluna "Qtd Produzida" só aparece quando ao menos uma OP da página atual
   // já tem produção registrada — mantém a tabela limpa para OPs ainda não
   // finalizadas (mesmo padrão já usado no painel de Programação para as
@@ -117,23 +131,18 @@ export default function OrdensProducaoPage() {
           leftSection={<IconSearch size={16} />}
           value={busca}
           onChange={(e) => setBusca(e.currentTarget.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') carregarOps() }}
           w={200}
         />
         <TextInput
           placeholder="Filtrar por cliente..."
           value={filtroCliente}
           onChange={(e) => setFiltroCliente(e.currentTarget.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') carregarOps() }}
-          onBlur={() => carregarOps()}
           w={200}
         />
         <TextInput
           placeholder="Filtrar por produto..."
           value={filtroProduto}
           onChange={(e) => setFiltroProduto(e.currentTarget.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') carregarOps() }}
-          onBlur={() => carregarOps()}
           w={200}
         />
       </Group>
