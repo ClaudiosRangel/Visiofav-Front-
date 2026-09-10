@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import {
   Title, Stack, Card, Group, Button, Text, Badge, Alert, Table,
   Accordion, SimpleGrid, Loader, Center, FileInput, Stepper,
-  TextInput, Select, Checkbox, Divider,
+  TextInput, Select, Checkbox, Divider, Modal,
 } from '@mantine/core'
 import {
   IconFileTypePdf, IconUpload, IconCheck, IconAlertTriangle,
@@ -22,7 +22,16 @@ interface ImportacaoPreview {
   sistemaOrigem: string
   confianca: number
   avisos: string[]
-  opDuplicada: { id: string; numero: number; status: string } | null
+  opDuplicada: {
+    id: string
+    numero: number
+    status: string
+    referenciaExterna?: string | null
+    apontamentos?: number
+    finalizada?: boolean
+    emAndamento?: boolean
+    nivelAlerta?: 'bloqueio' | 'forte' | 'simples'
+  } | null
   dadosExtraidos: {
     cabecalho: Record<string, any>
     materiais: Array<Record<string, any>>
@@ -75,7 +84,17 @@ export default function ImportarOpPdfPage() {
   const [preview, setPreview] = useState<ImportacaoPreview | null>(null)
   const [nomeArquivo, setNomeArquivo] = useState('')
   const [arquivo, setArquivo] = useState<File | null>(null)
-  const [opCriada, setOpCriada] = useState<{ id: string; numero: number } | null>(null)
+  const [opCriada, setOpCriada] = useState<{ id: string; numero: number; referenciaExterna?: string | null } | null>(null)
+
+  // Confirmação de sobrescrita de OP existente (reimportação de OS alterada).
+  // Quando o backend responde CONFIRMACAO_NECESSARIA, guardamos o payload já
+  // montado e a info da OP para reenviar com confirmarSobrescrita=true.
+  const [confirmSobrescrita, setConfirmSobrescrita] = useState<{
+    payload: Record<string, any>
+    info: { numero: number; referenciaExterna?: string | null; status: string; emAndamento?: boolean; apontamentos?: number }
+    nivel: 'forte' | 'simples'
+    mensagem: string
+  } | null>(null)
 
   // Wizard state
   const [wizardStep, setWizardStep] = useState(0)
@@ -282,46 +301,82 @@ export default function ImportarOpPdfPage() {
         }
       }
 
-      // 5. Confirmar OP
-      let confirmaRes
-      try {
-        confirmaRes = await api.post('/pcp/importar-op-pdf/confirmar', {
-          importacaoId: preview!.importacaoId,
-          clienteId: finalClienteId,
-          produtoId: finalProdutoId,
-          quantidade: quantidadeEditada ?? preview!.dadosExtraidos.cabecalho.quantidade,
-          prioridade: 'NORMAL',
-          materiaisVinculados,
-          centrosVinculados,
-          salvarDePara: true,
-        })
-      } catch (errConfirm: any) {
-        // Se cache expirou (410), re-uplodar PDF e tentar novamente
-        if (errConfirm?.response?.status === 410 && arquivo) {
-          const formData = new FormData()
-          formData.append('file', arquivo)
-          const reUpload = await api.post('/pcp/importar-op-pdf', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
-          // Tenta confirmar com novo importacaoId
-          confirmaRes = await api.post('/pcp/importar-op-pdf/confirmar', {
-            importacaoId: reUpload.data.importacaoId,
-            clienteId: finalClienteId,
-            produtoId: finalProdutoId,
-            quantidade: quantidadeEditada ?? preview!.dadosExtraidos.cabecalho.quantidade,
-            prioridade: 'NORMAL',
-            materiaisVinculados,
-            centrosVinculados,
-            salvarDePara: true,
-          })
-        } else {
-          throw errConfirm
-        }
+      // 5. Confirmar OP — payload base (sem o flag de sobrescrita)
+      const payloadBase = {
+        importacaoId: preview!.importacaoId,
+        clienteId: finalClienteId,
+        produtoId: finalProdutoId,
+        quantidade: quantidadeEditada ?? preview!.dadosExtraidos.cabecalho.quantidade,
+        prioridade: 'NORMAL',
+        materiaisVinculados,
+        centrosVinculados,
+        salvarDePara: true,
       }
-
-      setOpCriada(confirmaRes.data.ordemProducao)
-      setEtapaGlobal('sucesso')
-      notifications.show({ title: 'OP importada!', message: `OP #${confirmaRes.data.ordemProducao.referenciaExterna || confirmaRes.data.ordemProducao.numero} criada`, color: 'green' })
+      await enviarConfirmacao(payloadBase, false)
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Erro ao criar OP', color: 'red' })
+    } finally { setLoading(false) }
+  }
+
+  // Envia a confirmação da importação. Trata:
+  //  • 410 (cache expirado) → re-upload do PDF e reenvio;
+  //  • 409 OP_FINALIZADA    → erro bloqueante (não dá pra reimportar);
+  //  • 409 CONFIRMACAO_NECESSARIA → abre modal para o usuário confirmar a
+  //    sobrescrita; ao confirmar, reenvia com confirmarSobrescrita=true.
+  async function enviarConfirmacao(payloadBase: Record<string, any>, confirmarSobrescrita: boolean) {
+    let confirmaRes
+    try {
+      confirmaRes = await api.post('/pcp/importar-op-pdf/confirmar', { ...payloadBase, confirmarSobrescrita })
+    } catch (errConfirm: any) {
+      const status = errConfirm?.response?.status
+      const data = errConfirm?.response?.data
+
+      // Cache expirado — re-upload e reenvio preservando o flag atual.
+      if (status === 410 && arquivo) {
+        const formData = new FormData()
+        formData.append('file', arquivo)
+        const reUpload = await api.post('/pcp/importar-op-pdf', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+        confirmaRes = await api.post('/pcp/importar-op-pdf/confirmar', {
+          ...payloadBase,
+          importacaoId: reUpload.data.importacaoId,
+          confirmarSobrescrita,
+        })
+      } else if (status === 409 && data?.code === 'CONFIRMACAO_NECESSARIA') {
+        // Abre modal de confirmação — não é erro, é uma decisão do usuário.
+        setConfirmSobrescrita({
+          payload: payloadBase,
+          info: data.opExistente,
+          nivel: data.nivelAlerta === 'forte' ? 'forte' : 'simples',
+          mensagem: data.message,
+        })
+        return
+      } else if (status === 409 && data?.code === 'OP_FINALIZADA') {
+        notifications.show({ title: 'OP finalizada', message: data.message, color: 'red', autoClose: 8000 })
+        return
+      } else {
+        throw errConfirm
+      }
+    }
+
+    setConfirmSobrescrita(null)
+    setOpCriada(confirmaRes.data.ordemProducao)
+    setEtapaGlobal('sucesso')
+    const numeroVisivel = confirmaRes.data.ordemProducao.referenciaExterna || confirmaRes.data.ordemProducao.numero
+    notifications.show({
+      title: confirmaRes.data.modoAtualizacao ? 'OP atualizada!' : 'OP importada!',
+      message: `OP ${numeroVisivel} ${confirmaRes.data.modoAtualizacao ? 'atualizada' : 'criada'} com sucesso`,
+      color: 'green',
+    })
+  }
+
+  // Confirma a sobrescrita (usuário clicou "Atualizar mesmo assim" no modal).
+  async function confirmarSobrescritaOp() {
+    if (!confirmSobrescrita) return
+    setLoading(true)
+    try {
+      await enviarConfirmacao(confirmSobrescrita.payload, true)
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Erro ao atualizar OP', color: 'red' })
     } finally { setLoading(false) }
   }
 
@@ -366,11 +421,33 @@ export default function ImportarOpPdfPage() {
             <Card withBorder p="xs"><Text size="xs" c="dimmed">Materiais / Etapas</Text><Text fw={600}>{preview.dadosExtraidos.materiais.length} / {preview.dadosExtraidos.etapas.length}</Text></Card>
           </SimpleGrid>
 
+          {preview.opDuplicada && (
+            preview.opDuplicada.finalizada ? (
+              <Alert color="red" mb="md" icon={<IconAlertTriangle size={18} />} title="OP já finalizada">
+                <Text size="sm">
+                  Já existe a OP <strong>{preview.opDuplicada.referenciaExterna || preview.opDuplicada.numero}</strong> com
+                  status <strong>{preview.opDuplicada.status}</strong>. OPs concluídas ou canceladas não podem ser
+                  reimportadas. Se precisar refazê-la, crie uma nova OP.
+                </Text>
+              </Alert>
+            ) : (
+              <Alert color={preview.opDuplicada.nivelAlerta === 'forte' ? 'orange' : 'yellow'} mb="md" icon={<IconAlertTriangle size={18} />} title="Esta OP já existe">
+                <Text size="sm">
+                  Já existe a OP <strong>{preview.opDuplicada.referenciaExterna || preview.opDuplicada.numero}</strong> com
+                  status <strong>{preview.opDuplicada.status}</strong>
+                  {preview.opDuplicada.emAndamento ? ' (já em andamento na produção)' : ''}.
+                  {preview.opDuplicada.apontamentos ? ` Há ${preview.opDuplicada.apontamentos} apontamento(s) de produção, que serão descartados na substituição.` : ''}
+                  {' '}Ao continuar, você poderá <strong>substituir todos os dados</strong> dela por este PDF (será pedida confirmação).
+                </Text>
+              </Alert>
+            )
+          )}
+
           <Alert color="blue" mb="md">
             <Text size="sm">O sistema irá guiá-lo para cadastrar entidades que não existem ainda (cliente, produto, materiais, máquinas).</Text>
           </Alert>
 
-          <Button fullWidth size="md" onClick={irParaWizard} leftSection={<IconCheck size={16} />}>Continuar para Cadastro</Button>
+          <Button fullWidth size="md" onClick={irParaWizard} leftSection={<IconCheck size={16} />} disabled={!!preview.opDuplicada?.finalizada}>Continuar para Cadastro</Button>
         </Card>
       )}
 
@@ -598,6 +675,53 @@ export default function ImportarOpPdfPage() {
           </Stack>
         </Card>
       )}
+
+      {/* MODAL — Confirmar sobrescrita de OP existente (reimportação) */}
+      <Modal
+        opened={!!confirmSobrescrita}
+        onClose={() => setConfirmSobrescrita(null)}
+        title={confirmSobrescrita?.nivel === 'forte' ? '⚠ Atenção: OP em andamento' : 'OP já existe'}
+        centered
+      >
+        {confirmSobrescrita && (
+          <Stack gap="md">
+            <Alert
+              color={confirmSobrescrita.nivel === 'forte' ? 'orange' : 'yellow'}
+              icon={<IconAlertTriangle size={18} />}
+            >
+              <Text size="sm">{confirmSobrescrita.mensagem}</Text>
+            </Alert>
+
+            {confirmSobrescrita.nivel === 'forte' && (
+              <Alert color="red" variant="light">
+                <Text size="sm" fw={600}>Recomendação:</Text>
+                <Text size="sm">
+                  Esta OP <strong>{confirmSobrescrita.info.referenciaExterna || confirmSobrescrita.info.numero}</strong> já
+                  está em <strong>{confirmSobrescrita.info.status}</strong>
+                  {confirmSobrescrita.info.emAndamento ? ' (produção em andamento)' : ''}.
+                  Ao confirmar, <strong>TODOS os dados serão substituídos</strong> pelos do novo PDF
+                  (produto, materiais e etapas).
+                  {confirmSobrescrita.info.apontamentos
+                    ? ` Os ${confirmSobrescrita.info.apontamentos} apontamento(s) de produção já registrados serão DESCARTADOS.`
+                    : ''}
+                  {' '}Confirme apenas se o cliente realmente refez a OS.
+                </Text>
+              </Alert>
+            )}
+
+            <Group justify="flex-end">
+              <Button variant="default" onClick={() => setConfirmSobrescrita(null)}>Cancelar</Button>
+              <Button
+                color={confirmSobrescrita.nivel === 'forte' ? 'red' : 'blue'}
+                loading={loading}
+                onClick={confirmarSobrescritaOp}
+              >
+                {confirmSobrescrita.nivel === 'forte' ? 'Atualizar mesmo assim' : 'Atualizar OP'}
+              </Button>
+            </Group>
+          </Stack>
+        )}
+      </Modal>
     </Stack>
   )
 }
