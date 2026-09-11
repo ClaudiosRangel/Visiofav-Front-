@@ -33,7 +33,10 @@ interface EmpresaOpt {
 
 function formatDataHora(iso: string): string {
   try {
+    // Fuso fixo de Brasília: a data é gravada em UTC no banco; exibimos sempre
+    // no horário de Brasília, independente do fuso da máquina do usuário.
     return new Date(iso).toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
       day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit', second: '2-digit',
     })

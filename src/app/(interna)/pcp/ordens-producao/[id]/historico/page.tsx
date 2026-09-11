@@ -96,7 +96,7 @@ export default function HistoricoOpPage() {
                 >
                   <Group gap="xs" mt={2}>
                     <Text size="xs" c="dimmed">
-                      {new Date(evento.data).toLocaleDateString('pt-BR')} às {new Date(evento.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(evento.data).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })} às {new Date(evento.data).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}
                     </Text>
                     {evento.usuario && (
                       <Badge size="xs" variant="light" color="gray">{evento.usuario}</Badge>

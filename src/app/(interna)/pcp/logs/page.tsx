@@ -135,7 +135,7 @@ export default function PcpLogsPage() {
             {logs.map((log: any) => (
               <Table.Tr key={log.id}>
                 <Table.Td>
-                  <Text size="xs">{new Date(log.criadoEm).toLocaleString('pt-BR')}</Text>
+                  <Text size="xs">{new Date(log.criadoEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</Text>
                 </Table.Td>
                 <Table.Td fw={500}>{log.opNumero}</Table.Td>
                 <Table.Td>

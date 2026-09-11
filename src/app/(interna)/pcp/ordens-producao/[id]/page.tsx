@@ -690,7 +690,7 @@ export default function DetalheOpPage() {
             <Timeline active={op.logs.length - 1} bulletSize={20} lineWidth={2}>
               {op.logs.map((log: any) => (
                 <Timeline.Item key={log.id} title={`${log.statusAnterior || '—'} → ${log.statusNovo}`}>
-                  <Text size="xs" c="dimmed">{new Date(log.criadoEm).toLocaleString('pt-BR')}</Text>
+                  <Text size="xs" c="dimmed">{new Date(log.criadoEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</Text>
                   {log.observacao && <Text size="sm">{log.observacao}</Text>}
                 </Timeline.Item>
               ))}
