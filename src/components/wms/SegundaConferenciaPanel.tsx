@@ -214,7 +214,9 @@ export default function SegundaConferenciaPanel({ notaId, itensPendentes, onItem
                 <Group gap={4}>
                   {item.tipo.includes('QUANTIDADE_DIVERGENTE') && <Badge color="gray" variant="outline">Quantidade</Badge>}
                   {item.tipo.includes('LOTE_DIVERGENTE') && <Badge color="gray" variant="outline">Lote</Badge>}
-                  {item.tipo.includes('VALIDADE_DIVERGENTE') && <Badge color="gray" variant="outline">Validade</Badge>}
+                  {/* Divergência de validade vs NF-e não é mais gerada — a validade
+                      é validada contra produto vencido + shelf life na conferência,
+                      nunca contra a NF-e (spec conferencia-validade-produto). */}
                 </Group>
               </Group>
 

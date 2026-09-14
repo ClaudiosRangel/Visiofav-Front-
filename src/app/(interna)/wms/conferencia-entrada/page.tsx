@@ -1444,7 +1444,7 @@ export default function ConferenciaEntradaPage() {
 
                 {resultado.falhasShelfLife && resultado.falhasShelfLife.length > 0 && (
                   <Alert icon={<IconAlertCircle size={16} />} color="orange" variant="light" mb="md">
-                    <Text fw={600}>⚠️ Shelf Life insuficiente!</Text>
+                    <Text fw={600}>⚠️ Validade reprovada (produto vencido ou shelf life insuficiente)!</Text>
                     {resultado.falhasShelfLife.map((falha: any, idx: number) => (
                       <Text size="sm" key={idx} mt={4}>{falha.mensagem}</Text>
                     ))}
