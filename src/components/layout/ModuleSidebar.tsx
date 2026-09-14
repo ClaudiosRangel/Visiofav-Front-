@@ -121,6 +121,9 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
     entries: [
       { icon: IconCreditCard, label: 'Contas a Pagar', href: '/financeiro/contas-pagar' },
       { icon: IconWallet, label: 'Contas a Receber', href: '/financeiro/contas-receber' },
+      { icon: IconBuildingWarehouse, label: 'Contas Bancárias', href: '/financeiro/contas' },
+      { icon: IconChartBar, label: 'Fluxo de Caixa', href: '/financeiro/fluxo-caixa' },
+      { icon: IconArrowsExchange, label: 'Conciliação', href: '/financeiro/conciliacao' },
     ],
   },
   fiscal: {
