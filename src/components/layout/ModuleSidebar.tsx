@@ -33,6 +33,7 @@ import { getUserPerfil } from '@/hooks/usePerfilGuard'
 import { voltarParaModulos, abrirOuFocarAba } from '@/lib/abasModulo'
 import { useModuleSidebarCollapsed, useMobileMenuStore } from '@/lib/moduleSidebarStore'
 import { confirmarNavegacaoOuBloquear } from '@/lib/navigationGuardStore'
+import { filtrarEntriesWms } from '@/lib/wms-menu-filter'
 
 interface NavItem {
   icon: React.ElementType
@@ -237,6 +238,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconBarcode, label: 'Fila de Impressão', href: '/wms/etiquetas/fila' },
           { icon: IconPlugConnected, label: 'Integração WMS', href: '/wms/configuracoes/integracao' },
           { icon: IconBuildingWarehouse, label: 'Endereçamento (Put-away)', href: '/wms/configuracoes/put-away' },
+          { icon: IconSettings, label: 'Configuração de Menus', href: '/wms/configuracoes/menus' },
         ],
       },
 
@@ -457,6 +459,33 @@ export const MODULE_LABELS: Record<string, string> = {
   'portal-representante': 'Portal Representante',
 }
 
+/**
+ * Lista os itens do menu do WMS numa estrutura simples (grupo → itens), fonte
+ * única reutilizada pela tela de Configuração de Menus (spec wms-configurar-menus).
+ * Itens soltos (sem grupo) são agrupados sob o rótulo do próprio item.
+ */
+export interface ItemMenuWmsConfig {
+  grupoLabel: string | null // null = item solto (ex.: Dashboard)
+  label: string
+  href: string
+}
+
+export function listarItensMenuWms(): ItemMenuWmsConfig[] {
+  const wms = MODULE_MENUS['wms']
+  if (!wms) return []
+  const lista: ItemMenuWmsConfig[] = []
+  for (const entry of wms.entries) {
+    if (isGroup(entry)) {
+      for (const item of entry.items) {
+        lista.push({ grupoLabel: entry.label, label: item.label, href: item.href })
+      }
+    } else {
+      lista.push({ grupoLabel: null, label: entry.label, href: entry.href })
+    }
+  }
+  return lista
+}
+
 export function detectModule(pathname: string): string | null {
   if (pathname.startsWith('/portal-representante')) return 'portal-representante'
   if (pathname.startsWith('/orcamento-grafico')) return 'orcamento-grafico'
@@ -618,6 +647,8 @@ function NavGroupComponent({ group, pathname, collapsed }: { group: NavGroup; pa
 function useModuleEntries(pathname: string): { moduleName: string | null; moduleConfig: ModuleConfig | null; entries: MenuEntry[] } {
   const { usaWms } = useEmpresaAtual()
   const [acessoMenusPcp, setAcessoMenusPcp] = useState<Record<string, { habilitado: boolean }> | null>(null)
+  // Menus do WMS desabilitados pela empresa (spec wms-configurar-menus).
+  const [menusDesabilitadosWms, setMenusDesabilitadosWms] = useState<string[]>([])
 
   // Carregar permissões de acesso a menus do PCP (uma vez)
   useEffect(() => {
@@ -625,6 +656,17 @@ function useModuleEntries(pathname: string): { moduleName: string | null; module
     import('@/lib/api').then(({ api }) => {
       api.get('/pcp/permissoes/minha').then((res) => {
         if (res.data?.acessoMenus) setAcessoMenusPcp(res.data.acessoMenus)
+      }).catch(() => {})
+    })
+  }, [])
+
+  // Carregar configuração de menus do WMS (uma vez). Fail-open: em erro, mantém
+  // a lista vazia (menu completo) — nunca deixa o usuário sem navegação.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    import('@/lib/api').then(({ api }) => {
+      api.get('/wms/config-menus').then((res) => {
+        if (Array.isArray(res.data?.menusDesabilitados)) setMenusDesabilitadosWms(res.data.menusDesabilitados)
       }).catch(() => {})
     })
   }, [])
@@ -657,6 +699,12 @@ function useModuleEntries(pathname: string): { moduleName: string | null; module
       return entry
     })
     : moduleConfig.entries
+
+  // WMS: ocultar itens/grupos desabilitados pela empresa (spec wms-configurar-menus).
+  // Filtragem pura testável; item protegido (Configuração de Menus) nunca é removido.
+  if (moduleName === 'wms' && menusDesabilitadosWms.length > 0) {
+    entries = filtrarEntriesWms(entries, menusDesabilitadosWms)
+  }
 
   // Filtrar menus do PCP com base nas permissões de acesso configuradas pelo admin
   if (moduleName === 'pcp' && acessoMenusPcp) {
