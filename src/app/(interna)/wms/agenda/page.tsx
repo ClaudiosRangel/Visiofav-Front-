@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import {
   Card, Group, Text, Table, Badge, Button, ActionIcon, Tooltip,
-  LoadingOverlay, Select, Modal, TextInput, NumberInput, SimpleGrid, ThemeIcon,
+  LoadingOverlay, Select, Modal, TextInput, NumberInput, SimpleGrid, ThemeIcon, Textarea,
 } from '@mantine/core'
 import { DateInput } from '@mantine/dates'
 import {
@@ -36,6 +36,9 @@ export default function AgendaWmsPage() {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
+  // Cancelamento (só permitido em AGENDADO) — exige motivo válido.
+  const [cancelId, setCancelId] = useState<string | null>(null)
+  const [cancelMotivo, setCancelMotivo] = useState('')
 
   // Form state
   const [docaId, setDocaId] = useState<string | null>(null)
@@ -102,6 +105,24 @@ export default function AgendaWmsPage() {
       notifications.show({ title: 'Sucesso', message: 'Status atualizado', color: 'green' })
     },
     onError: (err: any) => { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' }) },
+  })
+
+  const cancelarAgenda = useMutation({
+    mutationFn: async () => {
+      if (!cancelId) throw new Error('Nenhum agendamento selecionado')
+      const { data } = await api.patch(`/agenda-wms/${cancelId}/status`, {
+        status: 'CANCELADO',
+        motivoCancelamento: cancelMotivo.trim(),
+      })
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agenda-wms'] })
+      setCancelId(null)
+      setCancelMotivo('')
+      notifications.show({ title: 'Sucesso', message: 'Agendamento cancelado', color: 'green' })
+    },
+    onError: (err: any) => { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao cancelar', color: 'red' }) },
   })
 
   const editarAgenda = useMutation({
@@ -369,9 +390,9 @@ export default function AgendaWmsPage() {
                               </ActionIcon>
                             </Tooltip>
                           )}
-                          {ag.status !== 'RECEBIDO' && ag.status !== 'CANCELADO' && (
+                          {ag.status === 'AGENDADO' && (
                             <Tooltip label="Cancelar">
-                              <ActionIcon variant="subtle" color="red" onClick={() => { if (confirm('Cancelar agendamento?')) avancarStatus.mutate({ id: ag.id, status: 'CANCELADO' }) }}>
+                              <ActionIcon variant="subtle" color="red" onClick={() => { setCancelId(ag.id); setCancelMotivo('') }}>
                                 <IconX size={18} />
                               </ActionIcon>
                             </Tooltip>
@@ -440,6 +461,33 @@ export default function AgendaWmsPage() {
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={() => { setEditModalOpen(false); setEditingId(null) }}>Cancelar</Button>
           <Button onClick={() => editarAgenda.mutate()} loading={editarAgenda.isPending}>Salvar</Button>
+        </Group>
+      </Modal>
+
+      {/* Modal de cancelamento — exige motivo. Só disponível em AGENDADO
+          (o botão nem aparece nos demais status; o backend também bloqueia). */}
+      <Modal opened={cancelId !== null} onClose={() => { setCancelId(null); setCancelMotivo('') }} title="Cancelar agendamento" centered>
+        <Text size="sm" c="dimmed" mb="sm">
+          O cancelamento só é permitido antes da entrada do veículo no pátio. Informe o motivo da desistência.
+        </Text>
+        <Textarea
+          label="Motivo do cancelamento"
+          placeholder="Descreva o motivo (mínimo 10 caracteres)"
+          minRows={3}
+          autosize
+          value={cancelMotivo}
+          onChange={(e) => setCancelMotivo(e.currentTarget.value)}
+        />
+        <Group justify="flex-end" mt="md">
+          <Button variant="default" onClick={() => { setCancelId(null); setCancelMotivo('') }}>Voltar</Button>
+          <Button
+            color="red"
+            onClick={() => cancelarAgenda.mutate()}
+            loading={cancelarAgenda.isPending}
+            disabled={cancelMotivo.trim().length < 10}
+          >
+            Confirmar cancelamento
+          </Button>
         </Group>
       </Modal>
     </div>
