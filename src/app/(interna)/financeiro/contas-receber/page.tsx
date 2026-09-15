@@ -18,6 +18,7 @@ import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { titulosApi } from '@/hooks/financeiro/useFinanceiroApi'
 import { cobrancaApi, type Convenio } from '@/hooks/financeiro/useCobrancaApi'
 import { IconFileInvoice, IconQrcode } from '@tabler/icons-react'
+import { DocumentoFinanceiroForm } from '@/components/financeiro/DocumentoFinanceiroForm'
 
 const FORMAS = [
   { value: 'DINHEIRO', label: 'Dinheiro' }, { value: 'BOLETO', label: 'Boleto' },
@@ -48,6 +49,7 @@ export default function ContasReceberPage() {
   useEffect(() => { document.title = 'Vizor - Financeiro - Contas a Receber' }, [])
   const queryClient = useQueryClient()
   const [criarModal, setCriarModal] = useState(false)
+  const [docFormOpen, setDocFormOpen] = useState(false)
   const [receberModal, setReceberModal] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [page, setPage] = useState(1)
@@ -140,9 +142,11 @@ export default function ContasReceberPage() {
               <Button color="green" leftSection={<IconChecks size={16} />} onClick={() => setLoteModal(true)}>Receber {selecionados.length} selecionado(s)</Button>
             )}
             <Button variant="default" leftSection={<IconRefresh size={16} />} onClick={() => refetch()}>Atualizar</Button>
-            <Button leftSection={<IconPlus size={16} />} onClick={() => { criarForm.reset({ descricao: '', valor: undefined as any, dataVencimento: undefined as any }); setCriarModal(true) }}>Nova Conta</Button>
+            <Button leftSection={<IconPlus size={16} />} onClick={() => setDocFormOpen(true)}>Nova Conta</Button>
           </Group>
         </Group>
+
+        <DocumentoFinanceiroForm tipo="receber" opened={docFormOpen} onClose={() => setDocFormOpen(false)} onSaved={() => queryClient.invalidateQueries({ queryKey: ['contas-receber'] })} />
 
         <Table striped highlightOnHover>
           <Table.Thead>

@@ -16,6 +16,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { titulosApi } from '@/hooks/financeiro/useFinanceiroApi'
+import { DocumentoFinanceiroForm } from '@/components/financeiro/DocumentoFinanceiroForm'
 
 const FORMAS = [
   { value: 'DINHEIRO', label: 'Dinheiro' }, { value: 'BOLETO', label: 'Boleto' },
@@ -46,6 +47,7 @@ export default function ContasPagarPage() {
   useEffect(() => { document.title = 'Vizor - Financeiro - Contas a Pagar' }, [])
   const queryClient = useQueryClient()
   const [criarModal, setCriarModal] = useState(false)
+  const [docFormOpen, setDocFormOpen] = useState(false)
   const [pagarModal, setPagarModal] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [page, setPage] = useState(1)
@@ -123,9 +125,11 @@ export default function ContasPagarPage() {
               <Button color="green" leftSection={<IconChecks size={16} />} onClick={() => setLoteModal(true)}>Pagar {selecionados.length} selecionado(s)</Button>
             )}
             <Button variant="default" leftSection={<IconRefresh size={16} />} onClick={() => refetch()}>Atualizar</Button>
-            <Button leftSection={<IconPlus size={16} />} onClick={() => { criarForm.reset({ descricao: '', valor: undefined as any, dataVencimento: undefined as any }); setCriarModal(true) }}>Nova Conta</Button>
+            <Button leftSection={<IconPlus size={16} />} onClick={() => setDocFormOpen(true)}>Nova Conta</Button>
           </Group>
         </Group>
+
+        <DocumentoFinanceiroForm tipo="pagar" opened={docFormOpen} onClose={() => setDocFormOpen(false)} onSaved={() => queryClient.invalidateQueries({ queryKey: ['contas-pagar'] })} />
 
         <Table striped highlightOnHover>
           <Table.Thead>

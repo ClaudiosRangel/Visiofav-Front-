@@ -134,6 +134,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       { icon: IconSitemap, label: 'Centros de Custo', href: '/financeiro/centros-custo' },
       { icon: IconLock, label: 'Fechamento', href: '/financeiro/fechamento' },
       { icon: IconReportAnalytics, label: 'Relatórios', href: '/financeiro/relatorios' },
+      { icon: IconFileText, label: 'Contratos/Parcelamentos', href: '/financeiro/contratos' },
       { icon: IconBuildingBank, label: 'Convênios Bancários', href: '/financeiro/convenios' },
       { icon: IconFileInvoice, label: 'Boletos', href: '/financeiro/boletos' },
       { icon: IconQrcode, label: 'PIX', href: '/financeiro/pix' },

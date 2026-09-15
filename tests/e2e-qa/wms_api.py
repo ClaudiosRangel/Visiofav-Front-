@@ -4506,3 +4506,25 @@ class WmsApiClient:
 
     def obter_regua(self) -> Any:
         return self._get("/financeiro-cobranca/regua")
+
+    # ──────────────────────────────────────────────────────────────
+    # Documentos Financeiros (D1) — inclusão rica, boleto, contrato. test_45.
+    # ──────────────────────────────────────────────────────────────
+
+    def incluir_documento_pagar(self, dados: dict) -> Any:
+        return self._post("/contas-pagar", dados)
+
+    def incluir_documento_receber(self, dados: dict) -> Any:
+        return self._post("/contas-receber", dados)
+
+    def interpretar_boleto(self, linha_digitavel: str) -> Any:
+        return self._post("/contas-pagar/interpretar-boleto", {"linhaDigitavel": linha_digitavel})
+
+    def criar_contrato(self, dados: dict) -> Any:
+        return self._post("/financeiro/contratos", dados)
+
+    def listar_contratos(self) -> Any:
+        return self._get("/financeiro/contratos")
+
+    def detalhe_contrato(self, contrato_id: str) -> Any:
+        return self._get(f"/financeiro/contratos/{contrato_id}")
