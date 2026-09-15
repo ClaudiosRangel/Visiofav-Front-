@@ -58,5 +58,41 @@ export function useNfe() {
     })
   }
 
-  return { useListar, useDetalhe, useEmitir, useCancelar, useCartaCorrecao }
+  // Reprocessa (retransmite) uma NF-e REJEITADA — reemite e reamarra financeiro/estoque
+  function useRetransmitir() {
+    const qc = useQueryClient()
+    return useMutation({
+      mutationFn: async ({ id }: { id: string }) => {
+        const { data } = await api.post(`/fiscal/nfe/${id}/retransmitir`)
+        return data
+      },
+      onSuccess: () => qc.invalidateQueries({ queryKey: ['fiscal', 'nfe'] }),
+    })
+  }
+
+  return { useListar, useDetalhe, useEmitir, useCancelar, useCartaCorrecao, useRetransmitir }
+}
+
+/**
+ * Abre a DANFE (PDF) em nova aba. O backend exige Authorization no header, então
+ * baixamos via axios (que injeta o token) e abrimos como blob.
+ */
+export async function abrirDanfe(id: string) {
+  const { data } = await api.get(`/fiscal/nfe/${id}/danfe`, { responseType: 'blob' })
+  const url = URL.createObjectURL(data)
+  window.open(url, '_blank')
+  setTimeout(() => URL.revokeObjectURL(url), 60000)
+}
+
+/** Baixa o XML autorizado (nfeProc) da NF-e. */
+export async function baixarXmlNfe(id: string, chaveAcesso?: string | null) {
+  const { data } = await api.get(`/fiscal/nfe/${id}/xml`, { responseType: 'blob' })
+  const url = URL.createObjectURL(data)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `NFe-${chaveAcesso || id}.xml`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 60000)
 }

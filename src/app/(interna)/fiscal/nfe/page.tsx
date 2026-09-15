@@ -8,7 +8,7 @@ import { ListagemFiscal, type ColumnDef, type FilterConfig } from '@/components/
 import { StatusBadge, FISCAL_STATUS_COLORS } from '@/components/fiscal/StatusBadge'
 import { ModalCancelamento } from '@/components/fiscal/ModalCancelamento'
 import { ModalCartaCorrecao } from '@/components/fiscal/ModalCartaCorrecao'
-import { useNfe } from '@/data/hooks/fiscal/useNfe'
+import { useNfe, abrirDanfe, baixarXmlNfe } from '@/data/hooks/fiscal/useNfe'
 
 interface NfeItem {
   id: string
@@ -56,12 +56,13 @@ const filters: FilterConfig[] = [
     key: 'status',
     label: 'Status',
     type: 'select',
+    // Valores no MASCULINO — é como o backend grava/filtra (where.status.toUpperCase()).
     options: [
       { value: 'PENDENTE', label: 'Pendente' },
-      { value: 'AUTORIZADA', label: 'Autorizada' },
-      { value: 'REJEITADA', label: 'Rejeitada' },
-      { value: 'CANCELADA', label: 'Cancelada' },
-      { value: 'DENEGADA', label: 'Denegada' },
+      { value: 'AUTORIZADO', label: 'Autorizada' },
+      { value: 'REJEITADO', label: 'Rejeitada' },
+      { value: 'CANCELADO', label: 'Cancelada' },
+      { value: 'DENEGADO', label: 'Denegada' },
       { value: 'CONTINGENCIA', label: 'Contingência' },
     ],
   },
@@ -76,12 +77,52 @@ export default function NfePage() {
   useModuloGuard('FISCAL')
   useEffect(() => { document.title = 'Vizor - Fiscal - NF-e' }, [])
 
-  const { useCancelar, useCartaCorrecao } = useNfe()
+  const { useCancelar, useCartaCorrecao, useRetransmitir } = useNfe()
   const cancelarMutation = useCancelar()
   const cartaCorrecaoMutation = useCartaCorrecao()
+  const retransmitirMutation = useRetransmitir()
 
   const [cancelarItemId, setCancelarItemId] = useState<string | null>(null)
   const [cceItemId, setCceItemId] = useState<string | null>(null)
+
+  async function handleDanfe(id: string) {
+    try {
+      await abrirDanfe(id)
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: 'Não foi possível abrir a DANFE', color: 'red' })
+    }
+  }
+
+  async function handleXml(id: string, chaveAcesso: string | null) {
+    try {
+      await baixarXmlNfe(id, chaveAcesso)
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: 'XML ainda não disponível', color: 'red' })
+    }
+  }
+
+  function handleRetransmitir(id: string) {
+    retransmitirMutation.mutate(
+      { id },
+      {
+        onSuccess: (data: any) => {
+          notifications.show({
+            title: 'NF-e retransmitida',
+            message: data?.status === 'AUTORIZADO' ? 'Autorizada pela SEFAZ' : `Status: ${data?.status ?? 'processada'}`,
+            color: 'green',
+          })
+        },
+        onError: (err: any) => {
+          const d = err?.response?.data
+          notifications.show({
+            title: 'Rejeição',
+            message: d?.orientacao || d?.message || 'Erro ao retransmitir NF-e',
+            color: 'red',
+          })
+        },
+      },
+    )
+  }
 
   function handleCancelar(justificativa: string) {
     if (!cancelarItemId) return
@@ -134,28 +175,41 @@ export default function NfePage() {
         breadcrumb="Início / Fiscal / NF-e"
         createButton={{ label: 'Nova NF-e', href: '/fiscal/nfe/nova' }}
         statusColors={FISCAL_STATUS_COLORS}
-        actions={(item) =>
-          item.status === 'AUTORIZADA' ? (
+        actions={(item) => {
+          const autorizada = item.status === 'AUTORIZADO' || item.status === 'AUTORIZADA'
+          const rejeitada = item.status === 'REJEITADO' || item.status === 'REJEITADA'
+          return (
             <Group gap={4}>
-              <Button
-                size="compact-xs"
-                variant="subtle"
-                color="red"
-                onClick={() => setCancelarItemId(item.id)}
-              >
-                Cancelar
-              </Button>
-              <Button
-                size="compact-xs"
-                variant="subtle"
-                color="teal"
-                onClick={() => setCceItemId(item.id)}
-              >
-                Carta de Correção
-              </Button>
+              {autorizada && (
+                <>
+                  <Button size="compact-xs" variant="subtle" onClick={() => handleDanfe(item.id)}>
+                    DANFE
+                  </Button>
+                  <Button size="compact-xs" variant="subtle" onClick={() => handleXml(item.id, item.chaveAcesso)}>
+                    XML
+                  </Button>
+                  <Button size="compact-xs" variant="subtle" color="red" onClick={() => setCancelarItemId(item.id)}>
+                    Cancelar
+                  </Button>
+                  <Button size="compact-xs" variant="subtle" color="teal" onClick={() => setCceItemId(item.id)}>
+                    Carta de Correção
+                  </Button>
+                </>
+              )}
+              {rejeitada && (
+                <Button
+                  size="compact-xs"
+                  variant="subtle"
+                  color="blue"
+                  loading={retransmitirMutation.isPending}
+                  onClick={() => handleRetransmitir(item.id)}
+                >
+                  Reprocessar
+                </Button>
+              )}
             </Group>
-          ) : null
-        }
+          )
+        }}
       />
 
       <ModalCancelamento
