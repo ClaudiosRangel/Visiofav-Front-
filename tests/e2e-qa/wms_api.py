@@ -4541,3 +4541,28 @@ class WmsApiClient:
         conversacional. Útil para validar a rota sem depender do modelo.
         """
         return self._post("/ai/chat", {"mensagem": mensagem, "historico": historico or []})
+
+    # ──────────────────────────────────────────────────────────────
+    # Folha de Pagamento (D3). test_47.
+    # ──────────────────────────────────────────────────────────────
+
+    def criar_funcionario(self, dados: dict) -> Any:
+        return self._post("/funcionarios", dados)
+
+    def criar_folha(self, dados: dict) -> Any:
+        return self._post("/financeiro/folha", dados)
+
+    def obter_folha(self, folha_id: str) -> Any:
+        return self._get(f"/financeiro/folha/{folha_id}")
+
+    def listar_folhas(self) -> Any:
+        return self._get("/financeiro/folha")
+
+    def add_item_folha(self, folha_id: str, dados: dict) -> Any:
+        return self._post(f"/financeiro/folha/{folha_id}/itens", dados)
+
+    def add_encargo_folha(self, folha_id: str, dados: dict) -> Any:
+        return self._post(f"/financeiro/folha/{folha_id}/encargos", dados)
+
+    def efetivar_folha(self, folha_id: str) -> Any:
+        return self._post(f"/financeiro/folha/{folha_id}/efetivar", {})
