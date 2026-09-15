@@ -19,6 +19,7 @@ import { titulosApi } from '@/hooks/financeiro/useFinanceiroApi'
 import { cobrancaApi, type Convenio } from '@/hooks/financeiro/useCobrancaApi'
 import { IconFileInvoice, IconQrcode } from '@tabler/icons-react'
 import { DocumentoFinanceiroForm } from '@/components/financeiro/DocumentoFinanceiroForm'
+import { BaixaTituloModal, type TituloBaixa } from '@/components/financeiro/BaixaTituloModal'
 
 const FORMAS = [
   { value: 'DINHEIRO', label: 'Dinheiro' }, { value: 'BOLETO', label: 'Boleto' },
@@ -36,13 +37,7 @@ const criarSchema = z.object({
   formaPagamento: z.string().optional(),
 })
 
-const receberSchema = z.object({
-  valorRecebido: z.number().positive('Valor > 0'),
-  formaPagamento: z.string().min(1, 'Obrigatório'),
-})
-
 type CriarValues = z.infer<typeof criarSchema>
-type ReceberValues = z.infer<typeof receberSchema>
 
 export default function ContasReceberPage() {
   useModuloGuard('FINANCEIRO')
@@ -50,7 +45,7 @@ export default function ContasReceberPage() {
   const queryClient = useQueryClient()
   const [criarModal, setCriarModal] = useState(false)
   const [docFormOpen, setDocFormOpen] = useState(false)
-  const [receberModal, setReceberModal] = useState<string | null>(null)
+  const [baixaTitulo, setBaixaTitulo] = useState<TituloBaixa | null>(null)
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [selecionados, setSelecionados] = useState<string[]>([])
@@ -80,8 +75,8 @@ export default function ContasReceberPage() {
   })
 
   const receber = useMutation({
-    mutationFn: async ({ id, ...body }: ReceberValues & { id: string }) => { const { data } = await api.patch(`/contas-receber/${id}/receber`, body); return data },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contas-receber'] }); setReceberModal(null); notifications.show({ title: 'Sucesso', message: 'Recebimento registrado', color: 'green' }) },
+    mutationFn: async ({ id, ...body }: any) => { const { data } = await api.patch(`/contas-receber/${id}/receber`, body); return data },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contas-receber'] }); setBaixaTitulo(null); notifications.show({ title: 'Sucesso', message: 'Recebimento registrado', color: 'green' }) },
     onError: (err: any) => { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' }) },
   })
 
@@ -121,7 +116,6 @@ export default function ContasReceberPage() {
   })
 
   const criarForm = useForm<CriarValues>({ resolver: zodResolver(criarSchema) })
-  const receberForm = useForm<ReceberValues>({ resolver: zodResolver(receberSchema) })
 
   const items = response?.data || []
   const total = response?.total || 0
@@ -186,7 +180,7 @@ export default function ContasReceberPage() {
                   <Group gap={4}>
                     {!recebido && !cancelado && (
                       <Tooltip label="Registrar recebimento">
-                        <ActionIcon variant="subtle" color="green" onClick={() => { receberForm.reset({ valorRecebido: Number(item.valor), formaPagamento: '' }); setReceberModal(item.id) }}>
+                        <ActionIcon variant="subtle" color="green" onClick={() => setBaixaTitulo({ id: item.id, descricao: item.descricao, valor: Number(item.valor), dataVencimento: item.dataVencimento })}>
                           <IconCash size={18} />
                         </ActionIcon>
                       </Tooltip>
@@ -244,20 +238,24 @@ export default function ContasReceberPage() {
         </form>
       </Modal>
 
-      {/* Modal Receber */}
-      <Modal opened={!!receberModal} onClose={() => setReceberModal(null)} title="Registrar Recebimento" centered>
-        <form onSubmit={receberForm.handleSubmit((data) => receber.mutate({ id: receberModal!, ...data }))}>
-          <Controller name="valorRecebido" control={receberForm.control} render={({ field }) => <NumberInput label="Valor Recebido *" prefix="R$ " decimalScale={2} error={receberForm.formState.errors.valorRecebido?.message} mb="sm" value={field.value} onChange={(v) => field.onChange(typeof v === 'number' ? v : 0)} />} />
-          <Controller name="formaPagamento" control={receberForm.control} render={({ field }) => <Select label="Forma de Pagamento *" data={FORMAS} error={receberForm.formState.errors.formaPagamento?.message} mb="sm" value={field.value} onChange={(v) => field.onChange(v || '')} />} />
-          <Group justify="flex-end" mt="md">
-            <Button variant="default" onClick={() => setReceberModal(null)}>Cancelar</Button>
-            <Button type="submit" loading={receber.isPending} color="green">Confirmar Recebimento</Button>
-          </Group>
-        </form>
-      </Modal>
+      {/* Modal Baixa Profissional */}
+      <BaixaTituloModal
+        tipo="RECEBER"
+        titulo={baixaTitulo}
+        opened={!!baixaTitulo}
+        onClose={() => setBaixaTitulo(null)}
+        loading={receber.isPending}
+        onConfirm={(payload) => receber.mutate({ id: baixaTitulo!.id, ...payload })}
+      />
 
       {/* Modal Baixa em Lote */}
       <Modal opened={loteModal} onClose={() => setLoteModal(false)} title={`Receber ${selecionados.length} título(s) em lote`} centered>
+        <Card withBorder padding="sm" mb="md" bg="var(--mantine-color-blue-light)">
+          <Group justify="space-between">
+            <Text size="sm">Total selecionado</Text>
+            <Text fw={700}>{items.filter((i: any) => selecionados.includes(i.id)).reduce((s: number, i: any) => s + Number(i.valor), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</Text>
+          </Group>
+        </Card>
         <Select label="Forma de pagamento" data={FORMAS} value={loteForma} onChange={setLoteForma} mb="md" />
         <Text size="sm" c="dimmed" mb="md">Cada título será recebido pelo seu valor total. Títulos já recebidos ou cancelados são ignorados.</Text>
         <Group justify="flex-end">

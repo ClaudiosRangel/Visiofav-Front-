@@ -17,6 +17,7 @@ import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { titulosApi } from '@/hooks/financeiro/useFinanceiroApi'
 import { DocumentoFinanceiroForm } from '@/components/financeiro/DocumentoFinanceiroForm'
+import { BaixaTituloModal, type TituloBaixa } from '@/components/financeiro/BaixaTituloModal'
 
 const FORMAS = [
   { value: 'DINHEIRO', label: 'Dinheiro' }, { value: 'BOLETO', label: 'Boleto' },
@@ -34,13 +35,7 @@ const criarSchema = z.object({
   formaPagamento: z.string().optional(),
 })
 
-const pagarSchema = z.object({
-  valorPago: z.number().positive('Valor > 0'),
-  formaPagamento: z.string().min(1, 'Obrigatório'),
-})
-
 type CriarValues = z.infer<typeof criarSchema>
-type PagarValues = z.infer<typeof pagarSchema>
 
 export default function ContasPagarPage() {
   useModuloGuard('FINANCEIRO')
@@ -48,7 +43,7 @@ export default function ContasPagarPage() {
   const queryClient = useQueryClient()
   const [criarModal, setCriarModal] = useState(false)
   const [docFormOpen, setDocFormOpen] = useState(false)
-  const [pagarModal, setPagarModal] = useState<string | null>(null)
+  const [baixaTitulo, setBaixaTitulo] = useState<TituloBaixa | null>(null)
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [page, setPage] = useState(1)
   const [selecionados, setSelecionados] = useState<string[]>([])
@@ -78,8 +73,8 @@ export default function ContasPagarPage() {
   })
 
   const pagar = useMutation({
-    mutationFn: async ({ id, ...body }: PagarValues & { id: string }) => { const { data } = await api.patch(`/contas-pagar/${id}/pagar`, body); return data },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contas-pagar'] }); setPagarModal(null); notifications.show({ title: 'Sucesso', message: 'Pagamento registrado', color: 'green' }) },
+    mutationFn: async ({ id, ...body }: any) => { const { data } = await api.patch(`/contas-pagar/${id}/pagar`, body); return data },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contas-pagar'] }); setBaixaTitulo(null); notifications.show({ title: 'Sucesso', message: 'Pagamento registrado', color: 'green' }) },
     onError: (err: any) => { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' }) },
   })
 
@@ -104,7 +99,6 @@ export default function ContasPagarPage() {
   })
 
   const criarForm = useForm<CriarValues>({ resolver: zodResolver(criarSchema) })
-  const pagarForm = useForm<PagarValues>({ resolver: zodResolver(pagarSchema) })
 
   const items = response?.data || []
   const total = response?.total || 0
@@ -169,7 +163,7 @@ export default function ContasPagarPage() {
                   <Group gap={4}>
                     {!pago && !cancelado && (
                       <Tooltip label="Registrar pagamento">
-                        <ActionIcon variant="subtle" color="green" onClick={() => { pagarForm.reset({ valorPago: Number(item.valor), formaPagamento: '' }); setPagarModal(item.id) }}>
+                        <ActionIcon variant="subtle" color="green" onClick={() => setBaixaTitulo({ id: item.id, descricao: item.descricao, valor: Number(item.valor), dataVencimento: item.dataVencimento })}>
                           <IconCash size={18} />
                         </ActionIcon>
                       </Tooltip>
@@ -213,20 +207,24 @@ export default function ContasPagarPage() {
         </form>
       </Modal>
 
-      {/* Modal Pagar */}
-      <Modal opened={!!pagarModal} onClose={() => setPagarModal(null)} title="Registrar Pagamento" centered>
-        <form onSubmit={pagarForm.handleSubmit((data) => pagar.mutate({ id: pagarModal!, ...data }))}>
-          <Controller name="valorPago" control={pagarForm.control} render={({ field }) => <NumberInput label="Valor Pago *" prefix="R$ " decimalScale={2} error={pagarForm.formState.errors.valorPago?.message} mb="sm" value={field.value} onChange={(v) => field.onChange(typeof v === 'number' ? v : 0)} />} />
-          <Controller name="formaPagamento" control={pagarForm.control} render={({ field }) => <Select label="Forma de Pagamento *" data={FORMAS} error={pagarForm.formState.errors.formaPagamento?.message} mb="sm" value={field.value} onChange={(v) => field.onChange(v || '')} />} />
-          <Group justify="flex-end" mt="md">
-            <Button variant="default" onClick={() => setPagarModal(null)}>Cancelar</Button>
-            <Button type="submit" loading={pagar.isPending} color="green">Confirmar Pagamento</Button>
-          </Group>
-        </form>
-      </Modal>
+      {/* Modal Baixa Profissional */}
+      <BaixaTituloModal
+        tipo="PAGAR"
+        titulo={baixaTitulo}
+        opened={!!baixaTitulo}
+        onClose={() => setBaixaTitulo(null)}
+        loading={pagar.isPending}
+        onConfirm={(payload) => pagar.mutate({ id: baixaTitulo!.id, ...payload })}
+      />
 
       {/* Modal Baixa em Lote */}
       <Modal opened={loteModal} onClose={() => setLoteModal(false)} title={`Pagar ${selecionados.length} título(s) em lote`} centered>
+        <Card withBorder padding="sm" mb="md" bg="var(--mantine-color-blue-light)">
+          <Group justify="space-between">
+            <Text size="sm">Total selecionado</Text>
+            <Text fw={700}>{items.filter((i: any) => selecionados.includes(i.id)).reduce((s: number, i: any) => s + Number(i.valor), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</Text>
+          </Group>
+        </Card>
         <Select label="Forma de pagamento" data={FORMAS} value={loteForma} onChange={setLoteForma} mb="md" />
         <Text size="sm" c="dimmed" mb="md">Cada título será pago pelo seu valor total. Títulos já pagos ou cancelados são ignorados.</Text>
         <Group justify="flex-end">

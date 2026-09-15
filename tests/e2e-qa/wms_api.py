@@ -4587,3 +4587,16 @@ class WmsApiClient:
         if fim:
             params["fim"] = fim
         return self._get("/financeiro/contabil/balancete", params or None)
+
+    # ──────────────────────────────────────────────────────────────
+    # Baixa profissional de títulos. test_49.
+    # ──────────────────────────────────────────────────────────────
+
+    def pagar_titulo(self, titulo_id: str, dados: dict) -> Any:
+        return self._patch(f"/contas-pagar/{titulo_id}/pagar", dados)
+
+    def estornar_pagar(self, titulo_id: str) -> Any:
+        return self._patch(f"/contas-pagar/{titulo_id}/estornar", {})
+
+    def obter_conta_pagar(self, titulo_id: str) -> Any:
+        return self._get(f"/contas-pagar/{titulo_id}")
