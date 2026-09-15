@@ -4461,3 +4461,48 @@ class WmsApiClient:
 
     def fechar_periodo(self, competencia: str) -> Any:
         return self._post("/financeiro/fechamentos/fechar", {"competencia": competencia})
+
+    # ──────────────────────────────────────────────────────────────
+    # Cobrança Bancária (Onda 2) — /financeiro-cobranca. test_44.
+    # ──────────────────────────────────────────────────────────────
+
+    def criar_conta_financeira_cob(self, nome: str) -> Any:
+        return self._post("/financeiro/contas", {"nome": nome, "tipo": "BANCO", "saldoInicial": 0})
+
+    def criar_convenio(self, conta_financeira_id: str, tipo: str = "AMBOS", banco: str = "341", chave_pix: str = "teste@pix.com", client_secret: str = "segredo-super-secreto") -> Any:
+        return self._post("/financeiro-cobranca/convenios", {
+            "contaFinanceiraId": conta_financeira_id, "tipo": tipo, "banco": banco,
+            "agencia": "1234", "conta": "56789", "beneficiario": "QA Beneficiario",
+            "carteira": "109", "chavePix": chave_pix, "clientSecret": client_secret,
+        })
+
+    def listar_convenios(self) -> Any:
+        return self._get("/financeiro-cobranca/convenios")
+
+    def emitir_boleto(self, titulo_id: str, convenio_id: str) -> Any:
+        return self._post("/financeiro-cobranca/boletos/emitir", {"tituloId": titulo_id, "convenioId": convenio_id})
+
+    def listar_boletos(self) -> Any:
+        return self._get("/financeiro-cobranca/boletos")
+
+    def gerar_remessa(self, convenio_id: str, boleto_ids: list) -> Any:
+        return self._post("/financeiro-cobranca/cnab/remessa", {"convenioId": convenio_id, "boletoIds": boleto_ids})
+
+    def processar_retorno(self, conteudo: str) -> Any:
+        return self._post("/financeiro-cobranca/cnab/retorno", {"conteudo": conteudo})
+
+    def gerar_pix(self, titulo_id: str, convenio_id: str) -> Any:
+        return self._post("/financeiro-cobranca/pix/gerar", {"tituloId": titulo_id, "convenioId": convenio_id})
+
+    def listar_pix_cobranca(self) -> Any:
+        return self._get("/financeiro-cobranca/pix")
+
+    def webhook_pix(self, empresa_id: str, txid: str) -> Any:
+        # rota pública, sem auth — usa o request sem header Authorization
+        return self._request.post(self._url(f"/pix-webhook/{empresa_id}"), data={"txid": txid})
+
+    def salvar_regua(self, ativa: bool, eventos: list) -> Any:
+        return self._put("/financeiro-cobranca/regua", {"ativa": ativa, "eventos": eventos})
+
+    def obter_regua(self) -> Any:
+        return self._get("/financeiro-cobranca/regua")

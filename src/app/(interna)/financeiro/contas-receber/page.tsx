@@ -16,6 +16,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 import { titulosApi } from '@/hooks/financeiro/useFinanceiroApi'
+import { cobrancaApi, type Convenio } from '@/hooks/financeiro/useCobrancaApi'
+import { IconFileInvoice, IconQrcode } from '@tabler/icons-react'
 
 const FORMAS = [
   { value: 'DINHEIRO', label: 'Dinheiro' }, { value: 'BOLETO', label: 'Boleto' },
@@ -101,6 +103,21 @@ export default function ContasReceberPage() {
     onError: (e: any) => notifications.show({ color: 'red', message: e?.response?.data?.message || 'Falha' }),
   })
 
+  const { data: convenios = [] } = useQuery<Convenio[]>({ queryKey: ['cob-convenios'], queryFn: cobrancaApi.listarConvenios })
+  const convenioBoleto = convenios.find((c) => c.status && (c.tipo === 'BOLETO' || c.tipo === 'AMBOS'))
+  const convenioPix = convenios.find((c) => c.status && (c.tipo === 'PIX' || c.tipo === 'AMBOS'))
+
+  const emitirBoleto = useMutation({
+    mutationFn: (tituloId: string) => cobrancaApi.emitirBoleto(tituloId, convenioBoleto!.id),
+    onSuccess: () => notifications.show({ color: 'green', message: 'Boleto emitido — veja em Boletos' }),
+    onError: (e: any) => notifications.show({ color: 'red', message: e?.response?.data?.message || 'Falha' }),
+  })
+  const gerarPix = useMutation({
+    mutationFn: (tituloId: string) => cobrancaApi.gerarPix(tituloId, convenioPix!.id),
+    onSuccess: () => notifications.show({ color: 'green', message: 'PIX gerado — veja em PIX' }),
+    onError: (e: any) => notifications.show({ color: 'red', message: e?.response?.data?.message || 'Falha' }),
+  })
+
   const criarForm = useForm<CriarValues>({ resolver: zodResolver(criarSchema) })
   const receberForm = useForm<ReceberValues>({ resolver: zodResolver(receberSchema) })
 
@@ -174,6 +191,20 @@ export default function ContasReceberPage() {
                       <Tooltip label="Estornar recebimento">
                         <ActionIcon variant="subtle" color="orange" onClick={() => modals.openConfirmModal({ title: 'Estornar', children: <Text size="sm">Estornar o recebimento deste título?</Text>, labels: { confirm: 'Estornar', cancel: 'Cancelar' }, confirmProps: { color: 'orange' }, onConfirm: () => estornar.mutate(item.id) })}>
                           <IconArrowBackUp size={18} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
+                    {aberto && convenioBoleto && (
+                      <Tooltip label="Emitir boleto">
+                        <ActionIcon variant="subtle" color="blue" loading={emitirBoleto.isPending} onClick={() => emitirBoleto.mutate(item.id)}>
+                          <IconFileInvoice size={18} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
+                    {aberto && convenioPix && (
+                      <Tooltip label="Gerar PIX">
+                        <ActionIcon variant="subtle" color="teal" loading={gerarPix.isPending} onClick={() => gerarPix.mutate(item.id)}>
+                          <IconQrcode size={18} />
                         </ActionIcon>
                       </Tooltip>
                     )}

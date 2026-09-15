@@ -12,6 +12,8 @@ import {
   IconCreditCard, IconWallet,
   // Fiscal
   IconFileInvoice, IconTruck, IconCalculator, IconSearch, IconHash, IconMail,
+  // Cobrança bancária
+  IconBuildingBank, IconQrcode,
   // WMS
   IconHome, IconPackage, IconClipboardCheck, IconBarcode, IconBuildingWarehouse, IconArrowsExchange as IconMovim, IconSettings,
   IconEye, IconDatabase, IconAlertCircle, IconHistory, IconClockPause, IconLock,
@@ -132,6 +134,10 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       { icon: IconSitemap, label: 'Centros de Custo', href: '/financeiro/centros-custo' },
       { icon: IconLock, label: 'Fechamento', href: '/financeiro/fechamento' },
       { icon: IconReportAnalytics, label: 'Relatórios', href: '/financeiro/relatorios' },
+      { icon: IconBuildingBank, label: 'Convênios Bancários', href: '/financeiro/convenios' },
+      { icon: IconFileInvoice, label: 'Boletos', href: '/financeiro/boletos' },
+      { icon: IconQrcode, label: 'PIX', href: '/financeiro/pix' },
+      { icon: IconMail, label: 'Régua de Cobrança', href: '/financeiro/regua' },
     ],
   },
   fiscal: {
