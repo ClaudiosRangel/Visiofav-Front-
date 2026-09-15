@@ -2146,6 +2146,43 @@ class WmsApiClient:
             data=data,
         )
 
+    # ── Amarração pós-autorização NF-e (Bloco F2) ──
+
+    def seed_nfe_autorizada_amarrada(self, itens: list, cliente_doc: Optional[str] = None) -> Any:
+        """Cria pedido→venda→NF-e AUTORIZADA e dispara o ponto único de amarração
+        (conta a receber + baixa estoque). ``POST /qa-seed/nfe-autorizada-amarrada``.
+        Retorna o ``APIResponse`` cru (lê ``nfeId``, ``pedidoId``, ``vendaId``)."""
+        data: dict = {"itens": itens}
+        if cliente_doc:
+            data["clienteDoc"] = cliente_doc
+        return self._request.post(
+            self._url("/qa-seed/nfe-autorizada-amarrada"),
+            headers=self._headers_seed(),
+            data=data,
+        )
+
+    def seed_nfe_reamarrar(self, nfe_id: str) -> Any:
+        """Re-dispara a amarração da NF-e (testa idempotência).
+        ``POST /qa-seed/nfe-amarrar/:nfeId``."""
+        return self._request.post(
+            self._url(f"/qa-seed/nfe-amarrar/{nfe_id}"),
+            headers=self._headers_seed(),
+            data={},
+        )
+
+    def cancelar_nfe(self, nfe_id: str, justificativa: str) -> Any:
+        """Cancela uma NF-e autorizada (``POST /fiscal/nfe/:id/cancelar``)."""
+        return self._request.post(
+            self._url(f"/fiscal/nfe/{nfe_id}/cancelar"),
+            headers=self._headers(com_json=True),
+            data={"justificativa": justificativa},
+        )
+
+    def detalhe_nfe(self, nfe_id: str) -> dict:
+        """Detalhe da NF-e (``GET /fiscal/nfe/:id``). ``{}`` em falha."""
+        resp = self._get(f"/fiscal/nfe/{nfe_id}")
+        return resp.json() if resp.ok else {}
+
     # ── Operações do mapa de carregamento ──
 
     def nfs_disponiveis_mapa(self, rota_id: Optional[str] = None) -> dict:

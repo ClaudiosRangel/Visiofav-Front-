@@ -42,6 +42,7 @@ validando que tudo funciona. Principais módulos:
 | Contabilidade (D4) | `test_48_contabil.py` | 6 |
 | Baixa Profissional | `test_49_baixa.py` | 4 |
 | Exportação Contábil (D5) | `test_50_exportacao.py` | 4 |
+| NF-e Amarração Pós-Autorização (F2) | `test_51_nfe.py` | 4 |
 
 O `test_09` cobre o fluxo ponta a ponta de entrada de mercadoria: Nota
 Fiscal de Entrada → Dados Logísticos → SKU (lastro/camada) → Criação de
