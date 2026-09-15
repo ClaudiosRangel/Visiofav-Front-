@@ -39,6 +39,7 @@ validando que tudo funciona. Principais módulos:
 | Documentos Financeiros (D1) | `test_45_documentos_financeiros.py` | 7 |
 | Vizor AI — Documentos (D2) | `test_46_ia_documentos.py` | 8 |
 | Folha de Pagamento (D3) | `test_47_folha.py` | 4 |
+| Contabilidade (D4) | `test_48_contabil.py` | 6 |
 
 O `test_09` cobre o fluxo ponta a ponta de entrada de mercadoria: Nota
 Fiscal de Entrada → Dados Logísticos → SKU (lastro/camada) → Criação de

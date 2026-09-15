@@ -4566,3 +4566,24 @@ class WmsApiClient:
 
     def efetivar_folha(self, folha_id: str) -> Any:
         return self._post(f"/financeiro/folha/{folha_id}/efetivar", {})
+
+    # ──────────────────────────────────────────────────────────────
+    # Contabilidade (D4). test_48.
+    # ──────────────────────────────────────────────────────────────
+
+    def criar_conta_contabil(self, dados: dict) -> Any:
+        return self._post("/financeiro/contabil/contas", dados)
+
+    def listar_contas_contabeis(self) -> Any:
+        return self._get("/financeiro/contabil/contas")
+
+    def criar_lancamento_contabil(self, dados: dict) -> Any:
+        return self._post("/financeiro/contabil/lancamentos", dados)
+
+    def balancete(self, inicio: str = None, fim: str = None) -> Any:
+        params = {}
+        if inicio:
+            params["inicio"] = inicio
+        if fim:
+            params["fim"] = fim
+        return self._get("/financeiro/contabil/balancete", params or None)
