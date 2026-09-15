@@ -37,6 +37,7 @@ validando que tudo funciona. Principais módulos:
 | Financeiro Operacional (Onda 1) | `test_43_financeiro.py` | 8 |
 | Cobrança Bancária (Onda 2) | `test_44_cobranca_bancaria.py` | 8 |
 | Documentos Financeiros (D1) | `test_45_documentos_financeiros.py` | 7 |
+| Vizor AI — Documentos (D2) | `test_46_ia_documentos.py` | 8 |
 
 O `test_09` cobre o fluxo ponta a ponta de entrada de mercadoria: Nota
 Fiscal de Entrada → Dados Logísticos → SKU (lastro/camada) → Criação de

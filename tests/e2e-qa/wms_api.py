@@ -4528,3 +4528,16 @@ class WmsApiClient:
 
     def detalhe_contrato(self, contrato_id: str) -> Any:
         return self._get(f"/financeiro/contratos/{contrato_id}")
+
+    # ──────────────────────────────────────────────────────────────
+    # Vizor AI — Documentos Financeiros (D2). test_46.
+    # ──────────────────────────────────────────────────────────────
+
+    def ai_chat(self, mensagem: str, historico: Optional[list] = None) -> Any:
+        """Envia uma mensagem ao Vizor AI (/ai/chat).
+
+        Sem ANTHROPIC_API_KEY no ambiente, o backend responde via fallback
+        determinístico (não chama o LLM) — ainda assim retorna 200 com corpo
+        conversacional. Útil para validar a rota sem depender do modelo.
+        """
+        return self._post("/ai/chat", {"mensagem": mensagem, "historico": historico or []})
