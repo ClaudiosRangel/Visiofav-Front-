@@ -4600,3 +4600,19 @@ class WmsApiClient:
 
     def obter_conta_pagar(self, titulo_id: str) -> Any:
         return self._get(f"/contas-pagar/{titulo_id}")
+
+    # ──────────────────────────────────────────────────────────────
+    # Exportação contábil (D5). test_50.
+    # ──────────────────────────────────────────────────────────────
+
+    def gerar_ecd(self, empresa_id: str, ano: int, mes: int) -> Any:
+        return self._post("/fiscal/sped/ecd", {"empresaId": empresa_id, "ano": ano, "mes": mes})
+
+    def exportar_balancete_csv(self) -> Any:
+        return self._get("/financeiro/contabil/exportar/balancete")
+
+    def exportar_diario_csv(self) -> Any:
+        return self._get("/financeiro/contabil/exportar/diario")
+
+    def empresa_id_sessao(self) -> str:
+        return self._empresa_id_sessao()
