@@ -20,6 +20,7 @@ import { cobrancaApi, type Convenio } from '@/hooks/financeiro/useCobrancaApi'
 import { IconFileInvoice, IconQrcode } from '@tabler/icons-react'
 import { DocumentoFinanceiroForm } from '@/components/financeiro/DocumentoFinanceiroForm'
 import { BaixaTituloModal, type TituloBaixa } from '@/components/financeiro/BaixaTituloModal'
+import { BaixaLoteModal } from '@/components/financeiro/BaixaLoteModal'
 
 const FORMAS = [
   { value: 'DINHEIRO', label: 'Dinheiro' }, { value: 'BOLETO', label: 'Boleto' },
@@ -50,7 +51,6 @@ export default function ContasReceberPage() {
   const [page, setPage] = useState(1)
   const [selecionados, setSelecionados] = useState<string[]>([])
   const [loteModal, setLoteModal] = useState(false)
-  const [loteForma, setLoteForma] = useState<string | null>('PIX')
   const limit = 20
 
   const { data: response, isLoading, refetch } = useQuery<any>({
@@ -91,7 +91,7 @@ export default function ContasReceberPage() {
     onError: (e: any) => notifications.show({ color: 'red', message: e?.response?.data?.message || 'Falha' }),
   })
   const baixarLote = useMutation({
-    mutationFn: () => titulosApi.baixarLoteReceber({ ids: selecionados, formaPagamento: loteForma }),
+    mutationFn: (payload: any) => titulosApi.baixarLoteReceber({ ids: selecionados, ...payload }),
     onSuccess: (r: any) => {
       queryClient.invalidateQueries({ queryKey: ['contas-receber'] })
       setLoteModal(false); setSelecionados([])
@@ -249,20 +249,14 @@ export default function ContasReceberPage() {
       />
 
       {/* Modal Baixa em Lote */}
-      <Modal opened={loteModal} onClose={() => setLoteModal(false)} title={`Receber ${selecionados.length} título(s) em lote`} centered>
-        <Card withBorder padding="sm" mb="md" bg="var(--mantine-color-blue-light)">
-          <Group justify="space-between">
-            <Text size="sm">Total selecionado</Text>
-            <Text fw={700}>{items.filter((i: any) => selecionados.includes(i.id)).reduce((s: number, i: any) => s + Number(i.valor), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</Text>
-          </Group>
-        </Card>
-        <Select label="Forma de pagamento" data={FORMAS} value={loteForma} onChange={setLoteForma} mb="md" />
-        <Text size="sm" c="dimmed" mb="md">Cada título será recebido pelo seu valor total. Títulos já recebidos ou cancelados são ignorados.</Text>
-        <Group justify="flex-end">
-          <Button variant="default" onClick={() => setLoteModal(false)}>Cancelar</Button>
-          <Button color="green" loading={baixarLote.isPending} onClick={() => baixarLote.mutate()}>Confirmar</Button>
-        </Group>
-      </Modal>
+      <BaixaLoteModal
+        tipo="RECEBER"
+        opened={loteModal}
+        onClose={() => setLoteModal(false)}
+        loading={baixarLote.isPending}
+        titulos={items.filter((i: any) => selecionados.includes(i.id)).map((i: any) => ({ id: i.id, descricao: i.descricao, valor: Number(i.valor), dataVencimento: i.dataVencimento }))}
+        onConfirm={(payload) => baixarLote.mutate(payload)}
+      />
     </div>
   )
 }
