@@ -34,6 +34,7 @@ validando que tudo funciona. Principais módulos:
 | Portal 3PL | `test_40_portal_3pl.py` | 3 |
 | Gestão (dashboards) | `test_41_gestao.py` | 2 |
 | Isolamento transversal (10 módulos) | `test_42_isolamento_modulos_avancados.py` | 2 |
+| Financeiro Operacional (Onda 1) | `test_43_financeiro.py` | 8 |
 
 O `test_09` cobre o fluxo ponta a ponta de entrada de mercadoria: Nota
 Fiscal de Entrada → Dados Logísticos → SKU (lastro/camada) → Criação de

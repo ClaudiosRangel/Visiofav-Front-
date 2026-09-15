@@ -119,11 +119,19 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
   financeiro: {
     title: 'Financeiro',
     entries: [
+      { icon: IconReportAnalytics, label: 'Dashboard', href: '/financeiro/dashboard' },
       { icon: IconCreditCard, label: 'Contas a Pagar', href: '/financeiro/contas-pagar' },
       { icon: IconWallet, label: 'Contas a Receber', href: '/financeiro/contas-receber' },
       { icon: IconBuildingWarehouse, label: 'Contas Bancárias', href: '/financeiro/contas' },
+      { icon: IconCash, label: 'Lançamentos de Caixa', href: '/financeiro/lancamentos' },
+      { icon: IconFileDescription, label: 'Extrato de Conta', href: '/financeiro/extrato' },
       { icon: IconChartBar, label: 'Fluxo de Caixa', href: '/financeiro/fluxo-caixa' },
+      { icon: IconChartBar, label: 'DRE Gerencial', href: '/financeiro/dre' },
       { icon: IconArrowsExchange, label: 'Conciliação', href: '/financeiro/conciliacao' },
+      { icon: IconCategory, label: 'Categorias', href: '/financeiro/categorias' },
+      { icon: IconSitemap, label: 'Centros de Custo', href: '/financeiro/centros-custo' },
+      { icon: IconLock, label: 'Fechamento', href: '/financeiro/fechamento' },
+      { icon: IconReportAnalytics, label: 'Relatórios', href: '/financeiro/relatorios' },
     ],
   },
   fiscal: {

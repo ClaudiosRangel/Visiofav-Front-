@@ -3,17 +3,19 @@
 import { useState, useEffect } from 'react'
 import {
   Button, Card, Group, Text, TextInput, NumberInput, Select, Table, Badge,
-  ActionIcon, Tooltip, Modal, LoadingOverlay, Pagination,
+  ActionIcon, Tooltip, Modal, LoadingOverlay, Pagination, Checkbox,
 } from '@mantine/core'
 import { DateInput } from '@mantine/dates'
-import { IconPlus, IconRefresh, IconCash } from '@tabler/icons-react'
+import { IconPlus, IconRefresh, IconCash, IconX, IconArrowBackUp, IconChecks } from '@tabler/icons-react'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { notifications } from '@mantine/notifications'
+import { modals } from '@mantine/modals'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
+import { titulosApi } from '@/hooks/financeiro/useFinanceiroApi'
 
 const FORMAS = [
   { value: 'DINHEIRO', label: 'Dinheiro' }, { value: 'BOLETO', label: 'Boleto' },
@@ -47,6 +49,9 @@ export default function ContasReceberPage() {
   const [receberModal, setReceberModal] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [page, setPage] = useState(1)
+  const [selecionados, setSelecionados] = useState<string[]>([])
+  const [loteModal, setLoteModal] = useState(false)
+  const [loteForma, setLoteForma] = useState<string | null>('PIX')
   const limit = 20
 
   const { data: response, isLoading, refetch } = useQuery<any>({
@@ -76,6 +81,26 @@ export default function ContasReceberPage() {
     onError: (err: any) => { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' }) },
   })
 
+  const cancelar = useMutation({
+    mutationFn: (id: string) => titulosApi.cancelarReceber(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contas-receber'] }); notifications.show({ color: 'green', message: 'Título cancelado' }) },
+    onError: (e: any) => notifications.show({ color: 'red', message: e?.response?.data?.message || 'Falha' }),
+  })
+  const estornar = useMutation({
+    mutationFn: (id: string) => titulosApi.estornarReceber(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contas-receber'] }); notifications.show({ color: 'green', message: 'Recebimento estornado' }) },
+    onError: (e: any) => notifications.show({ color: 'red', message: e?.response?.data?.message || 'Falha' }),
+  })
+  const baixarLote = useMutation({
+    mutationFn: () => titulosApi.baixarLoteReceber({ ids: selecionados, formaPagamento: loteForma }),
+    onSuccess: (r: any) => {
+      queryClient.invalidateQueries({ queryKey: ['contas-receber'] })
+      setLoteModal(false); setSelecionados([])
+      notifications.show({ color: 'green', message: `${r.sucesso.length} recebido(s), ${r.ignorados.length} ignorado(s)` })
+    },
+    onError: (e: any) => notifications.show({ color: 'red', message: e?.response?.data?.message || 'Falha' }),
+  })
+
   const criarForm = useForm<CriarValues>({ resolver: zodResolver(criarSchema) })
   const receberForm = useForm<ReceberValues>({ resolver: zodResolver(receberSchema) })
 
@@ -94,6 +119,9 @@ export default function ContasReceberPage() {
         <Group justify="space-between" mb="md">
           <Select placeholder="Status" data={[{ value: 'ABERTA', label: 'Aberta' }, { value: 'RECEBIDA', label: 'Recebida' }, { value: 'VENCIDA', label: 'Vencida' }]} value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(1) }} clearable className="w-40" />
           <Group>
+            {selecionados.length > 0 && (
+              <Button color="green" leftSection={<IconChecks size={16} />} onClick={() => setLoteModal(true)}>Receber {selecionados.length} selecionado(s)</Button>
+            )}
             <Button variant="default" leftSection={<IconRefresh size={16} />} onClick={() => refetch()}>Atualizar</Button>
             <Button leftSection={<IconPlus size={16} />} onClick={() => { criarForm.reset({ descricao: '', valor: undefined as any, dataVencimento: undefined as any }); setCriarModal(true) }}>Nova Conta</Button>
           </Group>
@@ -102,6 +130,7 @@ export default function ContasReceberPage() {
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
+              <Table.Th w={40} />
               <Table.Th>Descrição</Table.Th>
               <Table.Th>Cliente</Table.Th>
               <Table.Th>Valor</Table.Th>
@@ -112,26 +141,55 @@ export default function ContasReceberPage() {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {items.map((item: any) => (
+            {items.map((item: any) => {
+              const aberto = item.status === 'ABERTA'
+              const recebido = item.status === 'RECEBIDA'
+              const cancelado = item.status === 'CANCELADA'
+              return (
               <Table.Tr key={item.id}>
+                <Table.Td>
+                  {aberto && (
+                    <Checkbox
+                      checked={selecionados.includes(item.id)}
+                      onChange={(e) => setSelecionados((s) => e.currentTarget.checked ? [...s, item.id] : s.filter((x) => x !== item.id))}
+                    />
+                  )}
+                </Table.Td>
                 <Table.Td>{item.descricao}</Table.Td>
                 <Table.Td>{item.cliente?.nomeFantasia || item.cliente?.razaoSocial || '—'}</Table.Td>
                 <Table.Td>{Number(item.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</Table.Td>
                 <Table.Td>{new Date(item.dataVencimento).toLocaleDateString('pt-BR')}</Table.Td>
                 <Table.Td>{item.totalParcelas > 1 ? `${item.parcela}/${item.totalParcelas}` : '—'}</Table.Td>
-                <Table.Td><Badge color={statusColors[item.statusCalculado] || 'gray'}>{item.statusCalculado}</Badge></Table.Td>
+                <Table.Td><Badge color={cancelado ? 'gray' : (statusColors[item.statusCalculado] || 'gray')}>{cancelado ? 'CANCELADA' : item.statusCalculado}</Badge></Table.Td>
                 <Table.Td>
-                  {item.statusCalculado !== 'RECEBIDA' && (
-                    <Tooltip label="Registrar recebimento">
-                      <ActionIcon variant="subtle" color="green" onClick={() => { receberForm.reset({ valorRecebido: Number(item.valor), formaPagamento: '' }); setReceberModal(item.id) }}>
-                        <IconCash size={18} />
-                      </ActionIcon>
-                    </Tooltip>
-                  )}
+                  <Group gap={4}>
+                    {!recebido && !cancelado && (
+                      <Tooltip label="Registrar recebimento">
+                        <ActionIcon variant="subtle" color="green" onClick={() => { receberForm.reset({ valorRecebido: Number(item.valor), formaPagamento: '' }); setReceberModal(item.id) }}>
+                          <IconCash size={18} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
+                    {recebido && (
+                      <Tooltip label="Estornar recebimento">
+                        <ActionIcon variant="subtle" color="orange" onClick={() => modals.openConfirmModal({ title: 'Estornar', children: <Text size="sm">Estornar o recebimento deste título?</Text>, labels: { confirm: 'Estornar', cancel: 'Cancelar' }, confirmProps: { color: 'orange' }, onConfirm: () => estornar.mutate(item.id) })}>
+                          <IconArrowBackUp size={18} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
+                    {aberto && (
+                      <Tooltip label="Cancelar título">
+                        <ActionIcon variant="subtle" color="red" onClick={() => modals.openConfirmModal({ title: 'Cancelar', children: <Text size="sm">Cancelar este título?</Text>, labels: { confirm: 'Cancelar título', cancel: 'Voltar' }, confirmProps: { color: 'red' }, onConfirm: () => cancelar.mutate(item.id) })}>
+                          <IconX size={18} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
+                  </Group>
                 </Table.Td>
               </Table.Tr>
-            ))}
-            {!isLoading && items.length === 0 && <Table.Tr><Table.Td colSpan={7} className="text-center py-8 text-zinc-500">Nenhuma conta a receber</Table.Td></Table.Tr>}
+              )
+            })}
+            {!isLoading && items.length === 0 && <Table.Tr><Table.Td colSpan={8} className="text-center py-8 text-zinc-500">Nenhuma conta a receber</Table.Td></Table.Tr>}
           </Table.Tbody>
         </Table>
         {totalPages > 1 && <Group justify="center" mt="md"><Pagination total={totalPages} value={page} onChange={setPage} /></Group>}
@@ -161,6 +219,16 @@ export default function ContasReceberPage() {
             <Button type="submit" loading={receber.isPending} color="green">Confirmar Recebimento</Button>
           </Group>
         </form>
+      </Modal>
+
+      {/* Modal Baixa em Lote */}
+      <Modal opened={loteModal} onClose={() => setLoteModal(false)} title={`Receber ${selecionados.length} título(s) em lote`} centered>
+        <Select label="Forma de pagamento" data={FORMAS} value={loteForma} onChange={setLoteForma} mb="md" />
+        <Text size="sm" c="dimmed" mb="md">Cada título será recebido pelo seu valor total. Títulos já recebidos ou cancelados são ignorados.</Text>
+        <Group justify="flex-end">
+          <Button variant="default" onClick={() => setLoteModal(false)}>Cancelar</Button>
+          <Button color="green" loading={baixarLote.isPending} onClick={() => baixarLote.mutate()}>Confirmar</Button>
+        </Group>
       </Modal>
     </div>
   )

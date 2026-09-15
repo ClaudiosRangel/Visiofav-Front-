@@ -4355,3 +4355,109 @@ class WmsApiClient:
     def dashboard_unificado(self) -> Any:
         """GET /pcp/dashboard/unificado (visão 360 PCP+WMS+Vendas+Financeiro)."""
         return self._get("/pcp/dashboard/unificado")
+
+    # ──────────────────────────────────────────────────────────────
+    # Financeiro Operacional (Onda 1) — /contas-pagar, /contas-receber,
+    # /financeiro. test_43_financeiro.py.
+    # ──────────────────────────────────────────────────────────────
+
+    def _put(self, path: str, data: Optional[dict] = None) -> Any:
+        """PUT autenticado com corpo JSON. 5xx = falha dura."""
+        resp = self._request.put(
+            self._url(path),
+            headers=self._headers(com_json=True),
+            data=data or {},
+        )
+        assert resp.status < 500, f"Falha dura (5xx) em PUT {path}: status {resp.status}"
+        return resp
+
+    # -- Contas a receber --
+    def criar_conta_receber(self, descricao: str, valor: float, dias_venc: int = 30) -> Any:
+        from datetime import datetime, timedelta, timezone
+        venc = (datetime.now(timezone.utc) + timedelta(days=dias_venc)).isoformat()
+        return self._post("/contas-receber", {"descricao": descricao, "valor": valor, "dataVencimento": venc})
+
+    def listar_contas_receber(self, params: Optional[dict] = None) -> Any:
+        return self._get("/contas-receber", params=params)
+
+    def receber_conta(self, conta_id: str, valor: float, forma: str = "PIX", conta_financeira_id: Optional[str] = None) -> Any:
+        body: dict = {"valorRecebido": valor, "formaPagamento": forma}
+        if conta_financeira_id:
+            body["contaFinanceiraId"] = conta_financeira_id
+        return self._patch(f"/contas-receber/{conta_id}/receber", body)
+
+    def editar_conta_receber(self, conta_id: str, dados: dict) -> Any:
+        return self._put(f"/contas-receber/{conta_id}", dados)
+
+    def cancelar_conta_receber(self, conta_id: str) -> Any:
+        return self._patch(f"/contas-receber/{conta_id}/cancelar", {})
+
+    def estornar_conta_receber(self, conta_id: str) -> Any:
+        return self._patch(f"/contas-receber/{conta_id}/estornar", {})
+
+    def baixar_lote_receber(self, ids: list, forma: str = "PIX", conta_financeira_id: Optional[str] = None) -> Any:
+        body: dict = {"ids": ids, "formaPagamento": forma}
+        if conta_financeira_id:
+            body["contaFinanceiraId"] = conta_financeira_id
+        return self._post("/contas-receber/baixar-lote", body)
+
+    # -- Contas a pagar --
+    def criar_conta_pagar(self, descricao: str, valor: float, dias_venc: int = 30) -> Any:
+        from datetime import datetime, timedelta, timezone
+        venc = (datetime.now(timezone.utc) + timedelta(days=dias_venc)).isoformat()
+        return self._post("/contas-pagar", {"descricao": descricao, "valor": valor, "dataVencimento": venc})
+
+    def listar_contas_pagar(self, params: Optional[dict] = None) -> Any:
+        return self._get("/contas-pagar", params=params)
+
+    def pagar_conta(self, conta_id: str, valor: float, forma: str = "PIX", conta_financeira_id: Optional[str] = None) -> Any:
+        body: dict = {"valorPago": valor, "formaPagamento": forma}
+        if conta_financeira_id:
+            body["contaFinanceiraId"] = conta_financeira_id
+        return self._patch(f"/contas-pagar/{conta_id}/pagar", body)
+
+    def estornar_conta_pagar(self, conta_id: str) -> Any:
+        return self._patch(f"/contas-pagar/{conta_id}/estornar", {})
+
+    def baixar_lote_pagar(self, ids: list, forma: str = "PIX") -> Any:
+        return self._post("/contas-pagar/baixar-lote", {"ids": ids, "formaPagamento": forma})
+
+    # -- Contas financeiras / cadastros / lançamentos --
+    def criar_conta_financeira(self, nome: str, tipo: str = "BANCO", saldo_inicial: float = 0) -> Any:
+        return self._post("/financeiro/contas", {"nome": nome, "tipo": tipo, "saldoInicial": saldo_inicial})
+
+    def listar_contas_financeiras(self) -> Any:
+        return self._get("/financeiro/contas")
+
+    def transferir_entre_contas(self, origem: str, destino: str, valor: float) -> Any:
+        from datetime import datetime, timezone
+        return self._post("/financeiro/contas/transferir", {"contaOrigemId": origem, "contaDestinoId": destino, "valor": valor, "data": datetime.now(timezone.utc).isoformat()})
+
+    def criar_categoria_financeira(self, codigo: str, nome: str, tipo: str = "DESPESA") -> Any:
+        return self._post("/financeiro/categorias", {"codigo": codigo, "nome": nome, "tipo": tipo})
+
+    def listar_categorias_financeiras(self) -> Any:
+        return self._get("/financeiro/categorias")
+
+    def criar_centro_custo(self, codigo: str, nome: str) -> Any:
+        return self._post("/financeiro/centros-custo", {"codigo": codigo, "nome": nome})
+
+    def criar_lancamento_caixa(self, conta_id: str, tipo: str, valor: float, descricao: str) -> Any:
+        from datetime import datetime, timezone
+        return self._post("/financeiro/lancamentos", {"contaFinanceiraId": conta_id, "tipo": tipo, "valor": valor, "descricao": descricao, "data": datetime.now(timezone.utc).isoformat()})
+
+    def importar_ofx(self, conta_id: str, conteudo: str) -> Any:
+        return self._post("/financeiro/conciliacao/importar-ofx", {"contaFinanceiraId": conta_id, "conteudo": conteudo})
+
+    # -- Dashboard / extrato / relatórios --
+    def dashboard_financeiro(self) -> Any:
+        return self._get("/financeiro/dashboard")
+
+    def extrato_conta(self, conta_id: str, de: str, ate: str) -> Any:
+        return self._get("/financeiro/extrato", params={"contaFinanceiraId": conta_id, "de": de, "ate": ate})
+
+    def relatorio_inadimplencia(self) -> Any:
+        return self._get("/financeiro/relatorios/inadimplencia")
+
+    def fechar_periodo(self, competencia: str) -> Any:
+        return self._post("/financeiro/fechamentos/fechar", {"competencia": competencia})

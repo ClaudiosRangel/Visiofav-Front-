@@ -54,6 +54,24 @@ export interface LinhaDre {
   total: number
 }
 
+export interface DashboardFinanceiro {
+  saldoTotal: number
+  receber: { hoje: { qtd: number; valor: number }; vencido: { qtd: number; valor: number }; aVencer: { qtd: number; valor: number } }
+  pagar: { hoje: { qtd: number; valor: number }; vencido: { qtd: number; valor: number }; aVencer: { qtd: number; valor: number } }
+  resultadoMes: { receitas: number; despesas: number; resultado: number }
+  fluxoResumo: BucketFluxo[]
+  topDevedores: { clienteId: string | null; nome: string; total: number }[]
+}
+
+export interface LinhaExtrato {
+  data: string
+  descricao: string
+  tipo: 'ENTRADA' | 'SAIDA'
+  valor: number
+  origem: string
+  saldoCorrente: number
+}
+
 export const financeiroApi = {
   // Contas
   listarContas: () => api.get<ContaFinanceira[]>(`${BASE}/contas`).then((r) => r.data),
@@ -67,10 +85,12 @@ export const financeiroApi = {
   listarCategorias: () => api.get<CategoriaFinanceira[]>(`${BASE}/categorias`).then((r) => r.data),
   criarCategoria: (input: { tipo: string; codigo: string; nome: string; paiId?: string }) =>
     api.post(`${BASE}/categorias`, input).then((r) => r.data),
+  inativarCategoria: (id: string) => api.patch(`${BASE}/categorias/${id}/inativar`).then((r) => r.data),
 
   // Centros de custo
   listarCentrosCusto: () => api.get<CentroCusto[]>(`${BASE}/centros-custo`).then((r) => r.data),
   criarCentroCusto: (input: { codigo: string; nome: string }) => api.post(`${BASE}/centros-custo`, input).then((r) => r.data),
+  inativarCentroCusto: (id: string) => api.patch(`${BASE}/centros-custo/${id}/inativar`).then((r) => r.data),
 
   // Lançamentos
   listarLancamentos: (contaFinanceiraId?: string) =>
@@ -98,6 +118,33 @@ export const financeiroApi = {
     api.get<BucketFluxo[]>(`${BASE}/fluxo-caixa`, { params }).then((r) => r.data),
   aging: () => api.get<ResumoAging>(`${BASE}/aging`).then((r) => r.data),
   dre: (params: { de: string; ate: string }) => api.get<LinhaDre[]>(`${BASE}/dre`, { params }).then((r) => r.data),
+
+  // Onda 1 — dashboard, extrato, relatórios
+  dashboard: () => api.get<DashboardFinanceiro>(`${BASE}/dashboard`).then((r) => r.data),
+  extrato: (contaFinanceiraId: string, de: string, ate: string) =>
+    api.get<{ conta: any; saldoInicial: number; linhas: LinhaExtrato[]; saldoFinal: number }>(`${BASE}/extrato`, { params: { contaFinanceiraId, de, ate } }).then((r) => r.data),
+  inadimplencia: () => api.get<any[]>(`${BASE}/relatorios/inadimplencia`).then((r) => r.data),
+  relatorioContas: (params: { tipo: 'RECEBER' | 'PAGAR'; status?: string; de?: string; ate?: string; categoriaId?: string; centroCustoId?: string }) =>
+    api.get<any[]>(`${BASE}/relatorios/contas`, { params }).then((r) => r.data),
+}
+
+// ---- Contas a pagar/receber (Onda 1: editar/cancelar/estornar/lote) ----
+export const titulosApi = {
+  editarReceber: (id: string, body: any) => api.put(`/contas-receber/${id}`, body).then((r) => r.data),
+  cancelarReceber: (id: string) => api.patch(`/contas-receber/${id}/cancelar`).then((r) => r.data),
+  estornarReceber: (id: string) => api.patch(`/contas-receber/${id}/estornar`).then((r) => r.data),
+  baixarLoteReceber: (body: any) => api.post(`/contas-receber/baixar-lote`, body).then((r) => r.data),
+  editarPagar: (id: string, body: any) => api.put(`/contas-pagar/${id}`, body).then((r) => r.data),
+  cancelarPagar: (id: string) => api.patch(`/contas-pagar/${id}/cancelar`).then((r) => r.data),
+  estornarPagar: (id: string) => api.patch(`/contas-pagar/${id}/estornar`).then((r) => r.data),
+  baixarLotePagar: (body: any) => api.post(`/contas-pagar/baixar-lote`, body).then((r) => r.data),
+}
+
+/** Converte array de objetos em CSV (para exportação de relatórios). */
+export function paraCsv(rows: Record<string, any>[], colunas: { key: string; label: string }[]): string {
+  const head = colunas.map((c) => `"${c.label}"`).join(';')
+  const linhas = rows.map((r) => colunas.map((c) => `"${String(r[c.key] ?? '').replace(/"/g, '""')}"`).join(';'))
+  return [head, ...linhas].join('\n')
 }
 
 export function formatarBRL(v: number): string {
