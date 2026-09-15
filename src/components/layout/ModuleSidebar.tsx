@@ -9,7 +9,7 @@ import {
   // Vendas
   IconReceipt, IconCash, IconTags, IconChartBar, IconUserCircle, IconFileDescription, IconReportAnalytics, IconCheck,
   // Financeiro
-  IconCreditCard, IconWallet,
+  IconCreditCard, IconWallet, IconBook2,
   // Fiscal
   IconFileInvoice, IconTruck, IconCalculator, IconSearch, IconHash, IconMail,
   // Cobrança bancária
@@ -136,6 +136,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       { icon: IconReportAnalytics, label: 'Relatórios', href: '/financeiro/relatorios' },
       { icon: IconFileText, label: 'Contratos/Parcelamentos', href: '/financeiro/contratos' },
       { icon: IconUsers, label: 'Folha de Pagamento', href: '/financeiro/folha' },
+      { icon: IconBook2, label: 'Contabilidade', href: '/financeiro/contabil' },
       { icon: IconBuildingBank, label: 'Convênios Bancários', href: '/financeiro/convenios' },
       { icon: IconFileInvoice, label: 'Boletos', href: '/financeiro/boletos' },
       { icon: IconQrcode, label: 'PIX', href: '/financeiro/pix' },
