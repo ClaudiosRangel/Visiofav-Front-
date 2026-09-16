@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Button, Card, Group, Text, TextInput, Select, Table, Badge, Title, Stack, LoadingOverlay, Modal, ActionIcon, Tooltip } from '@mantine/core'
-import { IconPlus, IconBan } from '@tabler/icons-react'
+import { IconPlus, IconBan, IconListTree } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { modals } from '@mantine/modals'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -30,13 +30,35 @@ export default function CategoriasPage() {
     onSuccess: () => { notifications.show({ color: 'green', message: 'Inativada' }); qc.invalidateQueries({ queryKey: ['fin-categorias'] }) },
     onError: (e: any) => notifications.show({ color: 'red', message: e?.response?.data?.message ?? 'Erro' }),
   })
+  const popularPadrao = useMutation({
+    mutationFn: () => financeiroApi.popularPlanoPadrao(),
+    onSuccess: (r: any) => { notifications.show({ color: 'green', message: `Plano padrão aplicado: ${r?.criadas ?? 0} categoria(s) criada(s)` }); qc.invalidateQueries({ queryKey: ['fin-categorias'] }) },
+    onError: (e: any) => notifications.show({ color: 'red', message: e?.response?.data?.message ?? 'Erro' }),
+  })
 
   return (
     <Stack pos="relative">
       <LoadingOverlay visible={isLoading} />
       <Group justify="space-between">
         <Title order={3}>Categorias (Plano de Contas)</Title>
-        <Button leftSection={<IconPlus size={16} />} onClick={() => setModal(true)}>Nova categoria</Button>
+        <Group>
+          <Tooltip label="Cria o plano de contas gerencial padrão brasileiro (não duplica os que já existem)">
+            <Button
+              variant="light"
+              leftSection={<IconListTree size={16} />}
+              loading={popularPadrao.isPending}
+              onClick={() => modals.openConfirmModal({
+                title: 'Usar plano de contas padrão',
+                children: <Text size="sm">Vamos criar o plano de contas gerencial padrão (Receitas, Custos, Despesas Operacionais, Pessoal, Financeiras, etc.). Categorias com código já existente não são duplicadas. Deseja continuar?</Text>,
+                labels: { confirm: 'Aplicar plano padrão', cancel: 'Cancelar' },
+                onConfirm: () => popularPadrao.mutate(),
+              })}
+            >
+              Usar plano padrão
+            </Button>
+          </Tooltip>
+          <Button leftSection={<IconPlus size={16} />} onClick={() => setModal(true)}>Nova categoria</Button>
+        </Group>
       </Group>
       <Card withBorder padding="sm">
         <Table striped highlightOnHover>
@@ -50,7 +72,7 @@ export default function CategoriasPage() {
                 <Table.Td>{c.status && <Tooltip label="Inativar"><ActionIcon variant="subtle" color="red" onClick={() => modals.openConfirmModal({ title: 'Inativar', children: <Text size="sm">Inativar "{c.nome}"?</Text>, labels: { confirm: 'Inativar', cancel: 'Cancelar' }, confirmProps: { color: 'red' }, onConfirm: () => inativar.mutate(c.id) })}><IconBan size={16} /></ActionIcon></Tooltip>}</Table.Td>
               </Table.Tr>
             ))}
-            {cats.length === 0 && !isLoading && <Table.Tr><Table.Td colSpan={5}><Text c="dimmed" ta="center" py="md">Nenhuma categoria</Text></Table.Td></Table.Tr>}
+            {cats.length === 0 && !isLoading && <Table.Tr><Table.Td colSpan={5}><Stack align="center" py="md" gap={4}><Text c="dimmed">Nenhuma categoria cadastrada</Text><Text size="sm" c="dimmed">Clique em "Usar plano padrão" para começar com o plano de contas gerencial brasileiro.</Text></Stack></Table.Td></Table.Tr>}
           </Table.Tbody>
         </Table>
       </Card>

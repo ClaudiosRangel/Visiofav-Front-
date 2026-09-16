@@ -86,6 +86,7 @@ export const financeiroApi = {
   criarCategoria: (input: { tipo: string; codigo: string; nome: string; paiId?: string }) =>
     api.post(`${BASE}/categorias`, input).then((r) => r.data),
   inativarCategoria: (id: string) => api.patch(`${BASE}/categorias/${id}/inativar`).then((r) => r.data),
+  popularPlanoPadrao: () => api.post<{ criadas: number; existentes: number }>(`${BASE}/categorias/popular-padrao`).then((r) => r.data),
 
   // Centros de custo
   listarCentrosCusto: () => api.get<CentroCusto[]>(`${BASE}/centros-custo`).then((r) => r.data),
