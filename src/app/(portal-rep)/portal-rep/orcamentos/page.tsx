@@ -20,7 +20,10 @@ import { IconPlus, IconFileInvoice, IconTrash } from '@tabler/icons-react'
 import {
   usePortalRepOrcamentos,
   useCancelarSolicitacao,
+  useAprovarSolicitacao,
+  useRecusarSolicitacaoRep,
 } from '@/data/hooks/portal-rep-app/usePortalRepOrcamentos'
+import { TextInput } from '@mantine/core'
 import { formatarData } from '@/components/portal-rep/formatters'
 import { PullToRefresh } from '@/components/portal-rep/PullToRefresh'
 import { SkeletonCard } from '@/components/portal-rep/SkeletonCard'
@@ -29,20 +32,35 @@ import type { StatusSolicitacao, SolicitacaoOrcamento } from '@/data/hooks/porta
 
 const STATUS_COLORS: Record<StatusSolicitacao, string> = {
   PENDENTE: 'yellow',
-  CALCULADO: 'blue',
-  ENVIADO: 'cyan',
-  ACEITO: 'green',
-  RECUSADO: 'red',
+  EM_ORCAMENTO: 'indigo',
+  PRECIFICADA: 'blue',
+  CONVERTIDA: 'green',
+  RECUSADA: 'red',
+  CANCELADA: 'gray',
+}
+
+const STATUS_LABELS: Record<StatusSolicitacao, string> = {
+  PENDENTE: 'Pendente',
+  EM_ORCAMENTO: 'Em orçamento',
+  PRECIFICADA: 'Preço disponível',
+  CONVERTIDA: 'Aprovado',
+  RECUSADA: 'Recusado',
+  CANCELADA: 'Cancelado',
 }
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Todos os status' },
   { value: 'PENDENTE', label: 'Pendente' },
-  { value: 'CALCULADO', label: 'Calculado' },
-  { value: 'ENVIADO', label: 'Enviado' },
-  { value: 'ACEITO', label: 'Aceito' },
-  { value: 'RECUSADO', label: 'Recusado' },
+  { value: 'EM_ORCAMENTO', label: 'Em orçamento' },
+  { value: 'PRECIFICADA', label: 'Preço disponível' },
+  { value: 'CONVERTIDA', label: 'Aprovado' },
+  { value: 'RECUSADA', label: 'Recusado' },
 ]
+
+function formatarMoeda(v?: number | null): string {
+  if (v == null) return '—'
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
 
 /** Tempo em ms para considerar long-press */
 const LONG_PRESS_DURATION = 500
@@ -54,6 +72,36 @@ export default function OrcamentosListagemPage() {
   const params = statusFiltro ? { status: statusFiltro } : undefined
   const { data: solicitacoes, isLoading, refetch } = usePortalRepOrcamentos(params)
   const cancelarMutation = useCancelarSolicitacao()
+  const aprovarMutation = useAprovarSolicitacao()
+  const recusarMutation = useRecusarSolicitacaoRep()
+
+  // Modal de aprovação (registra quem aprovou em nome do cliente)
+  const [aprovando, setAprovando] = useState<SolicitacaoOrcamento | null>(null)
+  const [aprovadoPor, setAprovadoPor] = useState('')
+
+  const handleConfirmarAprovacao = useCallback(async () => {
+    if (!aprovando || !aprovadoPor.trim()) return
+    try {
+      const r = await aprovarMutation.mutateAsync({ id: aprovando.id, aprovadoPor: aprovadoPor.trim() })
+      notifications.show({ message: r.message, color: 'green' })
+    } catch (err: any) {
+      notifications.show({ message: err?.response?.data?.message || 'Erro ao aprovar.', color: 'red' })
+    } finally {
+      setAprovando(null)
+      setAprovadoPor('')
+    }
+  }, [aprovando, aprovadoPor, aprovarMutation])
+
+  const handleRecusar = useCallback(async (solic: SolicitacaoOrcamento) => {
+    const motivo = prompt('Motivo da recusa (em nome do cliente):')
+    if (!motivo || !motivo.trim()) return
+    try {
+      await recusarMutation.mutateAsync({ id: solic.id, motivoRecusa: motivo.trim() })
+      notifications.show({ message: 'Orçamento recusado.', color: 'orange' })
+    } catch (err: any) {
+      notifications.show({ message: err?.response?.data?.message || 'Erro ao recusar.', color: 'red' })
+    }
+  }, [recusarMutation])
 
   // Context menu state (long-press)
   const [contextMenu, setContextMenu] = useState<{
@@ -213,9 +261,35 @@ export default function OrcamentosListagemPage() {
                     </Group>
                   </Stack>
                   <Badge color={STATUS_COLORS[solicitacao.status]} variant="light">
-                    {solicitacao.status}
+                    {STATUS_LABELS[solicitacao.status] || solicitacao.status}
                   </Badge>
                 </Group>
+
+                {solicitacao.status === 'PRECIFICADA' && (
+                  <Stack gap="xs" mt="sm" onClick={(e) => e.stopPropagation()}>
+                    <Group justify="space-between">
+                      <Text size="sm" c="dimmed">Preço proposto</Text>
+                      <Text fw={600}>{formatarMoeda(solicitacao.precoVenda)}</Text>
+                    </Group>
+                    <Group grow>
+                      <Button
+                        size="xs"
+                        color="green"
+                        onClick={() => { setAprovando(solicitacao); setAprovadoPor('') }}
+                      >
+                        Aprovar
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        color="red"
+                        onClick={() => handleRecusar(solicitacao)}
+                      >
+                        Recusar
+                      </Button>
+                    </Group>
+                  </Stack>
+                )}
               </Card>
             ))}
           </Stack>
@@ -288,6 +362,44 @@ export default function OrcamentosListagemPage() {
               loading={cancelarMutation.isPending}
             >
               Sim, cancelar
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Modal de aprovação — registra quem aprovou em nome do cliente */}
+      <Modal
+        opened={aprovando !== null}
+        onClose={() => { setAprovando(null); setAprovadoPor('') }}
+        title="Aprovar Orçamento"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            Aprovar o orçamento de{' '}
+            <Text span fw={500}>{aprovando?.clienteNome}</Text>{' '}
+            no valor de{' '}
+            <Text span fw={600}>{formatarMoeda(aprovando?.precoVenda)}</Text>.
+            Isso gera o pedido e envia para produção.
+          </Text>
+          <TextInput
+            label="Aprovado por (nome de quem aprovou pelo cliente)"
+            placeholder="Ex: João da Silva"
+            value={aprovadoPor}
+            onChange={(e) => setAprovadoPor(e.currentTarget.value)}
+            required
+          />
+          <Group justify="flex-end" gap="sm">
+            <Button variant="default" onClick={() => { setAprovando(null); setAprovadoPor('') }}>
+              Cancelar
+            </Button>
+            <Button
+              color="green"
+              disabled={!aprovadoPor.trim()}
+              loading={aprovarMutation.isPending}
+              onClick={handleConfirmarAprovacao}
+            >
+              Confirmar Aprovação
             </Button>
           </Group>
         </Stack>

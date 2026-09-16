@@ -48,3 +48,30 @@ export function useCancelarSolicitacao() {
     onSuccess: () => qc.invalidateQueries({ queryKey: [QUERY_KEY] }),
   })
 }
+
+/** Rep aprova o orçamento em nome do cliente (registra quem aprovou). */
+export function useAprovarSolicitacao() {
+  const qc = useQueryClient()
+  return useMutation<
+    { message: string; pedido: { id: string; numero: number } },
+    Error,
+    { id: string; aprovadoPor: string }
+  >({
+    mutationFn: async ({ id, aprovadoPor }) => {
+      const { data } = await portalRepApi.post(`/solicitacoes-orcamento/${id}/aprovar`, { aprovadoPor })
+      return data
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: [QUERY_KEY] }),
+  })
+}
+
+/** Rep recusa o orçamento em nome do cliente. */
+export function useRecusarSolicitacaoRep() {
+  const qc = useQueryClient()
+  return useMutation<void, Error, { id: string; motivoRecusa: string }>({
+    mutationFn: async ({ id, motivoRecusa }) => {
+      await portalRepApi.post(`/solicitacoes-orcamento/${id}/recusar`, { motivoRecusa })
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: [QUERY_KEY] }),
+  })
+}

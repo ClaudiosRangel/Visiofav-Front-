@@ -14,44 +14,18 @@ export function useSolicitacoesOrcamento(params: SolicitacoesFilters) {
   })
 }
 
-export function useCalcularOrcamento() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await api.post(`/portal-rep/admin/solicitacoes-orcamento/${id}/calcular`)
-      return data
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: [QUERY_KEY] }),
-  })
-}
-
-export function useConverterEmPedido() {
-  const qc = useQueryClient()
-  return useMutation<{ message: string; pedido: { id: string; numero: number } }, Error, string>({
-    mutationFn: async (id: string) => {
-      const { data } = await api.post(`/portal-rep/admin/solicitacoes-orcamento/${id}/converter-pedido`)
-      return data
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: [QUERY_KEY] }),
-  })
-}
-
 export function useEnviarParaOrcamento() {
   const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await api.post(`/portal-rep/admin/solicitacoes-orcamento/${id}/enviar-orcamento`)
-      return data
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: [QUERY_KEY] }),
-  })
-}
-
-export function useLiberarParaPedido() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await api.post(`/portal-rep/admin/solicitacoes-orcamento/${id}/liberar-pedido`)
+  return useMutation<
+    { message: string; orcamentoGraficoId: string; numero: number },
+    Error,
+    { id: string; tipoEmbalagemId?: string }
+  >({
+    mutationFn: async ({ id, tipoEmbalagemId }) => {
+      const { data } = await api.post(
+        `/portal-rep/admin/solicitacoes-orcamento/${id}/enviar-orcamento`,
+        tipoEmbalagemId ? { tipoEmbalagemId } : {},
+      )
       return data
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: [QUERY_KEY] }),
@@ -66,5 +40,16 @@ export function useRecusarSolicitacao() {
       return data
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: [QUERY_KEY] }),
+  })
+}
+
+/** Lista tipos de embalagem (para o seletor de fallback ao enviar p/ orçamento). */
+export function useTiposEmbalagem() {
+  return useQuery<{ id: string; codigo: string; descricao: string }[]>({
+    queryKey: ['tipos-embalagem-select'],
+    queryFn: async () => {
+      const { data } = await api.get('/orcamento-grafico/tipos-embalagem', { params: { limit: 100 } })
+      return (data?.data ?? []).map((t: any) => ({ id: t.id, codigo: t.codigo, descricao: t.descricao }))
+    },
   })
 }

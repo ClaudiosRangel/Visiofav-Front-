@@ -25,14 +25,15 @@ import type { StatusSolicitacao } from '@/data/hooks/portal-rep-app/types'
 
 const STATUS_COLORS: Record<StatusSolicitacao, string> = {
   PENDENTE: 'yellow',
-  CALCULADO: 'blue',
-  ENVIADO: 'cyan',
-  ACEITO: 'green',
-  RECUSADO: 'red',
+  EM_ORCAMENTO: 'indigo',
+  PRECIFICADA: 'blue',
+  CONVERTIDA: 'green',
+  RECUSADA: 'red',
+  CANCELADA: 'gray',
 }
 
 /** Status a partir do qual preços são exibidos */
-const STATUS_COM_PRECO: StatusSolicitacao[] = ['CALCULADO', 'ENVIADO', 'ACEITO', 'RECUSADO']
+const STATUS_COM_PRECO: StatusSolicitacao[] = ['PRECIFICADA', 'CONVERTIDA', 'RECUSADA']
 
 export default function OrcamentoDetalhePage() {
   const params = useParams()

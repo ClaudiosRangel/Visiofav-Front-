@@ -4,20 +4,18 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Card, Group, Text, Table, Badge, Button, ActionIcon, Tooltip,
-  LoadingOverlay, Select, Pagination, TextInput,
+  LoadingOverlay, Select, Pagination, TextInput, Modal, Stack,
 } from '@mantine/core'
 import { DateInput } from '@mantine/dates'
-import { useDebouncedValue } from '@mantine/hooks'
-import { IconCalculator, IconRefresh, IconSearch, IconReceipt, IconSend, IconCircleCheck, IconX } from '@tabler/icons-react'
+import { useDebouncedValue, useDisclosure } from '@mantine/hooks'
+import { IconRefresh, IconSearch, IconSend, IconX, IconExternalLink } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { usePerfilGuard } from '@/hooks/usePerfilGuard'
 import {
   useSolicitacoesOrcamento,
-  useCalcularOrcamento,
-  useConverterEmPedido,
   useEnviarParaOrcamento,
-  useLiberarParaPedido,
   useRecusarSolicitacao,
+  useTiposEmbalagem,
 } from '@/data/hooks/portal-representante/useSolicitacoesOrcamento'
 import type { StatusSolicitacao, SolicitacoesFilters } from '@/data/hooks/portal-representante/types'
 import { statusSolicitacaoColors, statusSolicitacaoLabels } from '@/data/hooks/portal-representante/types'
@@ -26,7 +24,6 @@ const STATUS_OPTIONS = [
   { value: 'PENDENTE', label: 'Pendente' },
   { value: 'EM_ORCAMENTO', label: 'Em orçamento' },
   { value: 'PRECIFICADA', label: 'Precificada' },
-  { value: 'LIBERADA_PEDIDO', label: 'Liberada p/ pedido' },
   { value: 'CONVERTIDA', label: 'Convertida' },
   { value: 'RECUSADA', label: 'Recusada' },
   { value: 'CANCELADA', label: 'Cancelada' },
@@ -63,41 +60,46 @@ export default function SolicitacoesOrcamentoPage() {
   }
 
   const { data: response, isLoading, refetch } = useSolicitacoesOrcamento(filters)
-  const calcular = useCalcularOrcamento()
-  const converter = useConverterEmPedido()
   const enviarOrcamento = useEnviarParaOrcamento()
-  const liberarPedido = useLiberarParaPedido()
   const recusar = useRecusarSolicitacao()
+  const { data: tiposEmbalagem = [] } = useTiposEmbalagem()
 
-  function acaoSimples(
-    mutation: { mutate: (id: string, opts: { onSuccess: () => void; onError: (e: any) => void }) => void },
-    id: string,
-    msgSucesso: string,
-  ) {
-    mutation.mutate(id, {
-      onSuccess: () => {
-        notifications.show({ title: 'Sucesso', message: msgSucesso, color: 'green' })
-        refetch()
+  // Modal de seleção de Tipo de Embalagem (fallback quando o texto não casa)
+  const [tipoModalAberto, tipoModal] = useDisclosure(false)
+  const [solicitacaoParaTipo, setSolicitacaoParaTipo] = useState<string | null>(null)
+  const [tipoSelecionado, setTipoSelecionado] = useState<string | null>(null)
+
+  function enviarComTipo(id: string, tipoEmbalagemId?: string) {
+    enviarOrcamento.mutate(
+      { id, tipoEmbalagemId },
+      {
+        onSuccess: (data) => {
+          notifications.show({ title: 'Orçamento gerado', message: data.message, color: 'green' })
+          tipoModal.close()
+          setSolicitacaoParaTipo(null)
+          setTipoSelecionado(null)
+          refetch()
+        },
+        onError: (err: any) => {
+          if (err?.response?.data?.code === 'TIPO_EMBALAGEM_NAO_RESOLVIDO') {
+            // Abrir modal para o Comercial escolher o tipo de embalagem
+            setSolicitacaoParaTipo(id)
+            tipoModal.open()
+            return
+          }
+          notifications.show({
+            title: 'Erro',
+            message: err?.response?.data?.message || 'Falha ao enviar para orçamento',
+            color: 'red',
+          })
+        },
       },
-      onError: (err: any) => {
-        notifications.show({
-          title: 'Erro',
-          message: err?.response?.data?.message || 'Falha na operação',
-          color: 'red',
-        })
-      },
-    })
+    )
   }
 
   function handleEnviarOrcamento(id: string) {
-    if (confirm('Enviar esta solicitação para orçamento?')) {
-      acaoSimples(enviarOrcamento, id, 'Enviada para orçamento')
-    }
-  }
-
-  function handleLiberarPedido(id: string) {
-    if (confirm('Liberar esta solicitação para virar pedido?')) {
-      acaoSimples(liberarPedido, id, 'Liberada para pedido')
+    if (confirm('Enviar esta solicitação para orçamento? Um Orçamento Gráfico será criado.')) {
+      enviarComTipo(id)
     }
   }
 
@@ -127,58 +129,8 @@ export default function SolicitacoesOrcamentoPage() {
   const total = response?.total || 0
   const totalPages = Math.ceil(total / pageSize)
 
-  // Track which item is being calculated
-  const [calculandoId, setCalculandoId] = useState<string | null>(null)
-  const [convertendoId, setConvertendoId] = useState<string | null>(null)
-
-  function handleCalcular(id: string) {
-    if (confirm('Confirmar cálculo do orçamento? O orçamento será processado pelo motor de cálculo.')) {
-      setCalculandoId(id)
-      calcular.mutate(id, {
-        onSuccess: () => {
-          notifications.show({ title: 'Sucesso', message: 'Orçamento calculado com sucesso', color: 'green' })
-          setCalculandoId(null)
-        },
-        onError: (err: any) => {
-          if (err?.response?.status === 400 && err?.response?.data?.message?.toLowerCase().includes('empresa')) {
-            router.replace('/selecionar-empresa')
-            setCalculandoId(null)
-            return
-          }
-          if (err?.response?.status === 403) {
-            notifications.show({ title: 'Acesso negado', message: 'Apenas administradores podem acessar esta funcionalidade', color: 'red' })
-            setCalculandoId(null)
-            return
-          }
-          notifications.show({
-            title: 'Erro',
-            message: err?.response?.data?.message || 'Falha ao calcular orçamento',
-            color: 'red',
-          })
-          setCalculandoId(null)
-        },
-      })
-    }
-  }
-
-  function handleConverter(id: string) {
-    if (confirm('Converter este orçamento em Pedido de Venda? O pedido será criado com status CONFIRMADO.')) {
-      setConvertendoId(id)
-      converter.mutate(id, {
-        onSuccess: (data) => {
-          notifications.show({ title: 'Sucesso', message: data.message, color: 'green' })
-          setConvertendoId(null)
-        },
-        onError: (err: any) => {
-          notifications.show({
-            title: 'Erro',
-            message: err?.response?.data?.message || 'Falha ao converter em pedido',
-            color: 'red',
-          })
-          setConvertendoId(null)
-        },
-      })
-    }
+  function abrirOrcamentoGrafico(orcamentoGraficoId: string) {
+    router.push(`/orcamento-grafico?id=${orcamentoGraficoId}`)
   }
 
   return (
@@ -263,45 +215,24 @@ export default function SolicitacoesOrcamentoPage() {
                   <Group gap={4}>
                     {item.status === 'PENDENTE' && (
                       <Tooltip label="Enviar para orçamento">
-                        <ActionIcon variant="subtle" color="indigo" onClick={() => handleEnviarOrcamento(item.id)}>
+                        <ActionIcon
+                          variant="subtle"
+                          color="indigo"
+                          onClick={() => handleEnviarOrcamento(item.id)}
+                          loading={enviarOrcamento.isPending && solicitacaoParaTipo === item.id}
+                        >
                           <IconSend size={18} />
                         </ActionIcon>
                       </Tooltip>
                     )}
-                    {item.status === 'EM_ORCAMENTO' && (
-                      <Tooltip label="Precificar (calcular)">
-                        <ActionIcon
-                          variant="subtle"
-                          color="blue"
-                          onClick={() => handleCalcular(item.id)}
-                          disabled={calcular.isPending && calculandoId === item.id}
-                          loading={calcular.isPending && calculandoId === item.id}
-                        >
-                          <IconCalculator size={18} />
+                    {(item.status === 'EM_ORCAMENTO' || item.status === 'PRECIFICADA') && item.orcamentoGraficoId && (
+                      <Tooltip label="Abrir Orçamento Gráfico">
+                        <ActionIcon variant="subtle" color="blue" onClick={() => abrirOrcamentoGrafico(item.orcamentoGraficoId!)}>
+                          <IconExternalLink size={18} />
                         </ActionIcon>
                       </Tooltip>
                     )}
-                    {item.status === 'PRECIFICADA' && (
-                      <Tooltip label="Liberar para pedido">
-                        <ActionIcon variant="subtle" color="teal" onClick={() => handleLiberarPedido(item.id)}>
-                          <IconCircleCheck size={18} />
-                        </ActionIcon>
-                      </Tooltip>
-                    )}
-                    {item.status === 'LIBERADA_PEDIDO' && (
-                      <Tooltip label="Converter em Pedido de Venda">
-                        <ActionIcon
-                          variant="subtle"
-                          color="green"
-                          onClick={() => handleConverter(item.id)}
-                          disabled={converter.isPending && convertendoId === item.id}
-                          loading={converter.isPending && convertendoId === item.id}
-                        >
-                          <IconReceipt size={18} />
-                        </ActionIcon>
-                      </Tooltip>
-                    )}
-                    {['EM_ORCAMENTO', 'PRECIFICADA', 'LIBERADA_PEDIDO'].includes(item.status) && (
+                    {['EM_ORCAMENTO', 'PRECIFICADA'].includes(item.status) && (
                       <Tooltip label="Recusar">
                         <ActionIcon variant="subtle" color="red" onClick={() => handleRecusar(item.id)}>
                           <IconX size={18} />
@@ -328,6 +259,39 @@ export default function SolicitacoesOrcamentoPage() {
           </Group>
         )}
       </Card>
+
+      <Modal
+        opened={tipoModalAberto}
+        onClose={() => { tipoModal.close(); setSolicitacaoParaTipo(null); setTipoSelecionado(null) }}
+        title="Selecione o Tipo de Embalagem"
+      >
+        <Stack>
+          <Text size="sm" c="dimmed">
+            Não foi possível identificar automaticamente o tipo de embalagem desta
+            solicitação. Escolha um Tipo de Embalagem cadastrado para gerar o Orçamento Gráfico.
+          </Text>
+          <Select
+            label="Tipo de Embalagem"
+            placeholder="Selecione"
+            data={tiposEmbalagem.map((t) => ({ value: t.id, label: `${t.codigo} - ${t.descricao}` }))}
+            value={tipoSelecionado}
+            onChange={setTipoSelecionado}
+            searchable
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => { tipoModal.close(); setSolicitacaoParaTipo(null); setTipoSelecionado(null) }}>
+              Cancelar
+            </Button>
+            <Button
+              disabled={!tipoSelecionado || !solicitacaoParaTipo}
+              loading={enviarOrcamento.isPending}
+              onClick={() => solicitacaoParaTipo && tipoSelecionado && enviarComTipo(solicitacaoParaTipo, tipoSelecionado)}
+            >
+              Gerar Orçamento
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </div>
   )
 }

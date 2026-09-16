@@ -76,7 +76,13 @@ export interface SolicitarAlteracaoFiscalPayload {
 }
 
 // ─── Solicitações de Orçamento ───────────────────────────────────
-export type StatusSolicitacao = 'PENDENTE' | 'CALCULADO' | 'ENVIADO' | 'ACEITO' | 'RECUSADO'
+export type StatusSolicitacao =
+  | 'PENDENTE'
+  | 'EM_ORCAMENTO'
+  | 'PRECIFICADA'
+  | 'CONVERTIDA'
+  | 'RECUSADA'
+  | 'CANCELADA'
 
 export interface ItemSolicitacao {
   produtoNome: string

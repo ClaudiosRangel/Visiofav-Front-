@@ -8,7 +8,6 @@ export type StatusSolicitacao =
   | 'PENDENTE'
   | 'EM_ORCAMENTO'
   | 'PRECIFICADA'
-  | 'LIBERADA_PEDIDO'
   | 'CONVERTIDA'
   | 'RECUSADA'
   | 'CANCELADA'
@@ -64,6 +63,7 @@ export interface SolicitacaoOrcamento {
   representanteNome?: string
   clienteNome: string | null
   clienteNomeExibicao?: string | null
+  orcamentoGraficoId?: string | null
   status: StatusSolicitacao
   criadoEm: string
   tipoEmbalagem: string
@@ -135,7 +135,6 @@ export const statusSolicitacaoColors: Record<StatusSolicitacao, string> = {
   PENDENTE: 'yellow',
   EM_ORCAMENTO: 'indigo',
   PRECIFICADA: 'blue',
-  LIBERADA_PEDIDO: 'teal',
   CONVERTIDA: 'green',
   RECUSADA: 'red',
   CANCELADA: 'gray',
@@ -144,8 +143,7 @@ export const statusSolicitacaoColors: Record<StatusSolicitacao, string> = {
 export const statusSolicitacaoLabels: Record<StatusSolicitacao, string> = {
   PENDENTE: 'Pendente',
   EM_ORCAMENTO: 'Em orçamento',
-  PRECIFICADA: 'Precificada',
-  LIBERADA_PEDIDO: 'Liberada p/ pedido',
+  PRECIFICADA: 'Precificada (aguardando aprovação)',
   CONVERTIDA: 'Convertida',
   RECUSADA: 'Recusada',
   CANCELADA: 'Cancelada',
