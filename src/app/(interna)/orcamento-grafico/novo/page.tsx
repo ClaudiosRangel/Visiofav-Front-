@@ -43,6 +43,9 @@ export interface WizardFormData {
   clienteId: string | null
   clienteNome: string
   vendedorId: string | null
+  // Modo Repetição: produto cadastrado que este orçamento reproduz (opcional)
+  produtoId: string | null
+  produtoNome: string
   // Step 2 — Tipo
   tipoEmbalagemId: string | null
   tipoEmbalagem: any | null
@@ -66,6 +69,8 @@ const INITIAL_FORM: WizardFormData = {
   clienteId: null,
   clienteNome: '',
   vendedorId: null,
+  produtoId: null,
+  produtoNome: '',
   tipoEmbalagemId: null,
   tipoEmbalagem: null,
   medidas: {},
@@ -177,6 +182,8 @@ export default function NovoOrcamentoGraficoPage() {
           clienteId: data.clienteId ?? null,
           clienteNome: data.clienteNome ?? '',
           vendedorId: data.vendedorId ?? null,
+          produtoId: data.produtoId ?? null,
+          produtoNome: '',
           tipoEmbalagemId: data.tipoEmbalagemId ?? null,
           tipoEmbalagem: data.tipoEmbalagem ?? null,
           medidas: data.medidas ?? {},
@@ -260,6 +267,7 @@ export default function NovoOrcamentoGraficoPage() {
         quantidade: formData.quantidade,
         tabelaMargemId: formData.tabelaMargemId || undefined,
         precoKg: formData.precoKg,
+        produtoId: formData.produtoId || undefined,
       }
 
       const { data } = isEditing

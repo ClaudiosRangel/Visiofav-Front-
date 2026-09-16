@@ -56,6 +56,24 @@ export default function StepCliente({ formData, updateForm }: Props) {
       .catch(() => {})
   }, [])
 
+  // Produtos cadastrados (modo Repetição — opcional)
+  const [buscaProduto, setBuscaProduto] = useState(formData.produtoNome || '')
+  const [debouncedProduto] = useDebouncedValue(buscaProduto, 300)
+  const [produtos, setProdutos] = useState<{ id: string; label: string }[]>([])
+
+  useEffect(() => {
+    const termo = debouncedProduto?.trim() || ''
+    api.get('/produtos', { params: termo ? { busca: termo, limit: 20 } : { limit: 20 } })
+      .then(({ data }) => {
+        const items = (data.data || data || []).map((p: any) => ({
+          id: p.id,
+          label: `${p.codigo} - ${p.nome}`,
+        }))
+        setProdutos(items)
+      })
+      .catch(() => setProdutos([]))
+  }, [debouncedProduto])
+
   const handleClienteSelect = useCallback((value: string) => {
     setBusca(value)
     const selected = clientes.find(c => c.label === value)
@@ -124,6 +142,31 @@ export default function StepCliente({ formData, updateForm }: Props) {
           if (!val) updateForm({ vendedorId: null })
         }}
       />
+
+      <Autocomplete
+        label="Repetição de produto (opcional)"
+        description="Se for reimpressão de um produto já cadastrado, selecione-o para a OP usar a estrutura (BOM) e o roteiro dele."
+        placeholder="Buscar produto cadastrado..."
+        data={Array.from(new Set(produtos.map(p => p.label)))}
+        value={buscaProduto}
+        onChange={(val) => {
+          setBuscaProduto(val)
+          if (!val) updateForm({ produtoId: null, produtoNome: '' })
+        }}
+        onOptionSubmit={(label) => {
+          const found = produtos.find(p => p.label === label)
+          setBuscaProduto(label)
+          updateForm({ produtoId: found ? found.id : null, produtoNome: label })
+        }}
+        limit={20}
+      />
+
+      {formData.produtoId && (
+        <Group gap="xs">
+          <Badge color="blue" variant="light">Repetição</Badge>
+          <Text size="sm">{formData.produtoNome}</Text>
+        </Group>
+      )}
     </Stack>
   )
 }
