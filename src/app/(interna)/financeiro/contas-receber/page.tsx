@@ -21,6 +21,7 @@ import { IconFileInvoice, IconQrcode } from '@tabler/icons-react'
 import { DocumentoFinanceiroForm } from '@/components/financeiro/DocumentoFinanceiroForm'
 import { BaixaTituloModal, type TituloBaixa } from '@/components/financeiro/BaixaTituloModal'
 import { BaixaLoteModal } from '@/components/financeiro/BaixaLoteModal'
+import { EditarTituloModal } from '@/components/financeiro/EditarTituloModal'
 
 const FORMAS = [
   { value: 'DINHEIRO', label: 'Dinheiro' }, { value: 'BOLETO', label: 'Boleto' },
@@ -135,12 +136,6 @@ export default function ContasReceberPage() {
     mutationFn: (tituloId: string) => cobrancaApi.gerarPix(tituloId, convenioPix!.id),
     onSuccess: () => notifications.show({ color: 'green', message: 'PIX gerado — veja em PIX' }),
     onError: (e: any) => notifications.show({ color: 'red', message: e?.response?.data?.message || 'Falha' }),
-  })
-
-  const editarMut = useMutation({
-    mutationFn: async ({ id, ...body }: any) => { const { data } = await api.put(`/contas-receber/${id}`, body); return data },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contas-receber'] }); setEditar(null); notifications.show({ title: 'Sucesso', message: 'Título atualizado', color: 'green' }) },
-    onError: (err: any) => { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao editar', color: 'red' }) },
   })
 
   const criarForm = useForm<CriarValues>({ resolver: zodResolver(criarSchema) })
@@ -260,7 +255,7 @@ export default function ContasReceberPage() {
                     )}
                     {aberto && (
                       <Tooltip label="Editar título">
-                        <ActionIcon variant="subtle" color="blue" onClick={() => setEditar({ id: item.id, descricao: item.descricao, valor: Number(item.valor), dataVencimento: new Date(item.dataVencimento), observacao: item.observacao || '' })}>
+                        <ActionIcon variant="subtle" color="blue" onClick={() => setEditar(item)}>
                           <IconPencil size={18} />
                         </ActionIcon>
                       </Tooltip>
@@ -317,32 +312,14 @@ export default function ContasReceberPage() {
         onConfirm={(payload) => baixarLote.mutate(payload)}
       />
 
-      {/* Modal Editar título aberto */}
-      <Modal opened={!!editar} onClose={() => setEditar(null)} title="Editar Conta a Receber" centered>
-        {editar && (
-          <>
-            <TextInput label="Descrição" mb="sm" value={editar.descricao} onChange={(e) => setEditar({ ...editar, descricao: e.currentTarget.value })} />
-            <NumberInput label="Valor" prefix="R$ " decimalScale={2} mb="sm" value={editar.valor} onChange={(v) => setEditar({ ...editar, valor: typeof v === 'number' ? v : 0 })} />
-            <DateInput label="Vencimento" mb="sm" value={editar.dataVencimento} onChange={(d) => setEditar({ ...editar, dataVencimento: d })} />
-            <TextInput label="Observação" mb="sm" value={editar.observacao} onChange={(e) => setEditar({ ...editar, observacao: e.currentTarget.value })} />
-            <Group justify="flex-end" mt="md">
-              <Button variant="default" onClick={() => setEditar(null)}>Cancelar</Button>
-              <Button
-                loading={editarMut.isPending}
-                onClick={() => editarMut.mutate({
-                  id: editar.id,
-                  descricao: editar.descricao,
-                  valor: editar.valor,
-                  dataVencimento: editar.dataVencimento instanceof Date ? editar.dataVencimento.toISOString() : editar.dataVencimento,
-                  observacao: editar.observacao || null,
-                })}
-              >
-                Salvar
-              </Button>
-            </Group>
-          </>
-        )}
-      </Modal>
+      {/* Modal Editar título aberto (rico) */}
+      <EditarTituloModal
+        tipo="receber"
+        titulo={editar}
+        opened={!!editar}
+        onClose={() => setEditar(null)}
+        onSaved={() => queryClient.invalidateQueries({ queryKey: ['contas-receber'] })}
+      />
     </div>
   )
 }

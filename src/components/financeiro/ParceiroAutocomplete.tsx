@@ -6,10 +6,13 @@
  * máscara e validação dinâmicas.
  */
 import { useState } from 'react'
-import { Stack, Autocomplete, TextInput, Switch, Text, Group, Badge } from '@mantine/core'
-import { useQuery } from '@tanstack/react-query'
+import { Stack, Autocomplete, TextInput, Switch, Text, Group, Badge, ActionIcon, Tooltip } from '@mantine/core'
+import { IconPlus } from '@tabler/icons-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { mascararDocumento, rotuloDocumento, validarDocumento, normalizarDoc } from '@/lib/financeiro/documento'
+import FornecedorModal from '@/app/(interna)/configurador/fornecedores/FornecedorModal'
+import ClienteModal from '@/app/(interna)/configurador/clientes/ClienteModal'
 
 export interface ParceiroValue {
   parceiroId?: string
@@ -28,6 +31,8 @@ export function ParceiroAutocomplete({ tipo, value, onChange }: Props) {
   const [busca, setBusca] = useState('')
   const [nome, setNome] = useState(value.parceiroNomeLivre ?? '')
   const [doc, setDoc] = useState(value.parceiroDocLivre ?? '')
+  const [cadastroOpen, setCadastroOpen] = useState(false)
+  const queryClient = useQueryClient()
 
   const endpoint = tipo === 'fornecedor' ? '/fornecedores' : '/clientes'
   const { data } = useQuery<any>({
@@ -58,17 +63,25 @@ export function ParceiroAutocomplete({ tipo, value, onChange }: Props) {
       </Group>
 
       {!livre ? (
-        <Autocomplete
-          placeholder={`Buscar ${tipo}...`}
-          data={options.map((o) => o.label)}
-          value={busca}
-          onChange={(label) => {
-            setBusca(label)
-            const achado = options.find((o) => o.label === label)
-            onChange(achado ? { parceiroId: achado.value } : {})
-          }}
-          comboboxProps={{ withinPortal: true }}
-        />
+        <Group gap="xs" align="flex-end" wrap="nowrap">
+          <Autocomplete
+            style={{ flex: 1 }}
+            placeholder={`Buscar ${tipo}...`}
+            data={options.map((o) => o.label)}
+            value={busca}
+            onChange={(label) => {
+              setBusca(label)
+              const achado = options.find((o) => o.label === label)
+              onChange(achado ? { parceiroId: achado.value } : {})
+            }}
+            comboboxProps={{ withinPortal: true }}
+          />
+          <Tooltip label={`Cadastrar novo ${tipo}`}>
+            <ActionIcon size="lg" variant="light" onClick={() => setCadastroOpen(true)} aria-label={`Cadastrar ${tipo}`}>
+              <IconPlus size={18} />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
       ) : (
         <>
           <TextInput
@@ -91,6 +104,19 @@ export function ParceiroAutocomplete({ tipo, value, onChange }: Props) {
             onChange={(e) => { const v = normalizarDoc(e.currentTarget.value); setDoc(v); onChange({ parceiroNomeLivre: nome, parceiroDocLivre: v }) }}
           />
         </>
+      )}
+
+      {/* Cadastro rápido de fornecedor/cliente sem sair do formulário */}
+      {tipo === 'fornecedor' ? (
+        <FornecedorModal
+          opened={cadastroOpen}
+          onClose={() => { setCadastroOpen(false); queryClient.invalidateQueries({ queryKey: [`${tipo}-autocomplete`] }) }}
+        />
+      ) : (
+        <ClienteModal
+          opened={cadastroOpen}
+          onClose={() => { setCadastroOpen(false); queryClient.invalidateQueries({ queryKey: [`${tipo}-autocomplete`] }) }}
+        />
       )}
     </Stack>
   )

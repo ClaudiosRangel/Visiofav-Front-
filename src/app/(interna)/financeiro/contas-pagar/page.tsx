@@ -19,6 +19,7 @@ import { titulosApi } from '@/hooks/financeiro/useFinanceiroApi'
 import { DocumentoFinanceiroForm } from '@/components/financeiro/DocumentoFinanceiroForm'
 import { BaixaTituloModal, type TituloBaixa } from '@/components/financeiro/BaixaTituloModal'
 import { BaixaLoteModal } from '@/components/financeiro/BaixaLoteModal'
+import { EditarTituloModal } from '@/components/financeiro/EditarTituloModal'
 
 const FORMAS = [
   { value: 'DINHEIRO', label: 'Dinheiro' }, { value: 'BOLETO', label: 'Boleto' },
@@ -119,12 +120,6 @@ export default function ContasPagarPage() {
       notifications.show({ color: 'green', message: `${r.sucesso.length} pago(s), ${r.ignorados.length} ignorado(s)` })
     },
     onError: (e: any) => notifications.show({ color: 'red', message: e?.response?.data?.message || 'Falha' }),
-  })
-
-  const editarMut = useMutation({
-    mutationFn: async ({ id, ...body }: any) => { const { data } = await api.put(`/contas-pagar/${id}`, body); return data },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contas-pagar'] }); setEditar(null); notifications.show({ title: 'Sucesso', message: 'Título atualizado', color: 'green' }) },
-    onError: (err: any) => { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao editar', color: 'red' }) },
   })
 
   const criarForm = useForm<CriarValues>({ resolver: zodResolver(criarSchema) })
@@ -230,7 +225,7 @@ export default function ContasPagarPage() {
                     )}
                     {aberto && (
                       <Tooltip label="Editar título">
-                        <ActionIcon variant="subtle" color="blue" onClick={() => setEditar({ id: item.id, descricao: item.descricao, valor: Number(item.valor), dataVencimento: new Date(item.dataVencimento), observacao: item.observacao || '' })}>
+                        <ActionIcon variant="subtle" color="blue" onClick={() => setEditar(item)}>
                           <IconPencil size={18} />
                         </ActionIcon>
                       </Tooltip>
@@ -287,32 +282,14 @@ export default function ContasPagarPage() {
         onConfirm={(payload) => baixarLote.mutate(payload)}
       />
 
-      {/* Modal Editar título aberto */}
-      <Modal opened={!!editar} onClose={() => setEditar(null)} title="Editar Conta a Pagar" centered>
-        {editar && (
-          <>
-            <TextInput label="Descrição" mb="sm" value={editar.descricao} onChange={(e) => setEditar({ ...editar, descricao: e.currentTarget.value })} />
-            <NumberInput label="Valor" prefix="R$ " decimalScale={2} mb="sm" value={editar.valor} onChange={(v) => setEditar({ ...editar, valor: typeof v === 'number' ? v : 0 })} />
-            <DateInput label="Vencimento" mb="sm" value={editar.dataVencimento} onChange={(d) => setEditar({ ...editar, dataVencimento: d })} />
-            <TextInput label="Observação" mb="sm" value={editar.observacao} onChange={(e) => setEditar({ ...editar, observacao: e.currentTarget.value })} />
-            <Group justify="flex-end" mt="md">
-              <Button variant="default" onClick={() => setEditar(null)}>Cancelar</Button>
-              <Button
-                loading={editarMut.isPending}
-                onClick={() => editarMut.mutate({
-                  id: editar.id,
-                  descricao: editar.descricao,
-                  valor: editar.valor,
-                  dataVencimento: editar.dataVencimento instanceof Date ? editar.dataVencimento.toISOString() : editar.dataVencimento,
-                  observacao: editar.observacao || null,
-                })}
-              >
-                Salvar
-              </Button>
-            </Group>
-          </>
-        )}
-      </Modal>
+      {/* Modal Editar título aberto (rico) */}
+      <EditarTituloModal
+        tipo="pagar"
+        titulo={editar}
+        opened={!!editar}
+        onClose={() => setEditar(null)}
+        onSaved={() => queryClient.invalidateQueries({ queryKey: ['contas-pagar'] })}
+      />
     </div>
   )
 }
