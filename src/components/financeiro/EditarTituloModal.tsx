@@ -32,6 +32,7 @@ const FORMAS = [
   { value: 'DINHEIRO', label: 'Dinheiro' }, { value: 'BOLETO', label: 'Boleto' },
   { value: 'PIX', label: 'PIX' }, { value: 'CARTAO_CREDITO', label: 'Cartão Crédito' },
   { value: 'CHEQUE', label: 'Cheque' }, { value: 'TRANSFERENCIA', label: 'Transferência' },
+  { value: 'DEBITO_AUTOMATICO', label: 'Débito Automático' },
 ]
 
 interface Props {
@@ -120,7 +121,7 @@ export function EditarTituloModal({ tipo, titulo, opened, onClose, onSaved }: Pr
     <Modal opened={opened} onClose={onClose} title={`Editar ${tipo === 'pagar' ? 'Conta a Pagar' : 'Conta a Receber'}`} size="xl">
       <Stack>
         <Text fw={600} size="sm" c="dimmed">1. Dados Gerais</Text>
-        <ParceiroAutocomplete tipo={parceiroTipo} value={parceiro} onChange={setParceiro} />
+        <ParceiroAutocomplete key={titulo?.id ?? 'novo'} tipo={parceiroTipo} value={parceiro} onChange={setParceiro} />
         <Group grow>
           <Select label="Tipo de documento" data={TIPOS_DOC} value={tipoDoc} onChange={setTipoDoc} clearable />
           <TextInput label="Número do documento" value={numeroDoc} onChange={(e) => setNumeroDoc(e.currentTarget.value)} />

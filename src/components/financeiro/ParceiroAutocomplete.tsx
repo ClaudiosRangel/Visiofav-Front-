@@ -5,7 +5,7 @@
  * cadastro OU digitação livre (nome + CPF/CNPJ). Detecção PF/PJ automática,
  * máscara e validação dinâmicas.
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Stack, Autocomplete, TextInput, Switch, Text, Group, Badge, ActionIcon, Tooltip } from '@mantine/core'
 import { IconPlus } from '@tabler/icons-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -43,6 +43,25 @@ export function ParceiroAutocomplete({ tipo, value, onChange }: Props) {
 
   const registros = (data?.data ?? []) as any[]
   const options = registros.map((r) => ({ value: r.id, label: r.razaoSocial || r.nomeFantasia || r.nome }))
+
+  // Sincroniza o texto exibido com o parceiro já vinculado (ex.: ao editar um
+  // título que já tem fornecedor). Sem isso o campo aparece vazio na edição.
+  useEffect(() => {
+    if (!livre && value.parceiroId && registros.length > 0) {
+      const achado = options.find((o) => o.value === value.parceiroId)
+      if (achado && busca !== achado.label) setBusca(achado.label)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.parceiroId, registros.length, livre])
+
+  // Sincroniza os campos livres quando o value muda (ex.: reabrir edição)
+  useEffect(() => {
+    if (livre) {
+      setNome(value.parceiroNomeLivre ?? '')
+      setDoc(value.parceiroDocLivre ?? '')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.parceiroNomeLivre, value.parceiroDocLivre, livre])
 
   const docValidacao = validarDocumento(doc)
 
