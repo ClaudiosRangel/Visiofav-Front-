@@ -6,6 +6,9 @@ export interface Sku {
   sequencia: number
   descricao?: string
   codigoBarra?: string
+  codigoBarraDun?: string
+  codigoBarraDisplay?: string
+  tipoCodigoBarra?: string
   unidade: string
   qtdEmbalagem: number
   largura?: number

@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import {
   Card, Group, Text, Table, Badge, Button, ActionIcon, Tooltip,
-  Modal, TextInput, NumberInput, SimpleGrid, LoadingOverlay, Alert,
+  Modal, TextInput, NumberInput, SimpleGrid, LoadingOverlay, Alert, Select,
 } from '@mantine/core'
-import { IconPlus, IconEdit, IconTrash, IconBarcode, IconPackage, IconCheck } from '@tabler/icons-react'
+import { IconPlus, IconEdit, IconTrash, IconBarcode, IconPackage, IconCheck, IconWand } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { useSkus, useCriarSku, useAtualizarSku, useExcluirSku, Sku } from '@/data/hooks/useSku'
 
@@ -14,10 +14,62 @@ interface SkuPanelProps {
   produtoNome: string
 }
 
+// Unidades de embalagem — mesma legenda usada no cadastro de Produto, para o
+// operador escolher em vez de digitar (evita valores inconsistentes). O Select
+// aceita digitação livre (`searchable`) para casos fora da lista.
+const UNIDADES = [
+  { value: 'UN', label: 'UN - Unidade' }, { value: 'CX', label: 'CX - Caixa' },
+  { value: 'FD', label: 'FD - Fardo' }, { value: 'PT', label: 'PT - Pacote' },
+  { value: 'PL', label: 'PL - Palete' }, { value: 'DP', label: 'DP - Display' },
+  { value: 'PC', label: 'PC - Peça' }, { value: 'KG', label: 'KG - Quilograma' },
+  { value: 'LT', label: 'LT - Litro' }, { value: 'MT', label: 'MT - Metro' },
+]
+
+// Tipos de palete — legenda para o campo (padrões usados no chão de fábrica).
+const TIPOS_PALETE = [
+  { value: 'PBR', label: 'PBR - Palete Padrão Brasil (1,00 × 1,20 m)' },
+  { value: 'CHEP', label: 'CHEP - Palete azul locado (CHEP)' },
+  { value: 'PER', label: 'PER - Palete retornável' },
+  { value: 'FER', label: 'FER - Palete de madeira (fixo)' },
+  { value: 'DESCARTAVEL', label: 'DESCARTAVEL - Palete descartável' },
+]
+
+/**
+ * Calcula o dígito verificador de um GTIN (EAN-13 / DUN-14) pelo algoritmo
+ * padrão GS1 (pesos 3/1 alternados, da direita para a esquerda sobre o corpo
+ * sem o DV).
+ */
+function digitoVerificadorGtin(corpo: string): number {
+  let soma = 0
+  // Percorre da direita para a esquerda; o dígito mais à direita do corpo tem peso 3.
+  const reverso = corpo.split('').reverse()
+  for (let i = 0; i < reverso.length; i++) {
+    const n = parseInt(reverso[i], 10)
+    soma += n * (i % 2 === 0 ? 3 : 1)
+  }
+  return (10 - (soma % 10)) % 10
+}
+
+/**
+ * Gera o DUN-14 (EAN-14 da caixa/embalagem) a partir de um EAN-13 do item e um
+ * dígito logístico (1-8, indica o nível de embalagem). Padrão GS1:
+ * DUN-14 = digitoLogistico + 12 primeiros dígitos do EAN-13 (sem o DV do EAN-13)
+ *          + novo dígito verificador calculado sobre os 13 primeiros.
+ * Retorna null se o EAN-13 for inválido (não tem 13 dígitos numéricos).
+ */
+function gerarEan14(ean13: string, digitoLogistico = 1): string | null {
+  const limpo = (ean13 || '').replace(/\D/g, '')
+  if (limpo.length !== 13) return null
+  const base = String(digitoLogistico) + limpo.slice(0, 12) // 13 dígitos
+  const dv = digitoVerificadorGtin(base)
+  return base + String(dv)
+}
+
 const emptyForm = {
   sequencia: 1,
   descricao: '',
   codigoBarra: '',
+  codigoBarraDun: '',
   unidade: 'UN',
   qtdEmbalagem: 1,
   largura: undefined as number | undefined,
@@ -56,6 +108,7 @@ export default function SkuPanel({ produtoId, produtoNome }: SkuPanelProps) {
       sequencia: sku.sequencia,
       descricao: sku.descricao || '',
       codigoBarra: sku.codigoBarra || '',
+      codigoBarraDun: sku.codigoBarraDun || '',
       unidade: sku.unidade,
       qtdEmbalagem: sku.qtdEmbalagem,
       largura: sku.largura != null ? Number(sku.largura) : undefined,
@@ -74,28 +127,45 @@ export default function SkuPanel({ produtoId, produtoNome }: SkuPanelProps) {
 
   async function handleSave() {
     try {
-      const payload: any = {
-        ...form,
-        produtoId,
-        sequencia: Number(form.sequencia),
-        qtdEmbalagem: Number(form.qtdEmbalagem),
-        largura: form.largura != null ? Number(form.largura) : undefined,
-        altura: form.altura != null ? Number(form.altura) : undefined,
-        comprimento: form.comprimento != null ? Number(form.comprimento) : undefined,
-        volume: form.volume != null ? Number(form.volume) : undefined,
-        pesoLiquido: form.pesoLiquido != null ? Number(form.pesoLiquido) : undefined,
-        pesoBruto: form.pesoBruto != null ? Number(form.pesoBruto) : undefined,
-        pesoPalete: form.pesoPalete != null ? Number(form.pesoPalete) : undefined,
-        lastro: form.lastro != null ? Number(form.lastro) : undefined,
-        camada: form.camada != null ? Number(form.camada) : undefined,
-        descricao: form.descricao || undefined,
-        codigoBarra: form.codigoBarra || undefined,
-        tipoPalete: form.tipoPalete || undefined,
+      // Ao EDITAR, campos vazios devem ser enviados como `null` (não undefined)
+      // para o backend LIMPAR o valor já gravado. Undefined seria ignorado pelo
+      // Prisma (bug reportado pelo QA). Ao CRIAR, campos vazios podem ir como
+      // undefined normalmente.
+      const vazio = editingId ? null : undefined
+      const numOuVazio = (v: number | undefined) => (v != null ? Number(v) : vazio)
+      const strOuVazio = (v: string) => (v && v.trim() ? v.trim() : vazio)
+
+      // Volume: calcula automaticamente das dimensões se o usuário não informou.
+      let volume = form.volume != null ? Number(form.volume) : undefined
+      if (!volume && form.largura && form.altura && form.comprimento) {
+        volume = (form.largura * form.altura * form.comprimento) / 1000000
       }
 
-      // Calcular volume automaticamente se dimensões preenchidas
-      if (payload.largura && payload.altura && payload.comprimento && !payload.volume) {
-        payload.volume = (payload.largura * payload.altura * payload.comprimento) / 1000000
+      // Peso Palete: se não informado, calcula da cubagem do palete
+      // (peso bruto da embalagem × total de embalagens no palete = lastro × camada).
+      let pesoPalete = form.pesoPalete != null ? Number(form.pesoPalete) : undefined
+      if (!pesoPalete && form.pesoBruto && form.lastro && form.camada) {
+        pesoPalete = Number((form.pesoBruto * form.lastro * form.camada).toFixed(3))
+      }
+
+      const payload: any = {
+        produtoId,
+        sequencia: Number(form.sequencia),
+        unidade: form.unidade,
+        qtdEmbalagem: Number(form.qtdEmbalagem),
+        largura: numOuVazio(form.largura),
+        altura: numOuVazio(form.altura),
+        comprimento: numOuVazio(form.comprimento),
+        volume: volume != null ? volume : vazio,
+        pesoLiquido: numOuVazio(form.pesoLiquido),
+        pesoBruto: numOuVazio(form.pesoBruto),
+        pesoPalete: pesoPalete != null ? pesoPalete : vazio,
+        lastro: numOuVazio(form.lastro),
+        camada: numOuVazio(form.camada),
+        descricao: strOuVazio(form.descricao),
+        codigoBarra: strOuVazio(form.codigoBarra),
+        codigoBarraDun: strOuVazio(form.codigoBarraDun),
+        tipoPalete: strOuVazio(form.tipoPalete),
       }
 
       if (editingId) {
@@ -109,6 +179,21 @@ export default function SkuPanel({ produtoId, produtoNome }: SkuPanelProps) {
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || err.message, color: 'red' })
     }
+  }
+
+  // Gera o EAN-14 (DUN) a partir do EAN-13 informado e preenche o campo.
+  function handleGerarEan14() {
+    const ean14 = gerarEan14(form.codigoBarra)
+    if (!ean14) {
+      notifications.show({
+        title: 'EAN-13 inválido',
+        message: 'Informe um Código de Barras (EAN-13) com 13 dígitos para gerar o EAN-14.',
+        color: 'orange',
+      })
+      return
+    }
+    updateForm('codigoBarraDun', ean14)
+    notifications.show({ title: 'EAN-14 gerado', message: ean14, color: 'green' })
   }
 
   async function handleDelete(sku: Sku) {
@@ -127,6 +212,13 @@ export default function SkuPanel({ produtoId, produtoNome }: SkuPanelProps) {
 
   const volumeCalculado = form.largura && form.altura && form.comprimento
     ? ((form.largura * form.altura * form.comprimento) / 1000000).toFixed(6)
+    : null
+
+  // Peso palete sugerido: peso bruto da embalagem × total de embalagens no
+  // palete (lastro × camada). Exibido como placeholder "Auto: X" e usado no
+  // save se o campo ficar vazio.
+  const pesoPaleteCalculado = form.pesoBruto && form.lastro && form.camada
+    ? (form.pesoBruto * form.lastro * form.camada).toFixed(3)
     : null
 
   return (
@@ -172,6 +264,7 @@ export default function SkuPanel({ produtoId, produtoNome }: SkuPanelProps) {
                     {sku.codigoBarra ? (
                       <Group gap={4}><IconBarcode size={14} className="text-zinc-400" /><Text size="sm" className="font-mono">{sku.codigoBarra}</Text></Group>
                     ) : '—'}
+                    {sku.codigoBarraDun ? <Text size="xs" c="dimmed" className="font-mono">DUN: {sku.codigoBarraDun}</Text> : null}
                   </Table.Td>
                   <Table.Td>{sku.unidade}</Table.Td>
                   <Table.Td>{sku.qtdEmbalagem}</Table.Td>
@@ -225,8 +318,9 @@ export default function SkuPanel({ produtoId, produtoNome }: SkuPanelProps) {
         <SimpleGrid cols={{ base: 1, sm: 3 }} mb="md">
           <NumberInput label="Sequência *" min={1} value={form.sequencia}
             onChange={(v) => updateForm('sequencia', typeof v === 'number' ? v : 1)} />
-          <TextInput label="Unidade *" placeholder="UN, CX, FD, PL..." value={form.unidade}
-            onChange={(e) => updateForm('unidade', e.currentTarget.value)} />
+          <Select label="Unidade *" placeholder="Selecione ou digite" data={UNIDADES}
+            value={form.unidade} searchable allowDeselect={false}
+            onChange={(v) => updateForm('unidade', v || 'UN')} />
           <NumberInput label="Qtd por Embalagem *" min={1} value={form.qtdEmbalagem}
             onChange={(v) => updateForm('qtdEmbalagem', typeof v === 'number' ? v : 1)} />
         </SimpleGrid>
@@ -234,8 +328,26 @@ export default function SkuPanel({ produtoId, produtoNome }: SkuPanelProps) {
         <SimpleGrid cols={{ base: 1, sm: 2 }} mb="md">
           <TextInput label="Descrição" placeholder="Ex: Caixa com 12 unidades" value={form.descricao}
             onChange={(e) => updateForm('descricao', e.currentTarget.value)} />
-          <TextInput label="Código de Barras (EAN)" placeholder="7891234567890" value={form.codigoBarra}
+          <TextInput label="Código de Barras (EAN-13)" placeholder="7891234567890" value={form.codigoBarra}
             onChange={(e) => updateForm('codigoBarra', e.currentTarget.value)} className="font-mono" />
+        </SimpleGrid>
+
+        <SimpleGrid cols={{ base: 1, sm: 2 }} mb="md">
+          <TextInput
+            label="EAN-14 / DUN (caixa)"
+            placeholder="Gerado a partir do EAN-13"
+            value={form.codigoBarraDun}
+            onChange={(e) => updateForm('codigoBarraDun', e.currentTarget.value)}
+            className="font-mono"
+            rightSectionWidth={40}
+            rightSection={
+              <Tooltip label="Gerar EAN-14 a partir do EAN-13">
+                <ActionIcon variant="light" onClick={handleGerarEan14} aria-label="Gerar EAN-14">
+                  <IconWand size={16} />
+                </ActionIcon>
+              </Tooltip>
+            }
+          />
         </SimpleGrid>
 
         <Text fw={600} size="sm" mb="xs" mt="md">Dimensões</Text>
@@ -258,8 +370,11 @@ export default function SkuPanel({ produtoId, produtoNome }: SkuPanelProps) {
             onChange={(v) => updateForm('pesoLiquido', typeof v === 'number' ? v : undefined)} />
           <NumberInput label="Peso Bruto (kg)" min={0} decimalScale={3} value={form.pesoBruto}
             onChange={(v) => updateForm('pesoBruto', typeof v === 'number' ? v : undefined)} />
-          <NumberInput label="Peso Palete (kg)" min={0} decimalScale={3} value={form.pesoPalete}
-            onChange={(v) => updateForm('pesoPalete', typeof v === 'number' ? v : undefined)} />
+          <NumberInput label="Peso Palete (kg)" min={0} decimalScale={3}
+            value={form.pesoPalete ?? (pesoPaleteCalculado ? Number(pesoPaleteCalculado) : undefined)}
+            onChange={(v) => updateForm('pesoPalete', typeof v === 'number' ? v : undefined)}
+            placeholder={pesoPaleteCalculado ? `Auto: ${pesoPaleteCalculado}` : ''}
+            description={pesoPaleteCalculado ? 'Peso bruto × lastro × camadas' : undefined} />
         </SimpleGrid>
 
         <Text fw={600} size="sm" mb="xs">Paletização</Text>
@@ -268,8 +383,9 @@ export default function SkuPanel({ produtoId, produtoNome }: SkuPanelProps) {
             onChange={(v) => updateForm('lastro', typeof v === 'number' ? v : undefined)} />
           <NumberInput label="Camadas" min={0} value={form.camada}
             onChange={(v) => updateForm('camada', typeof v === 'number' ? v : undefined)} />
-          <TextInput label="Tipo Palete" placeholder="PBR, CHEP..." value={form.tipoPalete}
-            onChange={(e) => updateForm('tipoPalete', e.currentTarget.value)} />
+          <Select label="Tipo Palete" placeholder="Selecione ou digite" data={TIPOS_PALETE}
+            value={form.tipoPalete || null} searchable clearable
+            onChange={(v) => updateForm('tipoPalete', v || '')} />
         </SimpleGrid>
 
         {form.lastro && form.camada && (

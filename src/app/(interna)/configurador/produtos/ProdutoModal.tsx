@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useState } from 'react'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { IconPhoto, IconTrash, IconUpload, IconInfoCircle, IconAlertCircle } from '@tabler/icons-react'
+import { IconPhoto, IconTrash, IconUpload, IconInfoCircle, IconAlertCircle, IconWand } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { mapearModosBloqueio } from '@/lib/mapearModosBloqueio'
 import { BloqueioConferenciaSection } from './BloqueioConferenciaSection'
@@ -112,7 +112,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
     },
   })
 
-  const { control, handleSubmit, reset, formState: { errors } } = useForm<ProdutoForm>({
+  const { control, handleSubmit, reset, setValue, formState: { errors } } = useForm<ProdutoForm>({
     resolver: zodResolver(produtoSchema),
     defaultValues: { codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, exigeLote: false, aceitarSenha: false, aceitarCcePendente: false, toleranciaQuantidadePercentual: null, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 },
   })
@@ -204,6 +204,25 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
     }
   }
 
+  // Sugere o próximo código sequencial (6 dígitos) e preenche o campo Código.
+  // Não consome o contador (só prévia); o código definitivo é resolvido no save.
+  const [gerandoCodigo, setGerandoCodigo] = useState(false)
+  async function handleGerarCodigo() {
+    setGerandoCodigo(true)
+    try {
+      const { data } = await api.get('/produtos/proximo-codigo')
+      setValue('codigo', data.codigo, { shouldValidate: true, shouldDirty: true })
+    } catch (err: any) {
+      notifications.show({
+        title: 'Erro',
+        message: err?.response?.data?.message || 'Falha ao gerar código automático',
+        color: 'red',
+      })
+    } finally {
+      setGerandoCodigo(false)
+    }
+  }
+
   return (
     <Modal opened={opened} onClose={onClose} title={isEditing ? 'Editar Produto' : 'Novo Produto'} size="xl" centered closeOnClickOutside={false}>
       <form onSubmit={handleSubmit(onSubmit)}>
@@ -246,7 +265,20 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
           <div className="flex-1">
             <div className="grid grid-cols-3 gap-4">
               <Controller name="codigo" control={control} render={({ field }) => (
-                <TextInput label={<>Código <span style={{ color: 'red' }}>*</span></>} placeholder="PROD001" error={errors.codigo?.message} {...field} />
+                <TextInput
+                  label={<>Código <span style={{ color: 'red' }}>*</span></>}
+                  placeholder="PROD001"
+                  error={errors.codigo?.message}
+                  {...field}
+                  rightSectionWidth={!isEditing ? 40 : undefined}
+                  rightSection={!isEditing ? (
+                    <Tooltip label="Gerar código automático">
+                      <ActionIcon variant="light" loading={gerandoCodigo} onClick={handleGerarCodigo} aria-label="Gerar código automático">
+                        <IconWand size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                  ) : undefined}
+                />
               )} />
               <div className="col-span-2">
                 <Controller name="nome" control={control} render={({ field }) => (
