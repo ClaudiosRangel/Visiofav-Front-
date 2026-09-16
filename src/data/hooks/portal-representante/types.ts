@@ -4,7 +4,14 @@ export type StatusRepresentante = 'ATIVO' | 'INATIVO'
 export type CriterioComissao = 'ENTREGUE' | 'FATURADO' | 'PAGO'
 export type TipoAprovacao = 'VINCULACAO' | 'ALTERACAO_FISCAL'
 export type StatusAprovacao = 'PENDENTE' | 'APROVADA' | 'REJEITADA'
-export type StatusSolicitacao = 'PENDENTE' | 'CALCULADO' | 'ENVIADO' | 'ACEITO' | 'RECUSADO'
+export type StatusSolicitacao =
+  | 'PENDENTE'
+  | 'EM_ORCAMENTO'
+  | 'PRECIFICADA'
+  | 'LIBERADA_PEDIDO'
+  | 'CONVERTIDA'
+  | 'RECUSADA'
+  | 'CANCELADA'
 
 // ─── Representantes ──────────────────────────────────────────────
 
@@ -56,6 +63,7 @@ export interface SolicitacaoOrcamento {
   }
   representanteNome?: string
   clienteNome: string | null
+  clienteNomeExibicao?: string | null
   status: StatusSolicitacao
   criadoEm: string
   tipoEmbalagem: string
@@ -125,10 +133,22 @@ export const statusRepresentanteColors: Record<StatusRepresentante, string> = {
 
 export const statusSolicitacaoColors: Record<StatusSolicitacao, string> = {
   PENDENTE: 'yellow',
-  CALCULADO: 'blue',
-  ENVIADO: 'cyan',
-  ACEITO: 'green',
-  RECUSADO: 'red',
+  EM_ORCAMENTO: 'indigo',
+  PRECIFICADA: 'blue',
+  LIBERADA_PEDIDO: 'teal',
+  CONVERTIDA: 'green',
+  RECUSADA: 'red',
+  CANCELADA: 'gray',
+}
+
+export const statusSolicitacaoLabels: Record<StatusSolicitacao, string> = {
+  PENDENTE: 'Pendente',
+  EM_ORCAMENTO: 'Em orçamento',
+  PRECIFICADA: 'Precificada',
+  LIBERADA_PEDIDO: 'Liberada p/ pedido',
+  CONVERTIDA: 'Convertida',
+  RECUSADA: 'Recusada',
+  CANCELADA: 'Cancelada',
 }
 
 export const criterioComissaoOptions = [

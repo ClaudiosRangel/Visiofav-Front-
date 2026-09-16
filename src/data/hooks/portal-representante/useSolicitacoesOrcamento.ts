@@ -35,3 +35,36 @@ export function useConverterEmPedido() {
     onSuccess: () => qc.invalidateQueries({ queryKey: [QUERY_KEY] }),
   })
 }
+
+export function useEnviarParaOrcamento() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.post(`/portal-rep/admin/solicitacoes-orcamento/${id}/enviar-orcamento`)
+      return data
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: [QUERY_KEY] }),
+  })
+}
+
+export function useLiberarParaPedido() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.post(`/portal-rep/admin/solicitacoes-orcamento/${id}/liberar-pedido`)
+      return data
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: [QUERY_KEY] }),
+  })
+}
+
+export function useRecusarSolicitacao() {
+  const qc = useQueryClient()
+  return useMutation<unknown, Error, { id: string; motivoRecusa: string }>({
+    mutationFn: async ({ id, motivoRecusa }) => {
+      const { data } = await api.post(`/portal-rep/admin/solicitacoes-orcamento/${id}/recusar`, { motivoRecusa })
+      return data
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: [QUERY_KEY] }),
+  })
+}

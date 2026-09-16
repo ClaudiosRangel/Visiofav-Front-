@@ -8,19 +8,28 @@ import {
 } from '@mantine/core'
 import { DateInput } from '@mantine/dates'
 import { useDebouncedValue } from '@mantine/hooks'
-import { IconCalculator, IconRefresh, IconSearch, IconReceipt } from '@tabler/icons-react'
+import { IconCalculator, IconRefresh, IconSearch, IconReceipt, IconSend, IconCircleCheck, IconX } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { usePerfilGuard } from '@/hooks/usePerfilGuard'
-import { useSolicitacoesOrcamento, useCalcularOrcamento, useConverterEmPedido } from '@/data/hooks/portal-representante/useSolicitacoesOrcamento'
+import {
+  useSolicitacoesOrcamento,
+  useCalcularOrcamento,
+  useConverterEmPedido,
+  useEnviarParaOrcamento,
+  useLiberarParaPedido,
+  useRecusarSolicitacao,
+} from '@/data/hooks/portal-representante/useSolicitacoesOrcamento'
 import type { StatusSolicitacao, SolicitacoesFilters } from '@/data/hooks/portal-representante/types'
-import { statusSolicitacaoColors } from '@/data/hooks/portal-representante/types'
+import { statusSolicitacaoColors, statusSolicitacaoLabels } from '@/data/hooks/portal-representante/types'
 
 const STATUS_OPTIONS = [
   { value: 'PENDENTE', label: 'Pendente' },
-  { value: 'CALCULADO', label: 'Calculado' },
-  { value: 'ENVIADO', label: 'Enviado' },
-  { value: 'ACEITO', label: 'Aceito' },
-  { value: 'RECUSADO', label: 'Recusado' },
+  { value: 'EM_ORCAMENTO', label: 'Em orçamento' },
+  { value: 'PRECIFICADA', label: 'Precificada' },
+  { value: 'LIBERADA_PEDIDO', label: 'Liberada p/ pedido' },
+  { value: 'CONVERTIDA', label: 'Convertida' },
+  { value: 'RECUSADA', label: 'Recusada' },
+  { value: 'CANCELADA', label: 'Cancelada' },
 ]
 
 export default function SolicitacoesOrcamentoPage() {
@@ -56,6 +65,63 @@ export default function SolicitacoesOrcamentoPage() {
   const { data: response, isLoading, refetch } = useSolicitacoesOrcamento(filters)
   const calcular = useCalcularOrcamento()
   const converter = useConverterEmPedido()
+  const enviarOrcamento = useEnviarParaOrcamento()
+  const liberarPedido = useLiberarParaPedido()
+  const recusar = useRecusarSolicitacao()
+
+  function acaoSimples(
+    mutation: { mutate: (id: string, opts: { onSuccess: () => void; onError: (e: any) => void }) => void },
+    id: string,
+    msgSucesso: string,
+  ) {
+    mutation.mutate(id, {
+      onSuccess: () => {
+        notifications.show({ title: 'Sucesso', message: msgSucesso, color: 'green' })
+        refetch()
+      },
+      onError: (err: any) => {
+        notifications.show({
+          title: 'Erro',
+          message: err?.response?.data?.message || 'Falha na operação',
+          color: 'red',
+        })
+      },
+    })
+  }
+
+  function handleEnviarOrcamento(id: string) {
+    if (confirm('Enviar esta solicitação para orçamento?')) {
+      acaoSimples(enviarOrcamento, id, 'Enviada para orçamento')
+    }
+  }
+
+  function handleLiberarPedido(id: string) {
+    if (confirm('Liberar esta solicitação para virar pedido?')) {
+      acaoSimples(liberarPedido, id, 'Liberada para pedido')
+    }
+  }
+
+  function handleRecusar(id: string) {
+    const motivo = prompt('Informe o motivo da recusa:')
+    if (motivo && motivo.trim()) {
+      recusar.mutate(
+        { id, motivoRecusa: motivo.trim() },
+        {
+          onSuccess: () => {
+            notifications.show({ title: 'Recusada', message: 'Solicitação recusada', color: 'orange' })
+            refetch()
+          },
+          onError: (err: any) => {
+            notifications.show({
+              title: 'Erro',
+              message: err?.response?.data?.message || 'Falha ao recusar',
+              color: 'red',
+            })
+          },
+        },
+      )
+    }
+  }
 
   const items = response?.solicitacoes || []
   const total = response?.total || 0
@@ -184,10 +250,10 @@ export default function SolicitacoesOrcamentoPage() {
             {items.map((item) => (
               <Table.Tr key={item.id}>
                 <Table.Td>{item.representante?.vendedor?.nome || item.representanteNome || '—'}</Table.Td>
-                <Table.Td>{item.clienteNome || '—'}</Table.Td>
+                <Table.Td>{item.clienteNomeExibicao || item.clienteNome || '—'}</Table.Td>
                 <Table.Td>
                   <Badge color={statusSolicitacaoColors[item.status] || 'gray'}>
-                    {item.status}
+                    {statusSolicitacaoLabels[item.status] || item.status}
                   </Badge>
                 </Table.Td>
                 <Table.Td>
@@ -196,7 +262,14 @@ export default function SolicitacoesOrcamentoPage() {
                 <Table.Td>
                   <Group gap={4}>
                     {item.status === 'PENDENTE' && (
-                      <Tooltip label="Calcular orçamento">
+                      <Tooltip label="Enviar para orçamento">
+                        <ActionIcon variant="subtle" color="indigo" onClick={() => handleEnviarOrcamento(item.id)}>
+                          <IconSend size={18} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
+                    {item.status === 'EM_ORCAMENTO' && (
+                      <Tooltip label="Precificar (calcular)">
                         <ActionIcon
                           variant="subtle"
                           color="blue"
@@ -208,7 +281,14 @@ export default function SolicitacoesOrcamentoPage() {
                         </ActionIcon>
                       </Tooltip>
                     )}
-                    {item.status === 'CALCULADO' && (
+                    {item.status === 'PRECIFICADA' && (
+                      <Tooltip label="Liberar para pedido">
+                        <ActionIcon variant="subtle" color="teal" onClick={() => handleLiberarPedido(item.id)}>
+                          <IconCircleCheck size={18} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
+                    {item.status === 'LIBERADA_PEDIDO' && (
                       <Tooltip label="Converter em Pedido de Venda">
                         <ActionIcon
                           variant="subtle"
@@ -218,6 +298,13 @@ export default function SolicitacoesOrcamentoPage() {
                           loading={converter.isPending && convertendoId === item.id}
                         >
                           <IconReceipt size={18} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
+                    {['EM_ORCAMENTO', 'PRECIFICADA', 'LIBERADA_PEDIDO'].includes(item.status) && (
+                      <Tooltip label="Recusar">
+                        <ActionIcon variant="subtle" color="red" onClick={() => handleRecusar(item.id)}>
+                          <IconX size={18} />
                         </ActionIcon>
                       </Tooltip>
                     )}
