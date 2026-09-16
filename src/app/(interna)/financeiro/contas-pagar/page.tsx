@@ -55,6 +55,7 @@ export default function ContasPagarPage() {
   // Filtros
   const [fDescricao, setFDescricao] = useState('')
   const [fFornecedor, setFFornecedor] = useState('')
+  const [fNumeroDoc, setFNumeroDoc] = useState('')
   const [fVencIni, setFVencIni] = useState<Date | null>(null)
   const [fVencFim, setFVencFim] = useState<Date | null>(null)
   // Aplicados (só mudam ao clicar em Filtrar, evita requisição a cada tecla)
@@ -65,6 +66,7 @@ export default function ContasPagarPage() {
     const f: Record<string, string> = {}
     if (fDescricao.trim()) f.descricao = fDescricao.trim()
     if (fFornecedor.trim()) f.fornecedorNome = fFornecedor.trim()
+    if (fNumeroDoc.trim()) f.numeroDocumento = fNumeroDoc.trim()
     if (fVencIni) f.vencimentoInicio = fVencIni.toISOString()
     if (fVencFim) f.vencimentoFim = fVencFim.toISOString()
     setFiltros(f)
@@ -72,7 +74,7 @@ export default function ContasPagarPage() {
   }
 
   function limparFiltros() {
-    setFDescricao(''); setFFornecedor(''); setFVencIni(null); setFVencFim(null)
+    setFDescricao(''); setFFornecedor(''); setFNumeroDoc(''); setFVencIni(null); setFVencFim(null)
     setFiltros({}); setPage(1)
   }
 
@@ -171,6 +173,14 @@ export default function ContasPagarPage() {
             onKeyDown={(e) => e.key === 'Enter' && aplicarFiltros()}
             className="w-52"
           />
+          <TextInput
+            label="Nº Documento"
+            placeholder="Número do documento"
+            value={fNumeroDoc}
+            onChange={(e) => setFNumeroDoc(e.currentTarget.value)}
+            onKeyDown={(e) => e.key === 'Enter' && aplicarFiltros()}
+            className="w-44"
+          />
           <DateInput label="Vencimento de" value={fVencIni} onChange={setFVencIni} clearable className="w-40" />
           <DateInput label="Vencimento até" value={fVencFim} onChange={setFVencFim} clearable className="w-40" />
           <Button leftSection={<IconSearch size={16} />} onClick={aplicarFiltros}>Filtrar</Button>
@@ -184,6 +194,7 @@ export default function ContasPagarPage() {
             <Table.Tr>
               <Table.Th w={40} />
               <Table.Th>Descrição</Table.Th>
+              <Table.Th>Nº Doc.</Table.Th>
               <Table.Th>Fornecedor</Table.Th>
               <Table.Th>Valor</Table.Th>
               <Table.Th>Vencimento</Table.Th>
@@ -208,6 +219,7 @@ export default function ContasPagarPage() {
                   )}
                 </Table.Td>
                 <Table.Td>{item.descricao}</Table.Td>
+                <Table.Td className="font-mono text-sm">{item.numeroDocumento || '—'}</Table.Td>
                 <Table.Td>{item.fornecedor?.nomeFantasia || item.fornecedor?.razaoSocial || '—'}</Table.Td>
                 <Table.Td>{Number(item.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</Table.Td>
                 <Table.Td>{new Date(item.dataVencimento).toLocaleDateString('pt-BR')}</Table.Td>
@@ -255,7 +267,7 @@ export default function ContasPagarPage() {
               </Table.Tr>
               )
             })}
-            {!isLoading && items.length === 0 && <Table.Tr><Table.Td colSpan={8} className="text-center py-8 text-zinc-500">Nenhuma conta a pagar</Table.Td></Table.Tr>}
+            {!isLoading && items.length === 0 && <Table.Tr><Table.Td colSpan={9} className="text-center py-8 text-zinc-500">Nenhuma conta a pagar</Table.Td></Table.Tr>}
           </Table.Tbody>
         </Table>
         {totalPages > 1 && <Group justify="center" mt="md"><Pagination total={totalPages} value={page} onChange={setPage} /></Group>}

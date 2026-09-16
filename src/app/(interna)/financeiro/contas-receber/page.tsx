@@ -57,6 +57,7 @@ export default function ContasReceberPage() {
   // Filtros
   const [fDescricao, setFDescricao] = useState('')
   const [fCliente, setFCliente] = useState('')
+  const [fNumeroDoc, setFNumeroDoc] = useState('')
   const [fVencIni, setFVencIni] = useState<Date | null>(null)
   const [fVencFim, setFVencFim] = useState<Date | null>(null)
   const [filtros, setFiltros] = useState<Record<string, string>>({})
@@ -66,6 +67,7 @@ export default function ContasReceberPage() {
     const f: Record<string, string> = {}
     if (fDescricao.trim()) f.descricao = fDescricao.trim()
     if (fCliente.trim()) f.clienteNome = fCliente.trim()
+    if (fNumeroDoc.trim()) f.numeroDocumento = fNumeroDoc.trim()
     if (fVencIni) f.vencimentoInicio = fVencIni.toISOString()
     if (fVencFim) f.vencimentoFim = fVencFim.toISOString()
     setFiltros(f)
@@ -73,7 +75,7 @@ export default function ContasReceberPage() {
   }
 
   function limparFiltros() {
-    setFDescricao(''); setFCliente(''); setFVencIni(null); setFVencFim(null)
+    setFDescricao(''); setFCliente(''); setFNumeroDoc(''); setFVencIni(null); setFVencFim(null)
     setFiltros({}); setPage(1)
   }
 
@@ -187,6 +189,14 @@ export default function ContasReceberPage() {
             onKeyDown={(e) => e.key === 'Enter' && aplicarFiltros()}
             className="w-52"
           />
+          <TextInput
+            label="Nº Documento"
+            placeholder="Número do documento"
+            value={fNumeroDoc}
+            onChange={(e) => setFNumeroDoc(e.currentTarget.value)}
+            onKeyDown={(e) => e.key === 'Enter' && aplicarFiltros()}
+            className="w-44"
+          />
           <DateInput label="Vencimento de" value={fVencIni} onChange={setFVencIni} clearable className="w-40" />
           <DateInput label="Vencimento até" value={fVencFim} onChange={setFVencFim} clearable className="w-40" />
           <Button leftSection={<IconSearch size={16} />} onClick={aplicarFiltros}>Filtrar</Button>
@@ -200,6 +210,7 @@ export default function ContasReceberPage() {
             <Table.Tr>
               <Table.Th w={40} />
               <Table.Th>Descrição</Table.Th>
+              <Table.Th>Nº Doc.</Table.Th>
               <Table.Th>Cliente</Table.Th>
               <Table.Th>Valor</Table.Th>
               <Table.Th>Vencimento</Table.Th>
@@ -224,6 +235,7 @@ export default function ContasReceberPage() {
                   )}
                 </Table.Td>
                 <Table.Td>{item.descricao}</Table.Td>
+                <Table.Td className="font-mono text-sm">{item.numeroDocumento || '—'}</Table.Td>
                 <Table.Td>{item.cliente?.nomeFantasia || item.cliente?.razaoSocial || '—'}</Table.Td>
                 <Table.Td>{Number(item.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</Table.Td>
                 <Table.Td>{new Date(item.dataVencimento).toLocaleDateString('pt-BR')}</Table.Td>
@@ -285,7 +297,7 @@ export default function ContasReceberPage() {
               </Table.Tr>
               )
             })}
-            {!isLoading && items.length === 0 && <Table.Tr><Table.Td colSpan={8} className="text-center py-8 text-zinc-500">Nenhuma conta a receber</Table.Td></Table.Tr>}
+            {!isLoading && items.length === 0 && <Table.Tr><Table.Td colSpan={9} className="text-center py-8 text-zinc-500">Nenhuma conta a receber</Table.Td></Table.Tr>}
           </Table.Tbody>
         </Table>
         {totalPages > 1 && <Group justify="center" mt="md"><Pagination total={totalPages} value={page} onChange={setPage} /></Group>}
