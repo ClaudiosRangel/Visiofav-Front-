@@ -124,6 +124,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       { icon: IconReportAnalytics, label: 'Dashboard', href: '/financeiro/dashboard' },
       { icon: IconCreditCard, label: 'Contas a Pagar', href: '/financeiro/contas-pagar' },
       { icon: IconWallet, label: 'Contas a Receber', href: '/financeiro/contas-receber' },
+      { icon: IconUsers, label: 'Fornecedores', href: '/configurador/fornecedores' },
       { icon: IconBuildingWarehouse, label: 'Contas Bancárias', href: '/financeiro/contas' },
       { icon: IconCash, label: 'Lançamentos de Caixa', href: '/financeiro/lancamentos' },
       { icon: IconFileDescription, label: 'Extrato de Conta', href: '/financeiro/extrato' },

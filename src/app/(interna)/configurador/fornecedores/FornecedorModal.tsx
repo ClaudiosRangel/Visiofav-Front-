@@ -1,10 +1,10 @@
 'use client'
 
-import { Modal, TextInput, Button, Group, Select, Tabs } from '@mantine/core'
+import { Modal, TextInput, Button, Group, Select, Tabs, Tooltip } from '@mantine/core'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -12,9 +12,9 @@ import { api } from '@/lib/api'
 const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(u => ({ value: u, label: u }))
 
 const schema = z.object({
-  razaoSocial: z.string().min(1, 'Razão Social é obrigatória'),
+  razaoSocial: z.string().min(1, 'Razão Social / Nome é obrigatório'),
   nomeFantasia: z.string().optional(),
-  cnpj: z.string().min(1, 'CNPJ é obrigatório'),
+  cnpj: z.string().min(1, 'CPF/CNPJ é obrigatório'),
   inscEstadual: z.string().optional(),
   logradouro: z.string().optional(),
   numero: z.string().optional(),
@@ -34,18 +34,18 @@ interface Props { opened: boolean; onClose: () => void; editData?: any }
 export default function FornecedorModal({ opened, onClose, editData }: Props) {
   const queryClient = useQueryClient()
   const isEditing = !!editData
+  const [consultando, setConsultando] = useState(false)
 
   const criar = useMutation({
     mutationFn: async (body: any) => { const { data } = await api.post('/fornecedores', body); return data },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fornecedores'] }),
   })
-
   const atualizar = useMutation({
     mutationFn: async ({ id, ...body }: any) => { const { data } = await api.put(`/fornecedores/${id}`, body); return data },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fornecedores'] }),
   })
 
-  const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema) })
+  const { control, handleSubmit, reset, setValue, getValues, formState: { errors } } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
   useEffect(() => {
     if (editData) {
@@ -62,6 +62,36 @@ export default function FornecedorModal({ opened, onClose, editData }: Props) {
     }
   }, [editData, reset, opened])
 
+  async function consultarCnpj() {
+    const cnpj = getValues('cnpj')?.replace(/\D/g, '')
+    if (!cnpj || cnpj.length < 14) {
+      notifications.show({ title: 'Atenção', message: 'Informe um CNPJ válido com 14 dígitos', color: 'yellow' })
+      return
+    }
+    setConsultando(true)
+    try {
+      const { data } = await api.get(`/empresas/consulta-cnpj/${cnpj}`)
+      if (data) {
+        if (data.razaoSocial) setValue('razaoSocial', data.razaoSocial)
+        if (data.nomeFantasia) setValue('nomeFantasia', data.nomeFantasia)
+        if (data.logradouro) setValue('logradouro', data.logradouro)
+        if (data.numero) setValue('numero', data.numero)
+        if (data.complemento) setValue('complemento', data.complemento)
+        if (data.bairro) setValue('bairro', data.bairro)
+        if (data.cidade || data.municipio) setValue('cidade', data.cidade || data.municipio)
+        if (data.uf) setValue('uf', data.uf)
+        if (data.cep) setValue('cep', data.cep.replace(/\D/g, ''))
+        if (data.telefone) setValue('telefone', data.telefone)
+        if (data.email) setValue('email', data.email)
+        notifications.show({ title: 'CNPJ consultado', message: `Dados de "${data.razaoSocial}" preenchidos`, color: 'green' })
+      }
+    } catch (err: any) {
+      notifications.show({ title: 'Erro na consulta', message: err?.response?.data?.message || 'Não foi possível consultar o CNPJ', color: 'red' })
+    } finally {
+      setConsultando(false)
+    }
+  }
+
   async function onSubmit(data: FormValues) {
     try {
       if (isEditing) await atualizar.mutateAsync({ id: editData.id, ...data })
@@ -76,20 +106,29 @@ export default function FornecedorModal({ opened, onClose, editData }: Props) {
   return (
     <Modal opened={opened} onClose={onClose} title={isEditing ? 'Editar Fornecedor' : 'Novo Fornecedor'} size="xl" centered closeOnClickOutside={false}>
       <form onSubmit={handleSubmit(onSubmit)}>
-        {/* MAIN FIELDS - Always visible above tabs */}
         <div className="flex flex-col gap-4 mb-4">
           <Controller name="razaoSocial" control={control} render={({ field }) => (
-            <TextInput label={<>Razão Social <span style={{ color: 'red' }}>*</span></>} error={errors.razaoSocial?.message} {...field} />
+            <TextInput label={<>Razão Social / Nome <span style={{ color: 'red' }}>*</span></>} error={errors.razaoSocial?.message} {...field} />
           )} />
           <Controller name="nomeFantasia" control={control} render={({ field }) => (
             <TextInput label="Nome Fantasia" {...field} />
           )} />
           <Controller name="cnpj" control={control} render={({ field }) => (
-            <TextInput label={<>CNPJ <span style={{ color: 'red' }}>*</span></>} placeholder="00.000.000/0000-00" error={errors.cnpj?.message} {...field} />
+            <TextInput
+              label={<>CPF / CNPJ <span style={{ color: 'red' }}>*</span></>}
+              placeholder="000.000.000-00 ou 00.000.000/0000-00"
+              error={errors.cnpj?.message}
+              rightSection={
+                <Tooltip label="Consultar CNPJ na Receita Federal">
+                  <Button size="compact-xs" variant="light" loading={consultando} onClick={consultarCnpj}>Consultar</Button>
+                </Tooltip>
+              }
+              rightSectionWidth={90}
+              {...field}
+            />
           )} />
         </div>
 
-        {/* TABS - Secondary grouped fields */}
         <Tabs defaultValue="dados">
           <Tabs.List mb="md">
             <Tabs.Tab value="dados">Dados Cadastrais</Tabs.Tab>
@@ -98,11 +137,9 @@ export default function FornecedorModal({ opened, onClose, editData }: Props) {
           </Tabs.List>
 
           <Tabs.Panel value="dados">
-            <div className="flex flex-col gap-4">
-              <Controller name="inscEstadual" control={control} render={({ field }) => (
-                <TextInput label="Inscrição Estadual" placeholder="Isento ou número" {...field} />
-              )} />
-            </div>
+            <Controller name="inscEstadual" control={control} render={({ field }) => (
+              <TextInput label="Inscrição Estadual" placeholder="Isento ou número" {...field} />
+            )} />
           </Tabs.Panel>
 
           <Tabs.Panel value="endereco">
@@ -118,7 +155,7 @@ export default function FornecedorModal({ opened, onClose, editData }: Props) {
                 )} />
               </div>
               <Controller name="complemento" control={control} render={({ field }) => (
-                <TextInput label="Complemento" placeholder="Sala, Andar, etc." {...field} />
+                <TextInput label="Complemento" {...field} />
               )} />
               <div className="grid grid-cols-3 gap-4">
                 <Controller name="bairro" control={control} render={({ field }) => (

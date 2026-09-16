@@ -1,14 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button, Card, Group, Text, TextInput, Table, Badge, ActionIcon, Tooltip, LoadingOverlay, Pagination } from '@mantine/core'
 import { IconPlus, IconSearch, IconEdit, IconBan, IconRefresh } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { useModuloGuard } from '@/hooks/useModuloGuard'
 import FornecedorModal from './FornecedorModal'
 
 export default function FornecedoresPage() {
+  useModuloGuard('FINANCEIRO')
+  useEffect(() => { document.title = 'Vizor - Cadastros - Fornecedores' }, [])
   const queryClient = useQueryClient()
   const [modalOpen, setModalOpen] = useState(false)
   const [editItem, setEditItem] = useState<any>(null)
@@ -41,7 +44,7 @@ export default function FornecedoresPage() {
 
   return (
     <div>
-      <Text size="xs" c="dimmed" mb={4}>Início / Configurador / Fornecedores</Text>
+      <Text size="xs" c="dimmed" mb={4}>Início / Cadastros / Fornecedores</Text>
       <Text size="xl" fw={600} mb="lg">Fornecedores</Text>
 
       <Card pos="relative">

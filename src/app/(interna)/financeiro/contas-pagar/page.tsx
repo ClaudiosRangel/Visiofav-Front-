@@ -6,7 +6,7 @@ import {
   ActionIcon, Tooltip, Modal, LoadingOverlay, Pagination, Checkbox,
 } from '@mantine/core'
 import { DateInput } from '@mantine/dates'
-import { IconPlus, IconRefresh, IconCash, IconX, IconArrowBackUp, IconChecks } from '@tabler/icons-react'
+import { IconPlus, IconRefresh, IconCash, IconX, IconArrowBackUp, IconChecks, IconPencil, IconSearch, IconFilterOff } from '@tabler/icons-react'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -49,12 +49,35 @@ export default function ContasPagarPage() {
   const [page, setPage] = useState(1)
   const [selecionados, setSelecionados] = useState<string[]>([])
   const [loteModal, setLoteModal] = useState(false)
+  const [editar, setEditar] = useState<any | null>(null)
+  // Filtros
+  const [fDescricao, setFDescricao] = useState('')
+  const [fFornecedor, setFFornecedor] = useState('')
+  const [fVencIni, setFVencIni] = useState<Date | null>(null)
+  const [fVencFim, setFVencFim] = useState<Date | null>(null)
+  // Aplicados (só mudam ao clicar em Filtrar, evita requisição a cada tecla)
+  const [filtros, setFiltros] = useState<Record<string, string>>({})
   const limit = 20
 
+  function aplicarFiltros() {
+    const f: Record<string, string> = {}
+    if (fDescricao.trim()) f.descricao = fDescricao.trim()
+    if (fFornecedor.trim()) f.fornecedorNome = fFornecedor.trim()
+    if (fVencIni) f.vencimentoInicio = fVencIni.toISOString()
+    if (fVencFim) f.vencimentoFim = fVencFim.toISOString()
+    setFiltros(f)
+    setPage(1)
+  }
+
+  function limparFiltros() {
+    setFDescricao(''); setFFornecedor(''); setFVencIni(null); setFVencFim(null)
+    setFiltros({}); setPage(1)
+  }
+
   const { data: response, isLoading, refetch } = useQuery<any>({
-    queryKey: ['contas-pagar', { status: statusFilter, page, limit }],
+    queryKey: ['contas-pagar', { status: statusFilter, page, limit, ...filtros }],
     queryFn: async () => {
-      const params: Record<string, unknown> = { page, limit }
+      const params: Record<string, unknown> = { page, limit, ...filtros }
       if (statusFilter) params.status = statusFilter
       const { data } = await api.get('/contas-pagar', { params })
       return data
@@ -98,6 +121,12 @@ export default function ContasPagarPage() {
     onError: (e: any) => notifications.show({ color: 'red', message: e?.response?.data?.message || 'Falha' }),
   })
 
+  const editarMut = useMutation({
+    mutationFn: async ({ id, ...body }: any) => { const { data } = await api.put(`/contas-pagar/${id}`, body); return data },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contas-pagar'] }); setEditar(null); notifications.show({ title: 'Sucesso', message: 'Título atualizado', color: 'green' }) },
+    onError: (err: any) => { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao editar', color: 'red' }) },
+  })
+
   const criarForm = useForm<CriarValues>({ resolver: zodResolver(criarSchema) })
 
   const items = response?.data || []
@@ -121,6 +150,30 @@ export default function ContasPagarPage() {
             <Button variant="default" leftSection={<IconRefresh size={16} />} onClick={() => refetch()}>Atualizar</Button>
             <Button leftSection={<IconPlus size={16} />} onClick={() => setDocFormOpen(true)}>Nova Conta</Button>
           </Group>
+        </Group>
+
+        {/* Barra de filtros */}
+        <Group align="flex-end" mb="md" gap="sm">
+          <TextInput
+            label="Descrição"
+            placeholder="Buscar por descrição"
+            value={fDescricao}
+            onChange={(e) => setFDescricao(e.currentTarget.value)}
+            onKeyDown={(e) => e.key === 'Enter' && aplicarFiltros()}
+            className="w-52"
+          />
+          <TextInput
+            label="Fornecedor"
+            placeholder="Nome do fornecedor"
+            value={fFornecedor}
+            onChange={(e) => setFFornecedor(e.currentTarget.value)}
+            onKeyDown={(e) => e.key === 'Enter' && aplicarFiltros()}
+            className="w-52"
+          />
+          <DateInput label="Vencimento de" value={fVencIni} onChange={setFVencIni} clearable className="w-40" />
+          <DateInput label="Vencimento até" value={fVencFim} onChange={setFVencFim} clearable className="w-40" />
+          <Button leftSection={<IconSearch size={16} />} onClick={aplicarFiltros}>Filtrar</Button>
+          <Button variant="subtle" leftSection={<IconFilterOff size={16} />} onClick={limparFiltros}>Limpar</Button>
         </Group>
 
         <DocumentoFinanceiroForm tipo="pagar" opened={docFormOpen} onClose={() => setDocFormOpen(false)} onSaved={() => queryClient.invalidateQueries({ queryKey: ['contas-pagar'] })} />
@@ -176,6 +229,13 @@ export default function ContasPagarPage() {
                       </Tooltip>
                     )}
                     {aberto && (
+                      <Tooltip label="Editar título">
+                        <ActionIcon variant="subtle" color="blue" onClick={() => setEditar({ id: item.id, descricao: item.descricao, valor: Number(item.valor), dataVencimento: new Date(item.dataVencimento), observacao: item.observacao || '' })}>
+                          <IconPencil size={18} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
+                    {aberto && (
                       <Tooltip label="Cancelar título">
                         <ActionIcon variant="subtle" color="red" onClick={() => modals.openConfirmModal({ title: 'Cancelar', children: <Text size="sm">Cancelar este título?</Text>, labels: { confirm: 'Cancelar título', cancel: 'Voltar' }, confirmProps: { color: 'red' }, onConfirm: () => cancelar.mutate(item.id) })}>
                           <IconX size={18} />
@@ -226,6 +286,33 @@ export default function ContasPagarPage() {
         titulos={items.filter((i: any) => selecionados.includes(i.id)).map((i: any) => ({ id: i.id, descricao: i.descricao, valor: Number(i.valor), dataVencimento: i.dataVencimento }))}
         onConfirm={(payload) => baixarLote.mutate(payload)}
       />
+
+      {/* Modal Editar título aberto */}
+      <Modal opened={!!editar} onClose={() => setEditar(null)} title="Editar Conta a Pagar" centered>
+        {editar && (
+          <>
+            <TextInput label="Descrição" mb="sm" value={editar.descricao} onChange={(e) => setEditar({ ...editar, descricao: e.currentTarget.value })} />
+            <NumberInput label="Valor" prefix="R$ " decimalScale={2} mb="sm" value={editar.valor} onChange={(v) => setEditar({ ...editar, valor: typeof v === 'number' ? v : 0 })} />
+            <DateInput label="Vencimento" mb="sm" value={editar.dataVencimento} onChange={(d) => setEditar({ ...editar, dataVencimento: d })} />
+            <TextInput label="Observação" mb="sm" value={editar.observacao} onChange={(e) => setEditar({ ...editar, observacao: e.currentTarget.value })} />
+            <Group justify="flex-end" mt="md">
+              <Button variant="default" onClick={() => setEditar(null)}>Cancelar</Button>
+              <Button
+                loading={editarMut.isPending}
+                onClick={() => editarMut.mutate({
+                  id: editar.id,
+                  descricao: editar.descricao,
+                  valor: editar.valor,
+                  dataVencimento: editar.dataVencimento instanceof Date ? editar.dataVencimento.toISOString() : editar.dataVencimento,
+                  observacao: editar.observacao || null,
+                })}
+              >
+                Salvar
+              </Button>
+            </Group>
+          </>
+        )}
+      </Modal>
     </div>
   )
 }

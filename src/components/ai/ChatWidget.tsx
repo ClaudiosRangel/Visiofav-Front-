@@ -479,7 +479,7 @@ export default function ChatWidget() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".xml"
+                accept=".xml,application/pdf,image/*,.pdf,.png,.jpg,.jpeg,.webp"
                 style={{ display: 'none' }}
                 onChange={handleFileUpload}
               />
@@ -489,7 +489,7 @@ export default function ChatWidget() {
                 size="lg"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={chat.isPending || upload.isPending}
-                aria-label="Enviar arquivo XML"
+                aria-label="Enviar XML de NF-e ou foto/PDF de conta (boleto, fatura, guia)"
               >
                 <IconPaperclip size={18} />
               </ActionIcon>
