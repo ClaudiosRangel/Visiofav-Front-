@@ -167,8 +167,9 @@ export default function ProgramacaoPage() {
     { id: 'observacao', label: 'Acompanhamento' },
     { id: 'previsaoConclusao', label: 'Prev. Conclusão' },
     { id: 'tipoColagem', label: 'Tipo Colagem' },
+    { id: 'enviado', label: 'Enviado' },
   ]
-  const COLUNAS_DEFAULT_CORTADEIRA = ['os', 'cliente', 'produto', 'quantidade', 'tiragem', 'produzida', 'entrega', 'material', 'gramatura', 'formato', 'kg']
+  const COLUNAS_DEFAULT_CORTADEIRA = ['os', 'cliente', 'produto', 'quantidade', 'tiragem', 'produzida', 'entrega', 'material', 'gramatura', 'formato', 'kg', 'enviado']
   const COLUNAS_DEFAULT_OUTROS = ['os', 'cliente', 'produto', 'tipoOp', 'quantidade', 'tiragem', 'produzida', 'entrega', 'previsaoConclusao', 'material', 'gramatura', 'formato', 'matriz', 'cores', 'pantone01', 'pantone02', 'pantone03', 'kg']
 
   const [colunasImpressao, setColunasImpressao] = useState<Record<string, string[]>>(() => {
@@ -267,6 +268,10 @@ export default function ProgramacaoPage() {
   const [editingObs, setEditingObs] = useState<{ id: string; value: string } | null>(null)
   const [editingQtd, setEditingQtd] = useState<{ opId: string; etapaId: string; value: string } | null>(null)
   const [editingProd, setEditingProd] = useState<{ etapaId: string; value: string } | null>(null)
+  // Modal de envio da Cortadeira para depósito do WMS (coluna "Enviado")
+  const [modalEnviar, setModalEnviar] = useState<{ etapaId: string; opNumero: string; depositoId: string | null; quantidade: string } | null>(null)
+  const [depositos, setDepositos] = useState<Array<{ value: string; label: string; codigo: string }>>([])
+  const [enviarLoading, setEnviarLoading] = useState(false)
   const [editingGrupo, setEditingGrupo] = useState<string | null>(null) // centroId being renamed
   // Mover OS para outro grupo
   const [modalMover, setModalMover] = useState<{ etapaId: string; opNumero: number; centroAtualId: string; centroDescricao: string } | null>(null)
@@ -559,14 +564,19 @@ export default function ProgramacaoPage() {
   async function carregar() {
     setLoading(true)
     try {
-      const [painelRes, centrosRes, tiposRes] = await Promise.all([
+      const [painelRes, centrosRes, tiposRes, depositosRes] = await Promise.all([
         api.get('/pcp/programacao/painel'),
         api.get('/centros-producao', { params: { limit: 50, status: 'true' } }),
         api.get('/tipos-processo', { params: { status: 'true' } }),
+        api.get('/depositos', { params: { limit: 100 } }).catch(() => ({ data: { data: [] } })),
       ])
       setPainel(painelRes.data)
       setCentrosDisponiveis((centrosRes.data.data || []).map((c: any) => ({ value: c.id, label: `${c.codigo} - ${c.descricao}` })))
       setTiposProcesso(tiposRes.data.data || [])
+      // Depósitos ativos para a coluna "Enviado" — mostra o código (DEP-001) e a descrição
+      setDepositos((depositosRes.data.data || [])
+        .filter((d: any) => d.status !== false)
+        .map((d: any) => ({ value: d.id, label: `${d.codigo} — ${d.descricao}`, codigo: d.codigo })))
       const ab: Record<string, boolean> = {}
       for (const c of (painelRes.data.centros || [])) { if (c.resumo.total > 0) ab[c.centro.id] = true }
       setAbertos(ab)
@@ -1002,6 +1012,41 @@ export default function ProgramacaoPage() {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar quantidade', color: 'red' })
     }
     setEditingQtd(null)
+  }
+
+  // Salva o envio da Cortadeira para um depósito do WMS (coluna "Enviado").
+  // depositoId=null limpa o envio. Exibe o resultado como "DEP-001 1500".
+  async function salvarEnvio() {
+    if (!modalEnviar) return
+    setEnviarLoading(true)
+    try {
+      const quantidade = modalEnviar.quantidade
+        ? parseFloat(modalEnviar.quantidade.replace(/\./g, '').replace(',', '.'))
+        : null
+      const { data } = await api.patch(`/pcp/etapas/${modalEnviar.etapaId}/enviar`, {
+        depositoId: modalEnviar.depositoId,
+        quantidade,
+      })
+      // Atualização otimista no painel
+      setPainel((prev: any) => {
+        if (!prev) return prev
+        const centros = prev.centros.map((c: any) => ({
+          ...c,
+          etapas: c.etapas.map((e: any) => e.id === modalEnviar.etapaId ? { ...e, enviado: data.enviado } : e),
+        }))
+        return { ...prev, centros }
+      })
+      notifications.show({
+        title: 'Envio registrado',
+        message: data.enviado?.display || 'Envio removido',
+        color: 'green',
+      })
+      setModalEnviar(null)
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao registrar envio', color: 'red' })
+    } finally {
+      setEnviarLoading(false)
+    }
   }
 
   async function salvarProduzida(etapaId: string, valor: number) {
@@ -2128,6 +2173,7 @@ export default function ProgramacaoPage() {
                           {colVis('gramatura') && <Table.Th>Gramatura</Table.Th>}
                           {colVis('formato') && <Table.Th>Formato</Table.Th>}
                           {colVis('kg') && <Table.Th>KG</Table.Th>}
+                          {colVis('enviado') && <Table.Th>Enviado</Table.Th>}
                           {colVis('observacao') && <Table.Th>Acomp.</Table.Th>}
                           <Table.Th>Ações</Table.Th>
                         </Table.Tr>
@@ -2217,6 +2263,23 @@ export default function ProgramacaoPage() {
                             {colVis('gramatura') && <Table.Td>{etapa.gramatura || '—'}</Table.Td>}
                             {colVis('formato') && <Table.Td>{etapa.formato || '—'}</Table.Td>}
                             {colVis('kg') && <Table.Td>{etapa.pesoKg ? etapa.pesoKg.toLocaleString('pt-BR') : '—'}</Table.Td>}
+                            {colVis('enviado') && <Table.Td>
+                              <Text
+                                size="sm"
+                                fw={etapa.enviado ? 600 : undefined}
+                                c={etapa.enviado ? 'teal' : 'dimmed'}
+                                style={{ cursor: 'pointer', whiteSpace: 'nowrap', minHeight: 20 }}
+                                title="Clique para registrar o envio para um depósito"
+                                onClick={() => setModalEnviar({
+                                  etapaId: etapa.id,
+                                  opNumero: etapa.opNumero,
+                                  depositoId: etapa.enviado?.depositoId || null,
+                                  quantidade: etapa.enviado?.quantidade != null ? String(etapa.enviado.quantidade) : '',
+                                })}
+                              >
+                                {etapa.enviado?.display || 'Enviar…'}
+                              </Text>
+                            </Table.Td>}
                             {colVis('observacao') && <Table.Td style={{ minWidth: 130, ...(etapa.observacaoOperador?.replace('[MATRIZ_OK]', '').trim() ? { background: '#2dd4a8', borderRadius: 2 } : {}) }}>
                               {editingObs?.id === etapa.id ? (
                                 <TextInput
@@ -2889,6 +2952,52 @@ export default function ProgramacaoPage() {
             </Stack>
           </Tabs.Panel>
         </Tabs>
+      </Modal>
+
+      {/* Modal: Registrar Envio para Depósito (coluna "Enviado" da Cortadeira) */}
+      <Modal opened={!!modalEnviar} onClose={() => setModalEnviar(null)} title={`Enviar — OS #${modalEnviar?.opNumero}`} centered>
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Informe para qual depósito o material foi enviado e a quantidade. O resultado
+            aparece na coluna como, por exemplo, <strong>DEP-001 1500</strong>.
+          </Text>
+          <Select
+            label="Local enviado (Depósito)"
+            placeholder="Selecione o depósito"
+            data={depositos}
+            value={modalEnviar?.depositoId || null}
+            searchable
+            clearable
+            nothingFoundMessage="Nenhum depósito cadastrado"
+            onChange={(v) => setModalEnviar((prev) => prev ? { ...prev, depositoId: v } : prev)}
+          />
+          <NumberInput
+            label="Quantidade enviada"
+            placeholder="Ex: 1500"
+            min={0}
+            thousandSeparator="."
+            decimalSeparator=","
+            value={modalEnviar?.quantidade ? Number(modalEnviar.quantidade.replace(/\./g, '').replace(',', '.')) : ''}
+            onChange={(v) => setModalEnviar((prev) => prev ? { ...prev, quantidade: v === '' || v == null ? '' : String(v) } : prev)}
+          />
+          {modalEnviar?.depositoId && (
+            <Text size="sm" c="teal" fw={600}>
+              Resultado: {depositos.find((d) => d.value === modalEnviar.depositoId)?.codigo || 'DEP-???'}
+              {modalEnviar.quantidade ? ` ${Number(modalEnviar.quantidade.replace(/\./g, '').replace(',', '.')).toLocaleString('pt-BR')}` : ''}
+            </Text>
+          )}
+          <Group justify="space-between">
+            <Button
+              variant="subtle"
+              color="red"
+              disabled={enviarLoading || !modalEnviar?.depositoId}
+              onClick={() => { setModalEnviar((prev) => prev ? { ...prev, depositoId: null, quantidade: '' } : prev) }}
+            >
+              Limpar
+            </Button>
+            <Button loading={enviarLoading} onClick={salvarEnvio}>Salvar</Button>
+          </Group>
+        </Stack>
       </Modal>
 
       {/* Modal: Postergar Data de Entrega */}
