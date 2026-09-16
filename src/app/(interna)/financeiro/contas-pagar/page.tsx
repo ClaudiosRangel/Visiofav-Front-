@@ -6,7 +6,7 @@ import {
   ActionIcon, Tooltip, Modal, LoadingOverlay, Pagination, Checkbox,
 } from '@mantine/core'
 import { DateInput } from '@mantine/dates'
-import { IconPlus, IconRefresh, IconCash, IconX, IconArrowBackUp, IconChecks, IconPencil, IconSearch, IconFilterOff } from '@tabler/icons-react'
+import { IconPlus, IconRefresh, IconCash, IconX, IconArrowBackUp, IconChecks, IconPencil, IconSearch, IconFilterOff, IconTrash } from '@tabler/icons-react'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -106,6 +106,11 @@ export default function ContasPagarPage() {
     mutationFn: (id: string) => titulosApi.cancelarPagar(id),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contas-pagar'] }); notifications.show({ color: 'green', message: 'Título cancelado' }) },
     onError: (e: any) => notifications.show({ color: 'red', message: e?.response?.data?.message || 'Falha' }),
+  })
+  const excluir = useMutation({
+    mutationFn: async (id: string) => { await api.delete(`/contas-pagar/${id}`) },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contas-pagar'] }); notifications.show({ color: 'green', message: 'Título excluído' }) },
+    onError: (e: any) => notifications.show({ color: 'red', message: e?.response?.data?.message || 'Falha ao excluir' }),
   })
   const estornar = useMutation({
     mutationFn: (id: string) => titulosApi.estornarPagar(id),
@@ -232,8 +237,15 @@ export default function ContasPagarPage() {
                     )}
                     {aberto && (
                       <Tooltip label="Cancelar título">
-                        <ActionIcon variant="subtle" color="red" onClick={() => modals.openConfirmModal({ title: 'Cancelar', children: <Text size="sm">Cancelar este título?</Text>, labels: { confirm: 'Cancelar título', cancel: 'Voltar' }, confirmProps: { color: 'red' }, onConfirm: () => cancelar.mutate(item.id) })}>
+                        <ActionIcon variant="subtle" color="orange" onClick={() => modals.openConfirmModal({ title: 'Cancelar', children: <Text size="sm">Cancelar este título? Ele fica no histórico como CANCELADA.</Text>, labels: { confirm: 'Cancelar título', cancel: 'Voltar' }, confirmProps: { color: 'orange' }, onConfirm: () => cancelar.mutate(item.id) })}>
                           <IconX size={18} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
+                    {!pago && (
+                      <Tooltip label="Excluir definitivamente">
+                        <ActionIcon variant="subtle" color="red" onClick={() => modals.openConfirmModal({ title: 'Excluir título', children: <Text size="sm">Excluir este título permanentemente? Ele sai da relação e não poderá ser recuperado.</Text>, labels: { confirm: 'Excluir', cancel: 'Voltar' }, confirmProps: { color: 'red' }, onConfirm: () => excluir.mutate(item.id) })}>
+                          <IconTrash size={18} />
                         </ActionIcon>
                       </Tooltip>
                     )}
