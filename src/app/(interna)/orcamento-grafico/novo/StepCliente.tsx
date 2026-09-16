@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Stack, Autocomplete, TextInput, Text, Group, Badge } from '@mantine/core'
+import { Stack, Autocomplete, Text, Group, Badge, Loader } from '@mantine/core'
 import { IconUser, IconSearch } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { useDebouncedValue } from '@mantine/hooks'
@@ -25,20 +25,18 @@ export default function StepCliente({ formData, updateForm }: Props) {
   const [vendedores, setVendedores] = useState<{ value: string; label: string }[]>([])
   const [loading, setLoading] = useState(false)
 
-  // Buscar clientes
+  // Buscar clientes. Sem termo (ou 1 char), traz uma lista inicial para o
+  // dropdown já mostrar opções ao focar — antes exigia 2+ chars e ficava vazio.
   useEffect(() => {
-    if (!debounced || debounced.length < 2) {
-      setClientes([])
-      return
-    }
+    const termo = debounced?.trim() || ''
     setLoading(true)
-    api.get('/clientes', { params: { busca: debounced, limit: 10 } })
+    api.get('/clientes', { params: termo ? { busca: termo, limit: 20 } : { limit: 20 } })
       .then(({ data }) => {
         const items = (data.data || data || []).map((c: any) => ({
           value: c.nome || c.razaoSocial || c.nomeFantasia || '',
           label: c.nome || c.razaoSocial || c.nomeFantasia || '',
           id: c.id,
-        }))
+        })).filter((c: ClienteOption) => c.label)
         setClientes(items)
       })
       .catch(() => setClientes([]))
@@ -89,11 +87,12 @@ export default function StepCliente({ formData, updateForm }: Props) {
         label="Cliente"
         placeholder="Busque por nome, razão social..."
         leftSection={<IconSearch size={16} />}
-        data={clientes.map(c => c.label)}
+        data={Array.from(new Set(clientes.map(c => c.label)))}
         value={busca}
         onChange={handleClienteChange}
         onOptionSubmit={handleClienteSelect}
-        limit={10}
+        rightSection={loading ? <Loader size="xs" /> : undefined}
+        limit={20}
       />
 
       {formData.clienteId && (
