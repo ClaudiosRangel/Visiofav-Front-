@@ -158,6 +158,13 @@ export default function StepRevisao({ formData, updateForm }: Props) {
         </Alert>
       )}
 
+      {formData.produtoId && (
+        <Alert color="blue" variant="light" title="Repetição de produto">
+          Este orçamento é uma repetição do produto <strong>{formData.produtoNome}</strong>.
+          A OP usará a estrutura (BOM) e o roteiro cadastrados dele.
+        </Alert>
+      )}
+
       {resultado && !loading && (
         <>
           {/* Resumo principal */}
