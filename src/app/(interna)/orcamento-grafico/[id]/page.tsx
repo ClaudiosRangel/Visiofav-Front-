@@ -397,6 +397,9 @@ export default function OrcamentoDetalhePage() {
           <Stack gap={4}>
             <Text size="sm"><strong>Cliente:</strong> {orcamento.clienteNome || '—'}</Text>
             <Text size="sm"><strong>Tipo de Embalagem:</strong> {orcamento.tipoEmbalagem?.descricao || '—'}</Text>
+            {orcamento.produtoNome && (
+              <Text size="sm"><strong>Produto (repetição):</strong> {orcamento.produtoNome}</Text>
+            )}
             <Text size="sm"><strong>Quantidade:</strong> {orcamento.quantidade?.toLocaleString('pt-BR')}</Text>
             {orcamento.validadeAte && (
               <Text size="sm"><strong>Validade:</strong> {formatDate(orcamento.validadeAte)}</Text>
