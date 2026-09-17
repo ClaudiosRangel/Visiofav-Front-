@@ -127,6 +127,22 @@ export const financeiroApi = {
   inadimplencia: () => api.get<any[]>(`${BASE}/relatorios/inadimplencia`).then((r) => r.data),
   relatorioContas: (params: { tipo: 'RECEBER' | 'PAGAR'; status?: string; de?: string; ate?: string; categoriaId?: string; centroCustoId?: string }) =>
     api.get<any[]>(`${BASE}/relatorios/contas`, { params }).then((r) => r.data),
+  resumoExecutivo: (params: { de: string; ate: string }) =>
+    api.get<ResumoExecutivo>(`${BASE}/relatorios/resumo-executivo`, { params }).then((r) => r.data),
+}
+
+export interface ResumoExecutivo {
+  periodo: { de: string; ate: string }
+  entrou: number
+  saiu: number
+  resultado: number
+  saldoBancos: number
+  totalReceberAberto: number
+  totalPagarAberto: number
+  inadimplencia: number
+  aVencer30: { receber: number; pagar: number }
+  topDespesasCategoria: { categoria: string; valor: number }[]
+  contasBancarias: { nome: string; saldo: number }[]
 }
 
 // ---- Contas a pagar/receber (Onda 1: editar/cancelar/estornar/lote) ----
