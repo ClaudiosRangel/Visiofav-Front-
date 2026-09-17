@@ -198,6 +198,7 @@ export default function ContasPagarPage() {
               <Table.Th>Fornecedor</Table.Th>
               <Table.Th>Valor</Table.Th>
               <Table.Th>Vencimento</Table.Th>
+              <Table.Th>Pagamento</Table.Th>
               <Table.Th>Parcela</Table.Th>
               <Table.Th>Status</Table.Th>
               <Table.Th className="w-20">Ações</Table.Th>
@@ -223,6 +224,7 @@ export default function ContasPagarPage() {
                 <Table.Td>{item.fornecedor?.nomeFantasia || item.fornecedor?.razaoSocial || '—'}</Table.Td>
                 <Table.Td>{Number(item.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</Table.Td>
                 <Table.Td>{new Date(item.dataVencimento).toLocaleDateString('pt-BR')}</Table.Td>
+                <Table.Td>{item.dataPagamento ? new Date(item.dataPagamento).toLocaleDateString('pt-BR') : '—'}</Table.Td>
                 <Table.Td>{item.totalParcelas > 1 ? `${item.parcela}/${item.totalParcelas}` : '—'}</Table.Td>
                 <Table.Td><Badge color={cancelado ? 'gray' : (statusColors[item.statusCalculado] || 'gray')}>{cancelado ? 'CANCELADA' : item.statusCalculado}</Badge></Table.Td>
                 <Table.Td>
@@ -267,7 +269,7 @@ export default function ContasPagarPage() {
               </Table.Tr>
               )
             })}
-            {!isLoading && items.length === 0 && <Table.Tr><Table.Td colSpan={9} className="text-center py-8 text-zinc-500">Nenhuma conta a pagar</Table.Td></Table.Tr>}
+            {!isLoading && items.length === 0 && <Table.Tr><Table.Td colSpan={10} className="text-center py-8 text-zinc-500">Nenhuma conta a pagar</Table.Td></Table.Tr>}
           </Table.Tbody>
         </Table>
         {totalPages > 1 && <Group justify="center" mt="md"><Pagination total={totalPages} value={page} onChange={setPage} /></Group>}
