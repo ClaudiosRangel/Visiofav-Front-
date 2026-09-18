@@ -57,7 +57,16 @@ export default function EnderecoModal({ opened, onClose, editData }: Props) {
       await criar.mutateAsync(data)
       notifications.show({ title: 'Sucesso', message: 'Endereço criado', color: 'green' })
       onClose()
-    } catch { notifications.show({ title: 'Erro', message: 'Falha ao criar', color: 'red' }) }
+    } catch (err: any) {
+      // Expor a mensagem real do backend (duplicidade, validação de formato,
+      // FK inválida) em vez de um "Falha ao criar" genérico. Inclui os erros
+      // de validação de formato quando presentes.
+      const resp = err?.response?.data
+      const msg = resp?.erros?.length
+        ? `${resp.message}: ${resp.erros.join('; ')}`
+        : resp?.message || 'Falha ao criar endereço'
+      notifications.show({ title: 'Erro', message: msg, color: 'red' })
+    }
   }
 
   return (
