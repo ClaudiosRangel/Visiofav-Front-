@@ -359,6 +359,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
         label: 'Cadastros', icon: IconDatabase, items: [
           { icon: IconPackage, label: 'Produtos', href: '/wms/consulta/produtos' },
           { icon: IconBarcode, label: 'SKU / Embalagens', href: '/wms/sku' },
+          { icon: IconSitemap, label: 'Hierarquia Mercadológica', href: '/configurador/hierarquia' },
           { icon: IconDatabase, label: 'Dados Logísticos', href: '/wms/dados-logisticos' },
           { icon: IconTruckDelivery, label: 'Rotas', href: '/configurador/rotas' },
           { icon: IconBuildingStore, label: 'Fornecedores', href: '/wms/consulta/fornecedores' },
@@ -538,6 +539,7 @@ export function detectModule(pathname: string): string | null {
   if (pathname.startsWith('/configurador/veiculos')) return 'wms'
   if (pathname.startsWith('/configurador/forma-armazenagem')) return 'wms'
   if (pathname.startsWith('/configurador/ambiente-armazenagem')) return 'wms'
+  if (pathname.startsWith('/configurador/hierarquia')) return 'wms'
   if (pathname.startsWith('/configurador')) return 'configurador'
   if (pathname.startsWith('/wms') || pathname.startsWith('/recebimento') || pathname.startsWith('/expedicao') || pathname.startsWith('/picking') || pathname.startsWith('/movimentacao') || pathname.startsWith('/inventario') || pathname.startsWith('/estoque') || pathname.startsWith('/gestao')) return 'wms'
   return null

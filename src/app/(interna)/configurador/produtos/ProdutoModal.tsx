@@ -48,6 +48,8 @@ const produtoSchema = z.object({
   aceitarSenha: z.boolean().optional(),
   aceitarCcePendente: z.boolean().optional(),
   toleranciaQuantidadePercentual: z.number().min(0).max(100).nullable().optional(),
+  // Hierarquia Mercadológica — vínculo ao nível folha (Família).
+  familiaId: z.string().nullable().optional(),
   // Código de barras
   cEAN: z.string().max(14).optional(),
   // Fiscal
@@ -112,6 +114,18 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
     },
   })
 
+  // Famílias da Hierarquia Mercadológica (nível folha ao qual o produto se liga).
+  const { data: familiasResp } = useQuery<any>({
+    queryKey: ['hierarquia-familias'],
+    queryFn: async () => { const { data } = await api.get('/hierarquia-mercadologica', { params: { tipo: 'FAMILIA', status: true, limit: 500 } }); return data },
+    enabled: opened,
+    staleTime: 1000 * 60,
+  })
+  const familiaOptions = (familiasResp?.data || []).map((f: any) => ({
+    value: f.id,
+    label: `${f.codigoHierarquico} — ${f.descricao}`,
+  }))
+
   const { control, handleSubmit, reset, setValue, formState: { errors } } = useForm<ProdutoForm>({
     resolver: zodResolver(produtoSchema),
     defaultValues: { codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, exigeLote: false, aceitarSenha: false, aceitarCcePendente: false, toleranciaQuantidadePercentual: null, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 },
@@ -151,10 +165,11 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
         cstCOFINS: dados.cstCOFINS || '',
         aliqCOFINS: Number(dados.aliqCOFINS) || 0,
         origemProd: dados.origemProd ?? 0,
+        familiaId: dados.familiaId ?? null,
       })
       setImagemUrl(dados.imagemUrl || null)
     } else {
-      reset({ codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, exigeLote: false, aceitarSenha: false, aceitarCcePendente: false, toleranciaQuantidadePercentual: null, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 })
+      reset({ codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, exigeLote: false, aceitarSenha: false, aceitarCcePendente: false, toleranciaQuantidadePercentual: null, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0, familiaId: null })
       setImagemUrl(null)
     }
   }, [editData, produtoCompleto, reset, opened])
@@ -346,8 +361,36 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
                   </div>
                 )} />
               </div>
+              {/* Hierarquia Mercadológica — vínculo à Família (nível folha). */}
               <div className="mt-4">
-                <BloqueioConferenciaSection control={control} />
+                <Controller name="familiaId" control={control} render={({ field }) => {
+                  const familiaSel = (familiasResp?.data || []).find((f: any) => f.id === field.value)
+                  return (
+                    <div>
+                      <Select
+                        label="Família (Hierarquia Mercadológica)"
+                        placeholder="Selecione a família do produto"
+                        data={familiaOptions}
+                        searchable
+                        clearable
+                        value={field.value ?? null}
+                        onChange={field.onChange}
+                      />
+                      {familiaSel ? (
+                        <Text size="xs" c="dimmed" mt={4}>
+                          Caminho: {familiaSel.codigoHierarquico}
+                        </Text>
+                      ) : (
+                        <Text size="xs" c="dimmed" mt={4}>Sem hierarquia definida</Text>
+                      )}
+                    </div>
+                  )
+                }} />
+              </div>
+              <div className="mt-4">
+                {/* control tipado como any: o zodResolver infere input/output
+                    divergentes após familiaId nullable; o componente já usa Control<any>. */}
+                <BloqueioConferenciaSection control={control as any} />
               </div>
               <div>
                 {isEditing && editData?.curvaAbc && (
