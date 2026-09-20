@@ -114,17 +114,26 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
     },
   })
 
-  // Famílias da Hierarquia Mercadológica (nível folha ao qual o produto se liga).
-  const { data: familiasResp } = useQuery<any>({
-    queryKey: ['hierarquia-familias'],
-    queryFn: async () => { const { data } = await api.get('/hierarquia-mercadologica', { params: { tipo: 'FAMILIA', status: true, limit: 500 } }); return data },
+  // Hierarquia Mercadológica — carrega TODOS os níveis ativos para montar a
+  // classificação guiada em cascata (Departamento → Seção → Categoria → Família).
+  // O vínculo persistido é sempre a Família (nível folha) via familiaId.
+  const { data: niveisResp } = useQuery<any>({
+    queryKey: ['hierarquia-todos'],
+    queryFn: async () => { const { data } = await api.get('/hierarquia-mercadologica', { params: { status: true, limit: 2000 } }); return data },
     enabled: opened,
     staleTime: 1000 * 60,
   })
-  const familiaOptions = (familiasResp?.data || []).map((f: any) => ({
-    value: f.id,
-    label: `${f.codigoHierarquico} — ${f.descricao}`,
-  }))
+  const todosNiveis: any[] = niveisResp?.data || []
+  const niveisPorTipo = (tipo: string, paiId: string | null) =>
+    todosNiveis
+      .filter((n) => n.tipo === tipo && (paiId === null ? true : n.paiId === paiId))
+      .map((n) => ({ value: n.id, label: `${n.codigoHierarquico} — ${n.descricao}` }))
+  const nivelById = (id: string | null) => (id ? todosNiveis.find((n) => n.id === id) : null)
+
+  // Estado da cascata (ids selecionados por nível).
+  const [depId, setDepId] = useState<string | null>(null)
+  const [secId, setSecId] = useState<string | null>(null)
+  const [catId, setCatId] = useState<string | null>(null)
 
   const { control, handleSubmit, reset, setValue, formState: { errors } } = useForm<ProdutoForm>({
     resolver: zodResolver(produtoSchema),
@@ -173,6 +182,26 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
       setImagemUrl(null)
     }
   }, [editData, produtoCompleto, reset, opened])
+
+  // Pré-preenche a cascata (Departamento/Seção/Categoria) subindo a árvore a
+  // partir da Família salva no produto, quando os níveis carregam em edição.
+  useEffect(() => {
+    if (!opened) return
+    const familiaId = (produtoCompleto ?? editData)?.familiaId
+    if (!familiaId || todosNiveis.length === 0) {
+      if (!editData) { setDepId(null); setSecId(null); setCatId(null) }
+      return
+    }
+    const familia = nivelById(familiaId)
+    const categoria = nivelById(familia?.paiId ?? null)
+    const secao = nivelById(categoria?.paiId ?? null)
+    const departamento = nivelById(secao?.paiId ?? null)
+    setDepId(departamento?.id ?? null)
+    setSecId(secao?.id ?? null)
+    setCatId(categoria?.id ?? null)
+    setValue('familiaId', familiaId, { shouldDirty: false })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened, editData, produtoCompleto, niveisResp])
 
   async function onSubmit(data: ProdutoForm) {
     try {
@@ -361,24 +390,55 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
                   </div>
                 )} />
               </div>
-              {/* Hierarquia Mercadológica — vínculo à Família (nível folha). */}
+              {/* Hierarquia Mercadológica — classificação guiada em cascata.
+                  O usuário navega Departamento → Seção → Categoria → Família;
+                  o vínculo persistido é sempre a Família (nível folha). */}
               <div className="mt-4">
                 <Controller name="familiaId" control={control} render={({ field }) => {
-                  const familiaSel = (familiasResp?.data || []).find((f: any) => f.id === field.value)
+                  const familiaSel = nivelById(field.value ?? null)
                   return (
                     <div>
-                      <Select
-                        label="Família (Hierarquia Mercadológica)"
-                        placeholder="Selecione a família do produto"
-                        data={familiaOptions}
-                        searchable
-                        clearable
-                        value={field.value ?? null}
-                        onChange={field.onChange}
-                      />
+                      <Text size="sm" fw={600} mb={4}>Hierarquia Mercadológica</Text>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Select
+                          label="Departamento"
+                          placeholder="Selecione"
+                          data={niveisPorTipo('DEPARTAMENTO', null)}
+                          value={depId}
+                          searchable clearable
+                          onChange={(v) => { setDepId(v); setSecId(null); setCatId(null); field.onChange(null) }}
+                        />
+                        <Select
+                          label="Seção"
+                          placeholder={depId ? 'Selecione' : 'Escolha o departamento'}
+                          data={niveisPorTipo('SECAO', depId)}
+                          value={secId}
+                          disabled={!depId}
+                          searchable clearable
+                          onChange={(v) => { setSecId(v); setCatId(null); field.onChange(null) }}
+                        />
+                        <Select
+                          label="Categoria"
+                          placeholder={secId ? 'Selecione' : 'Escolha a seção'}
+                          data={niveisPorTipo('CATEGORIA', secId)}
+                          value={catId}
+                          disabled={!secId}
+                          searchable clearable
+                          onChange={(v) => { setCatId(v); field.onChange(null) }}
+                        />
+                        <Select
+                          label="Subcategoria / Família"
+                          placeholder={catId ? 'Selecione' : 'Escolha a categoria'}
+                          data={niveisPorTipo('FAMILIA', catId)}
+                          value={field.value ?? null}
+                          disabled={!catId}
+                          searchable clearable
+                          onChange={field.onChange}
+                        />
+                      </div>
                       {familiaSel ? (
                         <Text size="xs" c="dimmed" mt={4}>
-                          Caminho: {familiaSel.codigoHierarquico}
+                          Classificação: {familiaSel.codigoHierarquico} — {familiaSel.descricao}
                         </Text>
                       ) : (
                         <Text size="xs" c="dimmed" mt={4}>Sem hierarquia definida</Text>
