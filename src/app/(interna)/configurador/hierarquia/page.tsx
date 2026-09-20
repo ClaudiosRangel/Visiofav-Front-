@@ -23,7 +23,8 @@ const NIVEIS = [
 type TipoNivel = (typeof NIVEIS)[number]['tipo']
 
 export default function HierarquiaMercadologicaPage() {
-  useModuloGuard('WMS')
+  // Tela compartilhada: pertence a Produtos/Compras e ao WMS (Ajuste 3).
+  useModuloGuard(['WMS', 'COMPRAS'])
   useEffect(() => { document.title = 'Vizor - Hierarquia Mercadológica' }, [])
   const queryClient = useQueryClient()
 

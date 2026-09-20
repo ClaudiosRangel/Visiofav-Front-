@@ -75,6 +75,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
         label: 'Cadastros', icon: IconDatabase, items: [
           { icon: IconBuildingStore, label: 'Fornecedores', href: '/configurador/fornecedores' },
           { icon: IconPackage, label: 'Produtos', href: '/configurador/produtos' },
+          { icon: IconSitemap, label: 'Hierarquia Mercadológica', href: '/configurador/hierarquia' },
           { icon: IconUsers, label: 'Representantes', href: '/configurador/vendedores' },
         ],
       },
