@@ -38,6 +38,7 @@ const cadastros = [
   { label: 'Características de estoque', href: '/configurador/caracteristicas-estoque' },
   { label: 'Transportadora', href: '/configurador/transportadoras' },
   { label: 'Categoria de produto', href: '/configurador/categorias' },
+  { label: 'Hierarquia Mercadológica', href: '/configurador/hierarquia' },
   { label: 'Cliente', href: '/configurador/clientes' },
   { label: 'Centro de Distribuição', href: '/configurador/centros-distribuicao' },
   { label: 'Zonas / Bairros', href: '/configurador/zonas' },
