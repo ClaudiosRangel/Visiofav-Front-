@@ -11,13 +11,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
 
-// Ordem e rótulos dos 5 níveis fixos.
+// 4 níveis fixos: Departamento → Seção → Categoria → Subcategoria/Família (folha).
+// O produto se vincula ao nível folha (Subcategoria); o "Nível 5" é o próprio
+// código do produto/SKU, não um nível da árvore (padrão SAP Retail / GS1 GPC).
 const NIVEIS = [
   { tipo: 'DEPARTAMENTO', label: 'Departamento', pai: null },
   { tipo: 'SECAO', label: 'Seção', pai: 'DEPARTAMENTO' },
   { tipo: 'CATEGORIA', label: 'Categoria', pai: 'SECAO' },
-  { tipo: 'SUBCATEGORIA', label: 'Subcategoria', pai: 'CATEGORIA' },
-  { tipo: 'FAMILIA', label: 'Família', pai: 'SUBCATEGORIA' },
+  { tipo: 'SUBCATEGORIA', label: 'Subcategoria / Família', pai: 'CATEGORIA' },
 ] as const
 
 type TipoNivel = (typeof NIVEIS)[number]['tipo']
@@ -174,7 +175,7 @@ export default function HierarquiaMercadologicaPage() {
         {!editId && (
           <TextInput
             label="Código do segmento"
-            placeholder={tipoAtivo === 'FAMILIA' ? 'Ex.: 001 (3 dígitos)' : 'Ex.: 01 (2 dígitos)'}
+            placeholder={tipoAtivo === 'SUBCATEGORIA' ? 'Ex.: 001 (3 dígitos)' : 'Ex.: 01 (2 dígitos)'}
             value={codigo}
             onChange={(e) => setCodigo(e.currentTarget.value)}
             mb="sm"

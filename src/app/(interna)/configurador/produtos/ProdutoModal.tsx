@@ -184,16 +184,24 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
   }, [editData, produtoCompleto, reset, opened])
 
   // Pré-preenche a cascata (Departamento/Seção/Categoria) subindo a árvore a
-  // partir da Família salva no produto, quando os níveis carregam em edição.
+  // partir da Família salva no produto. SEMPRE reseta primeiro — sem isso, ao
+  // abrir outro produto, os níveis do produto anterior "grudavam" na tela.
   useEffect(() => {
     if (!opened) return
+
+    // Reset base: modal fechado/aberto ou troca de produto começa limpo.
+    setDepId(null); setSecId(null); setCatId(null)
+
     const familiaId = (produtoCompleto ?? editData)?.familiaId
     if (!familiaId || todosNiveis.length === 0) {
-      if (!editData) { setDepId(null); setSecId(null); setCatId(null) }
+      setValue('familiaId', familiaId ?? null, { shouldDirty: false })
       return
     }
-    const familia = nivelById(familiaId)
-    const categoria = nivelById(familia?.paiId ?? null)
+
+    // familiaId aponta para a SUBCATEGORIA (folha). Sobe a árvore:
+    // subcategoria → categoria → seção → departamento.
+    const subcategoria = nivelById(familiaId)
+    const categoria = nivelById(subcategoria?.paiId ?? null)
     const secao = nivelById(categoria?.paiId ?? null)
     const departamento = nivelById(secao?.paiId ?? null)
     setDepId(departamento?.id ?? null)
@@ -201,7 +209,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
     setCatId(categoria?.id ?? null)
     setValue('familiaId', familiaId, { shouldDirty: false })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opened, editData, produtoCompleto, niveisResp])
+  }, [opened, editData?.id, produtoCompleto?.id, niveisResp])
 
   async function onSubmit(data: ProdutoForm) {
     try {
@@ -429,7 +437,7 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
                         <Select
                           label="Subcategoria / Família"
                           placeholder={catId ? 'Selecione' : 'Escolha a categoria'}
-                          data={niveisPorTipo('FAMILIA', catId)}
+                          data={niveisPorTipo('SUBCATEGORIA', catId)}
                           value={field.value ?? null}
                           disabled={!catId}
                           searchable clearable
