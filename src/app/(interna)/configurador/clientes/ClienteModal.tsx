@@ -1,6 +1,6 @@
 'use client'
 
-import { Modal, TextInput, Button, Group, Select, Tabs, Tooltip } from '@mantine/core'
+import { Modal, TextInput, Button, Group, Select, Tabs, Tooltip, NumberInput } from '@mantine/core'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -30,6 +30,8 @@ const schema = z.object({
   cep: z.string().optional(),
   telefone: z.string().optional(),
   email: z.string().optional(),
+  // Shelf life mínimo de expedição exigido pelo cliente (dias) — spec atributos-logisticos-shelf-life.
+  shelfLifeMinimoExpedicaoDias: z.number().int().min(0).nullable().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -75,6 +77,7 @@ export default function ClienteModal({ opened, onClose, editData }: Props) {
         cidade: editData.cidade || '', codigoMunicipio: editData.codigoMunicipio || '',
         uf: editData.uf || '', cep: editData.cep || '',
         telefone: editData.telefone || '', email: editData.email || '',
+        shelfLifeMinimoExpedicaoDias: editData.shelfLifeMinimoExpedicaoDias ?? null,
       })
     } else {
       reset({ razaoSocial: '', cpfCnpj: '', rotaId: null, codigoMunicipio: '' })
@@ -225,6 +228,18 @@ export default function ClienteModal({ opened, onClose, editData }: Props) {
               )} />
               <Controller name="email" control={control} render={({ field }) => (
                 <TextInput label="E-mail" placeholder="contato@empresa.com" {...field} />
+              )} />
+              <Controller name="shelfLifeMinimoExpedicaoDias" control={control} render={({ field }) => (
+                <Tooltip label="Dias mínimos de validade a vencer que este cliente exige para receber um produto. No picking (FEFO), lotes que vencem antes disso são pulados." multiline w={320}>
+                  <NumberInput
+                    label="Shelf life mínimo p/ expedição (dias)"
+                    placeholder="Ex: 60"
+                    min={0}
+                    allowDecimal={false}
+                    value={field.value ?? ''}
+                    onChange={(v) => field.onChange(v === '' ? null : typeof v === 'number' ? v : null)}
+                  />
+                </Tooltip>
               )} />
             </div>
           </Tabs.Panel>

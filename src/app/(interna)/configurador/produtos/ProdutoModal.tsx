@@ -50,6 +50,11 @@ const produtoSchema = z.object({
   toleranciaQuantidadePercentual: z.number().min(0).max(100).nullable().optional(),
   // Hierarquia Mercadológica — vínculo ao nível folha (Família).
   familiaId: z.string().nullable().optional(),
+  // Atributos Logísticos e Shelf Life (spec atributos-logisticos-shelf-life).
+  periculosidade: z.string().nullable().optional(),
+  shelfLifeTotalDias: z.number().int().positive().nullable().optional(),
+  percentualVidaUtilMinimoRecebimento: z.number().min(0).max(100).nullable().optional(),
+  diasQuarentenaVencimento: z.number().int().min(0).nullable().optional(),
   // Código de barras
   cEAN: z.string().max(14).optional(),
   // Fiscal
@@ -175,6 +180,10 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
         aliqCOFINS: Number(dados.aliqCOFINS) || 0,
         origemProd: dados.origemProd ?? 0,
         familiaId: dados.familiaId ?? null,
+        periculosidade: dados.periculosidade ?? null,
+        shelfLifeTotalDias: dados.shelfLifeTotalDias ?? null,
+        percentualVidaUtilMinimoRecebimento: dados.percentualVidaUtilMinimoRecebimento != null ? Number(dados.percentualVidaUtilMinimoRecebimento) : null,
+        diasQuarentenaVencimento: dados.diasQuarentenaVencimento ?? null,
       })
       setImagemUrl(dados.imagemUrl || null)
     } else {
@@ -397,6 +406,67 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
                     <Text size="xs" c="dimmed" mt={2}>Obriga informar lote na conferência</Text>
                   </div>
                 )} />
+              </div>
+
+              {/* Atributos Logísticos e Shelf Life (spec atributos-logisticos-shelf-life).
+                  Todos opcionais — controlam endereçamento (periculosidade),
+                  recebimento (shelf life total + RLM %) e quarentena automática. */}
+              <div className="mt-2">
+                <Text size="sm" fw={600} mb={4}>Atributos Logísticos e Validade</Text>
+                <div className="grid grid-cols-4 gap-4">
+                  <Controller name="periculosidade" control={control} render={({ field }) => (
+                    <Select
+                      label="Periculosidade"
+                      placeholder="Selecione"
+                      clearable
+                      data={[
+                        { value: 'ISENTO', label: 'Isento' },
+                        { value: 'CARGA_GERAL', label: 'Carga Geral' },
+                        { value: 'PERIGOSO', label: 'Perigoso' },
+                        { value: 'INFLAMAVEL', label: 'Inflamável' },
+                      ]}
+                      value={field.value ?? null}
+                      onChange={(v) => field.onChange(v)}
+                    />
+                  )} />
+                  <Controller name="shelfLifeTotalDias" control={control} render={({ field }) => (
+                    <Tooltip label="Prazo de validade total do fabricante (dias). Usado para calcular o vencimento a partir da data de fabricação e o RLM %." multiline w={300}>
+                      <NumberInput
+                        label={<Group gap={4}><Text size="sm">Shelf Life Total (dias)</Text><IconInfoCircle size={14} className="text-zinc-400" /></Group>}
+                        placeholder="Ex: 365"
+                        min={1}
+                        allowDecimal={false}
+                        value={field.value ?? ''}
+                        onChange={(v) => field.onChange(v === '' ? null : typeof v === 'number' ? v : null)}
+                      />
+                    </Tooltip>
+                  )} />
+                  <Controller name="percentualVidaUtilMinimoRecebimento" control={control} render={({ field }) => (
+                    <Tooltip label="RLM — % mínimo de vida útil restante para aceitar o lote no recebimento (ex.: 75%)." multiline w={300}>
+                      <NumberInput
+                        label={<Group gap={4}><Text size="sm">RLM Recebimento (%)</Text><IconInfoCircle size={14} className="text-zinc-400" /></Group>}
+                        placeholder="Ex: 75"
+                        min={0}
+                        max={100}
+                        suffix="%"
+                        value={field.value ?? ''}
+                        onChange={(v) => field.onChange(v === '' ? null : typeof v === 'number' ? v : null)}
+                      />
+                    </Tooltip>
+                  )} />
+                  <Controller name="diasQuarentenaVencimento" control={control} render={({ field }) => (
+                    <Tooltip label="Faltando este nº de dias para vencer, o lote é bloqueado automaticamente para expedição." multiline w={300}>
+                      <NumberInput
+                        label={<Group gap={4}><Text size="sm">Quarentena (dias p/ vencer)</Text><IconInfoCircle size={14} className="text-zinc-400" /></Group>}
+                        placeholder="Ex: 30"
+                        min={0}
+                        allowDecimal={false}
+                        value={field.value ?? ''}
+                        onChange={(v) => field.onChange(v === '' ? null : typeof v === 'number' ? v : null)}
+                      />
+                    </Tooltip>
+                  )} />
+                </div>
               </div>
               {/* Hierarquia Mercadológica — classificação guiada em cascata.
                   O usuário navega Departamento → Seção → Categoria → Família;
