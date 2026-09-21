@@ -23,7 +23,7 @@ interface ListResponse { data: Produto[]; total: number; page: number; limit: nu
 
 const KEY = 'produtos'
 
-export function useProdutos(params?: { page?: number; limit?: number; search?: string; centroDistribuicaoId?: string }) {
+export function useProdutos(params?: { page?: number; limit?: number; search?: string; centroDistribuicaoId?: string; nivelId?: string; semHierarquia?: boolean }) {
   return useQuery<ListResponse>({
     queryKey: [KEY, params],
     queryFn: async () => { const { data } = await api.get('/produtos', { params }); return data },

@@ -8,6 +8,7 @@ import { useProdutos, useExcluirProduto } from '@/data/hooks/useProduto'
 import { api } from '@/lib/api'
 import ProdutoModal from './ProdutoModal'
 import SkuPanel from './SkuPanel'
+import FiltroCascataHierarquia, { type FiltroHierarquiaValor } from '@/components/hierarquia/FiltroCascataHierarquia'
 
 const abcColor: Record<string, string> = { A: 'green', B: 'yellow', C: 'red' }
 
@@ -17,8 +18,13 @@ export default function ProdutosPage() {
   const [search, setSearch] = useState('')
   const [skuDrawer, setSkuDrawer] = useState<{ id: string; nome: string } | null>(null)
   const [recalculando, setRecalculando] = useState(false)
+  const [filtroHierarquia, setFiltroHierarquia] = useState<FiltroHierarquiaValor>({ nivelId: null, semHierarquia: false })
 
-  const { data: response, isLoading, refetch } = useProdutos({ search: search || undefined })
+  const { data: response, isLoading, refetch } = useProdutos({
+    search: search || undefined,
+    nivelId: filtroHierarquia.nivelId || undefined,
+    semHierarquia: filtroHierarquia.semHierarquia || undefined,
+  })
   const excluir = useExcluirProduto()
 
   function handleNew() { setEditItem(null); setModalOpen(true) }
@@ -55,7 +61,7 @@ export default function ProdutosPage() {
       <Text size="xl" fw={600} mb="lg">Produto / SKU</Text>
       <Card pos="relative">
         <LoadingOverlay visible={isLoading} />
-        <Group justify="space-between" mb="md">
+        <Group justify="space-between" mb="md" align="flex-start">
           <TextInput placeholder="Pesquisar por descrição ou código de barras..." leftSection={<IconSearch size={16} />} value={search} onChange={(e) => setSearch(e.currentTarget.value)} className="w-96" />
           <Group>
             <Button variant="default" leftSection={<IconChartBar size={16} />} onClick={handleRecalcularCurvaAbc} loading={recalculando}>Recalcular Curva ABC</Button>
@@ -63,6 +69,9 @@ export default function ProdutosPage() {
             <Button leftSection={<IconPlus size={16} />} onClick={handleNew}>Novo</Button>
           </Group>
         </Group>
+        <div className="mb-4">
+          <FiltroCascataHierarquia value={filtroHierarquia} onChange={setFiltroHierarquia} />
+        </div>
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>

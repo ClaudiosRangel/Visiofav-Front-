@@ -23,6 +23,8 @@ import {
   IconAssembly, IconListDetails, IconCalendarEvent, IconRoute, IconSitemap, IconTool, IconClock, IconPalette, IconLink, IconCategory,
   // Orçamento Gráfico
   IconPlus,
+  // Hierarquia Mercadológica Fase 2
+  IconWand,
   // Configurador
   IconBuilding, IconBell,
   // Portal Representante
@@ -78,6 +80,8 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           // Rota própria do Compras (não /configurador/hierarquia) para não
           // trocar o contexto/sidebar para o WMS ao acessar por aqui.
           { icon: IconSitemap, label: 'Hierarquia Mercadológica', href: '/compras/hierarquia' },
+          { icon: IconChartBar, label: 'Distribuição por Hierarquia', href: '/compras/hierarquia-relatorio' },
+          { icon: IconWand, label: 'Migração da Hierarquia', href: '/compras/hierarquia-migracao' },
           { icon: IconUsers, label: 'Representantes', href: '/configurador/vendedores' },
         ],
       },
@@ -363,6 +367,8 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconPackage, label: 'Produtos', href: '/wms/consulta/produtos' },
           { icon: IconBarcode, label: 'SKU / Embalagens', href: '/wms/sku' },
           { icon: IconSitemap, label: 'Hierarquia Mercadológica', href: '/configurador/hierarquia' },
+          { icon: IconChartBar, label: 'Distribuição por Hierarquia', href: '/configurador/hierarquia-relatorio' },
+          { icon: IconWand, label: 'Migração da Hierarquia', href: '/configurador/hierarquia-migracao' },
           { icon: IconDatabase, label: 'Dados Logísticos', href: '/wms/dados-logisticos' },
           { icon: IconTruckDelivery, label: 'Rotas', href: '/configurador/rotas' },
           { icon: IconBuildingStore, label: 'Fornecedores', href: '/wms/consulta/fornecedores' },
@@ -544,6 +550,7 @@ export function detectModule(pathname: string): string | null {
   if (pathname.startsWith('/configurador/ambiente-armazenagem')) return 'wms'
   if (pathname.startsWith('/configurador/hierarquia')) return 'wms'
   if (pathname.startsWith('/configurador')) return 'configurador'
+  // Nota: /configurador/hierarquia já cobre hierarquia-relatorio e hierarquia-migracao (startsWith).
   if (pathname.startsWith('/wms') || pathname.startsWith('/recebimento') || pathname.startsWith('/expedicao') || pathname.startsWith('/picking') || pathname.startsWith('/movimentacao') || pathname.startsWith('/inventario') || pathname.startsWith('/estoque') || pathname.startsWith('/gestao')) return 'wms'
   return null
 }
