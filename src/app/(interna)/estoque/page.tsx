@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
+import FiltroCascataHierarquia, { type FiltroHierarquiaValor } from '@/components/hierarquia/FiltroCascataHierarquia'
 
 export default function EstoquePage() {
   useModuloGuard('WMS')
@@ -13,6 +14,7 @@ export default function EstoquePage() {
   const [search, setSearch] = useState('')
   const [aba, setAba] = useState<string>('endereco')
   const [expandido, setExpandido] = useState<Set<string>>(new Set())
+  const [filtroHierarquia, setFiltroHierarquia] = useState<FiltroHierarquiaValor>({ nivelId: null, semHierarquia: false })
 
   const { data: prodResp } = useQuery<any>({
     queryKey: ['estoque-produtos-count'],
@@ -21,8 +23,17 @@ export default function EstoquePage() {
   })
 
   const { data: saldosResp, isLoading, refetch } = useQuery<any>({
-    queryKey: ['saldos', search],
-    queryFn: async () => { const { data } = await api.get('/saldos', { params: { search: search || undefined } }); return data },
+    queryKey: ['saldos', search, filtroHierarquia],
+    queryFn: async () => {
+      const { data } = await api.get('/saldos', {
+        params: {
+          search: search || undefined,
+          nivelId: filtroHierarquia.nivelId || undefined,
+          semHierarquia: filtroHierarquia.semHierarquia || undefined,
+        },
+      })
+      return data
+    },
     staleTime: 1000 * 60,
   })
 
@@ -101,6 +112,13 @@ export default function EstoquePage() {
             <Tabs.Tab value="produto" leftSection={<IconPackage size={14} />}>Por Produto (Disponível)</Tabs.Tab>
           </Tabs.List>
         </Tabs>
+
+        {/* Filtro por Hierarquia Mercadológica (aplica na visão Por Endereço). */}
+        {aba === 'endereco' && (
+          <div className="mb-4">
+            <FiltroCascataHierarquia value={filtroHierarquia} onChange={setFiltroHierarquia} />
+          </div>
+        )}
 
         {/* ─── Visão Por Endereço (WMS, linha por saldo) ─── */}
         {aba === 'endereco' && (

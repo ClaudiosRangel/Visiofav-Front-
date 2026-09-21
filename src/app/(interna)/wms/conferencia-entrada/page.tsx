@@ -66,6 +66,7 @@ export default function ConferenciaEntradaPage() {
   const [itensConferidos, setItensConferidos] = useState<Record<string, number>>({})
   const [itensLotes, setItensLotes] = useState<Record<string, string>>({})
   const [itensValidades, setItensValidades] = useState<Record<string, string>>({})
+  const [itensFabricacao, setItensFabricacao] = useState<Record<string, string>>({})
   const [resultado, setResultado] = useState<any>(null)
   // Itens resolvidos na Segunda Conferência (senha/CC-e/e-mail/aceite) — usado
   // para remover o item da lista de pendências sem precisar rechamar
@@ -335,6 +336,7 @@ export default function ConferenciaEntradaPage() {
       // O conferente deve digitar esses valores sem ver os dados da NF
       setItensLotes({})
       setItensValidades({})
+      setItensFabricacao({})
       // Verificar se tem OS vinculada sem funcionários — abrir seleção
       checkOsAndStart(data)
     },
@@ -389,6 +391,7 @@ export default function ConferenciaEntradaPage() {
             quantidadeConferida: itensConferidos[item.id] ?? 0,
             lote: itensLotes[item.id] || undefined,
             validade: itensValidades[item.id] || undefined,
+            dataFabricacao: itensFabricacao[item.id] || undefined,
           }))
       const { data } = await api.post(`/conferencia-entrada/conferir-todos/${conferencia.nota.id}`, { itens: itensSource })
       return data
@@ -1302,6 +1305,7 @@ export default function ConferenciaEntradaPage() {
                       <Table.Th>Unidade</Table.Th>
                       <Table.Th>Quantidade Contada</Table.Th>
                       <Table.Th>Lote</Table.Th>
+                      <Table.Th>Fabricação</Table.Th>
                       <Table.Th>Validade</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
@@ -1336,6 +1340,16 @@ export default function ConferenciaEntradaPage() {
                             placeholder={item.exigeLote ? 'Lote (obrigatório)' : 'Lote'}
                             onChange={(e) => setItensLotes({ ...itensLotes, [item.id]: e.currentTarget.value })}
                             className="w-28"
+                          />
+                        </Table.Td>
+                        <Table.Td>
+                          <TextInput
+                            size="sm"
+                            value={itensFabricacao[item.id] || ''}
+                            placeholder="DD/MM/AAAA"
+                            title="Data de fabricação — calcula o vencimento pelo shelf life total do produto"
+                            onChange={(e) => setItensFabricacao({ ...itensFabricacao, [item.id]: e.currentTarget.value })}
+                            className="w-32"
                           />
                         </Table.Td>
                         <Table.Td>
