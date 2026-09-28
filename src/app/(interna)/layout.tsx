@@ -14,6 +14,7 @@ import { voltarParaModulos } from '@/lib/abasModulo'
 import { confirmarNavegacaoOuBloquear } from '@/lib/navigationGuardStore'
 import { registrarAcessoModulo } from '@/lib/registrarAcessoModulo'
 import { useEffect } from 'react'
+import { ErpProviders } from '@/providers/ErpProviders'
 
 /**
  * Define "Vizor - <Módulo>" como título padrão da aba do navegador com base
@@ -87,6 +88,14 @@ function VoltarModulosBar() {
 }
 
 export default function InternaLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ErpProviders>
+      <InternaLayoutInner>{children}</InternaLayoutInner>
+    </ErpProviders>
+  )
+}
+
+function InternaLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const showSidebar = !NO_SIDEBAR_PAGES.includes(pathname)
   const { collapsed: sidebarCollapsed } = useModuleSidebarCollapsed()

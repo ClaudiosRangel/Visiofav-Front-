@@ -3,8 +3,17 @@
 import { usePathname } from 'next/navigation'
 import { AppShell, Group, Text, ThemeIcon } from '@mantine/core'
 import { IconBuildingWarehouse } from '@tabler/icons-react'
+import { ErpProviders } from '@/providers/ErpProviders'
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ErpProviders>
+      <PortalLayoutInner>{children}</PortalLayoutInner>
+    </ErpProviders>
+  )
+}
+
+function PortalLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isLogin = pathname === '/login'
 

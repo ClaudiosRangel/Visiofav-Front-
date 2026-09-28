@@ -10,6 +10,7 @@ import {
   IconBarcode,
 } from '@tabler/icons-react'
 import Link from 'next/link'
+import { ErpProviders } from '@/providers/ErpProviders'
 
 // ── Tipos ──────────────────────────────────────────────────────────────
 
@@ -111,6 +112,14 @@ function SidebarGroup({ group, pathname }: { group: MenuGroup; pathname: string 
 // ── Layout ─────────────────────────────────────────────────────────────
 
 export default function WmsStandaloneLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ErpProviders>
+      <WmsStandaloneLayoutInner>{children}</WmsStandaloneLayoutInner>
+    </ErpProviders>
+  )
+}
+
+function WmsStandaloneLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const [autenticado, setAutenticado] = useState(false)
