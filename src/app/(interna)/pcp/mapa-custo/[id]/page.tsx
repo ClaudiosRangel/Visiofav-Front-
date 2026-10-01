@@ -7,7 +7,7 @@ import {
   Modal, TextInput, NumberInput, Select, Switch, ActionIcon, Card, SimpleGrid,
 } from '@mantine/core'
 import {
-  IconArrowLeft, IconPlus, IconEdit, IconTrash, IconCalculator, IconLock, IconUpload,
+  IconArrowLeft, IconPlus, IconEdit, IconTrash, IconCalculator, IconLock, IconLockOpen, IconUpload,
 } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
@@ -95,6 +95,17 @@ export default function MapaCustoDetalhePage() {
     }
   }
 
+  async function reabrir() {
+    if (!window.confirm('Reabrir o mapa? Ele voltará para Rascunho e ficará editável novamente.')) return
+    try {
+      await api.post(`/pcp/mapa-custo/${id}/reabrir`)
+      notifications.show({ title: 'Mapa reaberto', message: 'Voltou para Rascunho.', color: 'blue' })
+      carregar()
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao reabrir', color: 'red' })
+    }
+  }
+
   async function aplicarOrcamento() {
     try {
       const res = await api.post(`/pcp/mapa-custo/${id}/aplicar-orcamento`)
@@ -124,7 +135,9 @@ export default function MapaCustoDetalhePage() {
         <Group>
           <Button leftSection={<IconCalculator size={16} />} onClick={calcular} variant="filled">Calcular</Button>
           <Button leftSection={<IconUpload size={16} />} onClick={aplicarOrcamento} variant="light">Aplicar ao Orçamento</Button>
-          {!fechado && <Button leftSection={<IconLock size={16} />} onClick={fechar} color="gray" variant="outline">Fechar</Button>}
+          {!fechado
+            ? <Button leftSection={<IconLock size={16} />} onClick={fechar} color="gray" variant="outline">Fechar</Button>
+            : <Button leftSection={<IconLockOpen size={16} />} onClick={reabrir} color="orange" variant="outline">Reabrir</Button>}
         </Group>
       </Group>
 
