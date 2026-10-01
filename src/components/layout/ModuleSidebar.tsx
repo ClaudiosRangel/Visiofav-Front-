@@ -427,6 +427,8 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       { icon: IconClipboardCheck, label: 'Apontamentos', href: '/pcp/apontamentos' },
       { icon: IconPackage, label: 'Liberação de Materiais', href: '/pcp/liberacoes' },
       { icon: IconArrowsExchange, label: 'Conversão de Unidades', href: '/pcp/conversao' },
+      { icon: IconDatabase, label: 'Mapa de Custos (RKW)', href: '/pcp/mapa-custo' },
+      { icon: IconReportAnalytics, label: 'Análise Gerencial (RKW)', href: '/pcp/analise-gerencial' },
       {
         label: 'Cadastros', icon: IconDatabase, items: [
           { icon: IconTool, label: 'Centros de Produção', href: '/pcp/cadastros/centros' },

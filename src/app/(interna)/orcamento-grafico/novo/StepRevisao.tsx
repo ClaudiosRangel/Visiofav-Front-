@@ -24,6 +24,15 @@ interface Resultado {
   precoUnitario?: number
   margemReal?: number
   breakdown?: { papel: number; tinta: number; maquina: number; acabamento: number; overhead: number }
+  // Paridade Calcgraf (decomposição estilo memória de cálculo)
+  materialDireto?: number
+  custoTransformacao?: number
+  servicoExterno?: number
+  custoProducao?: number
+  cevPerc?: number
+  cevValor?: number
+  contribuicaoMarginalValor?: number
+  contribuicaoMarginalPerc?: number
 }
 
 interface Simulacao {
@@ -186,6 +195,45 @@ export default function StepRevisao({ formData, updateForm }: Props) {
               <Text fw={700} size="lg" c="blue">{formatPercent(resultado.margemReal)}</Text>
             </Paper>
           </SimpleGrid>
+
+          {/* Decomposição estilo Calcgraf (paridade) */}
+          {resultado.custoProducao != null && (
+            <Paper p="md" withBorder>
+              <Text fw={500} size="sm" mb="sm">Decomposição do Custo (paridade Calcgraf)</Text>
+              <Table>
+                <Table.Tbody>
+                  <Table.Tr>
+                    <Table.Td>Material Direto (MD)</Table.Td>
+                    <Table.Td ta="right">{formatCurrency(resultado.materialDireto)}</Table.Td>
+                  </Table.Tr>
+                  <Table.Tr>
+                    <Table.Td>Custo de Transformação (CT)</Table.Td>
+                    <Table.Td ta="right">{formatCurrency(resultado.custoTransformacao)}</Table.Td>
+                  </Table.Tr>
+                  {(resultado.servicoExterno ?? 0) > 0 && (
+                    <Table.Tr>
+                      <Table.Td>Serviço Externo (SE)</Table.Td>
+                      <Table.Td ta="right">{formatCurrency(resultado.servicoExterno)}</Table.Td>
+                    </Table.Tr>
+                  )}
+                  <Table.Tr>
+                    <Table.Td fw={600}>Custo de Produção (MD + CT + SE)</Table.Td>
+                    <Table.Td ta="right" fw={600}>{formatCurrency(resultado.custoProducao)}</Table.Td>
+                  </Table.Tr>
+                  <Table.Tr>
+                    <Table.Td>CEV (custos de venda)</Table.Td>
+                    <Table.Td ta="right">{formatPercent(resultado.cevPerc)} = {formatCurrency(resultado.cevValor)}</Table.Td>
+                  </Table.Tr>
+                  <Table.Tr>
+                    <Table.Td fw={600} c="teal">Contribuição Marginal</Table.Td>
+                    <Table.Td ta="right" fw={600} c="teal">
+                      {formatPercent(resultado.contribuicaoMarginalPerc)} = {formatCurrency(resultado.contribuicaoMarginalValor)}
+                    </Table.Td>
+                  </Table.Tr>
+                </Table.Tbody>
+              </Table>
+            </Paper>
+          )}
 
           {/* Breakdown visual */}
           {resultado.breakdown && (
