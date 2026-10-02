@@ -21,6 +21,9 @@ interface PrecoMaterial {
   precoUnitario: number
   dataVigencia: string
   status: boolean
+  suporteId?: string | null
+  gramatura?: number | null
+  densidadeTinta?: number | null
 }
 
 interface FormData {
@@ -29,6 +32,9 @@ interface FormData {
   unidade: string
   precoUnitario: number
   dataVigencia: string
+  suporteId: string | null
+  gramatura: number | null
+  densidadeTinta: number | null
 }
 
 const FORM_INICIAL: FormData = {
@@ -37,6 +43,9 @@ const FORM_INICIAL: FormData = {
   unidade: 'KG',
   precoUnitario: 0,
   dataVigencia: new Date().toISOString().slice(0, 10),
+  suporteId: null,
+  gramatura: null,
+  densidadeTinta: null,
 }
 
 const TIPOS_MATERIAL = [
@@ -64,6 +73,7 @@ export default function PrecosMaterialPage() {
   useEffect(() => { document.title = 'Orçamento Gráfico - Preços de Materiais' }, [])
 
   const [data, setData] = useState<PrecoMaterial[]>([])
+  const [suportes, setSuportes] = useState<{ value: string; label: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
   const [filtroTipo, setFiltroTipo] = useState<string | null>(null)
@@ -89,6 +99,19 @@ export default function PrecosMaterialPage() {
 
   useEffect(() => { carregar() }, [busca, filtroTipo])
 
+  // Carregar suportes (para vincular ao papel)
+  useEffect(() => {
+    api.get('/orcamento-grafico/suportes', { params: { limit: 100 } })
+      .then(res => {
+        const items = (res.data.data || res.data || []).map((s: any) => ({
+          value: s.id,
+          label: `${s.codigo} — ${s.descricao} (coef ${Number(s.coefTinta).toLocaleString('pt-BR', { minimumFractionDigits: 1 })})`,
+        }))
+        setSuportes(items)
+      })
+      .catch(() => setSuportes([]))
+  }, [])
+
   function abrirNovo() {
     setEditando(null)
     setForm(FORM_INICIAL)
@@ -103,6 +126,9 @@ export default function PrecosMaterialPage() {
       unidade: item.unidade,
       precoUnitario: Number(item.precoUnitario) || 0,
       dataVigencia: item.dataVigencia ? item.dataVigencia.slice(0, 10) : new Date().toISOString().slice(0, 10),
+      suporteId: item.suporteId ?? null,
+      gramatura: item.gramatura != null ? Number(item.gramatura) : null,
+      densidadeTinta: item.densidadeTinta != null ? Number(item.densidadeTinta) : null,
     })
     setModalAberto(true)
   }
@@ -119,6 +145,10 @@ export default function PrecosMaterialPage() {
         unidade: form.unidade,
         precoUnitario: form.precoUnitario,
         dataVigencia: form.dataVigencia ? new Date(form.dataVigencia + 'T00:00:00').toISOString() : undefined,
+        // Papel → suporte (coefTinta) + gramatura; Tinta → densidade (SPANKS)
+        suporteId: form.tipo === 'PAPEL' ? (form.suporteId || null) : null,
+        gramatura: form.tipo === 'PAPEL' ? (form.gramatura ?? null) : null,
+        densidadeTinta: form.tipo === 'TINTA' ? (form.densidadeTinta ?? null) : null,
       }
 
       if (editando) {
@@ -318,6 +348,45 @@ export default function PrecosMaterialPage() {
             decimalScale={4}
             required
           />
+
+          {/* Papel: vínculo ao suporte (coefTinta) + gramatura — alimentam o
+              cálculo de consumo de tinta (SPANKS). Opcional. */}
+          {form.tipo === 'PAPEL' && (
+            <Group grow>
+              <Select
+                label="Suporte (coef. tinta)"
+                description="Vincula o papel a um suporte para o cálculo de tinta"
+                data={suportes}
+                value={form.suporteId}
+                onChange={(v) => setForm({ ...form, suporteId: v })}
+                clearable
+                searchable
+                nothingFoundMessage="Cadastre em Suportes"
+              />
+              <NumberInput
+                label="Gramatura (g/m²)"
+                value={form.gramatura ?? ''}
+                onChange={(v) => setForm({ ...form, gramatura: typeof v === 'number' ? v : null })}
+                min={0}
+                max={2000}
+              />
+            </Group>
+          )}
+
+          {/* Tinta: densidade (SPANKS). Default 1,0 (preto) / 1,3 (process). */}
+          {form.tipo === 'TINTA' && (
+            <NumberInput
+              label="Densidade da tinta (SPANKS)"
+              description="Preto ≈ 1,0 · Process (escala) ≈ 1,3 · Branco opaco ≈ 2,0"
+              value={form.densidadeTinta ?? ''}
+              onChange={(v) => setForm({ ...form, densidadeTinta: typeof v === 'number' ? v : null })}
+              min={0}
+              max={5}
+              decimalScale={3}
+              step={0.1}
+            />
+          )}
+
           <TextInput
             label="Data de Vigência"
             type="date"

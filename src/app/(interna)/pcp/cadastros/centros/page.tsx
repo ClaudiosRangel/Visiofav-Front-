@@ -15,7 +15,7 @@ export default function CentrosProducaoPage() {
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
   const [editando, setEditando] = useState<any>(null)
-  const [form, setForm] = useState({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null as string | null, turnoProducaoId: null as string | null, capacidadeHora: 0, custoHora: 0, velocidade: 0, unidadeVelocidade: null as string | null, formatoFolhaLargura: 0, formatoFolhaAltura: 0, pincaMm: 0, disponivelProgramacao: true })
+  const [form, setForm] = useState({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null as string | null, turnoProducaoId: null as string | null, capacidadeHora: 0, custoHora: 0, velocidade: 0, unidadeVelocidade: null as string | null, formatoFolhaLargura: 0, formatoFolhaAltura: 0, pincaMm: 0, acertoPorCorMin: 0, tempoSetupMin: 0, disponivelProgramacao: true })
 
   async function carregar() {
     setLoading(true)
@@ -34,8 +34,8 @@ export default function CentrosProducaoPage() {
 
   useEffect(() => { carregar() }, [])
 
-  function abrirNovo() { setEditando(null); setForm({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null, turnoProducaoId: null, capacidadeHora: 0, custoHora: 0, velocidade: 0, unidadeVelocidade: null, formatoFolhaLargura: 0, formatoFolhaAltura: 0, pincaMm: 0, disponivelProgramacao: true }); setModalAberto(true) }
-  function abrirEdicao(item: any) { setEditando(item); setForm({ codigo: item.codigo, descricao: item.descricao, tipo: item.tipo, tipoProcessoId: item.tipoProcessoId || null, turnoProducaoId: item.turnoProducaoId || null, capacidadeHora: Number(item.capacidadeHora) || 0, custoHora: Number(item.custoHora) || 0, velocidade: Number(item.velocidade) || 0, unidadeVelocidade: item.unidadeVelocidade || null, formatoFolhaLargura: Number(item.formatoFolhaLargura) || 0, formatoFolhaAltura: Number(item.formatoFolhaAltura) || 0, pincaMm: Number(item.pincaMm) || 0, disponivelProgramacao: item.disponivelProgramacao ?? true }); setModalAberto(true) }
+  function abrirNovo() { setEditando(null); setForm({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null, turnoProducaoId: null, capacidadeHora: 0, custoHora: 0, velocidade: 0, unidadeVelocidade: null, formatoFolhaLargura: 0, formatoFolhaAltura: 0, pincaMm: 0, acertoPorCorMin: 0, tempoSetupMin: 0, disponivelProgramacao: true }); setModalAberto(true) }
+  function abrirEdicao(item: any) { setEditando(item); setForm({ codigo: item.codigo, descricao: item.descricao, tipo: item.tipo, tipoProcessoId: item.tipoProcessoId || null, turnoProducaoId: item.turnoProducaoId || null, capacidadeHora: Number(item.capacidadeHora) || 0, custoHora: Number(item.custoHora) || 0, velocidade: Number(item.velocidade) || 0, unidadeVelocidade: item.unidadeVelocidade || null, formatoFolhaLargura: Number(item.formatoFolhaLargura) || 0, formatoFolhaAltura: Number(item.formatoFolhaAltura) || 0, pincaMm: Number(item.pincaMm) || 0, acertoPorCorMin: Number(item.acertoPorCorMin) || 0, tempoSetupMin: Number(item.tempoSetupMin) || 0, disponivelProgramacao: item.disponivelProgramacao ?? true }); setModalAberto(true) }
 
   async function salvar() {
     if (!form.tipoProcessoId) {
@@ -160,6 +160,13 @@ export default function CentrosProducaoPage() {
             <NumberInput label="Formato Folha — Largura (mm)" value={form.formatoFolhaLargura} onChange={(v) => setForm({ ...form, formatoFolhaLargura: typeof v === 'number' ? v : 0 })} min={0} />
             <NumberInput label="Formato Folha — Altura (mm)" value={form.formatoFolhaAltura} onChange={(v) => setForm({ ...form, formatoFolhaAltura: typeof v === 'number' ? v : 0 })} min={0} />
             <NumberInput label="Pinça (mm)" value={form.pincaMm} onChange={(v) => setForm({ ...form, pincaMm: typeof v === 'number' ? v : 0 })} min={0} decimalScale={2} />
+          </SimpleGrid>
+
+          {/* Orçamento Gráfico — Custo de Transformação (impressão offset).
+              Acerto por cor + setup fixo. Deixe em 0 para usar o cálculo legado. */}
+          <SimpleGrid cols={2}>
+            <NumberInput label="Acerto por cor (min)" description="Impressão: min de acerto por cor (ex.: 25)" value={form.acertoPorCorMin} onChange={(v) => setForm({ ...form, acertoPorCorMin: typeof v === 'number' ? v : 0 })} min={0} decimalScale={2} />
+            <NumberInput label="Setup fixo / 1º acerto (min)" value={form.tempoSetupMin} onChange={(v) => setForm({ ...form, tempoSetupMin: typeof v === 'number' ? v : 0 })} min={0} decimalScale={2} />
           </SimpleGrid>
 
           <Button onClick={salvar} fullWidth>{editando ? 'Salvar' : 'Criar'}</Button>
