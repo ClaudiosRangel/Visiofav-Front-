@@ -8,6 +8,7 @@ import {
 import { IconCalculator, IconAlertCircle, IconChartPie } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import type { WizardFormData } from './page'
+import EncaixeVisual, { type EncaixeLayout } from './EncaixeVisual'
 
 interface Props {
   formData: WizardFormData
@@ -15,6 +16,12 @@ interface Props {
 }
 
 interface Resultado {
+  encaixe?: {
+    aproveitamento?: number
+    percentAproveitamentoFolha?: number
+    orientacao?: 'NORMAL' | 'ROTACIONADA'
+    layout?: EncaixeLayout
+  }
   papel?: { pesoKg: number; custo: number }
   tinta?: { custoTotal: number; detalhePorCor?: Array<{ cor: string; consumoKg: number; custo: number }> }
   maquinas?: { custoTotal: number; detalhePorEtapa?: Array<{ etapa: string; tempoMin: number; custo: number }> }
@@ -233,6 +240,16 @@ export default function StepRevisao({ formData, updateForm }: Props) {
                 </Table.Tbody>
               </Table>
             </Paper>
+          )}
+
+          {/* Encaixe gráfico (imposição das peças na folha) */}
+          {resultado.encaixe?.layout && (
+            <EncaixeVisual
+              layout={resultado.encaixe.layout}
+              aproveitamento={resultado.encaixe.aproveitamento}
+              percentAproveitamentoFolha={resultado.encaixe.percentAproveitamentoFolha}
+              orientacao={resultado.encaixe.orientacao}
+            />
           )}
 
           {/* Breakdown visual */}
