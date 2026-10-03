@@ -38,7 +38,10 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
   const [busca, setBusca] = useState('')
 
   useEffect(() => {
-    api.get('/orcamento-grafico/acabamentos', { params: { page: 1, limit: 200 } })
+    // limit máx do backend é 100 (Zod). 200 fazia o Zod rejeitar (400) e a lista
+    // ficava vazia ("Nenhum acabamento cadastrado"). A Wega tem ~67 acabamentos,
+    // então 100 cobre tudo numa página.
+    api.get('/orcamento-grafico/acabamentos', { params: { page: 1, limit: 100 } })
       .then(({ data }) => setCadastro(data.data || data || []))
       .catch(() => setCadastro([]))
       .finally(() => setLoading(false))
