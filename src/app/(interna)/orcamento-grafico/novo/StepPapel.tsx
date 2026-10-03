@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Stack, Text, Autocomplete, NumberInput, Group, Badge, Loader, Paper, SimpleGrid } from '@mantine/core'
+import { useDebouncedValue } from '@mantine/hooks'
 import { IconLeaf, IconScale } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import type { WizardFormData } from './page'
@@ -20,10 +21,19 @@ interface MaterialPapel {
 
 export default function StepPapel({ formData, updateForm }: Props) {
   const [materiais, setMateriais] = useState<MaterialPapel[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [busca, setBusca] = useState(formData.papelDescricao || '')
+  const [debounced] = useDebouncedValue(busca, 300)
 
+  // Busca server-side: o cadastro tem ~1700 papéis; carregar só os primeiros 50
+  // escondia a maioria (ex.: "Klabin Advanced Triplex 280"). Agora o termo
+  // digitado vai ao backend (param `busca`), que filtra por descricao.
   useEffect(() => {
-    api.get('/orcamento-grafico/precos-mp', { params: { tipo: 'PAPEL' } })
+    const termo = debounced.trim()
+    setLoading(true)
+    api.get('/orcamento-grafico/precos-mp', {
+      params: { tipo: 'PAPEL', limit: 50, ...(termo.length >= 2 ? { busca: termo } : {}) },
+    })
       .then(({ data }) => {
         const items = (Array.isArray(data) ? data : data.data || []).map((m: any) => ({
           id: m.id,
@@ -35,7 +45,7 @@ export default function StepPapel({ formData, updateForm }: Props) {
       })
       .catch(() => setMateriais([]))
       .finally(() => setLoading(false))
-  }, [])
+  }, [debounced])
 
   const handlePapelSelect = (descricao: string) => {
     const found = materiais.find(m => m.descricao === descricao)
@@ -54,20 +64,23 @@ export default function StepPapel({ formData, updateForm }: Props) {
     <Stack gap="md">
       <Text fw={600} size="lg">Papel / Cartão</Text>
       <Text size="sm" c="dimmed">
-        Selecione o tipo de papel e informe a gramatura.
+        Digite parte do nome do papel/cartão (ex.: "Triplex 280", "Duplex", "Kraft").
+        A busca é feita no cadastro completo conforme você digita.
       </Text>
 
       <Autocomplete
         label="Tipo de Papel/Cartão"
-        placeholder={loading ? 'Carregando...' : 'Busque pelo nome do papel'}
+        placeholder="Busque pelo nome do papel"
         leftSection={loading ? <Loader size={14} /> : <IconLeaf size={16} />}
         data={materiais.map(m => m.descricao)}
-        value={formData.papelDescricao}
+        value={busca}
         onChange={(val) => {
+          setBusca(val)
           updateForm({ papelDescricao: val, papelId: null })
         }}
         onOptionSubmit={handlePapelSelect}
-        limit={20}
+        limit={50}
+        comboboxProps={{ withinPortal: true }}
       />
 
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
