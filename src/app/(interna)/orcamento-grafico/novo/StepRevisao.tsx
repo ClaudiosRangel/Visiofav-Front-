@@ -99,6 +99,7 @@ export default function StepRevisao({ formData, updateForm }: Props) {
       const payload = {
         tipoEmbalagemId: formData.tipoEmbalagemId,
         medidas: formData.medidas,
+        suporteId: formData.suporteId || undefined,
         papelId: formData.papelId || undefined,
         gramatura: formData.gramatura,
         precoKg: formData.precoKg,
@@ -142,6 +143,7 @@ export default function StepRevisao({ formData, updateForm }: Props) {
       const payload = {
         tipoEmbalagemId: formData.tipoEmbalagemId,
         medidas: formData.medidas,
+        suporteId: formData.suporteId || undefined,
         papelId: formData.papelId || undefined,
         gramatura: formData.gramatura,
         precoKg: formData.precoKg,

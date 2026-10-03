@@ -76,7 +76,9 @@ export interface WizardFormData {
   tipoEmbalagem: any | null
   // Step 3 — Medidas
   medidas: Record<string, number>
-  // Step 4 — Papel
+  // Step 4 — Papel (paridade Calcgraf: Suporte → Preço do papel/gramatura)
+  suporteId: string | null
+  suporteNome?: string
   papelId: string | null
   papelDescricao: string
   gramatura: number
@@ -100,6 +102,8 @@ const INITIAL_FORM: WizardFormData = {
   tipoEmbalagemId: null,
   tipoEmbalagem: null,
   medidas: {},
+  suporteId: null,
+  suporteNome: '',
   papelId: null,
   papelDescricao: '',
   gramatura: 0,
@@ -214,6 +218,8 @@ export default function NovoOrcamentoGraficoPage() {
           tipoEmbalagemId: data.tipoEmbalagemId ?? null,
           tipoEmbalagem: data.tipoEmbalagem ?? null,
           medidas: data.medidas ?? {},
+          suporteId: data.suporteId ?? null,
+          suporteNome: data.suporteNome ?? '',
           papelId: data.papelId ?? null,
           papelDescricao: data.papelDescricao ?? '',
           gramatura: gramaturaCarregada,
@@ -258,7 +264,7 @@ export default function NovoOrcamentoGraficoPage() {
         const params = formData.tipoEmbalagem.parametros as any[]
         return params.filter((p: any) => p.obrigatorio).every((p: any) => formData.medidas[p.nome] > 0)
       }
-      case 3: return isEditing || (formData.gramatura > 0 && formData.precoKg > 0)
+      case 3: return isEditing || (!!formData.suporteId && !!formData.papelId && formData.gramatura > 0 && formData.precoKg > 0)
       case 4: return formData.cores.length > 0
       case 5: return true
       case 6: return formData.quantidade > 0
@@ -280,6 +286,7 @@ export default function NovoOrcamentoGraficoPage() {
         vendedorId: formData.vendedorId || undefined,
         tipoEmbalagemId: formData.tipoEmbalagemId,
         medidas: formData.medidas,
+        suporteId: formData.suporteId || undefined,
         papelId: formData.papelId || undefined,
         papelDescricao: formData.papelDescricao || undefined,
         gramatura: formData.gramatura,
