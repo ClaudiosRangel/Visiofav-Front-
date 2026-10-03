@@ -8,7 +8,7 @@ import {
 } from '@mantine/core'
 import {
   IconArrowLeft, IconEdit, IconCopy, IconSend, IconCheck, IconX,
-  IconChartPie, IconAlertCircle,
+  IconChartPie, IconAlertCircle, IconFileText,
 } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
@@ -250,6 +250,21 @@ export default function OrcamentoDetalhePage() {
     }
   }
 
+  // Abre o relatório (PDF) no layout do pré-cálculo Calcgraf em nova aba.
+  const handleRelatorio = async () => {
+    setActionLoading(true)
+    try {
+      const { data } = await api.get(`/orcamento-grafico/${id}/relatorio.pdf`, { responseType: 'blob' })
+      const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }))
+      window.open(url, '_blank')
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao gerar relatório', color: 'red' })
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const handleEnviar = async () => {
     setActionLoading(true)
     try {
@@ -358,6 +373,14 @@ export default function OrcamentoDetalhePage() {
             loading={actionLoading}
           >
             Copiar
+          </Button>
+          <Button
+            variant="outline"
+            leftSection={<IconFileText size={16} />}
+            onClick={handleRelatorio}
+            loading={actionLoading}
+          >
+            Relatório (Calcgraf)
           </Button>
           {orcamento.status === 'RASCUNHO' && (
             <Button

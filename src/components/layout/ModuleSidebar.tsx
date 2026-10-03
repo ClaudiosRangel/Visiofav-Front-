@@ -461,6 +461,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconPackage, label: 'Tipos de Embalagem', href: '/orcamento-grafico/cadastros/tipos-embalagem' },
           { icon: IconCash, label: 'Preços Materiais', href: '/orcamento-grafico/cadastros/precos-materiais' },
           { icon: IconPalette, label: 'Suportes', href: '/orcamento-grafico/cadastros/suportes' },
+          { icon: IconTool, label: 'Acabamentos', href: '/orcamento-grafico/cadastros/acabamentos' },
           { icon: IconChartBar, label: 'Parâmetros Perda', href: '/orcamento-grafico/cadastros/parametros-perda' },
           { icon: IconTags, label: 'Tabelas de Margem', href: '/orcamento-grafico/cadastros/tabelas-margem' },
         ],

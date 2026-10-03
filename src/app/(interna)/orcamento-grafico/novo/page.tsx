@@ -38,6 +38,31 @@ export interface AcabamentoItem {
   custoMaterialM2: number
 }
 
+/**
+ * Acabamento RICO selecionado do cadastro (paridade Calcgraf). Referencia um
+ * AcabamentoGrafico por id e carrega os overrides por orçamento (consumo de
+ * material, tempos). Enviado ao backend em `acabamentosRicos`.
+ */
+export interface AcabamentoRicoSelecionado {
+  acabamentoId: string
+  nome: string
+  naturezaCusto: 'HORA_MAQUINA' | 'MATERIAL_KG' | 'MATERIAL_UN' | 'CUSTO_FIXO'
+  // overrides por orçamento (opcionais — default vem do cadastro)
+  variavelKg?: number
+  precoKg?: number
+  variavelUn?: number
+  precoUn?: number
+  valorFixo?: number
+  custoHora?: number
+  producaoHora?: number
+  unidadeBase?: 'FOLHA' | 'PRODUTO'
+  quantAcertos?: number
+  tempoPorAcertoMin?: number
+  tempoPrimeiroAcertoMin?: number
+  tempoFixoHoras?: number
+  tempoVarHoras?: number
+}
+
 export interface WizardFormData {
   // Step 1 — Cliente
   clienteId: string | null
@@ -58,8 +83,9 @@ export interface WizardFormData {
   precoKg: number
   // Step 5 — Cores
   cores: CorItem[]
-  // Step 6 — Acabamentos
+  // Step 6 — Acabamentos (legado: lista fixa; ricos: do cadastro Calcgraf)
   acabamentos: AcabamentoItem[]
+  acabamentosRicos: AcabamentoRicoSelecionado[]
   // Step 7 — Revisão
   quantidade: number
   tabelaMargemId: string | null
@@ -91,6 +117,7 @@ const INITIAL_FORM: WizardFormData = {
     { tipo: 'LAMINACAO_BOPP', label: 'Laminação BOPP', ativo: false, custoHora: 220, velocidade: 3000, custoMaterialM2: 0.18 },
     { tipo: 'HOT_STAMPING', label: 'Hot Stamping', ativo: false, custoHora: 250, velocidade: 2000, custoMaterialM2: 0.25 },
   ],
+  acabamentosRicos: [],
   quantidade: 10000,
   tabelaMargemId: null,
 }
@@ -264,6 +291,7 @@ export default function NovoOrcamentoGraficoPage() {
           rendimentoM2Kg: c.rendimentoM2Kg,
         })),
         acabamentos: acabamentosAtivos,
+        acabamentosRicos: formData.acabamentosRicos?.length ? formData.acabamentosRicos : undefined,
         quantidade: formData.quantidade,
         tabelaMargemId: formData.tabelaMargemId || undefined,
         precoKg: formData.precoKg,

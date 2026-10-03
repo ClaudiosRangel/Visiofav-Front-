@@ -110,6 +110,7 @@ export default function StepRevisao({ formData, updateForm }: Props) {
           rendimentoM2Kg: c.rendimentoM2Kg,
         })),
         acabamentos: acabamentosAtivos,
+        acabamentosRicos: formData.acabamentosRicos?.length ? formData.acabamentosRicos : undefined,
         quantidade: formData.quantidade,
         tabelaMargemId: formData.tabelaMargemId || undefined,
       }
@@ -152,6 +153,7 @@ export default function StepRevisao({ formData, updateForm }: Props) {
           rendimentoM2Kg: c.rendimentoM2Kg,
         })),
         acabamentos: acabamentosAtivos,
+        acabamentosRicos: formData.acabamentosRicos?.length ? formData.acabamentosRicos : undefined,
         quantidades,
         tabelaMargemId: formData.tabelaMargemId || undefined,
       }
