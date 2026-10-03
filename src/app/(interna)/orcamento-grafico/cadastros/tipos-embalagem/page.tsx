@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import {
   Title, Stack, Table, Group, Button, Badge, Text, Loader, Center,
   Modal, TextInput, Textarea, NumberInput, ActionIcon, MultiSelect,
-  JsonInput, Paper, SimpleGrid, Divider, ScrollArea, Alert,
+  JsonInput, Paper, SimpleGrid, Divider, ScrollArea, Alert, Select,
 } from '@mantine/core'
 import { IconPlus, IconEdit, IconTrash, IconCalculator, IconAlertCircle } from '@tabler/icons-react'
 import { api } from '@/lib/api'
@@ -33,11 +33,20 @@ interface TipoEmbalagem {
   abaColagemMm: number
   sangriaMm: number
   pincaMm: number
+  gabaritoPlanificacao?: string | null
   imagemUrl?: string | null
   status: boolean
   criadoEm: string
   atualizadoEm: string
 }
+
+// Gabaritos de planificação disponíveis (desenho esquemático da caixa aberta).
+const GABARITOS_PLANIFICACAO = [
+  { value: 'RETANGULO', label: 'Retângulo (plano simples)' },
+  { value: 'CARTUCHO', label: 'Cartucho (caixa reta)' },
+  { value: 'CAIXA_FUNDO_AUTO', label: 'Caixa fundo automático' },
+  { value: 'CARTELA', label: 'Cartela / blister' },
+]
 
 interface FormData {
   codigo: string
@@ -49,6 +58,7 @@ interface FormData {
   abaColagemMm: number
   sangriaMm: number
   pincaMm: number
+  gabaritoPlanificacao: string
   imagemUrl: string
 }
 
@@ -62,6 +72,7 @@ const FORM_INICIAL: FormData = {
   abaColagemMm: 15,
   sangriaMm: 3,
   pincaMm: 10,
+  gabaritoPlanificacao: 'RETANGULO',
   imagemUrl: '',
 }
 
@@ -311,6 +322,7 @@ export default function TiposEmbalagemPage() {
       abaColagemMm: Number(item.abaColagemMm) || 15,
       sangriaMm: Number(item.sangriaMm) || 3,
       pincaMm: Number(item.pincaMm) || 10,
+      gabaritoPlanificacao: item.gabaritoPlanificacao || 'RETANGULO',
       imagemUrl: item.imagemUrl || '',
     })
     setParametrosJson(JSON.stringify(item.parametros || [], null, 2))
@@ -346,6 +358,7 @@ export default function TiposEmbalagemPage() {
         abaColagemMm: form.abaColagemMm,
         sangriaMm: form.sangriaMm,
         pincaMm: form.pincaMm,
+        gabaritoPlanificacao: form.gabaritoPlanificacao || null,
         imagemUrl: form.imagemUrl || undefined,
       }
 
@@ -582,6 +595,15 @@ export default function TiposEmbalagemPage() {
                 decimalScale={2}
               />
             </SimpleGrid>
+
+            <Select
+              label="Gabarito de planificação"
+              description="Desenho esquemático do contorno da caixa aberta exibido no encaixe (apenas visual, não altera o cálculo)"
+              data={GABARITOS_PLANIFICACAO}
+              value={form.gabaritoPlanificacao}
+              onChange={(v) => setForm({ ...form, gabaritoPlanificacao: v || 'RETANGULO' })}
+              allowDeselect={false}
+            />
 
             <TextInput
               label="URL da Imagem (opcional)"

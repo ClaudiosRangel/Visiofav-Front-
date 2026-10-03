@@ -1,12 +1,17 @@
 'use client'
 
 import { Paper, Text, Group, Badge, Stack } from '@mantine/core'
+import type { Planificacao } from './planificacao-gabaritos'
 
 /**
  * Desenho (SVG) do encaixe/imposição das peças na folha de impressão.
  * Reproduz visualmente o que o motor calcula (`calcularEncaixe`): grade de
  * colunas × linhas de peças (já com sangria) dentro da folha, com a faixa de
  * pinça marcada. Em tempo real conforme o orçamento muda.
+ *
+ * Quando recebe `plan` (planificação esquemática do gabarito do tipo de
+ * embalagem), desenha o CONTORNO REAL da caixa aberta em cada célula, em vez do
+ * retângulo. Ver spec orcamento-grafico-planificacao-visual.
  */
 
 export interface EncaixeLayout {
@@ -24,9 +29,11 @@ interface Props {
   aproveitamento?: number
   percentAproveitamentoFolha?: number
   orientacao?: 'NORMAL' | 'ROTACIONADA'
+  /** Planificação esquemática do gabarito (contorno da caixa aberta). */
+  plan?: Planificacao | null
 }
 
-export default function EncaixeVisual({ layout, aproveitamento, percentAproveitamentoFolha, orientacao }: Props) {
+export default function EncaixeVisual({ layout, aproveitamento, percentAproveitamentoFolha, orientacao, plan }: Props) {
   if (!layout || layout.folhaLarguraMm <= 0 || layout.folhaAlturaMm <= 0) {
     return null
   }
@@ -52,6 +59,12 @@ export default function EncaixeVisual({ layout, aproveitamento, percentAproveita
   }
 
   const total = layout.colunas * layout.linhas
+
+  // Se há planificação (contorno real), prepara a transformação para desenhá-la
+  // dentro de cada célula (escala do bounding box do gabarito p/ o tamanho da
+  // peça na folha). Rotaciona 90° quando o encaixe é rotacionado.
+  const usarPlan = !!plan && plan.paths.length > 0 && plan.larguraMm > 0 && plan.alturaMm > 0
+  const rotac = orientacao === 'ROTACIONADA'
 
   return (
     <Paper p="md" withBorder>
@@ -87,7 +100,7 @@ export default function EncaixeVisual({ layout, aproveitamento, percentAproveita
           )}
 
           {/* Peças encaixadas */}
-          {pecas.map((p, i) => (
+          {!usarPlan && pecas.map((p, i) => (
             <rect
               key={i}
               x={p.x + 0.5}
@@ -100,6 +113,37 @@ export default function EncaixeVisual({ layout, aproveitamento, percentAproveita
               strokeWidth={0.4}
             />
           ))}
+
+          {/* Contorno real (gabarito) repetido em cada célula */}
+          {usarPlan && plan && pecas.map((p, i) => {
+            // bounding box do gabarito (mm) → tamanho da peça na folha (px do viewBox)
+            const bw = rotac ? plan.alturaMm : plan.larguraMm
+            const bh = rotac ? plan.larguraMm : plan.alturaMm
+            const sx = (pw - 1) / bw
+            const sy = (ph - 1) / bh
+            // transform: posiciona na célula; se rotacionado, gira 90° no centro.
+            const cx = p.x + pw / 2
+            const cy = p.y + ph / 2
+            const transform = rotac
+              ? `translate(${cx} ${cy}) rotate(90) translate(${-(plan.larguraMm * sy) / 2} ${-(plan.alturaMm * sx) / 2}) scale(${sy} ${sx})`
+              : `translate(${p.x + 0.5} ${p.y + 0.5}) scale(${sx} ${sy})`
+            return (
+              <g key={i} transform={transform}>
+                {plan.paths.map((pt, j) => (
+                  <path
+                    key={j}
+                    d={pt.d}
+                    fill={pt.tipo === 'CORTE' ? 'var(--mantine-color-blue-3)' : 'none'}
+                    opacity={pt.tipo === 'CORTE' ? 0.55 : 1}
+                    stroke={pt.tipo === 'CORTE' ? 'var(--mantine-color-blue-7)' : 'var(--mantine-color-gray-6)'}
+                    strokeWidth={pt.tipo === 'CORTE' ? 0.6 : 0.4}
+                    strokeDasharray={pt.tipo === 'VINCO' ? '2 1.5' : undefined}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ))}
+              </g>
+            )
+          })}
         </svg>
 
         <Text size="xs" c="dimmed">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
   Stack, Text, NumberInput, Group, Paper, SimpleGrid, Table, Loader,
   Center, Alert, Badge, Divider, Progress,
@@ -9,6 +9,7 @@ import { IconCalculator, IconAlertCircle, IconChartPie } from '@tabler/icons-rea
 import { api } from '@/lib/api'
 import type { WizardFormData } from './page'
 import EncaixeVisual, { type EncaixeLayout } from './EncaixeVisual'
+import { gerarPlanificacao, type GabaritoId } from './planificacao-gabaritos'
 
 interface Props {
   formData: WizardFormData
@@ -54,6 +55,36 @@ export default function StepRevisao({ formData, updateForm }: Props) {
   const [simulacoes, setSimulacoes] = useState<Simulacao[]>([])
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+
+  // Planificação esquemática (contorno da caixa aberta) do gabarito do tipo de
+  // embalagem selecionado. Null quando o tipo não tem gabarito (→ retângulo).
+  const planificacao = useMemo(() => {
+    const tipo = formData.tipoEmbalagem as { gabaritoPlanificacao?: string | null } | null
+    const gab = (tipo?.gabaritoPlanificacao || '').toUpperCase()
+    if (!gab || gab === 'RETANGULO') return null
+    const m = (formData.medidas || {}) as Record<string, number>
+    // As chaves de `medidas` vêm do cadastro do tipo (param.nome), que pode usar
+    // L/A/P OU nomes por extenso (largura/altura/profundidade/comprimento).
+    // Buscamos por aliases comuns (case-insensitive) para não depender da convenção.
+    const pick = (...aliases: string[]): number => {
+      for (const a of aliases) {
+        for (const k of Object.keys(m)) {
+          if (k.toLowerCase() === a.toLowerCase() && Number(m[k]) > 0) return Number(m[k])
+        }
+      }
+      return 0
+    }
+    const L = pick('L', 'largura', 'comprimento', 'c')
+    const A = pick('A', 'altura', 'h')
+    const P = pick('P', 'profundidade', 'prof', 'espessura', 'e')
+    if (L <= 0 || A <= 0) return null
+    return gerarPlanificacao({
+      gabarito: gab as GabaritoId,
+      L, A, P,
+      abaMm: Number(formData.tipoEmbalagem?.abaColagemMm) || undefined,
+      sangriaMm: Number(formData.tipoEmbalagem?.sangriaMm) || undefined,
+    })
+  }, [formData.tipoEmbalagem, formData.medidas])
 
   const calcular = useCallback(async () => {
     if (formData.quantidade <= 0) return
@@ -249,6 +280,7 @@ export default function StepRevisao({ formData, updateForm }: Props) {
               aproveitamento={resultado.encaixe.aproveitamento}
               percentAproveitamentoFolha={resultado.encaixe.percentAproveitamentoFolha}
               orientacao={resultado.encaixe.orientacao}
+              plan={planificacao}
             />
           )}
 
