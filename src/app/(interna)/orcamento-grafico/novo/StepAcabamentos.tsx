@@ -22,6 +22,9 @@ interface AcabamentoCadastro {
   precoUnitario: number | null
   custoHora: number | null
   producaoHora: number | null
+  quantAcertos: number | null
+  tempoPorAcertoMin: number | null
+  tempoPrimeiroAcertoMin: number | null
   unidadeBase: string | null
 }
 
@@ -58,9 +61,13 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
         acabamentoId: ac.id,
         nome: ac.nome,
         naturezaCusto: ac.naturezaCusto,
-        // defaults a partir do cadastro (usuário ajusta abaixo)
+        // defaults a partir do cadastro (modo DERIVADO — tempos vêm do Calcgraf).
+        // O usuário pode ajustar; se deixar como veio, o backend usa o cadastro.
         custoHora: ac.custoHora ?? undefined,
         producaoHora: ac.producaoHora ?? undefined,
+        quantAcertos: ac.quantAcertos ?? undefined,
+        tempoPorAcertoMin: ac.tempoPorAcertoMin ?? undefined,
+        tempoPrimeiroAcertoMin: ac.tempoPrimeiroAcertoMin ?? undefined,
         unidadeBase: (ac.unidadeBase as 'FOLHA' | 'PRODUTO') ?? 'FOLHA',
       }
       updateForm({ acabamentosRicos: [...selecionados, novo] })
@@ -152,10 +159,14 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
                         <>
                           <NumberInput label="Custo/hora" prefix="R$ " value={sel.custoHora ?? ''} min={0} decimalScale={2} size="xs"
                             onChange={(v) => patch(ac.id, 'custoHora', typeof v === 'number' ? v : undefined)} />
-                          <NumberInput label="Tempo acerto (h)" description="Fixo" value={sel.tempoFixoHoras ?? ''} min={0} decimalScale={4} size="xs"
-                            onChange={(v) => patch(ac.id, 'tempoFixoHoras', typeof v === 'number' ? v : undefined)} />
-                          <NumberInput label="Tempo produção (h)" description="Variável" value={sel.tempoVarHoras ?? ''} min={0} decimalScale={4} size="xs"
-                            onChange={(v) => patch(ac.id, 'tempoVarHoras', typeof v === 'number' ? v : undefined)} />
+                          <NumberInput label="Produção (un/h)" description="Do cadastro" value={sel.producaoHora ?? ''} min={0} decimalScale={2} size="xs"
+                            onChange={(v) => patch(ac.id, 'producaoHora', typeof v === 'number' ? v : undefined)} />
+                          <NumberInput label="Qtd. acertos" value={sel.quantAcertos ?? ''} min={0} size="xs"
+                            onChange={(v) => patch(ac.id, 'quantAcertos', typeof v === 'number' ? v : undefined)} />
+                          <NumberInput label="Tempo/acerto (min)" value={sel.tempoPorAcertoMin ?? ''} min={0} decimalScale={2} size="xs"
+                            onChange={(v) => patch(ac.id, 'tempoPorAcertoMin', typeof v === 'number' ? v : undefined)} />
+                          <NumberInput label="1º acerto (min)" value={sel.tempoPrimeiroAcertoMin ?? ''} min={0} decimalScale={2} size="xs"
+                            onChange={(v) => patch(ac.id, 'tempoPrimeiroAcertoMin', typeof v === 'number' ? v : undefined)} />
                         </>
                       )}
                     </SimpleGrid>
