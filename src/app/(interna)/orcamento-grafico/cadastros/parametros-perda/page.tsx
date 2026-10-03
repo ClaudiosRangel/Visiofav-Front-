@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import {
   Title, Stack, Table, Group, Button, Text, Loader, Center,
-  Modal, NumberInput, Select, ActionIcon, ScrollArea,
+  Modal, NumberInput, Select, ActionIcon, ScrollArea, Pagination,
 } from '@mantine/core'
 import { IconPlus, IconEdit, IconTrash } from '@tabler/icons-react'
 import { api } from '@/lib/api'
@@ -52,16 +52,21 @@ export default function ParametrosPerdaPage() {
   const [editando, setEditando] = useState<ParametroPerda | null>(null)
   const [form, setForm] = useState<FormData>(FORM_INICIAL)
   const [salvando, setSalvando] = useState(false)
+  // Paginação (50 itens/página)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const LIMIT = 50
 
   async function carregar() {
     setLoading(true)
     try {
       const [resParams, resTipos, resCentros] = await Promise.all([
-        api.get('/orcamento-grafico/parametros-perda'),
+        api.get('/orcamento-grafico/parametros-perda', { params: { page, limit: LIMIT } }),
         api.get('/tipos-processo', { params: { status: 'true' } }),
         api.get('/centros-producao', { params: { limit: 100 } }),
       ])
       setData(resParams.data.data || resParams.data || [])
+      setTotalPages(resParams.data.totalPages || 1)
       setTiposProcesso(resTipos.data.data || resTipos.data || [])
       setCentros(resCentros.data.data || resCentros.data || [])
     } catch (err: any) {
@@ -69,7 +74,7 @@ export default function ParametrosPerdaPage() {
     } finally { setLoading(false) }
   }
 
-  useEffect(() => { carregar() }, [])
+  useEffect(() => { carregar() }, [page]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function abrirNovo() {
     setEditando(null)
@@ -191,6 +196,12 @@ export default function ParametrosPerdaPage() {
             </Table.Tbody>
           </Table>
         </ScrollArea>
+      )}
+
+      {totalPages > 1 && (
+        <Group justify="center">
+          <Pagination total={totalPages} value={page} onChange={setPage} />
+        </Group>
       )}
 
       {/* Modal de criação/edição */}

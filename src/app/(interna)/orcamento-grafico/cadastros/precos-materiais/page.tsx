@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import {
   Title, Stack, Table, Group, Button, Badge, Text, Loader, Center,
-  Modal, TextInput, Select, NumberInput, ActionIcon, ScrollArea,
+  Modal, TextInput, Select, NumberInput, ActionIcon, ScrollArea, Pagination,
 } from '@mantine/core'
 import { IconPlus, IconEdit, IconTrash } from '@tabler/icons-react'
 import { api } from '@/lib/api'
@@ -81,6 +81,11 @@ export default function PrecosMaterialPage() {
   const [editando, setEditando] = useState<PrecoMaterial | null>(null)
   const [form, setForm] = useState<FormData>(FORM_INICIAL)
   const [salvando, setSalvando] = useState(false)
+  // Paginação (50 itens/página)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
+  const LIMIT = 50
   // Inline edit
   const [editandoPrecoId, setEditandoPrecoId] = useState<string | null>(null)
   const [editandoPrecoValor, setEditandoPrecoValor] = useState<number>(0)
@@ -89,15 +94,19 @@ export default function PrecosMaterialPage() {
     setLoading(true)
     try {
       const res = await api.get('/orcamento-grafico/precos-mp', {
-        params: { page: 1, limit: 100, busca: busca || undefined, tipo: filtroTipo || undefined },
+        params: { page, limit: LIMIT, busca: busca || undefined, tipo: filtroTipo || undefined },
       })
       setData(res.data.data || res.data || [])
+      setTotal(res.data.total || 0)
+      setTotalPages(res.data.totalPages || 1)
     } catch (err: any) {
       notifications.show({ title: 'Erro ao carregar', message: err?.response?.data?.message || 'Falha ao buscar preços', color: 'red' })
     } finally { setLoading(false) }
   }
 
-  useEffect(() => { carregar() }, [busca, filtroTipo])
+  useEffect(() => { carregar() }, [busca, filtroTipo, page]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Reset da página ao mudar busca/filtro
+  useEffect(() => { setPage(1) }, [busca, filtroTipo])
 
   // Carregar suportes (para vincular ao papel)
   useEffect(() => {
@@ -207,7 +216,7 @@ export default function PrecosMaterialPage() {
         <div>
           <Title order={3}>Preços de Matéria-Prima</Title>
           <Text size="sm" c="dimmed">
-            Tabela de preços unitários por material — clique no preço para edição rápida
+            {total} {total === 1 ? 'material' : 'materiais'} — clique no preço para edição rápida
           </Text>
         </div>
         <Button leftSection={<IconPlus size={16} />} onClick={abrirNovo}>Novo Preço</Button>
@@ -306,6 +315,12 @@ export default function PrecosMaterialPage() {
             </Table.Tbody>
           </Table>
         </ScrollArea>
+      )}
+
+      {totalPages > 1 && (
+        <Group justify="center">
+          <Pagination total={totalPages} value={page} onChange={setPage} />
+        </Group>
       )}
 
       {/* Modal de criação/edição */}

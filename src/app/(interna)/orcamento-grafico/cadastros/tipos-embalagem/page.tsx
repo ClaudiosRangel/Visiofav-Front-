@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import {
   Title, Stack, Table, Group, Button, Badge, Text, Loader, Center,
   Modal, TextInput, Textarea, NumberInput, ActionIcon, MultiSelect,
-  JsonInput, Paper, SimpleGrid, Divider, ScrollArea, Alert, Select,
+  JsonInput, Paper, SimpleGrid, Divider, ScrollArea, Alert, Select, Pagination,
 } from '@mantine/core'
 import { IconPlus, IconEdit, IconTrash, IconCalculator, IconAlertCircle } from '@tabler/icons-react'
 import { api } from '@/lib/api'
@@ -288,20 +288,28 @@ export default function TiposEmbalagemPage() {
   const [form, setForm] = useState<FormData>(FORM_INICIAL)
   const [salvando, setSalvando] = useState(false)
   const [parametrosJson, setParametrosJson] = useState('[]')
+  // Paginação (50 itens/página)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
+  const LIMIT = 50
 
   async function carregar() {
     setLoading(true)
     try {
       const res = await api.get('/orcamento-grafico/tipos-embalagem', {
-        params: { page: 1, limit: 50, busca: busca || undefined, status: filtroStatus },
+        params: { page, limit: LIMIT, busca: busca || undefined, status: filtroStatus },
       })
       setData(res.data.data || [])
+      setTotal(res.data.total || 0)
+      setTotalPages(res.data.totalPages || 1)
     } catch (err: any) {
       notifications.show({ title: 'Erro ao carregar', message: err?.response?.data?.message || 'Falha ao buscar tipos de embalagem', color: 'red' })
     } finally { setLoading(false) }
   }
 
-  useEffect(() => { carregar() }, [busca, filtroStatus])
+  useEffect(() => { carregar() }, [busca, filtroStatus, page])
+  useEffect(() => { setPage(1) }, [busca, filtroStatus])
 
   function abrirNovo() {
     setEditando(null)
@@ -477,6 +485,12 @@ export default function TiposEmbalagemPage() {
             </Table.Tbody>
           </Table>
         </ScrollArea>
+      )}
+
+      {totalPages > 1 && (
+        <Group justify="center">
+          <Pagination total={totalPages} value={page} onChange={setPage} />
+        </Group>
       )}
 
       {/* Modal de criação/edição */}

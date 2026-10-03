@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import {
   Title, Stack, Table, Group, Button, Badge, Text, Loader, Center,
-  Modal, TextInput, NumberInput, ActionIcon, ScrollArea,
+  Modal, TextInput, NumberInput, ActionIcon, ScrollArea, Pagination,
 } from '@mantine/core'
 import { IconPlus, IconEdit, IconTrash } from '@tabler/icons-react'
 import { api } from '@/lib/api'
@@ -55,18 +55,25 @@ export default function TabelasMargemPage() {
   const [editando, setEditando] = useState<TabelaMargem | null>(null)
   const [form, setForm] = useState<FormData>(FORM_INICIAL)
   const [salvando, setSalvando] = useState(false)
+  // Paginação (50 itens/página)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const LIMIT = 50
 
   async function carregar() {
     setLoading(true)
     try {
-      const res = await api.get('/orcamento-grafico/tabelas-margem')
+      const res = await api.get('/orcamento-grafico/tabelas-margem', {
+        params: { page, limit: LIMIT },
+      })
       setData(res.data.data || res.data || [])
+      setTotalPages(res.data.totalPages || 1)
     } catch (err: any) {
       notifications.show({ title: 'Erro ao carregar', message: err?.response?.data?.message || 'Falha', color: 'red' })
     } finally { setLoading(false) }
   }
 
-  useEffect(() => { carregar() }, [])
+  useEffect(() => { carregar() }, [page])
 
   function abrirNovo() {
     setEditando(null)
@@ -194,6 +201,12 @@ export default function TabelasMargemPage() {
             </Table.Tbody>
           </Table>
         </ScrollArea>
+      )}
+
+      {totalPages > 1 && (
+        <Group justify="center">
+          <Pagination total={totalPages} value={page} onChange={setPage} />
+        </Group>
       )}
 
       {/* Modal de criação/edição */}

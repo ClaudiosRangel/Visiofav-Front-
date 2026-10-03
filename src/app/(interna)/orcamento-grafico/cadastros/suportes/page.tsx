@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import {
   Title, Stack, Table, Group, Button, Badge, Text, Loader, Center,
-  Modal, TextInput, Select, NumberInput, ActionIcon, ScrollArea,
+  Modal, TextInput, Select, NumberInput, ActionIcon, ScrollArea, Pagination,
 } from '@mantine/core'
 import { IconPlus, IconEdit, IconTrash } from '@tabler/icons-react'
 import { api } from '@/lib/api'
@@ -63,20 +63,28 @@ export default function SuportesPage() {
   const [editando, setEditando] = useState<Suporte | null>(null)
   const [form, setForm] = useState<FormData>(FORM_INICIAL)
   const [salvando, setSalvando] = useState(false)
+  // Paginação (50 itens/página)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
+  const LIMIT = 50
 
   async function carregar() {
     setLoading(true)
     try {
       const res = await api.get('/orcamento-grafico/suportes', {
-        params: { page: 1, limit: 100, busca: busca || undefined },
+        params: { page, limit: LIMIT, busca: busca || undefined },
       })
       setData(res.data.data || res.data || [])
+      setTotal(res.data.total || 0)
+      setTotalPages(res.data.totalPages || 1)
     } catch (err: any) {
       notifications.show({ title: 'Erro ao carregar', message: err?.response?.data?.message || 'Falha ao buscar suportes', color: 'red' })
     } finally { setLoading(false) }
   }
 
-  useEffect(() => { carregar() }, [busca]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { carregar() }, [busca, page]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setPage(1) }, [busca])
 
   function abrirNovo() {
     setEditando(null)
@@ -150,7 +158,7 @@ export default function SuportesPage() {
         <div>
           <Title order={3}>Suportes (Papel/Cartão)</Title>
           <Text size="sm" c="dimmed">
-            Cadastro de suportes com o coeficiente de tinta usado no cálculo de consumo (fórmula SPANKS).
+            {total} {total === 1 ? 'suporte' : 'suportes'} — coeficiente de tinta usado no cálculo de consumo (fórmula SPANKS).
           </Text>
         </div>
         <Button leftSection={<IconPlus size={16} />} onClick={abrirNovo}>Novo Suporte</Button>
@@ -211,6 +219,12 @@ export default function SuportesPage() {
             </Table.Tbody>
           </Table>
         </ScrollArea>
+      )}
+
+      {totalPages > 1 && (
+        <Group justify="center">
+          <Pagination total={totalPages} value={page} onChange={setPage} />
+        </Group>
       )}
 
       <Modal

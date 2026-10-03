@@ -91,7 +91,7 @@ export default function OrcamentosGraficoPage() {
   const [dataInicio, setDataInicio] = useState<Date | null>(null)
   const [dataFim, setDataFim] = useState<Date | null>(null)
 
-  const LIMIT = 20
+  const LIMIT = 50
 
   const carregar = useCallback(async () => {
     setLoading(true)
