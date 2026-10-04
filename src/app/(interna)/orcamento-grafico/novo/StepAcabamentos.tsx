@@ -45,7 +45,23 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
     // ficava vazia ("Nenhum acabamento cadastrado"). A Wega tem ~67 acabamentos,
     // então 100 cobre tudo numa página.
     api.get('/orcamento-grafico/acabamentos', { params: { page: 1, limit: 100 } })
-      .then(({ data }) => setCadastro(data.data || data || []))
+      .then(({ data }) => {
+        // Os campos numéricos vêm como STRING do backend (Decimal do Prisma).
+        // O schema Zod do /calcular espera number — por isso convertemos aqui,
+        // senão o cálculo falha com "Expected number, received string".
+        const num = (v: unknown): number | null =>
+          v == null || v === '' ? null : Number(v)
+        const items = (data.data || data || []).map((a: any) => ({
+          ...a,
+          precoUnitario: num(a.precoUnitario),
+          custoHora: num(a.custoHora),
+          producaoHora: num(a.producaoHora),
+          quantAcertos: num(a.quantAcertos),
+          tempoPorAcertoMin: num(a.tempoPorAcertoMin),
+          tempoPrimeiroAcertoMin: num(a.tempoPrimeiroAcertoMin),
+        }))
+        setCadastro(items)
+      })
       .catch(() => setCadastro([]))
       .finally(() => setLoading(false))
   }, [])
@@ -57,17 +73,22 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
     if (selById.has(ac.id)) {
       updateForm({ acabamentosRicos: selecionados.filter((s) => s.acabamentoId !== ac.id) })
     } else {
+      // O cadastro vem com Decimals serializados como STRING (ex.: custoHora "320").
+      // O backend (Zod) espera number — converter com `num()` evita o erro
+      // "Expected number, received string" no /calcular.
+      const num = (v: unknown): number | undefined =>
+        v == null || v === '' ? undefined : Number(v)
       const novo: AcabamentoRicoSelecionado = {
         acabamentoId: ac.id,
         nome: ac.nome,
         naturezaCusto: ac.naturezaCusto,
         // defaults a partir do cadastro (modo DERIVADO — tempos vêm do Calcgraf).
         // O usuário pode ajustar; se deixar como veio, o backend usa o cadastro.
-        custoHora: ac.custoHora ?? undefined,
-        producaoHora: ac.producaoHora ?? undefined,
-        quantAcertos: ac.quantAcertos ?? undefined,
-        tempoPorAcertoMin: ac.tempoPorAcertoMin ?? undefined,
-        tempoPrimeiroAcertoMin: ac.tempoPrimeiroAcertoMin ?? undefined,
+        custoHora: num(ac.custoHora),
+        producaoHora: num(ac.producaoHora),
+        quantAcertos: num(ac.quantAcertos),
+        tempoPorAcertoMin: num(ac.tempoPorAcertoMin),
+        tempoPrimeiroAcertoMin: num(ac.tempoPrimeiroAcertoMin),
         unidadeBase: (ac.unidadeBase as 'FOLHA' | 'PRODUTO') ?? 'FOLHA',
       }
       updateForm({ acabamentosRicos: [...selecionados, novo] })
