@@ -27,6 +27,9 @@ interface Resultado {
   tinta?: { custoTotal: number; detalhePorCor?: Array<{ cor: string; consumoKg: number; custo: number }> }
   maquinas?: { custoTotal: number; detalhePorEtapa?: Array<{ etapa: string; tempoMin: number; custo: number }> }
   acabamentos?: { custoTotal: number; detalhePorAcabamento?: Array<{ tipo: string; custo: number }> }
+  // Paridade Calcgraf: cadeia de centros de acabamento (CT) + materiais (MD).
+  acabamentosCentros?: { custoTotal: number; detalhePorEtapa?: Array<{ etapa: string; setupMin: number; operacaoMin: number; custo: number }> }
+  matAcabamento?: { custoTotal: number; itens?: Array<{ nome: string; natureza: string; subtotal: number }> }
   custoTotal?: number
   precoVenda?: number
   precoUnitario?: number
@@ -321,12 +324,28 @@ export default function StepRevisao({ formData, updateForm }: Props) {
               ))}
             </Paper>
             <Paper p="md" withBorder>
-              <Text fw={500} size="sm" mb="xs">Acabamentos</Text>
-              <Text size="sm" c="dimmed">Custo: {formatCurrency(resultado.acabamentos?.custoTotal)}</Text>
+              <Text fw={500} size="sm" mb="xs">Acabamentos (centros)</Text>
+              <Text size="sm" c="dimmed">
+                Custo: {formatCurrency((resultado.acabamentos?.custoTotal || 0) + (resultado.acabamentosCentros?.custoTotal || 0))}
+              </Text>
+              {/* Cadeia de centros ricos (paridade Calcgraf) — entram no CT */}
+              {resultado.acabamentosCentros?.detalhePorEtapa?.map((e, i) => (
+                <Text key={`c${i}`} size="xs" c="dimmed">{e.etapa}: {formatCurrency(e.custo)}</Text>
+              ))}
               {resultado.acabamentos?.detalhePorAcabamento?.map((a, i) => (
                 <Text key={i} size="xs" c="dimmed">{a.tipo}: {formatCurrency(a.custo)}</Text>
               ))}
             </Paper>
+            {/* Mat. Acabamento (materiais ricos que entram no Material Direto) */}
+            {resultado.matAcabamento && (resultado.matAcabamento.itens?.length ?? 0) > 0 && (
+              <Paper p="md" withBorder>
+                <Text fw={500} size="sm" mb="xs">Mat. Acabamento</Text>
+                <Text size="sm" c="dimmed">Custo: {formatCurrency(resultado.matAcabamento.custoTotal)}</Text>
+                {resultado.matAcabamento.itens?.map((m, i) => (
+                  <Text key={i} size="xs" c="dimmed">{m.nome}: {formatCurrency(m.subtotal)}</Text>
+                ))}
+              </Paper>
+            )}
           </SimpleGrid>
 
           {/* Simulação de tiragens */}
