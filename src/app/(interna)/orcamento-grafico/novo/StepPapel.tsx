@@ -89,6 +89,7 @@ export default function StepPapel({ formData, updateForm }: Props) {
       params: {
         tipo: 'PAPEL',
         suporteId: formData.suporteId,
+        comPreco: 'true', // só papéis com preço > 0 (o resto não serve p/ orçar)
         limit: 50,
         ...(termo.length >= 2 ? { busca: termo } : {}),
       },
