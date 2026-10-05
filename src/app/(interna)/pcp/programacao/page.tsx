@@ -1445,6 +1445,28 @@ export default function ProgramacaoPage() {
     }
   }
 
+  // Reimprime o PDF de uma RC já criada (abre em nova aba).
+  async function reimprimirRc(rcId: string) {
+    try {
+      const pdf = await api.get(`/pcp/requisicoes-corte/${rcId}/pdf`, { responseType: 'blob' })
+      const url = URL.createObjectURL(new Blob([pdf.data], { type: 'application/pdf' }))
+      window.open(url, '_blank')
+    } catch {
+      notifications.show({ title: 'PDF', message: 'Falha ao gerar o PDF da RC.', color: 'orange' })
+    }
+  }
+
+  // Conclui uma RC (status CORTADA) — sai da fila da Cortadeira.
+  async function concluirRc(rcId: string, numero: string) {
+    try {
+      await api.patch(`/pcp/requisicoes-corte/${rcId}/concluir`)
+      notifications.show({ title: 'RC concluída', message: `Requisição ${numero} marcada como cortada.`, color: 'green' })
+      carregar()
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao concluir a RC', color: 'red' })
+    }
+  }
+
   // Feature 5b: Buscar OP para adicionar manualmente
   async function buscarOpParaAdicionar() {
     if (!formAdicionarOS.opNumero) return
@@ -2222,6 +2244,52 @@ export default function ProgramacaoPage() {
           </Group>
 
           <Collapse in={!!abertos[centro.centro.id]}>
+            {/* Requisições de Corte (RC) — "OP avulsa de corte" na fila da Cortadeira */}
+            {centro.requisicoesCorte && centro.requisicoesCorte.length > 0 && (
+              <Box mb="xs" p="xs" style={{ background: 'var(--mantine-color-grape-light)', borderRadius: 6 }}>
+                <Group gap={6} mb={4}>
+                  <IconCut size={14} />
+                  <Text size="xs" fw={700} c="grape">Requisições de Corte (RC)</Text>
+                </Group>
+                <Table striped highlightOnHover style={{ fontSize: '11px' }}>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Nº</Table.Th>
+                      <Table.Th>Produto / Serviço</Table.Th>
+                      <Table.Th>Cartão</Table.Th>
+                      <Table.Th>Formato</Table.Th>
+                      <Table.Th>Gram.</Table.Th>
+                      <Table.Th>Folhas</Table.Th>
+                      <Table.Th>Peso</Table.Th>
+                      <Table.Th>Ações</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {centro.requisicoesCorte.map((rc: any) => (
+                      <Table.Tr key={rc.id}>
+                        <Table.Td fw={600}>{rc.numero}</Table.Td>
+                        <Table.Td>{rc.nomeProduto || rc.nomeServico || '—'}</Table.Td>
+                        <Table.Td>{rc.fabricanteCartao || '—'}</Table.Td>
+                        <Table.Td>{rc.formatoCorte || '—'}</Table.Td>
+                        <Table.Td>{rc.gramaturaG != null ? `${rc.gramaturaG} g` : '—'}</Table.Td>
+                        <Table.Td>{rc.qtdFolhasCortadeira != null ? rc.qtdFolhasCortadeira.toLocaleString('pt-BR') : '—'}</Table.Td>
+                        <Table.Td>{rc.pesoKg != null ? `${rc.pesoKg.toLocaleString('pt-BR')} kg` : '—'}</Table.Td>
+                        <Table.Td>
+                          <Group gap={4} wrap="nowrap">
+                            <ActionIcon size="sm" variant="light" color="blue" onClick={() => reimprimirRc(rc.id)} title="Reimprimir">
+                              <IconPrinter size={14} />
+                            </ActionIcon>
+                            <ActionIcon size="sm" variant="light" color="green" onClick={() => concluirRc(rc.id, rc.numero)} title="Concluir corte">
+                              <IconCheck size={14} />
+                            </ActionIcon>
+                          </Group>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </Box>
+            )}
             {centro.etapas.length === 0 ? (
               <Text size="sm" c="dimmed" ta="center" py="sm">Nenhuma OP na fila</Text>
             ) : (
