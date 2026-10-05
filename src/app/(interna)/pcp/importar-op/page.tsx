@@ -272,15 +272,29 @@ export default function ImportarOpPdfPage() {
 
       // 4. Criar centros marcados
       const centrosVinculados: Array<{ indice: number; centroProducaoId: string | null; nomeEditado: string; tipoProcessoId?: string; desmarcada?: boolean }> = []
+      // Cache por NOME de máquina (minúsculas) → centroId já criado/vinculado
+      // nesta confirmação. CRÍTICO para planos desmembrados: etapas da mesma
+      // máquina (ex.: "SG (Laminadora)" para CAIXA e TAMPA) devem reusar o
+      // MESMO centro, não criar um por etapa (bug: várias "SG"/"Cortadeira").
+      const centroPorNome = new Map<string, string>()
+      const chaveNome = (n: string) => n.trim().toLowerCase()
       for (const ctr of centros) {
         // Nome da máquina: o editado pelo usuário OU, se vazio, o nome do PDF.
         // Nunca vazio quando a etapa será criada (evita descarte silencioso).
         const nomeMaquina = (ctr.maquina || '').trim() || ctr.maquinaOriginal || ctr.descricao
+        // Reuso: se já resolvi um centro com esse nome, uso o mesmo.
+        const jaResolvido = centroPorNome.get(chaveNome(nomeMaquina))
+        if (jaResolvido && (ctr.centroIdVinculado || ctr.criar)) {
+          centrosVinculados.push({ indice: ctr.indice, centroProducaoId: jaResolvido, nomeEditado: nomeMaquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
+          continue
+        }
         if (ctr.centroIdVinculado) {
+          centroPorNome.set(chaveNome(nomeMaquina), ctr.centroIdVinculado)
           centrosVinculados.push({ indice: ctr.indice, centroProducaoId: ctr.centroIdVinculado, nomeEditado: nomeMaquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
         } else if (ctr.criar) {
           try {
             const res = await api.post('/centros-producao', { codigo: ctr.codigo.substring(0, 20), descricao: nomeMaquina, tipo: ctr.tipo, tipoProcessoId: ctr.tipoProcessoId || undefined })
+            centroPorNome.set(chaveNome(nomeMaquina), res.data.id)
             centrosVinculados.push({ indice: ctr.indice, centroProducaoId: res.data.id, nomeEditado: nomeMaquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
           } catch (err: any) {
             // Se código já existe (409), buscar o centro existente e usar
