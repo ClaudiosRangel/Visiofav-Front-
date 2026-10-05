@@ -2409,6 +2409,7 @@ export default function ProgramacaoPage() {
                                   {etapa.opNumero} — {etapa.produtoNome || '—'}
                                 </Text>
                                 {etapa.isAvulsa && <Badge color="pink" size="xs">AVULSA</Badge>}
+                                {etapa.plano && <Badge color={etapa.plano.tipo === 'FACE' ? 'violet' : 'cyan'} size="xs" title={`Plano: ${etapa.plano.nome}`}>{etapa.plano.nome}</Badge>}
                               </Group>
                               <Text size="xs" fw={600} c="dimmed" style={{ lineHeight: 1.2 }}>
                                 {etapa.clienteNome || '—'}
@@ -2655,6 +2656,7 @@ export default function ProgramacaoPage() {
                                   {etapa.opNumero} — {etapa.produtoNome || etapa.observacoes?.match(/\[Produto\]\s*(.+)/)?.[1] || '—'}
                                 </Text>
                                 {etapa.isAvulsa && <Badge color="pink" size="xs">AVULSA</Badge>}
+                                {etapa.plano && <Badge color={etapa.plano.tipo === 'FACE' ? 'violet' : 'cyan'} size="xs" title={`Plano: ${etapa.plano.nome}`}>{etapa.plano.nome}</Badge>}
                               </Group>
                               <Text size="xs" fw={600} c={etapa.preImpressaoStatus ? 'white' : 'dimmed'} style={{ lineHeight: 1.2 }}>
                                 {etapa.clienteNome || etapa.observacoes?.match(/\[Cliente\]\s*(.+)/)?.[1] || ''}
