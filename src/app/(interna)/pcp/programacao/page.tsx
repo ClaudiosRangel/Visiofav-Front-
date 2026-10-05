@@ -290,6 +290,29 @@ export default function ProgramacaoPage() {
   const [salvandoAdicionarOS, setSalvandoAdicionarOS] = useState(false)
   const [opEncontrada, setOpEncontrada] = useState<any>(null)
   const [buscandoOp, setBuscandoOp] = useState(false)
+  // Requisição de Corte (RC) — modal aberto a partir dos cards CORTADEIRA.
+  // Formulário FO-002/PCP. Spec pcp-planos-frente-costa-rc (Fase A).
+  const [modalRc, setModalRc] = useState(false)
+  const [salvandoRc, setSalvandoRc] = useState(false)
+  const formRcInicial = {
+    dataSolicitacao: new Date().toISOString().slice(0, 10),
+    dataCorte: '',
+    requisitante: '',
+    fabricanteCartao: '',
+    fornecedor: '',
+    larguraBobinaCm: '',
+    gramaturaG: '',
+    tamanhoCorteCm: '',
+    formatoCorte: '',
+    qtdFolhasCortadeira: '',
+    textoGuilhotina: '',
+    qtdFolhasGuilhotina: '',
+    nomeProduto: '',
+    nomeServico: '',
+    pesoKg: '',
+    instrucoesRefile: '',
+  }
+  const [formRc, setFormRc] = useState<Record<string, string>>(formRcInicial)
   // OP Avulsa: aba do modal (existente vs avulsa) e, dentro de avulsa, o modo
   // (herdar de uma OP já cadastrada vs escolher produto/cliente livremente)
   const [tabAdicionarOS, setTabAdicionarOS] = useState<'existente' | 'avulsa'>('existente')
@@ -1372,6 +1395,56 @@ export default function ProgramacaoPage() {
     }
   }
 
+  // Requisição de Corte (RC) — cria e, opcionalmente, abre o PDF da 1ª via.
+  // Converte os campos numéricos (string do form) para número; vazio = omitido.
+  async function salvarRc(imprimir: boolean) {
+    if (!formRc.requisitante.trim() || !formRc.fabricanteCartao.trim() || !formRc.nomeProduto.trim() || !formRc.nomeServico.trim()) {
+      notifications.show({ title: 'Campos obrigatórios', message: 'Preencha Requisitante, Fabricante/Cartão, Nome do Produto e Nome do Serviço.', color: 'orange' })
+      return
+    }
+    setSalvandoRc(true)
+    try {
+      const num = (v: string) => (v.trim() === '' ? undefined : Number(v.replace(',', '.')))
+      const int = (v: string) => (v.trim() === '' ? undefined : Math.round(Number(v.replace(/\./g, '').replace(',', '.'))))
+      const payload = {
+        dataSolicitacao: formRc.dataSolicitacao || undefined,
+        dataCorte: formRc.dataCorte || undefined,
+        requisitante: formRc.requisitante.trim(),
+        fabricanteCartao: formRc.fabricanteCartao.trim(),
+        fornecedor: formRc.fornecedor.trim() || undefined,
+        larguraBobinaCm: num(formRc.larguraBobinaCm),
+        gramaturaG: num(formRc.gramaturaG),
+        tamanhoCorteCm: num(formRc.tamanhoCorteCm),
+        formatoCorte: formRc.formatoCorte.trim() || undefined,
+        qtdFolhasCortadeira: int(formRc.qtdFolhasCortadeira),
+        textoGuilhotina: formRc.textoGuilhotina.trim() || undefined,
+        qtdFolhasGuilhotina: int(formRc.qtdFolhasGuilhotina),
+        nomeProduto: formRc.nomeProduto.trim(),
+        nomeServico: formRc.nomeServico.trim(),
+        pesoKg: num(formRc.pesoKg),
+        instrucoesRefile: formRc.instrucoesRefile.trim() || undefined,
+      }
+      const res = await api.post('/pcp/requisicoes-corte', payload)
+      const rc = res.data
+      notifications.show({ title: 'RC criada', message: `Requisição de corte Nº ${rc.numero} salva.`, color: 'green' })
+      setModalRc(false)
+      setFormRc(formRcInicial)
+      if (imprimir) {
+        try {
+          const pdf = await api.get(`/pcp/requisicoes-corte/${rc.id}/pdf`, { responseType: 'blob' })
+          const url = URL.createObjectURL(new Blob([pdf.data], { type: 'application/pdf' }))
+          window.open(url, '_blank')
+        } catch {
+          notifications.show({ title: 'PDF', message: 'RC salva, mas falhou ao gerar o PDF.', color: 'orange' })
+        }
+      }
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar a RC', color: 'red' })
+    } finally {
+      setSalvandoRc(false)
+    }
+  }
+
   // Feature 5b: Buscar OP para adicionar manualmente
   async function buscarOpParaAdicionar() {
     if (!formAdicionarOS.opNumero) return
@@ -2140,6 +2213,11 @@ export default function ProgramacaoPage() {
               <ActionIcon color="teal" variant="light" size="sm" onClick={() => { setModalAdicionarOS({ centroId: centro.centro.id, centroDescricao: centro.centro.descricao }); carregarProdutosEClientes() }} title="Adicionar OS">
                 <IconPlus size={14} />
               </ActionIcon>
+              {centro.centro.tipoProcesso?.codigo === 'CORTADEIRA' && (
+                <Button size="xs" variant="light" color="grape" leftSection={<IconPlus size={14} />} onClick={() => { setFormRc(formRcInicial); setModalRc(true) }} title="Adicionar Requisição de Corte">
+                  RC
+                </Button>
+              )}
             </Group>
           </Group>
 
@@ -2952,6 +3030,132 @@ export default function ProgramacaoPage() {
             </Stack>
           </Tabs.Panel>
         </Tabs>
+      </Modal>
+
+      {/* Modal: Requisição de Corte de Cartão (RC) — formulário FO-002/PCP */}
+      <Modal opened={modalRc} onClose={() => setModalRc(false)} title="Nova Requisição de Corte" centered size="lg">
+        <Stack gap="sm">
+          <Group grow>
+            <TextInput
+              label="Data da solicitação"
+              type="date"
+              value={formRc.dataSolicitacao}
+              onChange={(e) => setFormRc({ ...formRc, dataSolicitacao: e.currentTarget.value })}
+            />
+            <TextInput
+              label="Data do corte"
+              type="date"
+              value={formRc.dataCorte}
+              onChange={(e) => setFormRc({ ...formRc, dataCorte: e.currentTarget.value })}
+            />
+          </Group>
+          <TextInput
+            label="Requisitante"
+            required
+            placeholder="Ex: CAIO RANGEL"
+            value={formRc.requisitante}
+            onChange={(e) => setFormRc({ ...formRc, requisitante: e.currentTarget.value })}
+          />
+          <Group grow>
+            <TextInput
+              label="Fabricante / Cartão"
+              required
+              placeholder="Ex: STORA ENZO"
+              value={formRc.fabricanteCartao}
+              onChange={(e) => setFormRc({ ...formRc, fabricanteCartao: e.currentTarget.value })}
+            />
+            <TextInput
+              label="Fornecedor"
+              placeholder="Opcional"
+              value={formRc.fornecedor}
+              onChange={(e) => setFormRc({ ...formRc, fornecedor: e.currentTarget.value })}
+            />
+          </Group>
+          <Group grow>
+            <TextInput
+              label="Largura bobina (cm)"
+              placeholder="Ex: 116,8"
+              value={formRc.larguraBobinaCm}
+              onChange={(e) => setFormRc({ ...formRc, larguraBobinaCm: e.currentTarget.value })}
+            />
+            <TextInput
+              label="Gramatura (g)"
+              placeholder="Ex: 231"
+              value={formRc.gramaturaG}
+              onChange={(e) => setFormRc({ ...formRc, gramaturaG: e.currentTarget.value })}
+            />
+            <TextInput
+              label="Tamanho do corte (cm)"
+              placeholder="Ex: 97,0"
+              value={formRc.tamanhoCorteCm}
+              onChange={(e) => setFormRc({ ...formRc, tamanhoCorteCm: e.currentTarget.value })}
+            />
+          </Group>
+          <Group grow>
+            <TextInput
+              label="Formato corte"
+              placeholder="Ex: 116,8 x 97,0"
+              value={formRc.formatoCorte}
+              onChange={(e) => setFormRc({ ...formRc, formatoCorte: e.currentTarget.value })}
+            />
+            <TextInput
+              label="Qtd folhas (cortadeira)"
+              placeholder="Ex: 5834"
+              value={formRc.qtdFolhasCortadeira}
+              onChange={(e) => setFormRc({ ...formRc, qtdFolhasCortadeira: e.currentTarget.value })}
+            />
+          </Group>
+          <Group grow>
+            <TextInput
+              label="Guilhotina"
+              placeholder="Ex: Segue observação"
+              value={formRc.textoGuilhotina}
+              onChange={(e) => setFormRc({ ...formRc, textoGuilhotina: e.currentTarget.value })}
+            />
+            <TextInput
+              label="Qtd folhas (guilhotina)"
+              placeholder="Opcional"
+              value={formRc.qtdFolhasGuilhotina}
+              onChange={(e) => setFormRc({ ...formRc, qtdFolhasGuilhotina: e.currentTarget.value })}
+            />
+          </Group>
+          <TextInput
+            label="Nome do produto"
+            required
+            placeholder="Ex: CORTE PARA ACTUAL - STORA ENZO 231G - 116,8 CM"
+            value={formRc.nomeProduto}
+            onChange={(e) => setFormRc({ ...formRc, nomeProduto: e.currentTarget.value })}
+          />
+          <TextInput
+            label="Nome do serviço"
+            required
+            placeholder="Ex: CORTE PARA ACTUAL - STORA ENZO 231G - 116,8 CM"
+            value={formRc.nomeServico}
+            onChange={(e) => setFormRc({ ...formRc, nomeServico: e.currentTarget.value })}
+          />
+          <TextInput
+            label="Peso (kg)"
+            placeholder="Ex: 1527,0"
+            value={formRc.pesoKg}
+            onChange={(e) => setFormRc({ ...formRc, pesoKg: e.currentTarget.value })}
+          />
+          <Textarea
+            label="Instruções de refile"
+            placeholder="Ex: REFILAR 5.824 FOLHAS 47,5 x 97,0 CM - REFILAR 5.824 FOLHAS 61,0 x 97,0 CM"
+            minRows={2}
+            autosize
+            value={formRc.instrucoesRefile}
+            onChange={(e) => setFormRc({ ...formRc, instrucoesRefile: e.currentTarget.value })}
+          />
+          <Group justify="flex-end" mt="sm">
+            <Button variant="default" onClick={() => salvarRc(false)} loading={salvandoRc}>
+              Salvar
+            </Button>
+            <Button color="grape" onClick={() => salvarRc(true)} loading={salvandoRc}>
+              Salvar e Imprimir
+            </Button>
+          </Group>
+        </Stack>
       </Modal>
 
       {/* Modal: Registrar Envio para Depósito (coluna "Enviado" da Cortadeira) */}
