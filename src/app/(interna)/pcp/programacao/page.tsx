@@ -2351,9 +2351,11 @@ export default function ProgramacaoPage() {
               <ActionIcon color="teal" variant="light" size="sm" onClick={() => { setModalAdicionarOS({ centroId: centro.centro.id, centroDescricao: centro.centro.descricao }); carregarProdutosEClientes() }} title="Adicionar OS">
                 <IconPlus size={14} />
               </ActionIcon>
-              <Button size="xs" variant="light" color="grape" leftSection={<IconPlus size={14} />} onClick={() => { setFormRc(formRcInicial); setModalRc({ centroId: centro.centro.id, centroDescricao: centro.centro.descricao }) }} title="Adicionar Requisição de Corte">
-                RC
-              </Button>
+              {centro.centro.tipoProcesso?.codigo === 'CORTADEIRA' && (
+                <Button size="xs" variant="light" color="grape" leftSection={<IconPlus size={14} />} onClick={() => { setFormRc(formRcInicial); setModalRc({ centroId: centro.centro.id, centroDescricao: centro.centro.descricao }) }} title="Adicionar Requisição de Corte">
+                  RC
+                </Button>
+              )}
             </Group>
           </Group>
 
