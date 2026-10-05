@@ -814,6 +814,83 @@ export default function ProgramacaoPage() {
     }
   }
 
+  // Monta a fila COMBINADA de um centro CORTADEIRA: etapas de OP + Requisições
+  // de Corte (RC), ordenadas pelo posicaoFila compartilhado. Cada item carrega
+  // um `dndId` único (`rc:<id>` para RC, o próprio id para etapa) e `tipoFila`.
+  function filaCombinadaCortadeira(centro: any): any[] {
+    const etapas = (centro.etapas || []).map((e: any) => ({ ...e, tipoFila: 'etapa', dndId: e.id, _pos: e.posicaoFila ?? 999999 }))
+    const rcs = (centro.requisicoesCorte || []).map((rc: any) => ({ ...rc, tipoFila: 'rc', dndId: `rc:${rc.id}`, _pos: rc.posicaoFila ?? 999999 }))
+    return [...etapas, ...rcs].sort((a, b) => (a._pos - b._pos))
+  }
+
+  // handleDragEnd dedicado para cards CORTADEIRA com fila combinada (etapa+RC).
+  // Persiste a nova ordem no endpoint combinado, que grava posicaoFila
+  // sequencial nos dois models. Mantém o handleDragEnd clássico intacto para
+  // os demais centros.
+  async function handleDragEndCortadeira(centro: any, event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    if (!minhasPermissoes.isAdmin && !isAdmin && !minhasPermissoes.podeReordenarFila) {
+      notifications.show({ title: 'Sem permissão', message: 'Você não tem permissão para reordenar a fila', color: 'red' })
+      return
+    }
+
+    const fila = filaCombinadaCortadeira(centro)
+    const oldIndex = fila.findIndex((i: any) => i.dndId === active.id)
+    const newIndex = fila.findIndex((i: any) => i.dndId === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const novaOrdem = arrayMove(fila, oldIndex, newIndex)
+
+    // Optimistic update: regrava posicaoFila local nos dois arrays do centro.
+    setPainel((prev: any) => {
+      if (!prev) return prev
+      const centros = prev.centros.map((c: any) => {
+        if (c.centro.id !== centro.centro.id) return c
+        const posById = new Map<string, number>()
+        novaOrdem.forEach((item: any, idx: number) => posById.set(item.dndId, idx + 1))
+        const etapas = (c.etapas || []).map((e: any) => ({ ...e, posicaoFila: posById.get(e.id) ?? e.posicaoFila }))
+        const requisicoesCorte = (c.requisicoesCorte || []).map((rc: any) => ({ ...rc, posicaoFila: posById.get(`rc:${rc.id}`) ?? rc.posicaoFila }))
+        return { ...c, etapas, requisicoesCorte }
+      })
+      return { ...prev, centros }
+    })
+
+    try {
+      await api.patch('/pcp/programacao/reordenar-fila-cortadeira', {
+        centroProducaoId: centro.centro.id,
+        itens: novaOrdem.map((i: any) => ({ tipo: i.tipoFila, id: i.tipoFila === 'rc' ? i.id : i.id })),
+      })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro ao reordenar', message: err?.response?.data?.message || 'Falha ao salvar ordem', color: 'red' })
+      carregar()
+    }
+  }
+
+  // Exclui uma RC.
+  async function excluirRc(rcId: string, numero: string) {
+    if (!confirm(`Excluir a Requisição de Corte ${numero}?`)) return
+    try {
+      await api.delete(`/pcp/requisicoes-corte/${rcId}`)
+      notifications.show({ title: 'RC excluída', message: `Requisição ${numero} removida.`, color: 'green' })
+      carregar()
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao excluir a RC', color: 'red' })
+    }
+  }
+
+  // Inicia o corte de uma RC (status EM_CORTE) — continua na fila.
+  async function iniciarRc(rcId: string, numero: string) {
+    try {
+      await api.patch(`/pcp/requisicoes-corte/${rcId}/iniciar`)
+      notifications.show({ title: 'Corte iniciado', message: `Requisição ${numero} em corte.`, color: 'blue' })
+      carregar()
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao iniciar o corte', color: 'red' })
+    }
+  }
+
   function toggleCentro(id: string) { setAbertos(prev => ({ ...prev, [id]: !prev[id] })) }
 
   // Atualiza campos de UMA etapa específica dentro de `painel.centros`, sem
@@ -2244,57 +2321,16 @@ export default function ProgramacaoPage() {
           </Group>
 
           <Collapse in={!!abertos[centro.centro.id]}>
-            {/* Requisições de Corte (RC) — "OP avulsa de corte" na fila da Cortadeira */}
-            {centro.requisicoesCorte && centro.requisicoesCorte.length > 0 && (
-              <Box mb="xs" p="xs" style={{ background: 'var(--mantine-color-grape-light)', borderRadius: 6 }}>
-                <Group gap={6} mb={4}>
-                  <IconCut size={14} />
-                  <Text size="xs" fw={700} c="grape">Requisições de Corte (RC)</Text>
-                </Group>
-                <Table striped highlightOnHover style={{ fontSize: '11px' }}>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>Nº</Table.Th>
-                      <Table.Th>Produto / Serviço</Table.Th>
-                      <Table.Th>Cartão</Table.Th>
-                      <Table.Th>Formato</Table.Th>
-                      <Table.Th>Gram.</Table.Th>
-                      <Table.Th>Folhas</Table.Th>
-                      <Table.Th>Peso</Table.Th>
-                      <Table.Th>Ações</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {centro.requisicoesCorte.map((rc: any) => (
-                      <Table.Tr key={rc.id}>
-                        <Table.Td fw={600}>{rc.numero}</Table.Td>
-                        <Table.Td>{rc.nomeProduto || rc.nomeServico || '—'}</Table.Td>
-                        <Table.Td>{rc.fabricanteCartao || '—'}</Table.Td>
-                        <Table.Td>{rc.formatoCorte || '—'}</Table.Td>
-                        <Table.Td>{rc.gramaturaG != null ? `${rc.gramaturaG} g` : '—'}</Table.Td>
-                        <Table.Td>{rc.qtdFolhasCortadeira != null ? rc.qtdFolhasCortadeira.toLocaleString('pt-BR') : '—'}</Table.Td>
-                        <Table.Td>{rc.pesoKg != null ? `${rc.pesoKg.toLocaleString('pt-BR')} kg` : '—'}</Table.Td>
-                        <Table.Td>
-                          <Group gap={4} wrap="nowrap">
-                            <ActionIcon size="sm" variant="light" color="blue" onClick={() => reimprimirRc(rc.id)} title="Reimprimir">
-                              <IconPrinter size={14} />
-                            </ActionIcon>
-                            <ActionIcon size="sm" variant="light" color="green" onClick={() => concluirRc(rc.id, rc.numero)} title="Concluir corte">
-                              <IconCheck size={14} />
-                            </ActionIcon>
-                          </Group>
-                        </Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              </Box>
-            )}
-            {centro.etapas.length === 0 ? (
+            {(() => {
+              const ehCortadeira = getCategoriaCentro(centro.centro.tipoProcesso?.codigo) === 'cortadeira'
+              const temRc = ehCortadeira && (centro.requisicoesCorte?.length || 0) > 0
+              const filaComb = temRc ? filaCombinadaCortadeira(centro) : null
+              const nenhumItem = (centro.etapas.length === 0) && !temRc
+              return nenhumItem ? (
               <Text size="sm" c="dimmed" ta="center" py="sm">Nenhuma OP na fila</Text>
             ) : (
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => handleDragEnd(centro.centro.id, event)}>
-                <SortableContext items={centro.etapas.map((e: any) => e.id)} strategy={verticalListSortingStrategy}>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => temRc ? handleDragEndCortadeira(centro, event) : handleDragEnd(centro.centro.id, event)}>
+                <SortableContext items={temRc ? filaComb!.map((i: any) => i.dndId) : centro.etapas.map((e: any) => e.id)} strategy={verticalListSortingStrategy}>
                   <ScrollArea>
                     {(() => {
                       const colsGrid = getColunasGridParaProcesso(centro.centro.tipoProcesso?.codigo || 'cortadeira')
@@ -2325,7 +2361,43 @@ export default function ProgramacaoPage() {
                         </Table.Tr>
                       </Table.Thead>
                       <Table.Tbody>
-                        {centro.etapas.map((etapa: any) => (
+                        {((centro.requisicoesCorte?.length || 0) > 0 ? filaCombinadaCortadeira(centro) : centro.etapas).map((etapa: any) => (
+                          etapa.tipoFila === 'rc' ? (
+                            <SortableRow key={etapa.dndId} etapa={{ id: etapa.dndId }} background={etapa.status === 'EM_CORTE' ? 'var(--mantine-color-blue-light)' : 'var(--mantine-color-grape-light)'}>
+                              <Table.Td colSpan={3} style={{ padding: '0 4px' }}>
+                                <Badge color="grape" size="xs" leftSection={<IconCut size={10} />}>RC {etapa.numero}</Badge>
+                              </Table.Td>
+                              <Table.Td colSpan={99}>
+                                <Group gap={8} wrap="nowrap" justify="space-between">
+                                  <Group gap={10} wrap="nowrap">
+                                    <Text size="xs" fw={600}>{etapa.nomeProduto || etapa.nomeServico || '—'}</Text>
+                                    {etapa.fabricanteCartao && <Text size="xs" c="dimmed">{etapa.fabricanteCartao}</Text>}
+                                    {etapa.formatoCorte && <Text size="xs" c="dimmed">{etapa.formatoCorte}</Text>}
+                                    {etapa.gramaturaG != null && <Text size="xs" c="dimmed">{etapa.gramaturaG} g</Text>}
+                                    {etapa.qtdFolhasCortadeira != null && <Text size="xs" c="dimmed">{etapa.qtdFolhasCortadeira.toLocaleString('pt-BR')} fls</Text>}
+                                    {etapa.pesoKg != null && <Text size="xs" c="dimmed">{etapa.pesoKg.toLocaleString('pt-BR')} kg</Text>}
+                                    {etapa.status === 'EM_CORTE' && <Badge color="blue" size="xs">EM CORTE</Badge>}
+                                  </Group>
+                                  <Group gap={4} wrap="nowrap">
+                                    {etapa.status !== 'EM_CORTE' && (
+                                      <ActionIcon size="sm" variant="light" color="blue" onClick={() => iniciarRc(etapa.id, etapa.numero)} title="Iniciar corte">
+                                        <IconPlayerPlay size={14} />
+                                      </ActionIcon>
+                                    )}
+                                    <ActionIcon size="sm" variant="light" color="teal" onClick={() => reimprimirRc(etapa.id)} title="Reimprimir">
+                                      <IconPrinter size={14} />
+                                    </ActionIcon>
+                                    <ActionIcon size="sm" variant="light" color="green" onClick={() => concluirRc(etapa.id, etapa.numero)} title="Concluir corte">
+                                      <IconCheck size={14} />
+                                    </ActionIcon>
+                                    <ActionIcon size="sm" variant="light" color="red" onClick={() => excluirRc(etapa.id, etapa.numero)} title="Excluir">
+                                      <IconX size={14} />
+                                    </ActionIcon>
+                                  </Group>
+                                </Group>
+                              </Table.Td>
+                            </SortableRow>
+                          ) : (
                           <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa, usaCoresStatus)} highlighted={highlightedEtapa === etapa.id} selected={selectedEtapas.has(etapa.id)} onToggleSelect={() => toggleSelectEtapa(etapa.id)} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, etapa, centro }) }}>
                             <Table.Td style={{ width: 28, padding: '0 4px' }}>
                               {etapa.etapaAnteriorConcluida === true && <IconCheck size={20} color="#00d26a" strokeWidth={3} />}
@@ -2501,6 +2573,7 @@ export default function ProgramacaoPage() {
                               </Group>
                             </Table.Td>
                           </SortableRow>
+                          )
                         ))}
                       </Table.Tbody>
                     </Table>
@@ -2794,7 +2867,8 @@ export default function ProgramacaoPage() {
                   </ScrollArea>
                 </SortableContext>
               </DndContext>
-            )}
+            )
+            })()}
           </Collapse>
         </Card>
             </SortableCentroItem>
