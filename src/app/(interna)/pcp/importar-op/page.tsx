@@ -196,10 +196,13 @@ export default function ImportarOpPdfPage() {
           tipoProcessoId: sug.sugestao.tipoProcessoId || null,
         }
       } else {
-        // Sem de/para: campo Máquina em BRANCO, código sequencial
+        // Sem de/para: pré-preenche a Máquina com o NOME DO PDF (não deixa em
+        // branco). Antes ficava vazio e, se o usuário não editasse, a etapa
+        // era DESCARTADA na confirmação (0 etapas — bug da OS 3.133). Com o
+        // nome preenchido, o backend cria o centro + a etapa.
         const codigo = String(proximoCodigo++)
         return {
-          indice: i, descricao: et.descricao, maquina: '',
+          indice: i, descricao: et.descricao, maquina: et.maquina || et.descricao,
           maquinaOriginal: et.maquina || et.descricao,
           criar: true, codigo,
           tipo: 'MAQUINA', centroIdVinculado: null,
@@ -268,36 +271,40 @@ export default function ImportarOpPdfPage() {
       }
 
       // 4. Criar centros marcados
-      const centrosVinculados: Array<{ indice: number; centroProducaoId: string | null; nomeEditado: string; tipoProcessoId?: string }> = []
+      const centrosVinculados: Array<{ indice: number; centroProducaoId: string | null; nomeEditado: string; tipoProcessoId?: string; desmarcada?: boolean }> = []
       for (const ctr of centros) {
+        // Nome da máquina: o editado pelo usuário OU, se vazio, o nome do PDF.
+        // Nunca vazio quando a etapa será criada (evita descarte silencioso).
+        const nomeMaquina = (ctr.maquina || '').trim() || ctr.maquinaOriginal || ctr.descricao
         if (ctr.centroIdVinculado) {
-          centrosVinculados.push({ indice: ctr.indice, centroProducaoId: ctr.centroIdVinculado, nomeEditado: ctr.maquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
+          centrosVinculados.push({ indice: ctr.indice, centroProducaoId: ctr.centroIdVinculado, nomeEditado: nomeMaquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
         } else if (ctr.criar) {
           try {
-            const res = await api.post('/centros-producao', { codigo: ctr.codigo.substring(0, 20), descricao: ctr.maquina, tipo: ctr.tipo, tipoProcessoId: ctr.tipoProcessoId || undefined })
-            centrosVinculados.push({ indice: ctr.indice, centroProducaoId: res.data.id, nomeEditado: ctr.maquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
+            const res = await api.post('/centros-producao', { codigo: ctr.codigo.substring(0, 20), descricao: nomeMaquina, tipo: ctr.tipo, tipoProcessoId: ctr.tipoProcessoId || undefined })
+            centrosVinculados.push({ indice: ctr.indice, centroProducaoId: res.data.id, nomeEditado: nomeMaquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
           } catch (err: any) {
             // Se código já existe (409), buscar o centro existente e usar
             if (err?.response?.status === 409) {
               try {
                 const busca = await api.get('/centros-producao', { params: { busca: ctr.codigo.substring(0, 20), limit: 1 } })
                 if (busca.data?.data?.[0]) {
-                  centrosVinculados.push({ indice: ctr.indice, centroProducaoId: busca.data.data[0].id, nomeEditado: ctr.maquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
+                  centrosVinculados.push({ indice: ctr.indice, centroProducaoId: busca.data.data[0].id, nomeEditado: nomeMaquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
                 } else {
                   // Fallback: enviar nomeEditado para o backend criar via confirmação
-                  centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: ctr.maquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
+                  centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: nomeMaquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
                 }
               } catch {
-                centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: ctr.maquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
+                centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: nomeMaquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
               }
             } else {
               // Outro erro: enviar nomeEditado para o backend criar via confirmação
-              centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: ctr.maquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
+              centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: nomeMaquina, tipoProcessoId: ctr.tipoProcessoId || undefined })
             }
           }
         } else {
-          // Item desmarcado: não enviar nomeEditado para que o backend não crie centro/etapa
-          centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: '', tipoProcessoId: undefined })
+          // Item DESMARCADO explicitamente — sinaliza ao backend para não criar
+          // a etapa (único caso em que a etapa não é criada).
+          centrosVinculados.push({ indice: ctr.indice, centroProducaoId: null, nomeEditado: '', tipoProcessoId: undefined, desmarcada: true })
         }
       }
 
