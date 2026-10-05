@@ -290,9 +290,10 @@ export default function ProgramacaoPage() {
   const [salvandoAdicionarOS, setSalvandoAdicionarOS] = useState(false)
   const [opEncontrada, setOpEncontrada] = useState<any>(null)
   const [buscandoOp, setBuscandoOp] = useState(false)
-  // Requisição de Corte (RC) — modal aberto a partir dos cards CORTADEIRA.
+  // Requisição de Corte (RC) — modal aberto a partir de um card de grupo.
+  // Guarda o centro onde foi criada (a RC aparece só nesse grupo).
   // Formulário FO-002/PCP. Spec pcp-planos-frente-costa-rc (Fase A).
-  const [modalRc, setModalRc] = useState(false)
+  const [modalRc, setModalRc] = useState<{ centroId: string; centroDescricao: string } | null>(null)
   const [salvandoRc, setSalvandoRc] = useState(false)
   const formRcInicial = {
     dataSolicitacao: new Date().toISOString().slice(0, 10),
@@ -1484,6 +1485,7 @@ export default function ProgramacaoPage() {
       const num = (v: string) => (v.trim() === '' ? undefined : Number(v.replace(',', '.')))
       const int = (v: string) => (v.trim() === '' ? undefined : Math.round(Number(v.replace(/\./g, '').replace(',', '.'))))
       const payload = {
+        centroProducaoId: modalRc?.centroId,
         dataSolicitacao: formRc.dataSolicitacao || undefined,
         dataCorte: formRc.dataCorte || undefined,
         requisitante: formRc.requisitante.trim(),
@@ -1503,13 +1505,14 @@ export default function ProgramacaoPage() {
       }
       const res = await api.post('/pcp/requisicoes-corte', payload)
       const rc = res.data
+      const centroDaRc = modalRc?.centroId
       notifications.show({ title: 'RC criada', message: `Requisição de corte Nº ${rc.numero} salva.`, color: 'green' })
-      setModalRc(false)
+      setModalRc(null)
       setFormRc(formRcInicial)
-      // Aparece imediatamente (sem refresh): adiciona a RC ao FIM da fila de
-      // todos os cards CORTADEIRA no estado local, no mesmo formato do painel.
+      // Aparece imediatamente (sem refresh): adiciona a RC ao FIM da fila
+      // SÓ do grupo onde foi criada, no mesmo formato do painel.
       const rcPainel = {
-        id: rc.id, numero: rc.numero, status: rc.status, posicaoFila: rc.posicaoFila,
+        id: rc.id, numero: rc.numero, status: rc.status, centroProducaoId: rc.centroProducaoId, posicaoFila: rc.posicaoFila,
         requisitante: rc.requisitante, fabricanteCartao: rc.fabricanteCartao,
         nomeProduto: rc.nomeProduto, nomeServico: rc.nomeServico, formatoCorte: rc.formatoCorte,
         gramaturaG: rc.gramaturaG != null ? Number(rc.gramaturaG) : null,
@@ -1522,7 +1525,7 @@ export default function ProgramacaoPage() {
       setPainel((prev: any) => {
         if (!prev) return prev
         return { ...prev, centros: prev.centros.map((c: any) =>
-          c.centro.tipoProcesso?.codigo === 'CORTADEIRA'
+          c.centro.id === centroDaRc
             ? { ...c, requisicoesCorte: [...(c.requisicoesCorte || []), rcPainel] }
             : c
         ) }
@@ -1560,7 +1563,7 @@ export default function ProgramacaoPage() {
     setPainel((prev: any) => {
       if (!prev) return prev
       return { ...prev, centros: prev.centros.map((c: any) => {
-        if (c.centro.tipoProcesso?.codigo !== 'CORTADEIRA' || !c.requisicoesCorte) return c
+        if (!c.requisicoesCorte?.length) return c
         const requisicoesCorte = patch === null
           ? c.requisicoesCorte.filter((rc: any) => rc.id !== rcId)
           : c.requisicoesCorte.map((rc: any) => rc.id === rcId ? { ...rc, ...patch } : rc)
@@ -2348,18 +2351,15 @@ export default function ProgramacaoPage() {
               <ActionIcon color="teal" variant="light" size="sm" onClick={() => { setModalAdicionarOS({ centroId: centro.centro.id, centroDescricao: centro.centro.descricao }); carregarProdutosEClientes() }} title="Adicionar OS">
                 <IconPlus size={14} />
               </ActionIcon>
-              {centro.centro.tipoProcesso?.codigo === 'CORTADEIRA' && (
-                <Button size="xs" variant="light" color="grape" leftSection={<IconPlus size={14} />} onClick={() => { setFormRc(formRcInicial); setModalRc(true) }} title="Adicionar Requisição de Corte">
-                  RC
-                </Button>
-              )}
+              <Button size="xs" variant="light" color="grape" leftSection={<IconPlus size={14} />} onClick={() => { setFormRc(formRcInicial); setModalRc({ centroId: centro.centro.id, centroDescricao: centro.centro.descricao }) }} title="Adicionar Requisição de Corte">
+                RC
+              </Button>
             </Group>
           </Group>
 
           <Collapse in={!!abertos[centro.centro.id]}>
             {(() => {
-              const ehCortadeira = getCategoriaCentro(centro.centro.tipoProcesso?.codigo) === 'cortadeira'
-              const temRc = ehCortadeira && (centro.requisicoesCorte?.length || 0) > 0
+              const temRc = (centro.requisicoesCorte?.length || 0) > 0
               const filaComb = temRc ? filaCombinadaCortadeira(centro) : null
               const nenhumItem = (centro.etapas.length === 0) && !temRc
               return nenhumItem ? (
@@ -2658,7 +2658,43 @@ export default function ProgramacaoPage() {
                         </Table.Tr>
                       </Table.Thead>
                       <Table.Tbody>
-                        {centro.etapas.map((etapa: any) => (
+                        {((centro.requisicoesCorte?.length || 0) > 0 ? filaCombinadaCortadeira(centro) : centro.etapas).map((etapa: any) => (
+                          etapa.tipoFila === 'rc' ? (
+                            <SortableRow key={etapa.dndId} etapa={{ id: etapa.dndId }} background={etapa.status === 'EM_CORTE' ? 'var(--mantine-color-blue-light)' : 'var(--mantine-color-grape-light)'}>
+                              <Table.Td colSpan={3} style={{ padding: '0 4px' }}>
+                                <Badge color="grape" size="xs" leftSection={<IconCut size={10} />}>RC {etapa.numero}</Badge>
+                              </Table.Td>
+                              <Table.Td colSpan={99}>
+                                <Group gap={8} wrap="nowrap" justify="space-between">
+                                  <Group gap={10} wrap="nowrap">
+                                    <Text size="xs" fw={600}>{etapa.nomeProduto || etapa.nomeServico || '—'}</Text>
+                                    {etapa.fabricanteCartao && <Text size="xs" c="dimmed">{etapa.fabricanteCartao}</Text>}
+                                    {etapa.formatoCorte && <Text size="xs" c="dimmed">{etapa.formatoCorte}</Text>}
+                                    {etapa.gramaturaG != null && <Text size="xs" c="dimmed">{etapa.gramaturaG} g</Text>}
+                                    {etapa.qtdFolhasCortadeira != null && <Text size="xs" c="dimmed">{etapa.qtdFolhasCortadeira.toLocaleString('pt-BR')} fls</Text>}
+                                    {etapa.pesoKg != null && <Text size="xs" c="dimmed">{etapa.pesoKg.toLocaleString('pt-BR')} kg</Text>}
+                                    {etapa.status === 'EM_CORTE' && <Badge color="blue" size="xs">EM CORTE</Badge>}
+                                  </Group>
+                                  <Group gap={4} wrap="nowrap">
+                                    {etapa.status !== 'EM_CORTE' && (
+                                      <ActionIcon size="sm" variant="light" color="blue" onClick={() => iniciarRc(etapa.id, etapa.numero)} title="Iniciar corte">
+                                        <IconPlayerPlay size={14} />
+                                      </ActionIcon>
+                                    )}
+                                    <ActionIcon size="sm" variant="light" color="teal" onClick={() => reimprimirRc(etapa.id)} title="Reimprimir">
+                                      <IconPrinter size={14} />
+                                    </ActionIcon>
+                                    <ActionIcon size="sm" variant="light" color="green" onClick={() => concluirRc(etapa.id, etapa.numero)} title="Concluir corte">
+                                      <IconCheck size={14} />
+                                    </ActionIcon>
+                                    <ActionIcon size="sm" variant="light" color="red" onClick={() => excluirRc(etapa.id, etapa.numero)} title="Excluir">
+                                      <IconX size={14} />
+                                    </ActionIcon>
+                                  </Group>
+                                </Group>
+                              </Table.Td>
+                            </SortableRow>
+                          ) : (
                           <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa, usaCoresStatus)} highlighted={highlightedEtapa === etapa.id} selected={selectedEtapas.has(etapa.id)} onToggleSelect={() => toggleSelectEtapa(etapa.id)} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, etapa, centro }) }}>
                             <Table.Td style={{ width: 28, padding: '0 4px' }}>
                               {etapa.etapaAnteriorConcluida === true && <IconCheck size={20} color="#00d26a" strokeWidth={3} />}
@@ -2895,6 +2931,7 @@ export default function ProgramacaoPage() {
                               </Group>
                             </Table.Td>
                           </SortableRow>
+                          )
                         ))}
                       </Table.Tbody>
                       </>)
@@ -3213,7 +3250,7 @@ export default function ProgramacaoPage() {
       </Modal>
 
       {/* Modal: Requisição de Corte de Cartão (RC) — formulário FO-002/PCP */}
-      <Modal opened={modalRc} onClose={() => setModalRc(false)} title="Nova Requisição de Corte" centered size="lg">
+      <Modal opened={!!modalRc} onClose={() => setModalRc(null)} title={`Nova Requisição de Corte${modalRc ? ` — ${modalRc.centroDescricao}` : ''}`} centered size="lg">
         <Stack gap="sm">
           <Group grow>
             <TextInput
