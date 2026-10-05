@@ -868,24 +868,24 @@ export default function ProgramacaoPage() {
     }
   }
 
-  // Exclui uma RC.
+  // Exclui uma RC. Sem refresh.
   async function excluirRc(rcId: string, numero: string) {
     if (!confirm(`Excluir a Requisição de Corte ${numero}?`)) return
     try {
       await api.delete(`/pcp/requisicoes-corte/${rcId}`)
       notifications.show({ title: 'RC excluída', message: `Requisição ${numero} removida.`, color: 'green' })
-      carregar()
+      atualizarRcLocal(rcId, null)
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao excluir a RC', color: 'red' })
     }
   }
 
-  // Inicia o corte de uma RC (status EM_CORTE) — continua na fila.
+  // Inicia o corte de uma RC (status EM_CORTE) — continua na fila. Sem refresh.
   async function iniciarRc(rcId: string, numero: string) {
     try {
       await api.patch(`/pcp/requisicoes-corte/${rcId}/iniciar`)
       notifications.show({ title: 'Corte iniciado', message: `Requisição ${numero} em corte.`, color: 'blue' })
-      carregar()
+      atualizarRcLocal(rcId, { status: 'EM_CORTE' })
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao iniciar o corte', color: 'red' })
     }
@@ -1506,6 +1506,27 @@ export default function ProgramacaoPage() {
       notifications.show({ title: 'RC criada', message: `Requisição de corte Nº ${rc.numero} salva.`, color: 'green' })
       setModalRc(false)
       setFormRc(formRcInicial)
+      // Aparece imediatamente (sem refresh): adiciona a RC ao FIM da fila de
+      // todos os cards CORTADEIRA no estado local, no mesmo formato do painel.
+      const rcPainel = {
+        id: rc.id, numero: rc.numero, status: rc.status, posicaoFila: rc.posicaoFila,
+        requisitante: rc.requisitante, fabricanteCartao: rc.fabricanteCartao,
+        nomeProduto: rc.nomeProduto, nomeServico: rc.nomeServico, formatoCorte: rc.formatoCorte,
+        gramaturaG: rc.gramaturaG != null ? Number(rc.gramaturaG) : null,
+        larguraBobinaCm: rc.larguraBobinaCm != null ? Number(rc.larguraBobinaCm) : null,
+        tamanhoCorteCm: rc.tamanhoCorteCm != null ? Number(rc.tamanhoCorteCm) : null,
+        qtdFolhasCortadeira: rc.qtdFolhasCortadeira,
+        pesoKg: rc.pesoKg != null ? Number(rc.pesoKg) : null,
+        dataSolicitacao: rc.dataSolicitacao,
+      }
+      setPainel((prev: any) => {
+        if (!prev) return prev
+        return { ...prev, centros: prev.centros.map((c: any) =>
+          c.centro.tipoProcesso?.codigo === 'CORTADEIRA'
+            ? { ...c, requisicoesCorte: [...(c.requisicoesCorte || []), rcPainel] }
+            : c
+        ) }
+      })
       if (imprimir) {
         try {
           const pdf = await api.get(`/pcp/requisicoes-corte/${rc.id}/pdf`, { responseType: 'blob' })
@@ -1533,12 +1554,27 @@ export default function ProgramacaoPage() {
     }
   }
 
-  // Conclui uma RC (status CORTADA) — sai da fila da Cortadeira.
+  // Atualiza/remove uma RC no estado local (todos os cards CORTADEIRA), sem
+  // recarregar o painel inteiro. `patch=null` remove a RC da fila.
+  function atualizarRcLocal(rcId: string, patch: Record<string, any> | null) {
+    setPainel((prev: any) => {
+      if (!prev) return prev
+      return { ...prev, centros: prev.centros.map((c: any) => {
+        if (c.centro.tipoProcesso?.codigo !== 'CORTADEIRA' || !c.requisicoesCorte) return c
+        const requisicoesCorte = patch === null
+          ? c.requisicoesCorte.filter((rc: any) => rc.id !== rcId)
+          : c.requisicoesCorte.map((rc: any) => rc.id === rcId ? { ...rc, ...patch } : rc)
+        return { ...c, requisicoesCorte }
+      }) }
+    })
+  }
+
+  // Conclui uma RC (status CORTADA) — sai da fila da Cortadeira. Sem refresh.
   async function concluirRc(rcId: string, numero: string) {
     try {
       await api.patch(`/pcp/requisicoes-corte/${rcId}/concluir`)
       notifications.show({ title: 'RC concluída', message: `Requisição ${numero} marcada como cortada.`, color: 'green' })
-      carregar()
+      atualizarRcLocal(rcId, null) // sai da fila
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao concluir a RC', color: 'red' })
     }
