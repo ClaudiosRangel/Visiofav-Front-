@@ -815,6 +815,48 @@ export default function ProgramacaoPage() {
     }
   }
 
+  // Agrupa as etapas de uma fila por OP, inserindo uma LINHA-PAI sintética
+  // (isPaiPlano) antes do 1º filho de cada OP que tenha planos. A linha-pai
+  // mostra a OP + totais (soma dos filhos) e tem ações desabilitadas; os
+  // filhos (etapas por plano) ficam logo abaixo, indentados. OPs sem plano
+  // (legado) passam direto, sem pai. Spec pcp-planos-frente-costa-rc.
+  function agruparFilaPorOp(itens: any[]): any[] {
+    const resultado: any[] = []
+    const paisInseridos = new Set<string>()
+    // Conta quantas etapas COM plano cada OP tem nesta fila (para só agrupar
+    // quando faz sentido — OP com 2+ planos vira pai/filho).
+    const planosPorOp = new Map<string, Set<string>>()
+    for (const it of itens) {
+      if (it.tipoFila === 'rc') continue
+      if (it.plano?.nome && it.opId) {
+        if (!planosPorOp.has(it.opId)) planosPorOp.set(it.opId, new Set())
+        planosPorOp.get(it.opId)!.add(it.plano.nome)
+      }
+    }
+    for (const it of itens) {
+      const temPai = it.tipoFila !== 'rc' && it.plano?.nome && it.opId && (planosPorOp.get(it.opId)?.size || 0) >= 1
+      if (temPai && !paisInseridos.has(it.opId)) {
+        paisInseridos.add(it.opId)
+        // Filhos desta OP nesta fila (etapas com plano da mesma OP).
+        const filhos = itens.filter((x) => x.opId === it.opId && x.plano?.nome && x.tipoFila !== 'rc')
+        const somaQtd = filhos.reduce((s, f) => s + (f.plano?.tiragem || f.quantidade || 0), 0)
+        resultado.push({
+          isPaiPlano: true,
+          dndId: `pai:${it.opId}`,
+          opId: it.opId,
+          opNumero: it.opNumero,
+          produtoNome: it.produtoNome,
+          clienteNome: it.clienteNome,
+          observacoes: it.observacoes,
+          totalQtd: somaQtd,
+          nFilhos: filhos.length,
+        })
+      }
+      resultado.push(it)
+    }
+    return resultado
+  }
+
   // Monta a fila COMBINADA de um centro CORTADEIRA: etapas de OP + Requisições
   // de Corte (RC), ordenadas pelo posicaoFila compartilhado. Cada item carrega
   // um `dndId` único (`rc:<id>` para RC, o próprio id para etapa) e `tipoFila`.
@@ -2399,8 +2441,21 @@ export default function ProgramacaoPage() {
                         </Table.Tr>
                       </Table.Thead>
                       <Table.Tbody>
-                        {((centro.requisicoesCorte?.length || 0) > 0 ? filaCombinadaCortadeira(centro) : centro.etapas).map((etapa: any) => (
-                          etapa.tipoFila === 'rc' ? (
+                        {agruparFilaPorOp((centro.requisicoesCorte?.length || 0) > 0 ? filaCombinadaCortadeira(centro) : centro.etapas).map((etapa: any) => (
+                          etapa.isPaiPlano ? (
+                            <Table.Tr key={etapa.dndId} style={{ background: 'var(--mantine-color-default-hover)' }}>
+                              <Table.Td></Table.Td>
+                              <Table.Td></Table.Td>
+                              <Table.Td></Table.Td>
+                              <Table.Td colSpan={99}>
+                                <Group gap={8} wrap="nowrap">
+                                  <Text size="sm" fw={700}>{etapa.opNumero} — {etapa.produtoNome || '—'}</Text>
+                                  <Text size="xs" c="dimmed">Qtd {etapa.totalQtd?.toLocaleString('pt-BR')}</Text>
+                                  <Badge color="gray" size="xs" variant="light">{etapa.nFilhos} planos</Badge>
+                                </Group>
+                              </Table.Td>
+                            </Table.Tr>
+                          ) : etapa.tipoFila === 'rc' ? (
                             <SortableRow key={etapa.dndId} etapa={{ id: etapa.dndId }} background={etapa.status === 'EM_CORTE' ? 'var(--mantine-color-blue-light)' : 'var(--mantine-color-grape-light)'}>
                               <Table.Td colSpan={3} style={{ padding: '0 4px' }}>
                                 <Badge color="grape" size="xs" leftSection={<IconCut size={10} />}>RC {etapa.numero}</Badge>
@@ -2467,8 +2522,8 @@ export default function ProgramacaoPage() {
                                   style={{ width: 80 }}
                                 />
                               ) : (
-                                <Text size="sm" style={{ cursor: 'pointer' }} onClick={() => setEditingQtd({ opId: etapa.opId, etapaId: etapa.id, value: String(etapa.quantidade) })} title="Clique para editar quantidade">
-                                  {etapa.quantidade.toLocaleString('pt-BR')}
+                                <Text size="sm" style={{ cursor: 'pointer' }} onClick={() => setEditingQtd({ opId: etapa.opId, etapaId: etapa.id, value: String(etapa.plano?.tiragem ?? etapa.quantidade) })} title="Clique para editar quantidade">
+                                  {(etapa.plano?.tiragem ?? etapa.quantidade).toLocaleString('pt-BR')}
                                 </Text>
                               )}
                               {etapa.liberacaoParcial && (
@@ -2477,7 +2532,7 @@ export default function ProgramacaoPage() {
                                 </Text>
                               )}
                             </Table.Td>}
-                            {colVis('tiragem') && <Table.Td>{etapa.tiragem ? etapa.tiragem.toLocaleString('pt-BR') : '—'}</Table.Td>}
+                            {colVis('tiragem') && <Table.Td>{(etapa.plano?.tiragem ?? etapa.tiragem) ? (etapa.plano?.tiragem ?? etapa.tiragem).toLocaleString('pt-BR') : '—'}</Table.Td>}
                             {colVis('produzida') && <Table.Td>
                               {editingProd?.etapaId === etapa.id ? (
                                 <TextInput
@@ -2517,10 +2572,10 @@ export default function ProgramacaoPage() {
                                 </Text>
                               ) : <Text size="xs" c="dimmed">—</Text>}
                             </Table.Td>}
-                            {colVis('material') && <Table.Td><Text size="sm" style={{ wordBreak: 'break-word' }}>{etapa.materialPrincipal || '—'}</Text></Table.Td>}
-                            {colVis('gramatura') && <Table.Td>{etapa.gramatura || '—'}</Table.Td>}
-                            {colVis('formato') && <Table.Td>{etapa.formato || '—'}</Table.Td>}
-                            {colVis('kg') && <Table.Td>{etapa.pesoKg ? etapa.pesoKg.toLocaleString('pt-BR') : '—'}</Table.Td>}
+                            {colVis('material') && <Table.Td><Text size="sm" style={{ wordBreak: 'break-word' }}>{etapa.plano?.material || etapa.materialPrincipal || '—'}</Text></Table.Td>}
+                            {colVis('gramatura') && <Table.Td>{etapa.plano?.gramatura || etapa.gramatura || '—'}</Table.Td>}
+                            {colVis('formato') && <Table.Td>{etapa.plano?.formato || etapa.formato || '—'}</Table.Td>}
+                            {colVis('kg') && <Table.Td>{(etapa.plano?.pesoKg ?? etapa.pesoKg) ? (etapa.plano?.pesoKg ?? etapa.pesoKg).toLocaleString('pt-BR') : '—'}</Table.Td>}
                             {colVis('enviado') && <Table.Td>
                               <Text
                                 size="sm"
@@ -2661,8 +2716,21 @@ export default function ProgramacaoPage() {
                         </Table.Tr>
                       </Table.Thead>
                       <Table.Tbody>
-                        {((centro.requisicoesCorte?.length || 0) > 0 ? filaCombinadaCortadeira(centro) : centro.etapas).map((etapa: any) => (
-                          etapa.tipoFila === 'rc' ? (
+                        {agruparFilaPorOp((centro.requisicoesCorte?.length || 0) > 0 ? filaCombinadaCortadeira(centro) : centro.etapas).map((etapa: any) => (
+                          etapa.isPaiPlano ? (
+                            <Table.Tr key={etapa.dndId} style={{ background: 'var(--mantine-color-default-hover)' }}>
+                              <Table.Td></Table.Td>
+                              <Table.Td></Table.Td>
+                              <Table.Td></Table.Td>
+                              <Table.Td colSpan={99}>
+                                <Group gap={8} wrap="nowrap">
+                                  <Text size="sm" fw={700}>{etapa.opNumero} — {etapa.produtoNome || '—'}</Text>
+                                  <Text size="xs" c="dimmed">Qtd {etapa.totalQtd?.toLocaleString('pt-BR')}</Text>
+                                  <Badge color="gray" size="xs" variant="light">{etapa.nFilhos} planos</Badge>
+                                </Group>
+                              </Table.Td>
+                            </Table.Tr>
+                          ) : etapa.tipoFila === 'rc' ? (
                             <SortableRow key={etapa.dndId} etapa={{ id: etapa.dndId }} background={etapa.status === 'EM_CORTE' ? 'var(--mantine-color-blue-light)' : 'var(--mantine-color-grape-light)'}>
                               <Table.Td colSpan={3} style={{ padding: '0 4px' }}>
                                 <Badge color="grape" size="xs" leftSection={<IconCut size={10} />}>RC {etapa.numero}</Badge>
@@ -2745,11 +2813,11 @@ export default function ProgramacaoPage() {
                               )}
                             </Table.Td>
                             {colVis('tipoOp') && <Table.Td><Text size="xs" fw={600} c={etapa.tipoOp?.includes('NOVO') ? 'green' : etapa.tipoOp?.includes('REPETI') ? 'blue' : etapa.tipoOp?.includes('ALTERA') ? 'orange' : etapa.tipoOp?.includes('PILOTO') ? 'violet' : 'gray'} style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>{etapa.tipoOp || '—'}</Text></Table.Td>}
-                            {colVis('tiragem') && <Table.Td>{etapa.tiragem ? etapa.tiragem.toLocaleString('pt-BR') : '—'}</Table.Td>}
-                            {colVis('material') && <Table.Td><Text size="sm" style={{ wordBreak: 'break-word' }}>{etapa.materialPrincipal || '—'}</Text></Table.Td>}
-                            {colVis('gramatura') && <Table.Td>{etapa.gramatura || '—'}</Table.Td>}
-                            {colVis('formato') && <Table.Td>{etapa.formato || '—'}</Table.Td>}
-                            {colVis('kg') && <Table.Td>{etapa.pesoKg ? `${etapa.pesoKg.toLocaleString('pt-BR')} kg` : '—'}</Table.Td>}
+                            {colVis('tiragem') && <Table.Td>{(etapa.plano?.tiragem ?? etapa.tiragem) ? (etapa.plano?.tiragem ?? etapa.tiragem).toLocaleString('pt-BR') : '—'}</Table.Td>}
+                            {colVis('material') && <Table.Td><Text size="sm" style={{ wordBreak: 'break-word' }}>{etapa.plano?.material || etapa.materialPrincipal || '—'}</Text></Table.Td>}
+                            {colVis('gramatura') && <Table.Td>{etapa.plano?.gramatura || etapa.gramatura || '—'}</Table.Td>}
+                            {colVis('formato') && <Table.Td>{etapa.plano?.formato || etapa.formato || '—'}</Table.Td>}
+                            {colVis('kg') && <Table.Td>{(etapa.plano?.pesoKg ?? etapa.pesoKg) ? `${(etapa.plano?.pesoKg ?? etapa.pesoKg).toLocaleString('pt-BR')} kg` : '—'}</Table.Td>}
                             {colVis('quantidade') && <Table.Td>
                               {editingQtd?.etapaId === etapa.id ? (
                                 <TextInput
@@ -2763,8 +2831,8 @@ export default function ProgramacaoPage() {
                                   style={{ width: 80 }}
                                 />
                               ) : (
-                                <Text size="sm" style={{ cursor: 'pointer' }} onClick={() => setEditingQtd({ opId: etapa.opId, etapaId: etapa.id, value: String(etapa.quantidade) })} title="Clique para editar quantidade">
-                                  {etapa.quantidade.toLocaleString('pt-BR')} {etapa.unidade}
+                                <Text size="sm" style={{ cursor: 'pointer' }} onClick={() => setEditingQtd({ opId: etapa.opId, etapaId: etapa.id, value: String(etapa.plano?.tiragem ?? etapa.quantidade) })} title="Clique para editar quantidade">
+                                  {(etapa.plano?.tiragem ?? etapa.quantidade).toLocaleString('pt-BR')} {etapa.unidade}
                                 </Text>
                               )}
                               {etapa.liberacaoParcial && (
