@@ -2446,6 +2446,7 @@ export default function ProgramacaoPage() {
                                 </Text>
                                 {etapa.isAvulsa && <Badge color="pink" size="xs">AVULSA</Badge>}
                                 {etapa.plano && <Badge color={etapa.plano.tipo === 'FACE' ? 'violet' : 'cyan'} size="xs" title={`Plano: ${etapa.plano.nome}`}>{etapa.plano.nome}</Badge>}
+                                {etapa.planosNomes?.map((pn: string) => <Badge key={pn} color="cyan" size="xs" variant="light" title={`Plano: ${pn}`}>{pn}</Badge>)}
                               </Group>
                               <Text size="xs" fw={600} c="dimmed" style={{ lineHeight: 1.2 }}>
                                 {etapa.clienteNome || '—'}
@@ -2729,6 +2730,7 @@ export default function ProgramacaoPage() {
                                 </Text>
                                 {etapa.isAvulsa && <Badge color="pink" size="xs">AVULSA</Badge>}
                                 {etapa.plano && <Badge color={etapa.plano.tipo === 'FACE' ? 'violet' : 'cyan'} size="xs" title={`Plano: ${etapa.plano.nome}`}>{etapa.plano.nome}</Badge>}
+                                {etapa.planosNomes?.map((pn: string) => <Badge key={pn} color="cyan" size="xs" variant="light" title={`Plano: ${pn}`}>{pn}</Badge>)}
                               </Group>
                               <Text size="xs" fw={600} c={etapa.preImpressaoStatus ? 'white' : 'dimmed'} style={{ lineHeight: 1.2 }}>
                                 {etapa.clienteNome || etapa.observacoes?.match(/\[Cliente\]\s*(.+)/)?.[1] || ''}
