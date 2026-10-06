@@ -93,6 +93,29 @@ function SortableRow({ etapa, children, background, highlighted, selected, onTog
   )
 }
 
+// Linha-PAI de uma OP com planos. É arrastável (grip próprio): ao mover o
+// pai, TODOS os filhos (etapas por plano) daquela OP vão juntos, preservando
+// a ordem relativa entre eles (lógica no handleDragEnd/handleDragEndCortadeira).
+// O clique na linha (fora do grip) recolhe/expande os filhos.
+function SortableParentRow({ dndId, children, onToggle }: { dndId: string; children: React.ReactNode; onToggle?: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dndId })
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition: transition || undefined,
+    opacity: isDragging ? 0.5 : 1,
+    background: 'var(--mantine-color-default-hover)',
+    cursor: 'pointer',
+  }
+  return (
+    <Table.Tr ref={setNodeRef} style={style} {...attributes} onClick={onToggle}>
+      <Table.Td style={{ width: 30, cursor: 'grab' }} {...listeners} onClick={(e) => e.stopPropagation()}>
+        <IconGripVertical size={14} color="gray" />
+      </Table.Td>
+      {children}
+    </Table.Tr>
+  )
+}
+
 export default function ProgramacaoPage() {
   useEffect(() => { document.title = 'PCP - Painel Operacional' }, [])
 
@@ -126,6 +149,17 @@ export default function ProgramacaoPage() {
   // (ver tiposProcesso). Valor inicial ajustado para o primeiro tipo
   // cadastrado assim que a lista carrega (useEffect abaixo).
   const [activeTab, setActiveTab] = useState<string>('')
+  // Linhas-pai de plano RECOLHIDAS (chave `${centroId}:${opId}`). Vazio =
+  // todos expandidos (padrão). Spec pcp-planos-frente-costa-rc.
+  const [planosRecolhidos, setPlanosRecolhidos] = useState<Set<string>>(new Set())
+  function togglePlanoRecolhido(centroId: string, opId: string) {
+    const chave = `${centroId}:${opId}`
+    setPlanosRecolhidos((prev) => {
+      const novo = new Set(prev)
+      if (novo.has(chave)) novo.delete(chave); else novo.add(chave)
+      return novo
+    })
+  }
   // Layout da tela: "grid" (tabelas por centro, padrão atual) ou "detalhado"
   // (lista mestre + painel de detalhe único, evita repetir a mesma OP em
   // várias linhas/abas). Persistido para lembrar a preferência do usuário.
@@ -728,6 +762,31 @@ export default function ProgramacaoPage() {
     })
   }
 
+  // Move o BLOCO de uma OP (todos os itens cujo opId === opId) para a posição
+  // de destino `overId`, preservando a ordem relativa entre os itens do bloco.
+  // `overId` pode ser o id de um item solto (`<id>`), de uma RC (`rc:<id>`) ou
+  // de outra linha-pai (`pai:<opId>`). Retorna a nova fila ou null se nada muda.
+  // Trabalha sobre a fila bruta (sem as linhas-pai sintéticas).
+  function reordenarComBlocoPai(fila: any[], opId: string, overId: string): any[] | null {
+    const dndIdDe = (it: any) => it.dndId || it.id
+    const bloco = fila.filter((e: any) => e.opId === opId)
+    if (bloco.length === 0) return null
+    const resto = fila.filter((e: any) => e.opId !== opId)
+
+    // Resolve o item de referência de destino entre os itens do RESTO.
+    let alvoIdx: number
+    if (overId.startsWith('pai:')) {
+      const overOpId = overId.slice(4)
+      alvoIdx = resto.findIndex((e: any) => e.opId === overOpId)
+    } else {
+      alvoIdx = resto.findIndex((e: any) => dndIdDe(e) === overId || e.id === overId)
+    }
+    if (alvoIdx === -1) alvoIdx = resto.length
+
+    const novaOrdem = [...resto.slice(0, alvoIdx), ...bloco, ...resto.slice(alvoIdx)]
+    return novaOrdem
+  }
+
   async function handleDragEnd(centroId: string, event: DragEndEvent) {
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -743,6 +802,33 @@ export default function ProgramacaoPage() {
     if (!centroData) return
 
     const fila: any[] = centroData.etapas
+
+    // ── Arrasto de LINHA-PAI (OP com planos): leva todos os filhos juntos ──
+    // O id arrastado é `pai:<opId>`; movemos o bloco inteiro de etapas daquela
+    // OP para a posição de destino, preservando a ordem relativa entre eles.
+    if (String(active.id).startsWith('pai:')) {
+      const opId = String(active.id).slice(4)
+      const novaOrdemPai = reordenarComBlocoPai(fila, opId, String(over.id))
+      if (!novaOrdemPai) return
+      setPainel((prev: any) => {
+        if (!prev) return prev
+        const centros = prev.centros.map((c: any) =>
+          c.centro.id === centroId ? { ...c, etapas: novaOrdemPai } : c
+        )
+        return { ...prev, centros }
+      })
+      try {
+        await api.patch('/pcp/etapas/reordenar', {
+          centroProducaoId: centroId,
+          etapaIds: novaOrdemPai.map((e: any) => e.id),
+        })
+      } catch (err: any) {
+        notifications.show({ title: 'Erro ao reordenar', message: err?.response?.data?.message || 'Falha ao salvar ordem', color: 'red' })
+        carregar()
+      }
+      return
+    }
+
     const oldIndex = fila.findIndex((e: any) => e.id === active.id)
     const newIndex = fila.findIndex((e: any) => e.id === over.id)
     if (oldIndex === -1 || newIndex === -1) return
@@ -820,7 +906,7 @@ export default function ProgramacaoPage() {
   // mostra a OP + totais (soma dos filhos) e tem ações desabilitadas; os
   // filhos (etapas por plano) ficam logo abaixo, indentados. OPs sem plano
   // (legado) passam direto, sem pai. Spec pcp-planos-frente-costa-rc.
-  function agruparFilaPorOp(itens: any[]): any[] {
+  function agruparFilaPorOp(itens: any[], centroId?: string): any[] {
     const resultado: any[] = []
     const paisInseridos = new Set<string>()
     // Conta quantas etapas COM plano cada OP tem nesta fila (para só agrupar
@@ -850,8 +936,11 @@ export default function ProgramacaoPage() {
           observacoes: it.observacoes,
           totalQtd: somaQtd,
           nFilhos: filhos.length,
+          recolhido: !!(centroId && planosRecolhidos.has(`${centroId}:${it.opId}`)),
         })
       }
+      // Oculta os filhos quando o pai está recolhido.
+      if (temPai && centroId && planosRecolhidos.has(`${centroId}:${it.opId}`)) continue
       resultado.push(it)
     }
     return resultado
@@ -880,11 +969,20 @@ export default function ProgramacaoPage() {
     }
 
     const fila = filaCombinadaCortadeira(centro)
-    const oldIndex = fila.findIndex((i: any) => i.dndId === active.id)
-    const newIndex = fila.findIndex((i: any) => i.dndId === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
 
-    const novaOrdem = arrayMove(fila, oldIndex, newIndex)
+    // ── Arrasto de LINHA-PAI (OP com planos): leva os filhos juntos ──
+    let novaOrdem: any[]
+    if (String(active.id).startsWith('pai:')) {
+      const opId = String(active.id).slice(4)
+      const reord = reordenarComBlocoPai(fila, opId, String(over.id))
+      if (!reord) return
+      novaOrdem = reord
+    } else {
+      const oldIndex = fila.findIndex((i: any) => i.dndId === active.id)
+      const newIndex = fila.findIndex((i: any) => i.dndId === over.id)
+      if (oldIndex === -1 || newIndex === -1) return
+      novaOrdem = arrayMove(fila, oldIndex, newIndex)
+    }
 
     // Optimistic update: regrava posicaoFila local nos dois arrays do centro.
     setPainel((prev: any) => {
@@ -2406,11 +2504,15 @@ export default function ProgramacaoPage() {
               const temRc = (centro.requisicoesCorte?.length || 0) > 0
               const filaComb = temRc ? filaCombinadaCortadeira(centro) : null
               const nenhumItem = (centro.etapas.length === 0) && !temRc
+              // Ids arrastáveis = os da fila agrupada (inclui as linhas-PAI
+              // `pai:<opId>`), para que o pai seja reconhecido pelo dnd-kit e
+              // leve os filhos junto no arrasto.
+              const idsSortable = agruparFilaPorOp(temRc ? filaComb! : centro.etapas, centro.centro.id).map((i: any) => i.dndId || i.id)
               return nenhumItem ? (
               <Text size="sm" c="dimmed" ta="center" py="sm">Nenhuma OP na fila</Text>
             ) : (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(event) => temRc ? handleDragEndCortadeira(centro, event) : handleDragEnd(centro.centro.id, event)}>
-                <SortableContext items={temRc ? filaComb!.map((i: any) => i.dndId) : centro.etapas.map((e: any) => e.id)} strategy={verticalListSortingStrategy}>
+                <SortableContext items={idsSortable} strategy={verticalListSortingStrategy}>
                   <ScrollArea>
                     {(() => {
                       const colsGrid = getColunasGridParaProcesso(centro.centro.tipoProcesso?.codigo || 'cortadeira')
@@ -2441,11 +2543,10 @@ export default function ProgramacaoPage() {
                         </Table.Tr>
                       </Table.Thead>
                       <Table.Tbody>
-                        {agruparFilaPorOp((centro.requisicoesCorte?.length || 0) > 0 ? filaCombinadaCortadeira(centro) : centro.etapas).map((etapa: any) => (
+                        {agruparFilaPorOp((centro.requisicoesCorte?.length || 0) > 0 ? filaCombinadaCortadeira(centro) : centro.etapas, centro.centro.id).map((etapa: any) => (
                           etapa.isPaiPlano ? (
-                            <Table.Tr key={etapa.dndId} style={{ background: 'var(--mantine-color-default-hover)' }}>
-                              <Table.Td></Table.Td>
-                              <Table.Td></Table.Td>
+                            <SortableParentRow key={etapa.dndId} dndId={etapa.dndId} onToggle={() => togglePlanoRecolhido(centro.centro.id, etapa.opId)}>
+                              <Table.Td>{etapa.recolhido ? <IconChevronRight size={16} /> : <IconChevronDown size={16} />}</Table.Td>
                               <Table.Td></Table.Td>
                               <Table.Td colSpan={99}>
                                 <Group gap={8} wrap="nowrap">
@@ -2454,7 +2555,7 @@ export default function ProgramacaoPage() {
                                   <Badge color="gray" size="xs" variant="light">{etapa.nFilhos} planos</Badge>
                                 </Group>
                               </Table.Td>
-                            </Table.Tr>
+                            </SortableParentRow>
                           ) : etapa.tipoFila === 'rc' ? (
                             <SortableRow key={etapa.dndId} etapa={{ id: etapa.dndId }} background={etapa.status === 'EM_CORTE' ? 'var(--mantine-color-blue-light)' : 'var(--mantine-color-grape-light)'}>
                               <Table.Td colSpan={3} style={{ padding: '0 4px' }}>
@@ -2716,11 +2817,10 @@ export default function ProgramacaoPage() {
                         </Table.Tr>
                       </Table.Thead>
                       <Table.Tbody>
-                        {agruparFilaPorOp((centro.requisicoesCorte?.length || 0) > 0 ? filaCombinadaCortadeira(centro) : centro.etapas).map((etapa: any) => (
+                        {agruparFilaPorOp((centro.requisicoesCorte?.length || 0) > 0 ? filaCombinadaCortadeira(centro) : centro.etapas, centro.centro.id).map((etapa: any) => (
                           etapa.isPaiPlano ? (
-                            <Table.Tr key={etapa.dndId} style={{ background: 'var(--mantine-color-default-hover)' }}>
-                              <Table.Td></Table.Td>
-                              <Table.Td></Table.Td>
+                            <SortableParentRow key={etapa.dndId} dndId={etapa.dndId} onToggle={() => togglePlanoRecolhido(centro.centro.id, etapa.opId)}>
+                              <Table.Td>{etapa.recolhido ? <IconChevronRight size={16} /> : <IconChevronDown size={16} />}</Table.Td>
                               <Table.Td></Table.Td>
                               <Table.Td colSpan={99}>
                                 <Group gap={8} wrap="nowrap">
@@ -2729,7 +2829,7 @@ export default function ProgramacaoPage() {
                                   <Badge color="gray" size="xs" variant="light">{etapa.nFilhos} planos</Badge>
                                 </Group>
                               </Table.Td>
-                            </Table.Tr>
+                            </SortableParentRow>
                           ) : etapa.tipoFila === 'rc' ? (
                             <SortableRow key={etapa.dndId} etapa={{ id: etapa.dndId }} background={etapa.status === 'EM_CORTE' ? 'var(--mantine-color-blue-light)' : 'var(--mantine-color-grape-light)'}>
                               <Table.Td colSpan={3} style={{ padding: '0 4px' }}>
