@@ -12,6 +12,7 @@ import { api } from '@/lib/api'
 import { mapearModosBloqueio } from '@/lib/mapearModosBloqueio'
 import { BloqueioConferenciaSection } from './BloqueioConferenciaSection'
 import { deveExibirAlertaEnriquecimentoSku } from '@/utils/produtoSku'
+import { rlmPercentParaDias, estadoCamposShelfLife } from '@/utils/shelfLifeRlm'
 
 const UNIDADES = [
   { value: 'UN', label: 'UN - Unidade' }, { value: 'CX', label: 'CX - Caixa' },
@@ -140,10 +141,21 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
   const [secId, setSecId] = useState<string | null>(null)
   const [catId, setCatId] = useState<string | null>(null)
 
-  const { control, handleSubmit, reset, setValue, formState: { errors } } = useForm<ProdutoForm>({
+  const { control, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<ProdutoForm>({
     resolver: zodResolver(produtoSchema),
     defaultValues: { codigo: '', nome: '', unidade: 'UN', precoBase: 0, status: true, shelfLifeMinimo: null, classificacaoPcp: null, tipoFisico: null, exigeLote: false, aceitarSenha: false, aceitarCcePendente: false, toleranciaQuantidadePercentual: null, origemProd: 0, aliqICMS: 0, aliqIPI: 0, aliqPIS: 0, aliqCOFINS: 0 },
   })
+
+  // Ocorrência 8 do relatório 3: Shelf-Life Mínimo (dias) × RLM Recebimento (%)
+  // são a mesma trava de recebimento (padrão SAP). Preencher dias inibe o %;
+  // preencher o % calcula os dias (exige o shelf life total).
+  const shelfLifeMinimoWatch = watch('shelfLifeMinimo')
+  const rlmPercentWatch = watch('percentualVidaUtilMinimoRecebimento')
+  const shelfLifeTotalWatch = watch('shelfLifeTotalDias')
+  const { diasDesabilitado, rlmDesabilitado } = estadoCamposShelfLife(
+    shelfLifeMinimoWatch ?? null,
+    rlmPercentWatch ?? null,
+  )
 
   useEffect(() => {
     if (!opened) return
@@ -383,12 +395,13 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
 
               <div className="grid grid-cols-4 gap-4">
                 <Controller name="shelfLifeMinimo" control={control} render={({ field }) => (
-                  <Tooltip label="Quantidade mínima de dias de validade restante para aceitar o produto no recebimento" multiline w={300}>
+                  <Tooltip label="Quantidade mínima de dias de validade restante para aceitar o produto no recebimento. Inibe o RLM (%) quando preenchido." multiline w={300}>
                     <NumberInput
                       label={<Group gap={4}><Text size="sm">Shelf Life Mínimo (dias)</Text><IconInfoCircle size={14} className="text-zinc-400" /></Group>}
                       placeholder="Ex: 30"
                       min={1}
                       allowDecimal={false}
+                      disabled={diasDesabilitado}
                       value={field.value ?? ''}
                       onChange={(v) => field.onChange(v === '' ? null : typeof v === 'number' ? v : null)}
                     />
@@ -442,15 +455,33 @@ export default function ProdutoModal({ opened, onClose, editData }: Props) {
                     </Tooltip>
                   )} />
                   <Controller name="percentualVidaUtilMinimoRecebimento" control={control} render={({ field }) => (
-                    <Tooltip label="RLM — % mínimo de vida útil restante para aceitar o lote no recebimento (ex.: 75%)." multiline w={300}>
+                    <Tooltip label="RLM — % mínimo de vida útil restante para aceitar o lote no recebimento (ex.: 75%). Ao preencher, calcula o Shelf Life Mínimo (dias) a partir do Shelf Life Total." multiline w={320}>
                       <NumberInput
                         label={<Group gap={4}><Text size="sm">RLM Recebimento (%)</Text><IconInfoCircle size={14} className="text-zinc-400" /></Group>}
                         placeholder="Ex: 75"
                         min={0}
                         max={100}
                         suffix="%"
+                        disabled={rlmDesabilitado}
                         value={field.value ?? ''}
-                        onChange={(v) => field.onChange(v === '' ? null : typeof v === 'number' ? v : null)}
+                        onChange={(v) => {
+                          const novoRlm = v === '' ? null : typeof v === 'number' ? v : null
+                          field.onChange(novoRlm)
+                          // Deriva os dias a partir do RLM% e do shelf life total
+                          // (padrão SAP). Se faltar o total, avisa e não calcula.
+                          if (novoRlm != null) {
+                            if (!shelfLifeTotalWatch) {
+                              notifications.show({
+                                title: 'Informe o Shelf Life Total',
+                                message: 'Para calcular os dias a partir do RLM (%), preencha antes o Shelf Life Total (dias).',
+                                color: 'orange',
+                              })
+                            } else {
+                              const dias = rlmPercentParaDias(novoRlm, shelfLifeTotalWatch)
+                              if (dias != null) setValue('shelfLifeMinimo', dias, { shouldDirty: true })
+                            }
+                          }
+                        }}
                       />
                     </Tooltip>
                   )} />

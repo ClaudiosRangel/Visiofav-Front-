@@ -15,6 +15,12 @@ export interface Sku {
   altura?: number
   comprimento?: number
   volume?: number
+  // Medidas da unidade (EAN-13), independentes das da caixa (relatório 3).
+  larguraUnidade?: number
+  alturaUnidade?: number
+  comprimentoUnidade?: number
+  volumeUnidade?: number
+  pesoLiquidoUnidade?: number
   pesoLiquido?: number
   pesoBruto?: number
   pesoPalete?: number

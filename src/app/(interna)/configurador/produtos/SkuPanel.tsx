@@ -8,6 +8,8 @@ import {
 import { IconPlus, IconEdit, IconTrash, IconBarcode, IconPackage, IconCheck, IconWand } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { useSkus, useCriarSku, useAtualizarSku, useExcluirSku, Sku } from '@/data/hooks/useSku'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '@/lib/api'
 
 interface SkuPanelProps {
   produtoId: string
@@ -76,6 +78,11 @@ const emptyForm = {
   altura: undefined as number | undefined,
   comprimento: undefined as number | undefined,
   volume: undefined as number | undefined,
+  larguraUnidade: undefined as number | undefined,
+  alturaUnidade: undefined as number | undefined,
+  comprimentoUnidade: undefined as number | undefined,
+  volumeUnidade: undefined as number | undefined,
+  pesoLiquidoUnidade: undefined as number | undefined,
   pesoLiquido: undefined as number | undefined,
   pesoBruto: undefined as number | undefined,
   pesoPalete: undefined as number | undefined,
@@ -86,6 +93,18 @@ const emptyForm = {
 
 export default function SkuPanel({ produtoId, produtoNome }: SkuPanelProps) {
   const { data: skusResp, isLoading } = useSkus(produtoId)
+
+  // Ocorrência 5 do relatório 3: o EAN-13 do SKU é espelho do EAN-13 oficial do
+  // produto (Produto.cEAN) — fonte única, somente leitura (padrão Oracle/SAP de
+  // herança pai→filho). Buscamos o produto para obter o cEAN e o código/nome.
+  const { data: produtoDetalhe } = useQuery<any>({
+    queryKey: ['produto-detalhe-sku', produtoId],
+    queryFn: async () => { const { data } = await api.get(`/produtos/${produtoId}`); return data },
+    enabled: !!produtoId,
+    staleTime: 1000 * 60,
+  })
+  const produtoCEAN: string = produtoDetalhe?.cEAN || ''
+  const produtoCodigo: string = produtoDetalhe?.codigo || ''
   const criarSku = useCriarSku()
   const atualizarSku = useAtualizarSku()
   const excluirSku = useExcluirSku()
@@ -115,6 +134,11 @@ export default function SkuPanel({ produtoId, produtoNome }: SkuPanelProps) {
       altura: sku.altura != null ? Number(sku.altura) : undefined,
       comprimento: sku.comprimento != null ? Number(sku.comprimento) : undefined,
       volume: sku.volume != null ? Number(sku.volume) : undefined,
+      larguraUnidade: sku.larguraUnidade != null ? Number(sku.larguraUnidade) : undefined,
+      alturaUnidade: sku.alturaUnidade != null ? Number(sku.alturaUnidade) : undefined,
+      comprimentoUnidade: sku.comprimentoUnidade != null ? Number(sku.comprimentoUnidade) : undefined,
+      volumeUnidade: sku.volumeUnidade != null ? Number(sku.volumeUnidade) : undefined,
+      pesoLiquidoUnidade: sku.pesoLiquidoUnidade != null ? Number(sku.pesoLiquidoUnidade) : undefined,
       pesoLiquido: sku.pesoLiquido != null ? Number(sku.pesoLiquido) : undefined,
       pesoBruto: sku.pesoBruto != null ? Number(sku.pesoBruto) : undefined,
       pesoPalete: sku.pesoPalete != null ? Number(sku.pesoPalete) : undefined,
@@ -141,6 +165,17 @@ export default function SkuPanel({ produtoId, produtoNome }: SkuPanelProps) {
         volume = (form.largura * form.altura * form.comprimento) / 1000000
       }
 
+      // Volume da unidade (Req 3): se não informado nem derivável das dimensões
+      // da unidade, deriva por divisão da cubagem da caixa pelo multiplicador
+      // (qtdEmbalagem). A medida real, quando preenchida, tem prioridade.
+      let volumeUnidade = form.volumeUnidade != null ? Number(form.volumeUnidade) : undefined
+      if (!volumeUnidade && form.larguraUnidade && form.alturaUnidade && form.comprimentoUnidade) {
+        volumeUnidade = (form.larguraUnidade * form.alturaUnidade * form.comprimentoUnidade) / 1000000
+      }
+      if (!volumeUnidade && volume && form.qtdEmbalagem && form.qtdEmbalagem > 0) {
+        volumeUnidade = Number((volume / form.qtdEmbalagem).toFixed(6))
+      }
+
       // Peso Palete: se não informado, calcula da cubagem do palete
       // (peso bruto da embalagem × total de embalagens no palete = lastro × camada).
       let pesoPalete = form.pesoPalete != null ? Number(form.pesoPalete) : undefined
@@ -157,13 +192,19 @@ export default function SkuPanel({ produtoId, produtoNome }: SkuPanelProps) {
         altura: numOuVazio(form.altura),
         comprimento: numOuVazio(form.comprimento),
         volume: volume != null ? volume : vazio,
+        larguraUnidade: numOuVazio(form.larguraUnidade),
+        alturaUnidade: numOuVazio(form.alturaUnidade),
+        comprimentoUnidade: numOuVazio(form.comprimentoUnidade),
+        volumeUnidade: volumeUnidade != null ? volumeUnidade : vazio,
+        pesoLiquidoUnidade: numOuVazio(form.pesoLiquidoUnidade),
         pesoLiquido: numOuVazio(form.pesoLiquido),
         pesoBruto: numOuVazio(form.pesoBruto),
         pesoPalete: pesoPalete != null ? pesoPalete : vazio,
         lastro: numOuVazio(form.lastro),
         camada: numOuVazio(form.camada),
         descricao: strOuVazio(form.descricao),
-        codigoBarra: strOuVazio(form.codigoBarra),
+        // EAN-13 do SKU espelha o cEAN oficial do produto (fonte única).
+        codigoBarra: produtoCEAN ? produtoCEAN.trim() : vazio,
         codigoBarraDun: strOuVazio(form.codigoBarraDun),
         tipoPalete: strOuVazio(form.tipoPalete),
       }
@@ -183,11 +224,13 @@ export default function SkuPanel({ produtoId, produtoNome }: SkuPanelProps) {
 
   // Gera o EAN-14 (DUN) a partir do EAN-13 informado e preenche o campo.
   function handleGerarEan14() {
-    const ean14 = gerarEan14(form.codigoBarra)
+    // Gera o EAN-14 a partir do EAN-13 OFICIAL do produto (cEAN), já que o
+    // EAN-13 do SKU passou a ser espelho somente leitura.
+    const ean14 = gerarEan14(produtoCEAN)
     if (!ean14) {
       notifications.show({
         title: 'EAN-13 inválido',
-        message: 'Informe um Código de Barras (EAN-13) com 13 dígitos para gerar o EAN-14.',
+        message: 'O produto precisa ter um EAN-13 (cEAN) com 13 dígitos no cadastro principal para gerar o EAN-14.',
         color: 'orange',
       })
       return
@@ -213,6 +256,29 @@ export default function SkuPanel({ produtoId, produtoNome }: SkuPanelProps) {
   const volumeCalculado = form.largura && form.altura && form.comprimento
     ? ((form.largura * form.altura * form.comprimento) / 1000000).toFixed(6)
     : null
+
+  // Volume da caixa (informado ou calculado das dimensões) usado para derivar a
+  // cubagem da unidade por divisão pelo multiplicador (Req 3 / ocorrência 2).
+  const volumeCaixaEfetivo = form.volume != null
+    ? Number(form.volume)
+    : (volumeCalculado ? Number(volumeCalculado) : null)
+  const volumeUnidadeDerivado = volumeCaixaEfetivo && form.qtdEmbalagem && form.qtdEmbalagem > 0
+    ? (volumeCaixaEfetivo / form.qtdEmbalagem).toFixed(6)
+    : null
+
+  // Derivar a cubagem da unidade a partir da caixa ÷ multiplicador (botão).
+  function handleDerivarCubagemUnidade() {
+    if (!volumeUnidadeDerivado) {
+      notifications.show({
+        title: 'Não foi possível derivar',
+        message: 'Informe o volume (ou dimensões) da caixa e a quantidade por embalagem (> 0).',
+        color: 'orange',
+      })
+      return
+    }
+    updateForm('volumeUnidade', Number(volumeUnidadeDerivado))
+    notifications.show({ title: 'Cubagem da unidade derivada', message: `${volumeUnidadeDerivado} m³`, color: 'green' })
+  }
 
   // Peso palete sugerido: peso bruto da embalagem × total de embalagens no
   // palete (lastro × camada). Exibido como placeholder "Auto: X" e usado no
@@ -328,8 +394,21 @@ export default function SkuPanel({ produtoId, produtoNome }: SkuPanelProps) {
         <SimpleGrid cols={{ base: 1, sm: 2 }} mb="md">
           <TextInput label="Descrição" placeholder="Ex: Caixa com 12 unidades" value={form.descricao}
             onChange={(e) => updateForm('descricao', e.currentTarget.value)} />
-          <TextInput label="Código de Barras (EAN-13)" placeholder="7891234567890" value={form.codigoBarra}
-            onChange={(e) => updateForm('codigoBarra', e.currentTarget.value)} className="font-mono" />
+          {/* EAN-13 é SOMENTE LEITURA, espelhando o EAN oficial do produto
+              (Produto.cEAN). Fonte única evita divergência de digitação
+              (Ocorrência 5). O destaque em vermelho identifica o produto dono
+              do EAN-13 (pedido literal do relatório). */}
+          <TextInput
+            label="Código de Barras (EAN-13) — do cadastro do produto"
+            value={produtoCEAN}
+            readOnly
+            disabled={!produtoCEAN}
+            className="font-mono"
+            placeholder="Preencha o EAN no cadastro principal do produto"
+            description={produtoCEAN
+              ? <Text size="xs" c="red" fw={600}>EAN-13 de {produtoCodigo || produtoNome}</Text>
+              : <Text size="xs" c="orange">Produto sem EAN-13. Informe o EAN na tela de editar produto.</Text>}
+          />
         </SimpleGrid>
 
         <SimpleGrid cols={{ base: 1, sm: 2 }} mb="md">
@@ -350,7 +429,7 @@ export default function SkuPanel({ produtoId, produtoNome }: SkuPanelProps) {
           />
         </SimpleGrid>
 
-        <Text fw={600} size="sm" mb="xs" mt="md">Dimensões</Text>
+        <Text fw={600} size="sm" mb="xs" mt="md">Medidas da Caixa / Embalagem (EAN-14)</Text>
         <SimpleGrid cols={{ base: 2, sm: 4 }} mb="md">
           <NumberInput label="Largura (cm)" min={0} decimalScale={1} value={form.largura}
             onChange={(v) => updateForm('largura', typeof v === 'number' ? v : undefined)} />
@@ -362,6 +441,36 @@ export default function SkuPanel({ produtoId, produtoNome }: SkuPanelProps) {
             value={form.volume ?? (volumeCalculado ? Number(volumeCalculado) : undefined)}
             onChange={(v) => updateForm('volume', typeof v === 'number' ? v : undefined)}
             placeholder={volumeCalculado ? `Auto: ${volumeCalculado}` : ''} />
+        </SimpleGrid>
+
+        {/* Medidas da UNIDADE contida (EAN-13), independentes da caixa (padrão
+            GS1 — ocorrência 1). O volume pode ser derivado da caixa ÷
+            multiplicador quando não há medida real da unidade (ocorrência 2). */}
+        <Group justify="space-between" mb="xs" mt="md">
+          <Text fw={600} size="sm">Medidas da Unidade (EAN-13)</Text>
+          <Tooltip label="Derivar cubagem da unidade = volume da caixa ÷ qtd por embalagem">
+            <Button size="xs" variant="light" leftSection={<IconWand size={14} />}
+              onClick={handleDerivarCubagemUnidade} disabled={!volumeUnidadeDerivado}>
+              Derivar cubagem da unidade
+            </Button>
+          </Tooltip>
+        </Group>
+        <SimpleGrid cols={{ base: 2, sm: 4 }} mb="md">
+          <NumberInput label="Largura (cm)" min={0} decimalScale={1} value={form.larguraUnidade}
+            onChange={(v) => updateForm('larguraUnidade', typeof v === 'number' ? v : undefined)} />
+          <NumberInput label="Altura (cm)" min={0} decimalScale={1} value={form.alturaUnidade}
+            onChange={(v) => updateForm('alturaUnidade', typeof v === 'number' ? v : undefined)} />
+          <NumberInput label="Comprimento (cm)" min={0} decimalScale={1} value={form.comprimentoUnidade}
+            onChange={(v) => updateForm('comprimentoUnidade', typeof v === 'number' ? v : undefined)} />
+          <NumberInput label="Volume (m³)" min={0} decimalScale={6}
+            value={form.volumeUnidade ?? (volumeUnidadeDerivado ? Number(volumeUnidadeDerivado) : undefined)}
+            onChange={(v) => updateForm('volumeUnidade', typeof v === 'number' ? v : undefined)}
+            placeholder={volumeUnidadeDerivado ? `Auto: ${volumeUnidadeDerivado}` : ''}
+            description={volumeUnidadeDerivado ? 'Caixa ÷ qtd por embalagem' : undefined} />
+        </SimpleGrid>
+        <SimpleGrid cols={{ base: 2, sm: 4 }} mb="md">
+          <NumberInput label="Peso Líquido Unidade (kg)" min={0} decimalScale={3} value={form.pesoLiquidoUnidade}
+            onChange={(v) => updateForm('pesoLiquidoUnidade', typeof v === 'number' ? v : undefined)} />
         </SimpleGrid>
 
         <Text fw={600} size="sm" mb="xs">Pesos</Text>
