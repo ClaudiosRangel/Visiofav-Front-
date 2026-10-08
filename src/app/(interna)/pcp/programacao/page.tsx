@@ -778,7 +778,7 @@ export default function ProgramacaoPage() {
     if (bloco.length === 0) return null
     const resto = fila.filter((e: any) => e.opId !== opId)
 
-    // Resolve o item de referência de destino entre os itens do RESTO.
+    // Índice do item-alvo (o item sobre o qual soltou) dentro do RESTO.
     let alvoIdx: number
     if (overId.startsWith('pai:')) {
       const overOpId = overId.slice(4)
@@ -786,7 +786,21 @@ export default function ProgramacaoPage() {
     } else {
       alvoIdx = resto.findIndex((e: any) => dndIdDe(e) === overId || e.id === overId)
     }
-    if (alvoIdx === -1) alvoIdx = resto.length
+    if (alvoIdx === -1) {
+      // Alvo não encontrado no resto → joga o bloco para o FIM.
+      return [...resto, ...bloco]
+    }
+
+    // DIREÇÃO do arrasto: se o bloco (pai) está ATUALMENTE acima do alvo na
+    // fila completa e foi arrastado para baixo, inserimos DEPOIS do alvo —
+    // senão nunca é possível soltar na ÚLTIMA posição (só antes do alvo).
+    // Comparamos a posição do 1º item do bloco com a do alvo na fila original.
+    const idxBlocoNaFila = fila.findIndex((e: any) => e.opId === opId)
+    const idxAlvoNaFila = fila.findIndex((e: any) =>
+      overId.startsWith('pai:') ? e.opId === overId.slice(4) : (dndIdDe(e) === overId || e.id === overId),
+    )
+    const arrastandoParaBaixo = idxBlocoNaFila !== -1 && idxAlvoNaFila !== -1 && idxBlocoNaFila < idxAlvoNaFila
+    if (arrastandoParaBaixo) alvoIdx += 1
 
     const novaOrdem = [...resto.slice(0, alvoIdx), ...bloco, ...resto.slice(alvoIdx)]
     return novaOrdem
