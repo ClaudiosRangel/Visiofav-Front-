@@ -329,6 +329,11 @@ export default function ProgramacaoPage() {
   // Formulário FO-002/PCP. Spec pcp-planos-frente-costa-rc (Fase A).
   const [modalRc, setModalRc] = useState<{ centroId: string; centroDescricao: string } | null>(null)
   const [salvandoRc, setSalvandoRc] = useState(false)
+  // Modal "Iniciar corte da RC": escolhe a guilhotina destino (p/ onde a RC
+  // vai quando o corte terminar). Spec RC→Guilhotina.
+  const [modalIniciarRc, setModalIniciarRc] = useState<{ rcId: string; numero: string } | null>(null)
+  const [guilhotinaDestinoSel, setGuilhotinaDestinoSel] = useState<string | null>(null)
+  const [salvandoIniciarRc, setSalvandoIniciarRc] = useState(false)
   const formRcInicial = {
     dataSolicitacao: new Date().toISOString().slice(0, 10),
     dataCorte: '',
@@ -1021,14 +1026,29 @@ export default function ProgramacaoPage() {
     }
   }
 
-  // Inicia o corte de uma RC (status EM_CORTE) — continua na fila. Sem refresh.
-  async function iniciarRc(rcId: string, numero: string) {
+  // Inicia o corte de uma RC: abre o modal para escolher a GUILHOTINA destino
+  // (para onde a RC vai quando o corte terminar). Spec RC→Guilhotina.
+  function iniciarRc(rcId: string, numero: string, guilhotinaAtual?: string | null) {
+    setGuilhotinaDestinoSel(guilhotinaAtual ?? null)
+    setModalIniciarRc({ rcId, numero })
+  }
+
+  // Confirma o início do corte com a guilhotina destino escolhida (opcional).
+  async function confirmarIniciarRc() {
+    if (!modalIniciarRc) return
+    setSalvandoIniciarRc(true)
     try {
-      await api.patch(`/pcp/requisicoes-corte/${rcId}/iniciar`)
-      notifications.show({ title: 'Corte iniciado', message: `Requisição ${numero} em corte.`, color: 'blue' })
-      atualizarRcLocal(rcId, { status: 'EM_CORTE' })
+      await api.patch(`/pcp/requisicoes-corte/${modalIniciarRc.rcId}/iniciar`, {
+        guilhotinaDestinoId: guilhotinaDestinoSel || null,
+      })
+      notifications.show({ title: 'Corte iniciado', message: `Requisição ${modalIniciarRc.numero} em corte.`, color: 'blue' })
+      atualizarRcLocal(modalIniciarRc.rcId, { status: 'EM_CORTE', guilhotinaDestinoId: guilhotinaDestinoSel || null })
+      setModalIniciarRc(null)
+      setGuilhotinaDestinoSel(null)
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao iniciar o corte', color: 'red' })
+    } finally {
+      setSalvandoIniciarRc(false)
     }
   }
 
@@ -1712,14 +1732,102 @@ export default function ProgramacaoPage() {
     })
   }
 
-  // Conclui uma RC (status CORTADA) — sai da fila da Cortadeira. Sem refresh.
-  async function concluirRc(rcId: string, numero: string) {
+  // Renderiza os botões de ação de uma RC conforme a FASE:
+  // - ABERTA/EM_CORTE (na Cortadeira): iniciar corte / reimprimir / concluir
+  //   corte (vai p/ guilhotina) / excluir.
+  // - EM_GUILHOTINA (na Guilhotina destino): iniciar refile / concluir refile
+  //   / reimprimir. (Não exclui da guilhotina — volta pela cortadeira.)
+  function acoesRc(etapa: any) {
+    if (etapa.status === 'EM_GUILHOTINA') {
+      return (
+        <Group gap={4} wrap="nowrap">
+          {!etapa.dataInicioGuilhotina && (
+            <ActionIcon size="sm" variant="light" color="blue" onClick={() => iniciarGuilhotinaRc(etapa.id, etapa.numero)} title="Iniciar refile (guilhotina)">
+              <IconPlayerPlay size={14} />
+            </ActionIcon>
+          )}
+          {etapa.dataInicioGuilhotina && <Badge color="orange" size="xs">EM REFILE</Badge>}
+          <ActionIcon size="sm" variant="light" color="teal" onClick={() => reimprimirRc(etapa.id)} title="Reimprimir">
+            <IconPrinter size={14} />
+          </ActionIcon>
+          <ActionIcon size="sm" variant="light" color="green" onClick={() => concluirGuilhotinaRc(etapa.id, etapa.numero)} title="Concluir refile (finaliza a RC)">
+            <IconCheck size={14} />
+          </ActionIcon>
+        </Group>
+      )
+    }
+    // ABERTA / EM_CORTE (na Cortadeira)
+    return (
+      <Group gap={4} wrap="nowrap">
+        {etapa.status !== 'EM_CORTE' && (
+          <ActionIcon size="sm" variant="light" color="blue" onClick={() => iniciarRc(etapa.id, etapa.numero, etapa.guilhotinaDestinoId)} title="Iniciar corte">
+            <IconPlayerPlay size={14} />
+          </ActionIcon>
+        )}
+        <ActionIcon size="sm" variant="light" color="teal" onClick={() => reimprimirRc(etapa.id)} title="Reimprimir">
+          <IconPrinter size={14} />
+        </ActionIcon>
+        <ActionIcon size="sm" variant="light" color="green" onClick={() => concluirRc(etapa.id, etapa.numero, !!etapa.guilhotinaDestinoId)} title="Concluir corte">
+          <IconCheck size={14} />
+        </ActionIcon>
+        <ActionIcon size="sm" variant="light" color="red" onClick={() => excluirRc(etapa.id, etapa.numero)} title="Excluir">
+          <IconX size={14} />
+        </ActionIcon>
+      </Group>
+    )
+  }
+
+  // Carrega o painel SILENCIOSAMENTE (sem loading global) — usado quando uma
+  // RC muda de card (ex.: sai da Cortadeira e aparece na Guilhotina destino).
+  async function recarregarPainelSilencioso() {
+    try { const { data } = await api.get('/pcp/programacao/painel'); setPainel(data) } catch {}
+  }
+
+  // Lista de centros do tipo GUILHOTINA (para escolher o destino da RC).
+  function centrosGuilhotina(): Array<{ value: string; label: string }> {
+    const centros = (painel?.centros || []).filter((c: any) =>
+      /guilhotina/i.test(c.centro.tipoProcesso?.codigo || '') || /guilhotina/i.test(c.centro.descricao || ''),
+    )
+    return centros.map((c: any) => ({ value: c.centro.id, label: c.centro.descricao }))
+  }
+
+  // Conclui o CORTE de uma RC. Se a RC tem guilhotina destino, ela PASSA para
+  // a fila dessa guilhotina (recarrega silencioso para reposicionar o card).
+  // Sem guilhotina destino, sai da fila (fluxo legado). Sem refresh global.
+  async function concluirRc(rcId: string, numero: string, temGuilhotina: boolean) {
     try {
       await api.patch(`/pcp/requisicoes-corte/${rcId}/concluir`)
-      notifications.show({ title: 'RC concluída', message: `Requisição ${numero} marcada como cortada.`, color: 'green' })
-      atualizarRcLocal(rcId, null) // sai da fila
+      if (temGuilhotina) {
+        notifications.show({ title: 'Corte concluído', message: `RC ${numero} enviada para a guilhotina.`, color: 'green' })
+        await recarregarPainelSilencioso()
+      } else {
+        notifications.show({ title: 'RC concluída', message: `Requisição ${numero} marcada como cortada.`, color: 'green' })
+        atualizarRcLocal(rcId, null)
+      }
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao concluir a RC', color: 'red' })
+    }
+  }
+
+  // Inicia o REFILE na guilhotina (registra início). RC continua no card.
+  async function iniciarGuilhotinaRc(rcId: string, numero: string) {
+    try {
+      await api.patch(`/pcp/requisicoes-corte/${rcId}/iniciar-guilhotina`)
+      notifications.show({ title: 'Refile iniciado', message: `RC ${numero} em guilhotina.`, color: 'blue' })
+      atualizarRcLocal(rcId, { dataInicioGuilhotina: new Date().toISOString() })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao iniciar o refile', color: 'red' })
+    }
+  }
+
+  // Conclui o REFILE na guilhotina — RC vira CONCLUIDA e sai da fila.
+  async function concluirGuilhotinaRc(rcId: string, numero: string) {
+    try {
+      await api.patch(`/pcp/requisicoes-corte/${rcId}/concluir-guilhotina`)
+      notifications.show({ title: 'RC finalizada', message: `Requisição ${numero} concluída na guilhotina.`, color: 'green' })
+      atualizarRcLocal(rcId, null)
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao concluir o refile', color: 'red' })
     }
   }
 
@@ -2571,23 +2679,9 @@ export default function ProgramacaoPage() {
                                     {etapa.qtdFolhasCortadeira != null && <Text size="xs" c="dimmed">{etapa.qtdFolhasCortadeira.toLocaleString('pt-BR')} fls</Text>}
                                     {etapa.pesoKg != null && <Text size="xs" c="dimmed">{etapa.pesoKg.toLocaleString('pt-BR')} kg</Text>}
                                     {etapa.status === 'EM_CORTE' && <Badge color="blue" size="xs">EM CORTE</Badge>}
+                                    {etapa.status === 'EM_GUILHOTINA' && <Badge color="orange" size="xs">GUILHOTINA</Badge>}
                                   </Group>
-                                  <Group gap={4} wrap="nowrap">
-                                    {etapa.status !== 'EM_CORTE' && (
-                                      <ActionIcon size="sm" variant="light" color="blue" onClick={() => iniciarRc(etapa.id, etapa.numero)} title="Iniciar corte">
-                                        <IconPlayerPlay size={14} />
-                                      </ActionIcon>
-                                    )}
-                                    <ActionIcon size="sm" variant="light" color="teal" onClick={() => reimprimirRc(etapa.id)} title="Reimprimir">
-                                      <IconPrinter size={14} />
-                                    </ActionIcon>
-                                    <ActionIcon size="sm" variant="light" color="green" onClick={() => concluirRc(etapa.id, etapa.numero)} title="Concluir corte">
-                                      <IconCheck size={14} />
-                                    </ActionIcon>
-                                    <ActionIcon size="sm" variant="light" color="red" onClick={() => excluirRc(etapa.id, etapa.numero)} title="Excluir">
-                                      <IconX size={14} />
-                                    </ActionIcon>
-                                  </Group>
+                                  {acoesRc(etapa)}
                                 </Group>
                               </Table.Td>
                             </SortableRow>
@@ -2845,23 +2939,9 @@ export default function ProgramacaoPage() {
                                     {etapa.qtdFolhasCortadeira != null && <Text size="xs" c="dimmed">{etapa.qtdFolhasCortadeira.toLocaleString('pt-BR')} fls</Text>}
                                     {etapa.pesoKg != null && <Text size="xs" c="dimmed">{etapa.pesoKg.toLocaleString('pt-BR')} kg</Text>}
                                     {etapa.status === 'EM_CORTE' && <Badge color="blue" size="xs">EM CORTE</Badge>}
+                                    {etapa.status === 'EM_GUILHOTINA' && <Badge color="orange" size="xs">GUILHOTINA</Badge>}
                                   </Group>
-                                  <Group gap={4} wrap="nowrap">
-                                    {etapa.status !== 'EM_CORTE' && (
-                                      <ActionIcon size="sm" variant="light" color="blue" onClick={() => iniciarRc(etapa.id, etapa.numero)} title="Iniciar corte">
-                                        <IconPlayerPlay size={14} />
-                                      </ActionIcon>
-                                    )}
-                                    <ActionIcon size="sm" variant="light" color="teal" onClick={() => reimprimirRc(etapa.id)} title="Reimprimir">
-                                      <IconPrinter size={14} />
-                                    </ActionIcon>
-                                    <ActionIcon size="sm" variant="light" color="green" onClick={() => concluirRc(etapa.id, etapa.numero)} title="Concluir corte">
-                                      <IconCheck size={14} />
-                                    </ActionIcon>
-                                    <ActionIcon size="sm" variant="light" color="red" onClick={() => excluirRc(etapa.id, etapa.numero)} title="Excluir">
-                                      <IconX size={14} />
-                                    </ActionIcon>
-                                  </Group>
+                                  {acoesRc(etapa)}
                                 </Group>
                               </Table.Td>
                             </SortableRow>
@@ -3419,6 +3499,29 @@ export default function ProgramacaoPage() {
             </Stack>
           </Tabs.Panel>
         </Tabs>
+      </Modal>
+
+      {/* Modal: Iniciar corte da RC — escolhe a GUILHOTINA destino */}
+      <Modal opened={!!modalIniciarRc} onClose={() => setModalIniciarRc(null)} title={`Iniciar corte — RC ${modalIniciarRc?.numero || ''}`} centered size="sm">
+        <Stack gap="sm">
+          <Text size="sm" c="dimmed">
+            Informe a guilhotina para onde a RC deve seguir quando o corte terminar.
+            Ao concluir o corte, a RC aparece automaticamente na fila dessa guilhotina.
+          </Text>
+          <Select
+            label="Guilhotina destino"
+            placeholder="Selecione a guilhotina (opcional)"
+            data={centrosGuilhotina()}
+            value={guilhotinaDestinoSel}
+            onChange={setGuilhotinaDestinoSel}
+            clearable
+            searchable
+          />
+          <Group justify="flex-end" mt="sm">
+            <Button variant="default" onClick={() => setModalIniciarRc(null)}>Cancelar</Button>
+            <Button color="blue" loading={salvandoIniciarRc} onClick={confirmarIniciarRc}>Iniciar corte</Button>
+          </Group>
+        </Stack>
       </Modal>
 
       {/* Modal: Requisição de Corte de Cartão (RC) — formulário FO-002/PCP */}
