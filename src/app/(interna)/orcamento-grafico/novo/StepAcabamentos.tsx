@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import {
   Stack, Text, Checkbox, Paper, NumberInput, SimpleGrid, Group, Collapse, Badge,
-  Loader, Center, TextInput, Alert,
+  Loader, Center, TextInput, Alert, Select,
 } from '@mantine/core'
 import { IconSettings, IconAlertCircle } from '@tabler/icons-react'
 import { api } from '@/lib/api'
@@ -26,6 +26,12 @@ interface AcabamentoCadastro {
   tempoPorAcertoMin: number | null
   tempoPrimeiroAcertoMin: number | null
   unidadeBase: string | null
+  exigeRestricao: boolean
+}
+
+interface Restricao {
+  id: string
+  nome: string
 }
 
 const naturezaBadge: Record<string, { label: string; color: string }> = {
@@ -39,6 +45,8 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
   const [cadastro, setCadastro] = useState<AcabamentoCadastro[]>([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
+  // Restrições (sub-opções) carregadas sob demanda, por acabamento HORA_MAQUINA.
+  const [restricoesPorAcab, setRestricoesPorAcab] = useState<Record<string, Restricao[]>>({})
 
   useEffect(() => {
     // limit máx do backend é 100 (Zod). 200 fazia o Zod rejeitar (400) e a lista
@@ -59,6 +67,7 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
           quantAcertos: num(a.quantAcertos),
           tempoPorAcertoMin: num(a.tempoPorAcertoMin),
           tempoPrimeiroAcertoMin: num(a.tempoPrimeiroAcertoMin),
+          exigeRestricao: !!a.exigeRestricao,
         }))
         setCadastro(items)
       })
@@ -69,10 +78,35 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
   const selecionados = formData.acabamentosRicos
   const selById = new Map(selecionados.map((s) => [s.acabamentoId, s]))
 
+  // Carrega as restrições (sub-opções) de um acabamento sob demanda. Só busca
+  // uma vez por acabamento e só para HORA_MAQUINA (os demais não têm restrição).
+  const carregarRestricoes = (ac: AcabamentoCadastro) => {
+    if (ac.naturezaCusto !== 'HORA_MAQUINA') return
+    if (restricoesPorAcab[ac.id] !== undefined) return
+    api.get(`/orcamento-grafico/acabamentos/${ac.id}/restricoes`)
+      .then(({ data }) => {
+        const lista: Restricao[] = (data.data || data || []).map((r: any) => ({ id: r.id, nome: r.nome }))
+        setRestricoesPorAcab((prev) => ({ ...prev, [ac.id]: lista }))
+      })
+      .catch(() => setRestricoesPorAcab((prev) => ({ ...prev, [ac.id]: [] })))
+  }
+
+  // Ao reabrir o step (edição de item) já com acabamentos selecionados, carrega
+  // as restrições dos HORA_MAQUINA já marcados para popular os Selects.
+  useEffect(() => {
+    selecionados.forEach((s) => {
+      if (s.naturezaCusto === 'HORA_MAQUINA') {
+        const ac = cadastro.find((c) => c.id === s.acabamentoId)
+        if (ac) carregarRestricoes(ac)
+      }
+    })
+  }, [cadastro]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const toggle = (ac: AcabamentoCadastro) => {
     if (selById.has(ac.id)) {
       updateForm({ acabamentosRicos: selecionados.filter((s) => s.acabamentoId !== ac.id) })
     } else {
+      carregarRestricoes(ac)
       // O cadastro vem com Decimals serializados como STRING (ex.: custoHora "320").
       // O backend (Zod) espera number — converter com `num()` evita o erro
       // "Expected number, received string" no /calcular.
@@ -188,9 +222,28 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
                             onChange={(v) => patch(ac.id, 'tempoPorAcertoMin', typeof v === 'number' ? v : undefined)} />
                           <NumberInput label="1º acerto (min)" value={sel.tempoPrimeiroAcertoMin ?? ''} min={0} decimalScale={2} size="xs"
                             onChange={(v) => patch(ac.id, 'tempoPrimeiroAcertoMin', typeof v === 'number' ? v : undefined)} />
+                          {(restricoesPorAcab[ac.id]?.length ?? 0) > 0 && (
+                            <Select
+                              label="Restrição (sub-opção)"
+                              description="Ajusta o acerto/operação deste acabamento"
+                              placeholder="Selecione..."
+                              size="xs"
+                              clearable
+                              data={(restricoesPorAcab[ac.id] || []).map((r) => ({ value: r.id, label: r.nome }))}
+                              value={sel.restricaoAcabamentoId ?? null}
+                              onChange={(v) => patch(ac.id, 'restricaoAcabamentoId', v || undefined)}
+                            />
+                          )}
                         </>
                       )}
                     </SimpleGrid>
+                  )}
+
+                  {sel && ac.exigeRestricao && !sel.restricaoAcabamentoId && (
+                    <Alert icon={<IconAlertCircle size={16} />} color="red" mt="xs" p="xs">
+                      <Text size="xs" fw={500}>Restrição obrigatória não escolhida</Text>
+                      <Text size="xs">Este acabamento exige a escolha de uma sub-opção (restrição).</Text>
+                    </Alert>
                   )}
                 </Collapse>
               </Stack>

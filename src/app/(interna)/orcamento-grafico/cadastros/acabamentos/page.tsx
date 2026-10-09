@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import {
   Title, Stack, Table, Group, Button, Badge, Text, Loader, Center,
   Modal, TextInput, Select, NumberInput, ActionIcon, ScrollArea, Divider, SimpleGrid, Pagination,
+  Checkbox, Paper,
 } from '@mantine/core'
 import { IconPlus, IconEdit, IconTrash } from '@tabler/icons-react'
 import { api } from '@/lib/api'
@@ -32,7 +33,18 @@ interface Acabamento {
   tempoPorAcertoMin: number | null
   tempoPrimeiroAcertoMin: number | null
   unidadeBase: string | null
+  exigeRestricao: boolean
   status: boolean
+}
+
+interface Restricao {
+  id: string
+  acabamentoGraficoId: string
+  empresaId: string
+  nome: string
+  tempoAcertoMin: number | string
+  tempoOperacaoMin: number | string
+  criadoEm: string
 }
 
 interface FormData {
@@ -48,6 +60,7 @@ interface FormData {
   tempoPorAcertoMin: number | ''
   tempoPrimeiroAcertoMin: number | ''
   unidadeBase: string
+  exigeRestricao: boolean
 }
 
 const FORM_INICIAL: FormData = {
@@ -63,6 +76,7 @@ const FORM_INICIAL: FormData = {
   tempoPorAcertoMin: '',
   tempoPrimeiroAcertoMin: '',
   unidadeBase: 'FOLHA',
+  exigeRestricao: false,
 }
 
 const NATUREZAS = [
@@ -83,6 +97,13 @@ export default function AcabamentosPage() {
   const [editando, setEditando] = useState<Acabamento | null>(null)
   const [form, setForm] = useState<FormData>(FORM_INICIAL)
   const [salvando, setSalvando] = useState(false)
+  // Restrições (sub-opções) do acabamento em edição
+  const [restricoes, setRestricoes] = useState<Restricao[]>([])
+  const [carregandoRestricoes, setCarregandoRestricoes] = useState(false)
+  const [novaRestricao, setNovaRestricao] = useState<{ nome: string; tempoAcertoMin: number | ''; tempoOperacaoMin: number | '' }>({
+    nome: '', tempoAcertoMin: '', tempoOperacaoMin: '',
+  })
+  const [salvandoRestricao, setSalvandoRestricao] = useState(false)
   // Paginação (50 itens/página)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -129,8 +150,59 @@ export default function AcabamentosPage() {
       tempoPorAcertoMin: n(item.tempoPorAcertoMin),
       tempoPrimeiroAcertoMin: n(item.tempoPrimeiroAcertoMin),
       unidadeBase: item.unidadeBase || 'FOLHA',
+      exigeRestricao: item.exigeRestricao ?? false,
     })
     setModalAberto(true)
+  }
+
+  // Carregar restrições do acabamento ao abrir a edição (precisa do id)
+  useEffect(() => {
+    if (!modalAberto || !editando) {
+      setRestricoes([])
+      setNovaRestricao({ nome: '', tempoAcertoMin: '', tempoOperacaoMin: '' })
+      return
+    }
+    carregarRestricoes(editando.id)
+  }, [modalAberto, editando]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function carregarRestricoes(acabamentoId: string) {
+    setCarregandoRestricoes(true)
+    try {
+      const res = await api.get(`/orcamento-grafico/acabamentos/${acabamentoId}/restricoes`)
+      setRestricoes(res.data.data || res.data || [])
+    } catch (err: any) {
+      notifications.show({ title: 'Erro ao carregar restrições', message: err?.response?.data?.message || 'Falha ao buscar restrições', color: 'red' })
+    } finally { setCarregandoRestricoes(false) }
+  }
+
+  async function adicionarRestricao() {
+    if (!editando) return
+    if (!novaRestricao.nome.trim()) { notifications.show({ title: 'Erro', message: 'Nome da restrição obrigatório', color: 'red' }); return }
+    setSalvandoRestricao(true)
+    try {
+      await api.post(`/orcamento-grafico/acabamentos/${editando.id}/restricoes`, {
+        nome: novaRestricao.nome.trim(),
+        tempoAcertoMin: novaRestricao.tempoAcertoMin === '' ? 0 : Number(novaRestricao.tempoAcertoMin),
+        tempoOperacaoMin: novaRestricao.tempoOperacaoMin === '' ? 0 : Number(novaRestricao.tempoOperacaoMin),
+      })
+      notifications.show({ title: 'Restrição adicionada', message: `"${novaRestricao.nome.trim()}" criada`, color: 'green' })
+      setNovaRestricao({ nome: '', tempoAcertoMin: '', tempoOperacaoMin: '' })
+      carregarRestricoes(editando.id)
+    } catch (err: any) {
+      notifications.show({ title: 'Erro ao adicionar', message: err?.response?.data?.message || 'Falha ao criar restrição', color: 'red' })
+    } finally { setSalvandoRestricao(false) }
+  }
+
+  async function excluirRestricao(r: Restricao) {
+    if (!editando) return
+    if (!confirm(`Excluir a restrição "${r.nome}"?`)) return
+    try {
+      await api.delete(`/orcamento-grafico/acabamentos/${editando.id}/restricoes/${r.id}`)
+      notifications.show({ title: 'Restrição excluída', message: `"${r.nome}" removida`, color: 'yellow' })
+      carregarRestricoes(editando.id)
+    } catch (err: any) {
+      notifications.show({ title: 'Erro ao excluir', message: err?.response?.data?.message || 'Falha ao excluir restrição', color: 'red' })
+    }
   }
 
   async function salvar() {
@@ -153,6 +225,7 @@ export default function AcabamentosPage() {
         tempoPorAcertoMin: numOrNull(form.tempoPorAcertoMin),
         tempoPrimeiroAcertoMin: numOrNull(form.tempoPrimeiroAcertoMin),
         unidadeBase: form.naturezaCusto === 'HORA_MAQUINA' ? form.unidadeBase : null,
+        exigeRestricao: form.exigeRestricao,
       }
       if (editando) {
         await api.put(`/orcamento-grafico/acabamentos/${editando.id}`, payload)
@@ -217,7 +290,14 @@ export default function AcabamentosPage() {
               {data.map((item) => (
                 <Table.Tr key={item.id}>
                   <Table.Td fw={500}>{item.codigo}</Table.Td>
-                  <Table.Td>{item.nome}</Table.Td>
+                  <Table.Td>
+                    <Group gap="xs">
+                      <span>{item.nome}</span>
+                      {item.exigeRestricao && (
+                        <Badge size="xs" variant="light" color="orange">Exige restrição</Badge>
+                      )}
+                    </Group>
+                  </Table.Td>
                   <Table.Td><Badge variant="light" color={item.tipoAtividade === 'IMPRESSAO' ? 'blue' : 'gray'}>{item.tipoAtividade}</Badge></Table.Td>
                   <Table.Td><Badge variant="light" color="teal">{naturezaLabel(item.naturezaCusto)}</Badge></Table.Td>
                   <Table.Td>
@@ -302,6 +382,13 @@ export default function AcabamentosPage() {
             />
           </Group>
 
+          <Checkbox
+            label="Exige escolha de restrição no orçamento"
+            description="Quando marcado, o orçamento exige escolher uma sub-opção (restrição) para este acabamento."
+            checked={form.exigeRestricao}
+            onChange={(e) => setForm({ ...form, exigeRestricao: e.currentTarget.checked })}
+          />
+
           <Divider label="Parâmetros de custo" labelPosition="left" />
 
           {isMaterial && (
@@ -372,6 +459,81 @@ export default function AcabamentosPage() {
                 value={form.unidadeBase}
                 onChange={(v) => setForm({ ...form, unidadeBase: v || 'FOLHA' })}
               />
+            </>
+          )}
+
+          {editando && (
+            <>
+              <Divider label="Restrições (sub-opções)" labelPosition="left" />
+              <Text size="xs" c="dimmed">
+                Sub-opções deste acabamento. Cada restrição ajusta os tempos de acerto/operação quando
+                escolhida no orçamento.
+              </Text>
+
+              {carregandoRestricoes ? (
+                <Center py="sm"><Loader size="sm" /></Center>
+              ) : (
+                <Stack gap="xs">
+                  {restricoes.length === 0 && (
+                    <Text size="sm" c="dimmed">Nenhuma restrição cadastrada.</Text>
+                  )}
+                  {restricoes.map((r) => (
+                    <Paper key={r.id} p="xs" withBorder>
+                      <Group justify="space-between" wrap="nowrap">
+                        <div style={{ minWidth: 0 }}>
+                          <Text size="sm" fw={500} truncate>{r.nome}</Text>
+                          <Text size="xs" c="dimmed">
+                            Acerto: {Number(r.tempoAcertoMin)} min · Operação: {Number(r.tempoOperacaoMin)} min
+                          </Text>
+                        </div>
+                        <ActionIcon variant="subtle" color="red" onClick={() => excluirRestricao(r)}>
+                          <IconTrash size={16} />
+                        </ActionIcon>
+                      </Group>
+                    </Paper>
+                  ))}
+                </Stack>
+              )}
+
+              <Paper p="sm" withBorder bg="var(--mantine-color-default-hover)">
+                <Stack gap="xs">
+                  <Text size="sm" fw={500}>Adicionar restrição</Text>
+                  <TextInput
+                    label="Nome"
+                    value={novaRestricao.nome}
+                    onChange={(e) => setNovaRestricao({ ...novaRestricao, nome: e.currentTarget.value })}
+                    maxLength={100}
+                    placeholder="Ex: Com braille"
+                  />
+                  <SimpleGrid cols={2}>
+                    <NumberInput
+                      label="Acerto (min)"
+                      value={novaRestricao.tempoAcertoMin}
+                      onChange={(v) => setNovaRestricao({ ...novaRestricao, tempoAcertoMin: typeof v === 'number' ? v : '' })}
+                      min={0}
+                      max={999}
+                      decimalScale={2}
+                    />
+                    <NumberInput
+                      label="Operação (min)"
+                      value={novaRestricao.tempoOperacaoMin}
+                      onChange={(v) => setNovaRestricao({ ...novaRestricao, tempoOperacaoMin: typeof v === 'number' ? v : '' })}
+                      min={0}
+                      max={999}
+                      decimalScale={2}
+                    />
+                  </SimpleGrid>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    leftSection={<IconPlus size={14} />}
+                    onClick={adicionarRestricao}
+                    loading={salvandoRestricao}
+                  >
+                    Adicionar restrição
+                  </Button>
+                </Stack>
+              </Paper>
             </>
           )}
 

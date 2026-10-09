@@ -1,11 +1,35 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Stack, Text, Select, NumberInput, Group, Badge, Loader, Paper, SimpleGrid, Alert } from '@mantine/core'
+import {
+  Stack, Text, Select, NumberInput, Group, Badge, Loader, Paper, SimpleGrid, Alert,
+  Button, Modal, TextInput, Table, ScrollArea, Center, ActionIcon, Tooltip,
+} from '@mantine/core'
 import { useDebouncedValue } from '@mantine/hooks'
-import { IconLeaf, IconScale, IconStack2, IconAlertTriangle } from '@tabler/icons-react'
+import { IconLeaf, IconScale, IconStack2, IconAlertTriangle, IconScissors, IconX } from '@tabler/icons-react'
 import { api } from '@/lib/api'
+import { notifications } from '@mantine/notifications'
 import type { WizardFormData } from './page'
+
+// ----------------------------------------------------------------------------
+// Modelo de Faca (GCad) — tipo + modal de seleção.
+// ----------------------------------------------------------------------------
+interface ModeloFacaItem {
+  id: string
+  codigo: string
+  clienteNome: string | null
+  modelo: string
+  servico: string
+  larguraMm: number
+  alturaMm: number
+  repeticaoLinhas: number
+  repeticaoColunas: number
+  formatoCorteLarguraMm: number
+  formatoCorteAlturaMm: number
+  tipoCartucho: string | null
+  suporteId: string | null
+  gramatura: number | null
+}
 
 interface Props {
   formData: WizardFormData
@@ -155,6 +179,72 @@ export default function StepPapel({ formData, updateForm }: Props) {
     }
   }
 
+  // ------------------------------------------------------------------
+  // Modelo de Faca (GCad) — botão "NC" / Selecionar Modelo. Abre um modal com
+  // a lista de ModeloFaca (busca por cliente e modelo). Ao selecionar, grava
+  // `modeloFacaId` no form (o encaixe real é aplicado pelo backend) e reflete
+  // na tela as medidas/gramatura/suporte do modelo. Ver design §6.2.
+  // ------------------------------------------------------------------
+  const [modalGcad, setModalGcad] = useState(false)
+  const [modelos, setModelos] = useState<ModeloFacaItem[]>([])
+  const [loadingModelos, setLoadingModelos] = useState(false)
+  const [buscaCliente, setBuscaCliente] = useState('')
+  const [buscaModelo, setBuscaModelo] = useState('')
+  const [debClienteGcad] = useDebouncedValue(buscaCliente, 300)
+  const [debModeloGcad] = useDebouncedValue(buscaModelo, 300)
+  // Descrição amigável do modelo selecionado (para o badge).
+  const [modeloSelecionadoLabel, setModeloSelecionadoLabel] = useState('')
+
+  useEffect(() => {
+    if (!modalGcad) return
+    setLoadingModelos(true)
+    api.get('/orcamento-grafico/modelos-faca', {
+      params: {
+        limit: 50,
+        cliente: debClienteGcad.trim() || undefined,
+        modelo: debModeloGcad.trim() || undefined,
+      },
+    })
+      .then(({ data }) => {
+        const items = (Array.isArray(data) ? data : data.data || []) as ModeloFacaItem[]
+        setModelos(items)
+      })
+      .catch(() => setModelos([]))
+      .finally(() => setLoadingModelos(false))
+  }, [modalGcad, debClienteGcad, debModeloGcad])
+
+  const selecionarModelo = (m: ModeloFacaItem) => {
+    // Grava o vínculo (persistido) + reflete a geometria do modelo na tela. O
+    // encaixe/aproveitamento real é calculado no backend a partir do modelo.
+    updateForm({
+      modeloFacaId: m.id,
+      medidas: {
+        ...(formData.medidas || {}),
+        largura: Number(m.larguraMm) || 0,
+        altura: Number(m.alturaMm) || 0,
+      },
+      aproveitamentoManual: (Number(m.repeticaoLinhas) || 1) * (Number(m.repeticaoColunas) || 1),
+      ...(m.suporteId ? { suporteId: m.suporteId } : {}),
+      ...(m.gramatura && Number(m.gramatura) > 0 ? { gramatura: Number(m.gramatura) } : {}),
+    })
+    setModeloSelecionadoLabel(`${m.codigo} · ${m.modelo}`)
+    setModalGcad(false)
+    notifications.show({
+      title: 'Modelo selecionado',
+      message: `${m.modelo} (${m.codigo}) — ${m.repeticaoLinhas}×${m.repeticaoColunas} poses/folha`,
+      color: 'green',
+    })
+  }
+
+  const limparModelo = () => {
+    updateForm({ modeloFacaId: null, aproveitamentoManual: null })
+    setModeloSelecionadoLabel('')
+  }
+
+  function fmtMm(v: number) {
+    return Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+  }
+
   const optionsSuporte = suportes.map(s => ({ value: s.id, label: s.descricao }))
   const options = materiais.map(m => ({ value: m.id, label: m.descricao }))
 
@@ -163,11 +253,39 @@ export default function StepPapel({ formData, updateForm }: Props) {
 
   return (
     <Stack gap="md">
-      <Text fw={600} size="lg">Papel / Cartão</Text>
-      <Text size="sm" c="dimmed">
-        Escolha primeiro o Suporte (ex.: &quot;Duplex 280&quot;, &quot;Triplex&quot;, &quot;Kraft&quot;) e,
-        em seguida, o preço do papel/gramatura vinculado a ele.
-      </Text>
+      <Group justify="space-between" align="flex-start">
+        <div>
+          <Text fw={600} size="lg">Papel / Cartão</Text>
+          <Text size="sm" c="dimmed">
+            Escolha primeiro o Suporte (ex.: &quot;Duplex 280&quot;, &quot;Triplex&quot;, &quot;Kraft&quot;) e,
+            em seguida, o preço do papel/gramatura vinculado a ele.
+          </Text>
+        </div>
+        <Button
+          variant="light"
+          color="grape"
+          leftSection={<IconScissors size={16} />}
+          onClick={() => setModalGcad(true)}
+        >
+          NC — Selecionar Modelo (GCad)
+        </Button>
+      </Group>
+
+      {formData.modeloFacaId && (
+        <Alert color="grape" icon={<IconScissors size={16} />} title="Modelo de Faca (GCad) selecionado">
+          <Group justify="space-between" wrap="nowrap">
+            <Text size="sm">
+              {modeloSelecionadoLabel || 'Modelo vinculado'} — o encaixe real será aplicado no cálculo (backend).
+              {formData.aproveitamentoManual ? ` Poses/folha: ${formData.aproveitamentoManual}.` : ''}
+            </Text>
+            <Tooltip label="Remover modelo">
+              <ActionIcon variant="subtle" color="red" onClick={limparModelo}>
+                <IconX size={16} />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
+        </Alert>
+      )}
 
       {/* Nível 1 — Suporte */}
       <Select
@@ -263,6 +381,86 @@ export default function StepPapel({ formData, updateForm }: Props) {
           </Group>
         </Paper>
       )}
+
+      {/* Modal de seleção de Modelo de Faca (GCad) */}
+      <Modal
+        opened={modalGcad}
+        onClose={() => setModalGcad(false)}
+        title="Seleção de Modelos (GCad)"
+        size="xl"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Selecione um modelo de faca para preencher a geometria/encaixe reais deste item.
+            O cálculo do encaixe é aplicado no backend.
+          </Text>
+          <Group grow>
+            <TextInput
+              placeholder="Buscar por cliente..."
+              value={buscaCliente}
+              onChange={(e) => setBuscaCliente(e.currentTarget.value)}
+            />
+            <TextInput
+              placeholder="Buscar por modelo..."
+              value={buscaModelo}
+              onChange={(e) => setBuscaModelo(e.currentTarget.value)}
+            />
+          </Group>
+
+          {loadingModelos ? <Center py="xl"><Loader /></Center> : (
+            <ScrollArea.Autosize mah={420}>
+              <Table striped highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Cliente</Table.Th>
+                    <Table.Th>Modelo</Table.Th>
+                    <Table.Th>Serviço</Table.Th>
+                    <Table.Th>Dimensões (mm)</Table.Th>
+                    <Table.Th>Repetição</Table.Th>
+                    <Table.Th>Formato de Corte (mm)</Table.Th>
+                    <Table.Th>Tipo Cartucho</Table.Th>
+                    <Table.Th>Suporte</Table.Th>
+                    <Table.Th>Gramatura</Table.Th>
+                    <Table.Th></Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {modelos.map((m) => (
+                    <Table.Tr key={m.id}>
+                      <Table.Td>{m.clienteNome || '—'}</Table.Td>
+                      <Table.Td fw={500}>{m.modelo}</Table.Td>
+                      <Table.Td>{m.servico}</Table.Td>
+                      <Table.Td>{fmtMm(m.larguraMm)} × {fmtMm(m.alturaMm)}</Table.Td>
+                      <Table.Td>
+                        <Badge variant="light" color="grape">
+                          {m.repeticaoLinhas} × {m.repeticaoColunas}
+                        </Badge>
+                      </Table.Td>
+                      <Table.Td>{fmtMm(m.formatoCorteLarguraMm)} × {fmtMm(m.formatoCorteAlturaMm)}</Table.Td>
+                      <Table.Td c="dimmed">{m.tipoCartucho || '—'}</Table.Td>
+                      <Table.Td c="dimmed">{m.suporteId ? 'Vinculado' : '—'}</Table.Td>
+                      <Table.Td c="dimmed">{m.gramatura != null ? `${fmtMm(m.gramatura)} g/m²` : '—'}</Table.Td>
+                      <Table.Td>
+                        <Button size="xs" variant="light" onClick={() => selecionarModelo(m)}>
+                          Selecionar
+                        </Button>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                  {modelos.length === 0 && (
+                    <Table.Tr>
+                      <Table.Td colSpan={10}>
+                        <Text ta="center" c="dimmed" py="md">Nenhum modelo de faca encontrado</Text>
+                      </Table.Td>
+                    </Table.Tr>
+                  )}
+                </Table.Tbody>
+              </Table>
+            </ScrollArea.Autosize>
+          )}
+        </Stack>
+      </Modal>
     </Stack>
   )
 }

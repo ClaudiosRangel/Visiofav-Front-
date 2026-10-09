@@ -15,6 +15,7 @@ import StepMedidas from './StepMedidas'
 import StepPapel from './StepPapel'
 import StepCores from './StepCores'
 import StepAcabamentos from './StepAcabamentos'
+import StepItensDiversos from './StepItensDiversos'
 import StepRevisao from './StepRevisao'
 
 // ============================================================================
@@ -61,6 +62,8 @@ export interface AcabamentoRicoSelecionado {
   tempoPrimeiroAcertoMin?: number
   tempoFixoHoras?: number
   tempoVarHoras?: number
+  // Restrição (sub-opção) escolhida para este acabamento rico (Fase 3 — GCad).
+  restricaoAcabamentoId?: string
 }
 
 export interface WizardFormData {
@@ -91,6 +94,21 @@ export interface WizardFormData {
   // Step 7 — Revisão
   quantidade: number
   tabelaMargemId: string | null
+  // Paridade Calcgraf: máquina de impressão escolhida + imposição real (peças/folha)
+  maquinaId?: string | null
+  aproveitamentoManual?: number | null
+  // GCad: modelo de faca selecionado (o encaixe real é aplicado no backend)
+  modeloFacaId: string | null
+  // Fase 4 — matriz de impressão (MD), tinta cobertura/direto
+  matrizQuantidade?: number | null
+  matrizPrecoUnitario?: number | null
+  tintaModo?: 'COBERTURA' | 'CONSUMO_DIRETO'
+  tintaConsumoKg?: number | null
+  tintaPrecoKg?: number | null
+  // Fase 4 — itens diversos / fornecidos / campos livres
+  itensDiversos?: Array<{ descricao: string; quantidade: number; valor: number; fixo: boolean }>
+  itensFornecidos?: Array<{ descricao: string; quantidade: number }>
+  camposLivres?: Array<{ rotulo: string; conteudo: string }>
 }
 
 const INITIAL_FORM: WizardFormData = {
@@ -124,9 +142,20 @@ const INITIAL_FORM: WizardFormData = {
   acabamentosRicos: [],
   quantidade: 10000,
   tabelaMargemId: null,
+  maquinaId: null,
+  aproveitamentoManual: null,
+  modeloFacaId: null,
+  matrizQuantidade: null,
+  matrizPrecoUnitario: null,
+  tintaModo: 'COBERTURA',
+  tintaConsumoKg: null,
+  tintaPrecoKg: null,
+  itensDiversos: [],
+  itensFornecidos: [],
+  camposLivres: [],
 }
 
-const STEP_LABELS = ['Cliente', 'Tipo', 'Medidas', 'Papel', 'Cores', 'Acabamentos', 'Revisão']
+const STEP_LABELS = ['Cliente', 'Tipo', 'Medidas', 'Papel', 'Cores', 'Acabamentos', 'Diversos', 'Revisão']
 
 export default function NovoOrcamentoGraficoPage() {
   const router = useRouter()
@@ -228,6 +257,16 @@ export default function NovoOrcamentoGraficoPage() {
           acabamentos: acabamentosMapeados,
           quantidade: data.quantidade ?? 10000,
           tabelaMargemId: formData.tabelaMargemId,
+          maquinaId: data.maquinaId ?? null,
+          modeloFacaId: data.modeloFacaId ?? null,
+          matrizQuantidade: data.matrizQuantidade != null ? Number(data.matrizQuantidade) : null,
+          matrizPrecoUnitario: data.matrizPrecoUnitario != null ? Number(data.matrizPrecoUnitario) : null,
+          tintaModo: data.tintaModo ?? 'COBERTURA',
+          tintaConsumoKg: data.tintaConsumoKg != null ? Number(data.tintaConsumoKg) : null,
+          tintaPrecoKg: null,
+          itensDiversos: data.itensDiversos ?? [],
+          itensFornecidos: data.itensFornecidos ?? [],
+          camposLivres: data.camposLivres ?? [],
         }
 
         setFormData(formCarregado)
@@ -251,7 +290,7 @@ export default function NovoOrcamentoGraficoPage() {
   }, [])
 
   // Navegação
-  const nextStep = () => setActive(prev => Math.min(prev + 1, 6))
+  const nextStep = () => setActive(prev => Math.min(prev + 1, 7))
   const prevStep = () => setActive(prev => Math.max(prev - 1, 0))
 
   // Validação simples por step
@@ -267,7 +306,8 @@ export default function NovoOrcamentoGraficoPage() {
       case 3: return isEditing || (!!formData.suporteId && !!formData.papelId && formData.gramatura > 0 && formData.precoKg > 0)
       case 4: return formData.cores.length > 0
       case 5: return true
-      case 6: return formData.quantidade > 0
+      case 6: return true // Diversos é opcional
+      case 7: return formData.quantidade > 0
       default: return true
     }
   }
@@ -303,6 +343,21 @@ export default function NovoOrcamentoGraficoPage() {
         tabelaMargemId: formData.tabelaMargemId || undefined,
         precoKg: formData.precoKg,
         produtoId: formData.produtoId || undefined,
+        maquinaId: formData.maquinaId || undefined,
+        aproveitamentoManual: formData.aproveitamentoManual || undefined,
+        modeloFacaId: formData.modeloFacaId || undefined,
+        // Fase 4 — matriz de impressão (entra no MD como custo fixo)
+        matriz: (formData.matrizQuantidade ?? 0) > 0
+          ? { quantidade: formData.matrizQuantidade as number, precoUnitario: formData.matrizPrecoUnitario ?? 0 }
+          : undefined,
+        // Fase 4 — tinta cobertura (default) vs consumo direto
+        tinta: formData.tintaModo === 'CONSUMO_DIRETO'
+          ? { modo: 'CONSUMO_DIRETO' as const, consumoKg: formData.tintaConsumoKg ?? 0, precoKg: formData.tintaPrecoKg ?? 0 }
+          : { modo: 'COBERTURA' as const },
+        // Fase 4 — itens diversos / fornecidos / campos livres (só quando preenchidos)
+        itensDiversos: formData.itensDiversos?.length ? formData.itensDiversos : undefined,
+        itensFornecidos: formData.itensFornecidos?.length ? formData.itensFornecidos : undefined,
+        camposLivres: formData.camposLivres?.length ? formData.camposLivres : undefined,
       }
 
       const { data } = isEditing
@@ -349,7 +404,8 @@ export default function NovoOrcamentoGraficoPage() {
           {active === 3 && <StepPapel formData={formData} updateForm={updateForm} />}
           {active === 4 && <StepCores formData={formData} updateForm={updateForm} />}
           {active === 5 && <StepAcabamentos formData={formData} updateForm={updateForm} />}
-          {active === 6 && <StepRevisao formData={formData} updateForm={updateForm} />}
+          {active === 6 && <StepItensDiversos formData={formData} updateForm={updateForm} />}
+          {active === 7 && <StepRevisao formData={formData} updateForm={updateForm} />}
         </Paper>
 
         {/* Navigation */}
@@ -364,7 +420,7 @@ export default function NovoOrcamentoGraficoPage() {
           </Button>
 
           <Group>
-            {active === 6 ? (
+            {active === 7 ? (
               <>
                 <Button
                   variant="outline"

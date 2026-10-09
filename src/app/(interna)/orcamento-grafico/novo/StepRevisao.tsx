@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
   Stack, Text, NumberInput, Group, Paper, SimpleGrid, Table, Loader,
-  Center, Alert, Badge, Divider, Progress,
+  Center, Alert, Badge, Divider, Progress, Select,
 } from '@mantine/core'
 import { IconCalculator, IconAlertCircle, IconChartPie } from '@tabler/icons-react'
 import { api } from '@/lib/api'
@@ -58,6 +58,19 @@ export default function StepRevisao({ formData, updateForm }: Props) {
   const [simulacoes, setSimulacoes] = useState<Simulacao[]>([])
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  // Máquinas de impressão (paridade Calcgraf: o acerto-por-cor é por máquina).
+  const [maquinas, setMaquinas] = useState<{ value: string; label: string }[]>([])
+
+  useEffect(() => {
+    api.get('/centros-producao', { params: { limit: 100 } })
+      .then(({ data }) => {
+        const items = (data.data || data || [])
+          .filter((c: any) => c?.tipoProcesso?.codigo === 'IMPRESSAO' || /impress/i.test(c?.tipoProcesso?.descricao || ''))
+          .map((c: any) => ({ value: c.id, label: `${c.codigo} - ${c.descricao}` }))
+        setMaquinas(items)
+      })
+      .catch(() => setMaquinas([]))
+  }, [])
 
   // Planificação esquemática (contorno da caixa aberta) do gabarito do tipo de
   // embalagem selecionado. Null quando o tipo não tem gabarito (→ retângulo).
@@ -117,6 +130,8 @@ export default function StepRevisao({ formData, updateForm }: Props) {
         acabamentosRicos: formData.acabamentosRicos?.length ? formData.acabamentosRicos : undefined,
         quantidade: formData.quantidade,
         tabelaMargemId: formData.tabelaMargemId || undefined,
+        maquinaId: formData.maquinaId || undefined,
+        aproveitamentoManual: formData.aproveitamentoManual || undefined,
       }
 
       const { data } = await api.post('/orcamento-grafico/calcular', payload)
@@ -161,6 +176,8 @@ export default function StepRevisao({ formData, updateForm }: Props) {
         acabamentosRicos: formData.acabamentosRicos?.length ? formData.acabamentosRicos : undefined,
         quantidades,
         tabelaMargemId: formData.tabelaMargemId || undefined,
+        maquinaId: formData.maquinaId || undefined,
+        aproveitamentoManual: formData.aproveitamentoManual || undefined,
       }
 
       const { data } = await api.post('/orcamento-grafico/simular-tiragens', payload)
@@ -170,11 +187,11 @@ export default function StepRevisao({ formData, updateForm }: Props) {
     }
   }, [formData])
 
-  // Calcular ao carregar e quando quantidade muda
+  // Calcular ao carregar e quando quantidade / máquina / imposição mudam
   useEffect(() => {
     calcular()
     simularTiragens()
-  }, [formData.quantidade]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [formData.quantidade, formData.maquinaId, formData.aproveitamentoManual]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const formatCurrency = (val: number | undefined) =>
     val != null ? `R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'
@@ -191,15 +208,36 @@ export default function StepRevisao({ formData, updateForm }: Props) {
             Confira o breakdown de custos e ajuste a tiragem.
           </Text>
         </div>
-        <NumberInput
-          label="Tiragem"
-          value={formData.quantidade}
-          onChange={(val) => updateForm({ quantidade: typeof val === 'number' ? val : 0 })}
-          min={1}
-          w={180}
-          thousandSeparator="."
-          decimalSeparator=","
-        />
+        <Group align="flex-end" gap="sm">
+          <Select
+            label="Máquina de impressão"
+            placeholder="Padrão (1ª de impressão)"
+            data={maquinas}
+            value={formData.maquinaId || null}
+            onChange={(v) => updateForm({ maquinaId: v })}
+            clearable
+            searchable
+            w={240}
+          />
+          <NumberInput
+            label="Peças/folha"
+            description="Imposição real (opcional)"
+            placeholder="auto"
+            value={formData.aproveitamentoManual || ''}
+            onChange={(val) => updateForm({ aproveitamentoManual: typeof val === 'number' ? val : null })}
+            min={1}
+            w={130}
+          />
+          <NumberInput
+            label="Tiragem"
+            value={formData.quantidade}
+            onChange={(val) => updateForm({ quantidade: typeof val === 'number' ? val : 0 })}
+            min={1}
+            w={160}
+            thousandSeparator="."
+            decimalSeparator=","
+          />
+        </Group>
       </Group>
 
       {loading && (

@@ -5,14 +5,16 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   Title, Stack, Group, Button, Text, Loader, Center, Paper, SimpleGrid,
   Badge, Divider, Progress, Table, Modal, Textarea, Alert, ScrollArea,
+  ActionIcon, Tooltip,
 } from '@mantine/core'
 import {
   IconArrowLeft, IconEdit, IconCopy, IconSend, IconCheck, IconX,
-  IconChartPie, IconAlertCircle, IconFileText,
+  IconChartPie, IconAlertCircle, IconFileText, IconPlus, IconTrash,
 } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
 import { StatusBadge } from '../page'
+import ItemWizardModal, { type ItemParaEditar } from './ItemWizardModal'
 
 // ============================================================================
 // Tipos
@@ -54,10 +56,39 @@ interface ResultadoCalculo {
   contribuicaoMarginalPerc?: number
 }
 
+// Item de orçamento (multi-item). Reflete o GET /:id → itens[].
+interface ItemOrcamento {
+  id: string
+  sequencia: number
+  tipoEmbalagemId: string
+  descricao?: string | null
+  medidas?: Record<string, number> | null
+  papelId?: string | null
+  papelDescricao?: string | null
+  suporteId?: string | null
+  gramatura?: number | string | null
+  numCores: number
+  cores?: CorDetalhe[] | null
+  maquinaId?: string | null
+  acabamentosRicos?: any[] | null
+  modeloFacaId?: string | null
+  itensDiversos?: any[] | null
+  itensFornecidos?: any[] | null
+  camposLivres?: any[] | null
+  quantidade: number
+  resultadoCalculo?: ResultadoCalculo | null
+  margemSelecionada?: number | string | null
+  custoProducao?: number | string | null
+  valorTotal?: number | string | null
+  pendente?: boolean
+}
+
 interface OrcamentoDetalhe {
   id: string
   numero: number
   versao: number
+  serie?: string | null
+  dataOrcamento?: string | null
   clienteId?: string | null
   clienteNome?: string | null
   vendedorId?: string | null
@@ -85,8 +116,13 @@ interface OrcamentoDetalhe {
   aprovadoEm?: string | null
   variacoes?: Array<{ quantidade: number; precoUnitario: number; precoTotal: number }> | null
   observacoes?: string | null
+  produtoNome?: string | null
   criadoEm: string
   atualizadoEm: string
+  // Multi-item (spec multi-item-gcad)
+  itens?: ItemOrcamento[] | null
+  custoProducaoConsolidado?: number | string | null
+  valorTotalConsolidado?: number | string | null
 }
 
 interface VersaoResumida {
@@ -173,7 +209,7 @@ function BreakdownBar({ breakdown }: { breakdown: { papel: number; tinta: number
 }
 
 // ============================================================================
-// Página de Detalhe do Orçamento (Task 8.3 + 8.4 + 8.5)
+// Página de Detalhe do Orçamento — cabeçalho + Itens do Orçamento (multi-item)
 // ============================================================================
 
 export default function OrcamentoDetalhePage() {
@@ -189,6 +225,14 @@ export default function OrcamentoDetalhePage() {
   // Modal de recusa
   const [recusaModalOpen, setRecusaModalOpen] = useState(false)
   const [motivoRecusa, setMotivoRecusa] = useState('')
+
+  // Editor de item (modal reusando os steps)
+  const [itemModalOpen, setItemModalOpen] = useState(false)
+  const [itemEmEdicao, setItemEmEdicao] = useState<ItemParaEditar | null>(null)
+
+  // Confirmação de remoção de item
+  const [itemParaRemover, setItemParaRemover] = useState<ItemOrcamento | null>(null)
+  const [removendo, setRemovendo] = useState(false)
 
   useEffect(() => { document.title = 'Detalhe do Orçamento' }, [])
 
@@ -234,7 +278,7 @@ export default function OrcamentoDetalhePage() {
   useEffect(() => { carregar() }, [carregar])
 
   // ============================================================================
-  // Ações (Task 8.4)
+  // Ações do cabeçalho (preservadas)
   // ============================================================================
 
   const handleCopiar = async () => {
@@ -311,6 +355,50 @@ export default function OrcamentoDetalhePage() {
   }
 
   // ============================================================================
+  // Ações de item (multi-item)
+  // ============================================================================
+
+  const abrirNovoItem = () => {
+    setItemEmEdicao(null)
+    setItemModalOpen(true)
+  }
+
+  const abrirEdicaoItem = (item: ItemOrcamento) => {
+    setItemEmEdicao({
+      id: item.id,
+      tipoEmbalagemId: item.tipoEmbalagemId,
+      tipoEmbalagem: orcamento?.tipoEmbalagem ?? null,
+      medidas: item.medidas ?? null,
+      papelId: item.papelId ?? null,
+      papelDescricao: item.papelDescricao ?? null,
+      suporteId: item.suporteId ?? null,
+      gramatura: item.gramatura ?? null,
+      numCores: item.numCores,
+      cores: item.cores ?? null,
+      acabamentosRicos: item.acabamentosRicos ?? null,
+      maquinaId: item.maquinaId ?? null,
+      quantidade: item.quantidade,
+      resultadoCalculo: item.resultadoCalculo ?? null,
+    })
+    setItemModalOpen(true)
+  }
+
+  const confirmarRemocaoItem = async () => {
+    if (!itemParaRemover) return
+    setRemovendo(true)
+    try {
+      await api.delete(`/orcamento-grafico/${id}/itens/${itemParaRemover.id}`)
+      notifications.show({ title: 'Item removido', message: `Item #${itemParaRemover.sequencia} removido.`, color: 'orange' })
+      setItemParaRemover(null)
+      await carregar()
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao remover item', color: 'red' })
+    } finally {
+      setRemovendo(false)
+    }
+  }
+
+  // ============================================================================
   // Render
   // ============================================================================
 
@@ -329,6 +417,9 @@ export default function OrcamentoDetalhePage() {
   }
 
   const resultado = orcamento.resultadoCalculo
+  const itens = orcamento.itens ?? []
+  const temItens = itens.length > 0
+  const podeEditarItens = orcamento.status === 'RASCUNHO'
 
   return (
     <Stack gap="md">
@@ -345,16 +436,18 @@ export default function OrcamentoDetalhePage() {
           <div>
             <Group gap="sm">
               <Title order={3}>Orçamento #{orcamento.numero}</Title>
+              {orcamento.serie && <Badge variant="light" size="lg">Série {orcamento.serie}</Badge>}
               <Badge variant="outline" size="lg">V{orcamento.versao}</Badge>
               <StatusBadge status={orcamento.status} />
             </Group>
             <Text size="sm" c="dimmed">
+              {orcamento.dataOrcamento && <>Data {formatDate(orcamento.dataOrcamento)} · </>}
               Criado em {formatDateTime(orcamento.criadoEm)} · Atualizado em {formatDateTime(orcamento.atualizadoEm)}
             </Text>
           </div>
         </Group>
 
-        {/* Action buttons (Task 8.4) */}
+        {/* Action buttons (preservadas) */}
         <Group gap="xs">
           {orcamento.status === 'RASCUNHO' && (
             <Button
@@ -363,7 +456,7 @@ export default function OrcamentoDetalhePage() {
               onClick={() => router.push(`/orcamento-grafico/novo?editId=${id}`)}
               disabled={actionLoading}
             >
-              Editar
+              Editar Cabeçalho
             </Button>
           )}
           <Button
@@ -422,17 +515,15 @@ export default function OrcamentoDetalhePage() {
         </Alert>
       )}
 
-      {/* Informações gerais */}
+      {/* Cabeçalho comercial */}
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
         <Paper p="md" withBorder>
-          <Text fw={600} size="sm" mb="xs">Informações do Cliente</Text>
+          <Text fw={600} size="sm" mb="xs">Dados Comerciais</Text>
           <Stack gap={4}>
             <Text size="sm"><strong>Cliente:</strong> {orcamento.clienteNome || '—'}</Text>
-            <Text size="sm"><strong>Tipo de Embalagem:</strong> {orcamento.tipoEmbalagem?.descricao || '—'}</Text>
-            {orcamento.produtoNome && (
-              <Text size="sm"><strong>Produto (repetição):</strong> {orcamento.produtoNome}</Text>
-            )}
-            <Text size="sm"><strong>Quantidade:</strong> {orcamento.quantidade?.toLocaleString('pt-BR')}</Text>
+            <Text size="sm"><strong>Série:</strong> {orcamento.serie || '—'}</Text>
+            <Text size="sm"><strong>Data:</strong> {formatDate(orcamento.dataOrcamento)}</Text>
+            <Text size="sm"><strong>Status:</strong> <StatusBadge status={orcamento.status} /></Text>
             {orcamento.validadeAte && (
               <Text size="sm"><strong>Validade:</strong> {formatDate(orcamento.validadeAte)}</Text>
             )}
@@ -443,207 +534,342 @@ export default function OrcamentoDetalhePage() {
         </Paper>
 
         <Paper p="md" withBorder>
-          <Text fw={600} size="sm" mb="xs">Material / Papel</Text>
+          <Text fw={600} size="sm" mb="xs">Totais Consolidados</Text>
           <Stack gap={4}>
-            <Text size="sm"><strong>Papel:</strong> {orcamento.papelDescricao || '—'}</Text>
-            <Text size="sm"><strong>Gramatura:</strong> {orcamento.gramatura ? `${orcamento.gramatura} g/m²` : '—'}</Text>
-            <Text size="sm"><strong>Nº Cores:</strong> {orcamento.numCores}</Text>
+            <Group justify="space-between">
+              <Text size="sm">Custo de Produção consolidado</Text>
+              <Text size="sm" fw={600} c="red">{formatCurrency(orcamento.custoProducaoConsolidado)}</Text>
+            </Group>
+            <Group justify="space-between">
+              <Text size="sm">Valor Total consolidado</Text>
+              <Text size="lg" fw={700} c="green">{formatCurrency(orcamento.valorTotalConsolidado)}</Text>
+            </Group>
+            <Text size="xs" c="dimmed">
+              {itens.length} {itens.length === 1 ? 'item' : 'itens'} no orçamento
+            </Text>
           </Stack>
         </Paper>
       </SimpleGrid>
 
-      {/* Medidas */}
-      {orcamento.medidas && Object.keys(orcamento.medidas).length > 0 && (
-        <Paper p="md" withBorder>
-          <Text fw={600} size="sm" mb="xs">Medidas</Text>
-          <Group gap="lg">
-            {Object.entries(orcamento.medidas).map(([key, val]) => (
-              <Text key={key} size="sm"><strong>{key}:</strong> {val} mm</Text>
-            ))}
-          </Group>
-        </Paper>
-      )}
-
-      {/* Cores */}
-      {orcamento.cores && orcamento.cores.length > 0 && (
-        <Paper p="md" withBorder>
-          <Text fw={600} size="sm" mb="xs">Cores</Text>
-          <Group gap="xs">
-            {orcamento.cores.map((cor, i) => (
-              <Badge key={i} variant="light" color={cor.tipo === 'CMYK' ? 'blue' : 'grape'}>
-                {cor.nome} ({cor.coberturaPercent}%)
-              </Badge>
-            ))}
-          </Group>
-        </Paper>
-      )}
-
-      {/* Acabamentos */}
-      {orcamento.acabamentos && orcamento.acabamentos.length > 0 && (
-        <Paper p="md" withBorder>
-          <Text fw={600} size="sm" mb="xs">Acabamentos</Text>
-          <Group gap="xs">
-            {orcamento.acabamentos.map((acab, i) => (
-              <Badge key={i} variant="light" color="teal">{acab.tipo}</Badge>
-            ))}
-          </Group>
-        </Paper>
-      )}
-
-      {/* Resultado do cálculo */}
-      {resultado && (
-        <>
-          <Divider label="Resultado do Cálculo" labelPosition="left" />
-
-          {/* Resumo principal */}
-          <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
-            <Paper p="md" withBorder ta="center">
-              <Text size="xs" c="dimmed" tt="uppercase">Custo Total</Text>
-              <Text fw={700} size="lg" c="red">{formatCurrency(resultado.custoTotal ?? orcamento.custoTotal)}</Text>
-            </Paper>
-            <Paper p="md" withBorder ta="center">
-              <Text size="xs" c="dimmed" tt="uppercase">Preço Venda</Text>
-              <Text fw={700} size="lg" c="green">{formatCurrency(resultado.precoVenda ?? orcamento.precoVenda)}</Text>
-            </Paper>
-            <Paper p="md" withBorder ta="center">
-              <Text size="xs" c="dimmed" tt="uppercase">Preço Unitário</Text>
-              <Text fw={700} size="lg">{formatCurrency(resultado.precoUnitario ?? orcamento.precoUnitario)}</Text>
-            </Paper>
-            <Paper p="md" withBorder ta="center">
-              <Text size="xs" c="dimmed" tt="uppercase">Margem</Text>
-              <Text fw={700} size="lg" c="blue">{formatPercent(resultado.margemReal ?? orcamento.margemReal)}</Text>
-            </Paper>
-          </SimpleGrid>
-
-          {/* Decomposição estilo Calcgraf (paridade) */}
-          {resultado.custoProducao != null && (
-            <Paper p="md" withBorder>
-              <Text fw={500} size="sm" mb="sm">Decomposição do Custo (paridade Calcgraf)</Text>
-              <Table>
-                <Table.Tbody>
-                  <Table.Tr>
-                    <Table.Td>Material Direto (MD)</Table.Td>
-                    <Table.Td ta="right">{formatCurrency(resultado.materialDireto)}</Table.Td>
-                  </Table.Tr>
-                  <Table.Tr>
-                    <Table.Td>Custo de Transformação (CT)</Table.Td>
-                    <Table.Td ta="right">{formatCurrency(resultado.custoTransformacao)}</Table.Td>
-                  </Table.Tr>
-                  {(resultado.servicoExterno ?? 0) > 0 && (
-                    <Table.Tr>
-                      <Table.Td>Serviço Externo (SE)</Table.Td>
-                      <Table.Td ta="right">{formatCurrency(resultado.servicoExterno)}</Table.Td>
-                    </Table.Tr>
-                  )}
-                  <Table.Tr>
-                    <Table.Td fw={600}>Custo de Produção (MD + CT + SE)</Table.Td>
-                    <Table.Td ta="right" fw={600}>{formatCurrency(resultado.custoProducao)}</Table.Td>
-                  </Table.Tr>
-                  <Table.Tr>
-                    <Table.Td>CEV (custos de venda)</Table.Td>
-                    <Table.Td ta="right">{formatPercent(resultado.cevPerc)} = {formatCurrency(resultado.cevValor)}</Table.Td>
-                  </Table.Tr>
-                  <Table.Tr>
-                    <Table.Td fw={600} c="teal">Contribuição Marginal</Table.Td>
-                    <Table.Td ta="right" fw={600} c="teal">
-                      {formatPercent(resultado.contribuicaoMarginalPerc)} = {formatCurrency(resultado.contribuicaoMarginalValor)}
-                    </Table.Td>
-                  </Table.Tr>
-                </Table.Tbody>
-              </Table>
-            </Paper>
+      {/* ===================================================================== */}
+      {/* ITENS DO ORÇAMENTO (multi-item) */}
+      {/* ===================================================================== */}
+      <Paper p="md" withBorder>
+        <Group justify="space-between" mb="sm">
+          <Text fw={600}>Itens do Orçamento</Text>
+          {podeEditarItens && (
+            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={abrirNovoItem}>
+              Novo Item
+            </Button>
           )}
+        </Group>
 
-          {/* Breakdown visual */}
-          {resultado.breakdown && (
-            <Paper p="md" withBorder>
-              <Group gap="xs" mb="sm">
-                <IconChartPie size={18} />
-                <Text fw={500} size="sm">Composição do Custo</Text>
-              </Group>
-              <BreakdownBar breakdown={resultado.breakdown} />
-            </Paper>
-          )}
-
-          {/* Detalhamento */}
-          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-            <Paper p="md" withBorder>
-              <Text fw={500} size="sm" mb="xs">Papel</Text>
-              <Text size="sm">Peso: {resultado.papel?.pesoKg?.toFixed(2) || '—'} kg</Text>
-              <Text size="sm" c="dimmed">Custo: {formatCurrency(resultado.papel?.custo)}</Text>
-            </Paper>
-            <Paper p="md" withBorder>
-              <Text fw={500} size="sm" mb="xs">Tinta</Text>
-              <Text size="sm" c="dimmed">Custo: {formatCurrency(resultado.tinta?.custoTotal)}</Text>
-              {resultado.tinta?.detalhePorCor?.map((c, i) => (
-                <Text key={i} size="xs" c="dimmed">{c.cor}: {c.consumoKg?.toFixed(3)} kg = {formatCurrency(c.custo)}</Text>
-              ))}
-            </Paper>
-            <Paper p="md" withBorder>
-              <Text fw={500} size="sm" mb="xs">Máquinas</Text>
-              <Text size="sm" c="dimmed">Custo: {formatCurrency(resultado.maquinas?.custoTotal)}</Text>
-              {resultado.maquinas?.detalhePorEtapa?.map((e, i) => (
-                <Text key={i} size="xs" c="dimmed">{e.etapa}: {e.tempoMin?.toFixed(0)} min = {formatCurrency(e.custo)}</Text>
-              ))}
-            </Paper>
-            <Paper p="md" withBorder>
-              <Text fw={500} size="sm" mb="xs">Acabamentos</Text>
-              <Text size="sm" c="dimmed">Custo: {formatCurrency(resultado.acabamentos?.custoTotal)}</Text>
-              {resultado.acabamentos?.detalhePorAcabamento?.map((a, i) => (
-                <Text key={i} size="xs" c="dimmed">{a.tipo}: {formatCurrency(a.custo)}</Text>
-              ))}
-            </Paper>
-          </SimpleGrid>
-        </>
-      )}
-
-      {/* Se não tem resultado de cálculo, mostra valores do orçamento */}
-      {!resultado && (orcamento.custoTotal || orcamento.precoVenda) && (
-        <>
-          <Divider label="Valores" labelPosition="left" />
-          <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
-            <Paper p="md" withBorder ta="center">
-              <Text size="xs" c="dimmed" tt="uppercase">Custo Total</Text>
-              <Text fw={700} size="lg" c="red">{formatCurrency(orcamento.custoTotal)}</Text>
-            </Paper>
-            <Paper p="md" withBorder ta="center">
-              <Text size="xs" c="dimmed" tt="uppercase">Preço Venda</Text>
-              <Text fw={700} size="lg" c="green">{formatCurrency(orcamento.precoVenda)}</Text>
-            </Paper>
-            <Paper p="md" withBorder ta="center">
-              <Text size="xs" c="dimmed" tt="uppercase">Preço Unitário</Text>
-              <Text fw={700} size="lg">{formatCurrency(orcamento.precoUnitario)}</Text>
-            </Paper>
-            <Paper p="md" withBorder ta="center">
-              <Text size="xs" c="dimmed" tt="uppercase">Margem</Text>
-              <Text fw={700} size="lg" c="blue">{formatPercent(orcamento.margemReal)}</Text>
-            </Paper>
-          </SimpleGrid>
-        </>
-      )}
-
-      {/* Variações de tiragem */}
-      {orcamento.variacoes && orcamento.variacoes.length > 0 && (
-        <>
-          <Divider label="Variações de Tiragem" labelPosition="left" />
-          <Table striped highlightOnHover withTableBorder withColumnBorders>
+        <ScrollArea>
+          <Table striped highlightOnHover withTableBorder>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>Quantidade</Table.Th>
-                <Table.Th ta="right">Preço Unitário</Table.Th>
-                <Table.Th ta="right">Preço Total</Table.Th>
+                <Table.Th w={60}>Seq.</Table.Th>
+                <Table.Th>Linha de Produto</Table.Th>
+                <Table.Th>Descrição</Table.Th>
+                <Table.Th ta="right">Tiragem</Table.Th>
+                <Table.Th ta="right">Custo Produção</Table.Th>
+                <Table.Th ta="right">Valor Total</Table.Th>
+                <Table.Th w={110} ta="center">Ações</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {orcamento.variacoes.map((v, i) => (
-                <Table.Tr key={i}>
-                  <Table.Td>{v.quantidade?.toLocaleString('pt-BR')}</Table.Td>
-                  <Table.Td ta="right">{formatCurrency(v.precoUnitario)}</Table.Td>
-                  <Table.Td ta="right">{formatCurrency(v.precoTotal)}</Table.Td>
+              {itens.map((item) => (
+                <Table.Tr key={item.id}>
+                  <Table.Td fw={600}>{item.sequencia}</Table.Td>
+                  <Table.Td>
+                    <Group gap={6}>
+                      <Text size="sm">{orcamento.tipoEmbalagem?.descricao || item.tipoEmbalagemId}</Text>
+                      {item.pendente && (
+                        <Badge size="xs" color="orange" variant="light">Pendente</Badge>
+                      )}
+                    </Group>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c="dimmed">{item.descricao || '—'}</Text>
+                  </Table.Td>
+                  <Table.Td ta="right">{item.quantidade?.toLocaleString('pt-BR')}</Table.Td>
+                  <Table.Td ta="right">{formatCurrency(item.custoProducao)}</Table.Td>
+                  <Table.Td ta="right" fw={600}>{formatCurrency(item.valorTotal)}</Table.Td>
+                  <Table.Td>
+                    <Group gap={4} justify="center">
+                      <Tooltip label={podeEditarItens ? 'Editar item' : 'Edição só em rascunho'}>
+                        <ActionIcon
+                          variant="subtle"
+                          color="blue"
+                          onClick={() => abrirEdicaoItem(item)}
+                          disabled={!podeEditarItens}
+                        >
+                          <IconEdit size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                      <Tooltip label={podeEditarItens ? 'Remover item' : 'Remoção só em rascunho'}>
+                        <ActionIcon
+                          variant="subtle"
+                          color="red"
+                          onClick={() => setItemParaRemover(item)}
+                          disabled={!podeEditarItens}
+                        >
+                          <IconTrash size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
+                  </Table.Td>
                 </Table.Tr>
               ))}
+              {!temItens && (
+                <Table.Tr>
+                  <Table.Td colSpan={7}>
+                    <Text ta="center" c="dimmed" py="md">
+                      Nenhum item neste orçamento.{podeEditarItens ? ' Use "Novo Item" para adicionar.' : ''}
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              )}
             </Table.Tbody>
+            {temItens && (
+              <Table.Tfoot>
+                <Table.Tr>
+                  <Table.Td colSpan={4} ta="right" fw={700}>Total consolidado</Table.Td>
+                  <Table.Td ta="right" fw={700} c="red">{formatCurrency(orcamento.custoProducaoConsolidado)}</Table.Td>
+                  <Table.Td ta="right" fw={700} c="green">{formatCurrency(orcamento.valorTotalConsolidado)}</Table.Td>
+                  <Table.Td />
+                </Table.Tr>
+              </Table.Tfoot>
+            )}
           </Table>
+        </ScrollArea>
+      </Paper>
+
+      {/* ===================================================================== */}
+      {/* DETALHE LEGADO DO ITEM ÚNICO (fallback de compatibilidade) */}
+      {/* Mantido para orçamentos antigos cujos dados de cálculo vivem no        */}
+      {/* cabeçalho. Exibido apenas quando NÃO há itens multi-item.              */}
+      {/* ===================================================================== */}
+      {!temItens && (
+        <>
+          <Divider label="Detalhe do Item (compatibilidade)" labelPosition="left" />
+
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+            <Paper p="md" withBorder>
+              <Text fw={600} size="sm" mb="xs">Produto</Text>
+              <Stack gap={4}>
+                <Text size="sm"><strong>Tipo de Embalagem:</strong> {orcamento.tipoEmbalagem?.descricao || '—'}</Text>
+                {orcamento.produtoNome && (
+                  <Text size="sm"><strong>Produto (repetição):</strong> {orcamento.produtoNome}</Text>
+                )}
+                <Text size="sm"><strong>Quantidade:</strong> {orcamento.quantidade?.toLocaleString('pt-BR')}</Text>
+              </Stack>
+            </Paper>
+
+            <Paper p="md" withBorder>
+              <Text fw={600} size="sm" mb="xs">Material / Papel</Text>
+              <Stack gap={4}>
+                <Text size="sm"><strong>Papel:</strong> {orcamento.papelDescricao || '—'}</Text>
+                <Text size="sm"><strong>Gramatura:</strong> {orcamento.gramatura ? `${orcamento.gramatura} g/m²` : '—'}</Text>
+                <Text size="sm"><strong>Nº Cores:</strong> {orcamento.numCores}</Text>
+              </Stack>
+            </Paper>
+          </SimpleGrid>
+
+          {/* Medidas */}
+          {orcamento.medidas && Object.keys(orcamento.medidas).length > 0 && (
+            <Paper p="md" withBorder>
+              <Text fw={600} size="sm" mb="xs">Medidas</Text>
+              <Group gap="lg">
+                {Object.entries(orcamento.medidas).map(([key, val]) => (
+                  <Text key={key} size="sm"><strong>{key}:</strong> {val} mm</Text>
+                ))}
+              </Group>
+            </Paper>
+          )}
+
+          {/* Cores */}
+          {orcamento.cores && orcamento.cores.length > 0 && (
+            <Paper p="md" withBorder>
+              <Text fw={600} size="sm" mb="xs">Cores</Text>
+              <Group gap="xs">
+                {orcamento.cores.map((cor, i) => (
+                  <Badge key={i} variant="light" color={cor.tipo === 'CMYK' ? 'blue' : 'grape'}>
+                    {cor.nome} ({cor.coberturaPercent}%)
+                  </Badge>
+                ))}
+              </Group>
+            </Paper>
+          )}
+
+          {/* Acabamentos */}
+          {orcamento.acabamentos && orcamento.acabamentos.length > 0 && (
+            <Paper p="md" withBorder>
+              <Text fw={600} size="sm" mb="xs">Acabamentos</Text>
+              <Group gap="xs">
+                {orcamento.acabamentos.map((acab, i) => (
+                  <Badge key={i} variant="light" color="teal">{acab.tipo}</Badge>
+                ))}
+              </Group>
+            </Paper>
+          )}
+
+          {/* Resultado do cálculo */}
+          {resultado && (
+            <>
+              <Divider label="Resultado do Cálculo" labelPosition="left" />
+
+              {/* Resumo principal */}
+              <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
+                <Paper p="md" withBorder ta="center">
+                  <Text size="xs" c="dimmed" tt="uppercase">Custo Total</Text>
+                  <Text fw={700} size="lg" c="red">{formatCurrency(resultado.custoTotal ?? orcamento.custoTotal)}</Text>
+                </Paper>
+                <Paper p="md" withBorder ta="center">
+                  <Text size="xs" c="dimmed" tt="uppercase">Preço Venda</Text>
+                  <Text fw={700} size="lg" c="green">{formatCurrency(resultado.precoVenda ?? orcamento.precoVenda)}</Text>
+                </Paper>
+                <Paper p="md" withBorder ta="center">
+                  <Text size="xs" c="dimmed" tt="uppercase">Preço Unitário</Text>
+                  <Text fw={700} size="lg">{formatCurrency(resultado.precoUnitario ?? orcamento.precoUnitario)}</Text>
+                </Paper>
+                <Paper p="md" withBorder ta="center">
+                  <Text size="xs" c="dimmed" tt="uppercase">Margem</Text>
+                  <Text fw={700} size="lg" c="blue">{formatPercent(resultado.margemReal ?? orcamento.margemReal)}</Text>
+                </Paper>
+              </SimpleGrid>
+
+              {/* Decomposição estilo Calcgraf (paridade) */}
+              {resultado.custoProducao != null && (
+                <Paper p="md" withBorder>
+                  <Text fw={500} size="sm" mb="sm">Decomposição do Custo (paridade Calcgraf)</Text>
+                  <Table>
+                    <Table.Tbody>
+                      <Table.Tr>
+                        <Table.Td>Material Direto (MD)</Table.Td>
+                        <Table.Td ta="right">{formatCurrency(resultado.materialDireto)}</Table.Td>
+                      </Table.Tr>
+                      <Table.Tr>
+                        <Table.Td>Custo de Transformação (CT)</Table.Td>
+                        <Table.Td ta="right">{formatCurrency(resultado.custoTransformacao)}</Table.Td>
+                      </Table.Tr>
+                      {(resultado.servicoExterno ?? 0) > 0 && (
+                        <Table.Tr>
+                          <Table.Td>Serviço Externo (SE)</Table.Td>
+                          <Table.Td ta="right">{formatCurrency(resultado.servicoExterno)}</Table.Td>
+                        </Table.Tr>
+                      )}
+                      <Table.Tr>
+                        <Table.Td fw={600}>Custo de Produção (MD + CT + SE)</Table.Td>
+                        <Table.Td ta="right" fw={600}>{formatCurrency(resultado.custoProducao)}</Table.Td>
+                      </Table.Tr>
+                      <Table.Tr>
+                        <Table.Td>CEV (custos de venda)</Table.Td>
+                        <Table.Td ta="right">{formatPercent(resultado.cevPerc)} = {formatCurrency(resultado.cevValor)}</Table.Td>
+                      </Table.Tr>
+                      <Table.Tr>
+                        <Table.Td fw={600} c="teal">Contribuição Marginal</Table.Td>
+                        <Table.Td ta="right" fw={600} c="teal">
+                          {formatPercent(resultado.contribuicaoMarginalPerc)} = {formatCurrency(resultado.contribuicaoMarginalValor)}
+                        </Table.Td>
+                      </Table.Tr>
+                    </Table.Tbody>
+                  </Table>
+                </Paper>
+              )}
+
+              {/* Breakdown visual */}
+              {resultado.breakdown && (
+                <Paper p="md" withBorder>
+                  <Group gap="xs" mb="sm">
+                    <IconChartPie size={18} />
+                    <Text fw={500} size="sm">Composição do Custo</Text>
+                  </Group>
+                  <BreakdownBar breakdown={resultado.breakdown} />
+                </Paper>
+              )}
+
+              {/* Detalhamento */}
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                <Paper p="md" withBorder>
+                  <Text fw={500} size="sm" mb="xs">Papel</Text>
+                  <Text size="sm">Peso: {resultado.papel?.pesoKg?.toFixed(2) || '—'} kg</Text>
+                  <Text size="sm" c="dimmed">Custo: {formatCurrency(resultado.papel?.custo)}</Text>
+                </Paper>
+                <Paper p="md" withBorder>
+                  <Text fw={500} size="sm" mb="xs">Tinta</Text>
+                  <Text size="sm" c="dimmed">Custo: {formatCurrency(resultado.tinta?.custoTotal)}</Text>
+                  {resultado.tinta?.detalhePorCor?.map((c, i) => (
+                    <Text key={i} size="xs" c="dimmed">{c.cor}: {c.consumoKg?.toFixed(3)} kg = {formatCurrency(c.custo)}</Text>
+                  ))}
+                </Paper>
+                <Paper p="md" withBorder>
+                  <Text fw={500} size="sm" mb="xs">Máquinas</Text>
+                  <Text size="sm" c="dimmed">Custo: {formatCurrency(resultado.maquinas?.custoTotal)}</Text>
+                  {resultado.maquinas?.detalhePorEtapa?.map((e, i) => (
+                    <Text key={i} size="xs" c="dimmed">{e.etapa}: {e.tempoMin?.toFixed(0)} min = {formatCurrency(e.custo)}</Text>
+                  ))}
+                </Paper>
+                <Paper p="md" withBorder>
+                  <Text fw={500} size="sm" mb="xs">Acabamentos</Text>
+                  <Text size="sm" c="dimmed">Custo: {formatCurrency(resultado.acabamentos?.custoTotal)}</Text>
+                  {resultado.acabamentos?.detalhePorAcabamento?.map((a, i) => (
+                    <Text key={i} size="xs" c="dimmed">{a.tipo}: {formatCurrency(a.custo)}</Text>
+                  ))}
+                </Paper>
+              </SimpleGrid>
+            </>
+          )}
+
+          {/* Se não tem resultado de cálculo, mostra valores do orçamento */}
+          {!resultado && (orcamento.custoTotal || orcamento.precoVenda) && (
+            <>
+              <Divider label="Valores" labelPosition="left" />
+              <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
+                <Paper p="md" withBorder ta="center">
+                  <Text size="xs" c="dimmed" tt="uppercase">Custo Total</Text>
+                  <Text fw={700} size="lg" c="red">{formatCurrency(orcamento.custoTotal)}</Text>
+                </Paper>
+                <Paper p="md" withBorder ta="center">
+                  <Text size="xs" c="dimmed" tt="uppercase">Preço Venda</Text>
+                  <Text fw={700} size="lg" c="green">{formatCurrency(orcamento.precoVenda)}</Text>
+                </Paper>
+                <Paper p="md" withBorder ta="center">
+                  <Text size="xs" c="dimmed" tt="uppercase">Preço Unitário</Text>
+                  <Text fw={700} size="lg">{formatCurrency(orcamento.precoUnitario)}</Text>
+                </Paper>
+                <Paper p="md" withBorder ta="center">
+                  <Text size="xs" c="dimmed" tt="uppercase">Margem</Text>
+                  <Text fw={700} size="lg" c="blue">{formatPercent(orcamento.margemReal)}</Text>
+                </Paper>
+              </SimpleGrid>
+            </>
+          )}
+
+          {/* Variações de tiragem */}
+          {orcamento.variacoes && orcamento.variacoes.length > 0 && (
+            <>
+              <Divider label="Variações de Tiragem" labelPosition="left" />
+              <Table striped highlightOnHover withTableBorder withColumnBorders>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Quantidade</Table.Th>
+                    <Table.Th ta="right">Preço Unitário</Table.Th>
+                    <Table.Th ta="right">Preço Total</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {orcamento.variacoes.map((v, i) => (
+                    <Table.Tr key={i}>
+                      <Table.Td>{v.quantidade?.toLocaleString('pt-BR')}</Table.Td>
+                      <Table.Td ta="right">{formatCurrency(v.precoUnitario)}</Table.Td>
+                      <Table.Td ta="right">{formatCurrency(v.precoTotal)}</Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </>
+          )}
         </>
       )}
 
@@ -655,7 +881,7 @@ export default function OrcamentoDetalhePage() {
         </Paper>
       )}
 
-      {/* Comparação de Versões (Task 8.5) */}
+      {/* Comparação de Versões */}
       {versoes.length > 0 && (
         <>
           <Divider label="Outras Versões" labelPosition="left" />
@@ -737,6 +963,38 @@ export default function OrcamentoDetalhePage() {
           </Group>
         </Stack>
       </Modal>
+
+      {/* Confirmação de remoção de item */}
+      <Modal
+        opened={!!itemParaRemover}
+        onClose={() => setItemParaRemover(null)}
+        title="Remover Item"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            Remover o item #{itemParaRemover?.sequencia} ({itemParaRemover?.quantidade?.toLocaleString('pt-BR')} un)?
+            Os totais do orçamento serão recalculados.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setItemParaRemover(null)} disabled={removendo}>
+              Cancelar
+            </Button>
+            <Button color="red" onClick={confirmarRemocaoItem} loading={removendo}>
+              Remover
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Editor de item (modal reusando os steps do wizard) */}
+      <ItemWizardModal
+        opened={itemModalOpen}
+        onClose={() => setItemModalOpen(false)}
+        orcamentoId={id}
+        item={itemEmEdicao}
+        onSaved={carregar}
+      />
     </Stack>
   )
 }
