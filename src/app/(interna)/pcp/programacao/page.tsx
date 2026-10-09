@@ -329,11 +329,7 @@ export default function ProgramacaoPage() {
   // Formulário FO-002/PCP. Spec pcp-planos-frente-costa-rc (Fase A).
   const [modalRc, setModalRc] = useState<{ centroId: string; centroDescricao: string } | null>(null)
   const [salvandoRc, setSalvandoRc] = useState(false)
-  // Modal "Iniciar corte da RC": escolhe a guilhotina destino (p/ onde a RC
-  // vai quando o corte terminar). Spec RC→Guilhotina.
-  const [modalIniciarRc, setModalIniciarRc] = useState<{ rcId: string; numero: string } | null>(null)
-  const [guilhotinaDestinoSel, setGuilhotinaDestinoSel] = useState<string | null>(null)
-  const [salvandoIniciarRc, setSalvandoIniciarRc] = useState(false)
+
   const formRcInicial = {
     dataSolicitacao: new Date().toISOString().slice(0, 10),
     dataCorte: '',
@@ -353,6 +349,9 @@ export default function ProgramacaoPage() {
     instrucoesRefile: '',
   }
   const [formRc, setFormRc] = useState<Record<string, string>>(formRcInicial)
+  // Guilhotina destino escolhida no FORMULÁRIO de nova RC (default = a
+  // "Guilhotina Tigger", se existir). Para onde a RC segue ao concluir o corte.
+  const [formRcGuilhotinaId, setFormRcGuilhotinaId] = useState<string | null>(null)
   // OP Avulsa: aba do modal (existente vs avulsa) e, dentro de avulsa, o modo
   // (herdar de uma OP já cadastrada vs escolher produto/cliente livremente)
   const [tabAdicionarOS, setTabAdicionarOS] = useState<'existente' | 'avulsa'>('existente')
@@ -849,7 +848,15 @@ export default function ProgramacaoPage() {
     }
 
     const oldIndex = fila.findIndex((e: any) => e.id === active.id)
-    const newIndex = fila.findIndex((e: any) => e.id === over.id)
+    // over pode ser uma LINHA-PAI sintética (`pai:<opId>`) — resolve p/ o 1º
+    // filho daquela OP na fila (senão newIndex=-1 e o item não fixa).
+    let overIdClassico = String(over.id)
+    if (overIdClassico.startsWith('pai:')) {
+      const opId = overIdClassico.slice(4)
+      const filho = fila.find((e: any) => e.opId === opId)
+      if (filho) overIdClassico = filho.id
+    }
+    const newIndex = fila.findIndex((e: any) => e.id === overIdClassico)
     if (oldIndex === -1 || newIndex === -1) return
 
     // ── Arrasto de MÚLTIPLAS selecionadas ──
@@ -998,7 +1005,17 @@ export default function ProgramacaoPage() {
       novaOrdem = reord
     } else {
       const oldIndex = fila.findIndex((i: any) => i.dndId === active.id)
-      const newIndex = fila.findIndex((i: any) => i.dndId === over.id)
+      // over pode ser uma LINHA-PAI sintética (`pai:<opId>`), que NÃO existe
+      // na fila combinada. Resolvemos para o 1º filho (etapa) daquela OP —
+      // sem isso, soltar perto de uma OP com planos dava newIndex=-1 e o item
+      // (RC ou etapa) "não fixava" (bug relatado com RC + OP com filhos).
+      let overId = String(over.id)
+      if (overId.startsWith('pai:')) {
+        const opId = overId.slice(4)
+        const filho = fila.find((i: any) => i.opId === opId)
+        if (filho) overId = filho.dndId
+      }
+      const newIndex = fila.findIndex((i: any) => i.dndId === overId)
       if (oldIndex === -1 || newIndex === -1) return
       novaOrdem = arrayMove(fila, oldIndex, newIndex)
     }
@@ -1040,29 +1057,15 @@ export default function ProgramacaoPage() {
     }
   }
 
-  // Inicia o corte de uma RC: abre o modal para escolher a GUILHOTINA destino
-  // (para onde a RC vai quando o corte terminar). Spec RC→Guilhotina.
-  function iniciarRc(rcId: string, numero: string, guilhotinaAtual?: string | null) {
-    setGuilhotinaDestinoSel(guilhotinaAtual ?? null)
-    setModalIniciarRc({ rcId, numero })
-  }
-
-  // Confirma o início do corte com a guilhotina destino escolhida (opcional).
-  async function confirmarIniciarRc() {
-    if (!modalIniciarRc) return
-    setSalvandoIniciarRc(true)
+  // Inicia o corte de uma RC DIRETO (sem modal): a guilhotina destino já foi
+  // definida no formulário da RC (default "Guilhotina Tigger"). Spec RC→Guilhotina.
+  async function iniciarRc(rcId: string, numero: string) {
     try {
-      await api.patch(`/pcp/requisicoes-corte/${modalIniciarRc.rcId}/iniciar`, {
-        guilhotinaDestinoId: guilhotinaDestinoSel || null,
-      })
-      notifications.show({ title: 'Corte iniciado', message: `Requisição ${modalIniciarRc.numero} em corte.`, color: 'blue' })
-      atualizarRcLocal(modalIniciarRc.rcId, { status: 'EM_CORTE', guilhotinaDestinoId: guilhotinaDestinoSel || null })
-      setModalIniciarRc(null)
-      setGuilhotinaDestinoSel(null)
+      await api.patch(`/pcp/requisicoes-corte/${rcId}/iniciar`, {})
+      notifications.show({ title: 'Corte iniciado', message: `Requisição ${numero} em corte.`, color: 'blue' })
+      atualizarRcLocal(rcId, { status: 'EM_CORTE' })
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao iniciar o corte', color: 'red' })
-    } finally {
-      setSalvandoIniciarRc(false)
     }
   }
 
@@ -1676,6 +1679,7 @@ export default function ProgramacaoPage() {
         nomeServico: formRc.nomeServico.trim(),
         pesoKg: num(formRc.pesoKg),
         instrucoesRefile: formRc.instrucoesRefile.trim() || undefined,
+        guilhotinaDestinoId: formRcGuilhotinaId || undefined,
       }
       const res = await api.post('/pcp/requisicoes-corte', payload)
       const rc = res.data
@@ -1695,6 +1699,7 @@ export default function ProgramacaoPage() {
         qtdFolhasCortadeira: rc.qtdFolhasCortadeira,
         pesoKg: rc.pesoKg != null ? Number(rc.pesoKg) : null,
         dataSolicitacao: rc.dataSolicitacao,
+        guilhotinaDestinoId: rc.guilhotinaDestinoId ?? null,
       }
       setPainel((prev: any) => {
         if (!prev) return prev
@@ -1774,7 +1779,7 @@ export default function ProgramacaoPage() {
     return (
       <Group gap={4} wrap="nowrap">
         {etapa.status !== 'EM_CORTE' && (
-          <ActionIcon size="sm" variant="light" color="blue" onClick={() => iniciarRc(etapa.id, etapa.numero, etapa.guilhotinaDestinoId)} title="Iniciar corte">
+          <ActionIcon size="sm" variant="light" color="blue" onClick={() => iniciarRc(etapa.id, etapa.numero)} title="Iniciar corte">
             <IconPlayerPlay size={14} />
           </ActionIcon>
         )}
@@ -1803,6 +1808,13 @@ export default function ProgramacaoPage() {
       /guilhotina/i.test(c.centro.tipoProcesso?.codigo || '') || /guilhotina/i.test(c.centro.descricao || ''),
     )
     return centros.map((c: any) => ({ value: c.centro.id, label: c.centro.descricao }))
+  }
+
+  // Guilhotina DEFAULT da RC = "Guilhotina Tigger" (ou Trigger), se existir no
+  // cadastro. Usada como valor inicial no formulário de nova RC.
+  function guilhotinaDefaultId(): string | null {
+    const g = (painel?.centros || []).find((c: any) => /tigger|trigger/i.test(c.centro.descricao || ''))
+    return g?.centro.id ?? null
   }
 
   // Conclui o CORTE de uma RC. Se a RC tem guilhotina destino, ela PASSA para
@@ -2614,7 +2626,7 @@ export default function ProgramacaoPage() {
                 <IconPlus size={14} />
               </ActionIcon>
               {centro.centro.tipoProcesso?.codigo === 'CORTADEIRA' && (
-                <Button size="xs" variant="light" color="grape" leftSection={<IconPlus size={14} />} onClick={() => { setFormRc(formRcInicial); setModalRc({ centroId: centro.centro.id, centroDescricao: centro.centro.descricao }) }} title="Adicionar Requisição de Corte">
+                <Button size="xs" variant="light" color="grape" leftSection={<IconPlus size={14} />} onClick={() => { setFormRc(formRcInicial); setFormRcGuilhotinaId(guilhotinaDefaultId()); setModalRc({ centroId: centro.centro.id, centroDescricao: centro.centro.descricao }) }} title="Adicionar Requisição de Corte">
                   RC
                 </Button>
               )}
@@ -3515,29 +3527,6 @@ export default function ProgramacaoPage() {
         </Tabs>
       </Modal>
 
-      {/* Modal: Iniciar corte da RC — escolhe a GUILHOTINA destino */}
-      <Modal opened={!!modalIniciarRc} onClose={() => setModalIniciarRc(null)} title={`Iniciar corte — RC ${modalIniciarRc?.numero || ''}`} centered size="sm">
-        <Stack gap="sm">
-          <Text size="sm" c="dimmed">
-            Informe a guilhotina para onde a RC deve seguir quando o corte terminar.
-            Ao concluir o corte, a RC aparece automaticamente na fila dessa guilhotina.
-          </Text>
-          <Select
-            label="Guilhotina destino"
-            placeholder="Selecione a guilhotina (opcional)"
-            data={centrosGuilhotina()}
-            value={guilhotinaDestinoSel}
-            onChange={setGuilhotinaDestinoSel}
-            clearable
-            searchable
-          />
-          <Group justify="flex-end" mt="sm">
-            <Button variant="default" onClick={() => setModalIniciarRc(null)}>Cancelar</Button>
-            <Button color="blue" loading={salvandoIniciarRc} onClick={confirmarIniciarRc}>Iniciar corte</Button>
-          </Group>
-        </Stack>
-      </Modal>
-
       {/* Modal: Requisição de Corte de Cartão (RC) — formulário FO-002/PCP */}
       <Modal opened={!!modalRc} onClose={() => setModalRc(null)} title={`Nova Requisição de Corte${modalRc ? ` — ${modalRc.centroDescricao}` : ''}`} centered size="lg">
         <Stack gap="sm">
@@ -3611,9 +3600,19 @@ export default function ProgramacaoPage() {
               onChange={(e) => setFormRc({ ...formRc, qtdFolhasCortadeira: e.currentTarget.value })}
             />
           </Group>
+          <Select
+            label="Guilhotina destino"
+            description="Para onde a RC segue quando o corte terminar (padrão: Guilhotina Tigger)."
+            placeholder="Selecione a guilhotina"
+            data={centrosGuilhotina()}
+            value={formRcGuilhotinaId}
+            onChange={setFormRcGuilhotinaId}
+            clearable
+            searchable
+          />
           <Group grow>
             <TextInput
-              label="Guilhotina"
+              label="Guilhotina (observação)"
               placeholder="Ex: Segue observação"
               value={formRc.textoGuilhotina}
               onChange={(e) => setFormRc({ ...formRc, textoGuilhotina: e.currentTarget.value })}
