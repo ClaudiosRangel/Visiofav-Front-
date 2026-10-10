@@ -1,20 +1,28 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Fragment } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Title, Stack, Group, Button, Text, Loader, Center, Paper, SimpleGrid,
   Badge, Divider, Progress, Table, Modal, Textarea, Alert, ScrollArea,
-  ActionIcon, Tooltip,
+  ActionIcon, Tooltip, Collapse, Checkbox,
 } from '@mantine/core'
 import {
   IconArrowLeft, IconEdit, IconCopy, IconSend, IconCheck, IconX,
   IconChartPie, IconAlertCircle, IconFileText, IconPlus, IconTrash,
+  IconChevronDown, IconChevronRight, IconStack2, IconFileInvoice,
+  IconReportAnalytics,
 } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
 import { StatusBadge } from '../page'
 import ItemWizardModal, { type ItemParaEditar } from './ItemWizardModal'
+import RelatorioItem from './RelatorioItem'
+import PlanosDoItem, { type PlanoCalculo } from './PlanosDoItem'
+import {
+  BadgeOp, OpModalOpcoes, useEmissaoOp, carregarStatusOpItem,
+  type StatusOpItem, type OpcoesEmissaoOp,
+} from './EmitirOp'
 
 // ============================================================================
 // Tipos
@@ -81,6 +89,13 @@ interface ItemOrcamento {
   custoProducao?: number | string | null
   valorTotal?: number | string | null
   pendente?: boolean
+  // Suporte de produção no nível do item (Task 18). Usado quando o item não
+  // tem planos — o Select/badge de troca aparecem no PlanosDoItem.
+  suporteProducaoId?: string | null
+  rotuloTrocaSuporte?: string | null
+  // Planos do cálculo (Task 11). O GET /:id ainda não os retorna; quando passar
+  // a retornar, semeiam o editor PlanosDoItem (senão parte de estado vazio).
+  planos?: PlanoCalculo[] | null
 }
 
 interface OrcamentoDetalhe {
@@ -234,6 +249,25 @@ export default function OrcamentoDetalhePage() {
   const [itemParaRemover, setItemParaRemover] = useState<ItemOrcamento | null>(null)
   const [removendo, setRemovendo] = useState(false)
 
+  // Relatório fiel por item (Task 30): item cujo relatório está aberto no modal.
+  const [itemRelatorio, setItemRelatorio] = useState<ItemOrcamento | null>(null)
+
+  // Expansão da seção "Planos do Cálculo" por item (Task 11)
+  const [itensExpandidos, setItensExpandidos] = useState<Record<string, boolean>>({})
+  const toggleExpandir = (itemId: string) =>
+    setItensExpandidos((prev) => ({ ...prev, [itemId]: !prev[itemId] }))
+
+  // ---------------------------------------------------------------------------
+  // Emissão de OP (Task 24): status por item (badge), seleção para lote e modal
+  // de opções compartilhado entre emissão por item e em lote.
+  // ---------------------------------------------------------------------------
+  const [statusOp, setStatusOp] = useState<Record<string, StatusOpItem>>({})
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
+  const [opModalOpen, setOpModalOpen] = useState(false)
+  // Alvo da emissão: um itemId específico, ou 'lote' para os selecionados.
+  const [opAlvo, setOpAlvo] = useState<string | 'lote' | null>(null)
+  const { emitindo, emitirItem, emitirLote } = useEmissaoOp(id)
+
   useEffect(() => { document.title = 'Detalhe do Orçamento' }, [])
 
   const carregar = useCallback(async () => {
@@ -276,6 +310,25 @@ export default function OrcamentoDetalhePage() {
   }, [id])
 
   useEffect(() => { carregar() }, [carregar])
+
+  // Carrega o status de OP de cada item (badge "OP: N") ao montar/atualizar a
+  // lista. Faz uma requisição por item (lazy por lista) — a ausência de badge é
+  // o estado seguro em caso de falha (ver carregarStatusOpItem).
+  const carregarStatusOps = useCallback(async (itemIds: string[]) => {
+    if (!itemIds.length) {
+      setStatusOp({})
+      return
+    }
+    const resultados = await Promise.all(
+      itemIds.map(async (itemId) => [itemId, await carregarStatusOpItem(id, itemId)] as const),
+    )
+    setStatusOp(Object.fromEntries(resultados))
+  }, [id])
+
+  useEffect(() => {
+    const ids = (orcamento?.itens ?? []).map((i) => i.id)
+    carregarStatusOps(ids)
+  }, [orcamento?.itens, carregarStatusOps])
 
   // ============================================================================
   // Ações do cabeçalho (preservadas)
@@ -395,6 +448,50 @@ export default function OrcamentoDetalhePage() {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao remover item', color: 'red' })
     } finally {
       setRemovendo(false)
+    }
+  }
+
+  // ============================================================================
+  // Ações de emissão de OP (Task 24)
+  // ============================================================================
+
+  const abrirEmitirItem = (itemId: string) => {
+    setOpAlvo(itemId)
+    setOpModalOpen(true)
+  }
+
+  const abrirEmitirLote = () => {
+    if (selecionados.size === 0) return
+    setOpAlvo('lote')
+    setOpModalOpen(true)
+  }
+
+  const toggleSelecionado = (itemId: string) =>
+    setSelecionados((prev) => {
+      const prox = new Set(prev)
+      if (prox.has(itemId)) prox.delete(itemId)
+      else prox.add(itemId)
+      return prox
+    })
+
+  const toggleSelecionarTodos = (itemIds: string[], marcar: boolean) =>
+    setSelecionados(marcar ? new Set(itemIds) : new Set())
+
+  const confirmarEmissaoOp = async (opcoes: OpcoesEmissaoOp, emails: string[]) => {
+    if (opAlvo === 'lote') {
+      const itemIds = Array.from(selecionados)
+      const resultados = await emitirLote(itemIds, opcoes, emails)
+      if (resultados) {
+        setOpModalOpen(false)
+        setSelecionados(new Set())
+        await carregar()
+      }
+    } else if (opAlvo) {
+      const ok = await emitirItem(opAlvo, opcoes, emails)
+      if (ok) {
+        setOpModalOpen(false)
+        await carregar()
+      }
     }
   }
 
@@ -557,73 +654,158 @@ export default function OrcamentoDetalhePage() {
       <Paper p="md" withBorder>
         <Group justify="space-between" mb="sm">
           <Text fw={600}>Itens do Orçamento</Text>
-          {podeEditarItens && (
-            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={abrirNovoItem}>
-              Novo Item
-            </Button>
-          )}
+          <Group gap="xs">
+            {temItens && (
+              <Button
+                size="xs"
+                variant="light"
+                color="green"
+                leftSection={<IconFileInvoice size={14} />}
+                onClick={abrirEmitirLote}
+                disabled={selecionados.size === 0 || emitindo}
+              >
+                Emitir OP em lote{selecionados.size > 0 ? ` (${selecionados.size})` : ''}
+              </Button>
+            )}
+            {podeEditarItens && (
+              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={abrirNovoItem}>
+                Novo Item
+              </Button>
+            )}
+          </Group>
         </Group>
 
         <ScrollArea>
           <Table striped highlightOnHover withTableBorder>
             <Table.Thead>
               <Table.Tr>
+                <Table.Th w={40} ta="center">
+                  <Checkbox
+                    aria-label="Selecionar todos os itens"
+                    checked={temItens && selecionados.size === itens.length}
+                    indeterminate={selecionados.size > 0 && selecionados.size < itens.length}
+                    onChange={(e) => toggleSelecionarTodos(itens.map((i) => i.id), e.currentTarget.checked)}
+                  />
+                </Table.Th>
+                <Table.Th w={40}></Table.Th>
                 <Table.Th w={60}>Seq.</Table.Th>
                 <Table.Th>Linha de Produto</Table.Th>
                 <Table.Th>Descrição</Table.Th>
                 <Table.Th ta="right">Tiragem</Table.Th>
                 <Table.Th ta="right">Custo Produção</Table.Th>
                 <Table.Th ta="right">Valor Total</Table.Th>
-                <Table.Th w={110} ta="center">Ações</Table.Th>
+                <Table.Th w={150} ta="center">Ações</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {itens.map((item) => (
-                <Table.Tr key={item.id}>
-                  <Table.Td fw={600}>{item.sequencia}</Table.Td>
-                  <Table.Td>
-                    <Group gap={6}>
-                      <Text size="sm">{orcamento.tipoEmbalagem?.descricao || item.tipoEmbalagemId}</Text>
-                      {item.pendente && (
-                        <Badge size="xs" color="orange" variant="light">Pendente</Badge>
-                      )}
-                    </Group>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm" c="dimmed">{item.descricao || '—'}</Text>
-                  </Table.Td>
-                  <Table.Td ta="right">{item.quantidade?.toLocaleString('pt-BR')}</Table.Td>
-                  <Table.Td ta="right">{formatCurrency(item.custoProducao)}</Table.Td>
-                  <Table.Td ta="right" fw={600}>{formatCurrency(item.valorTotal)}</Table.Td>
-                  <Table.Td>
-                    <Group gap={4} justify="center">
-                      <Tooltip label={podeEditarItens ? 'Editar item' : 'Edição só em rascunho'}>
-                        <ActionIcon
-                          variant="subtle"
-                          color="blue"
-                          onClick={() => abrirEdicaoItem(item)}
-                          disabled={!podeEditarItens}
-                        >
-                          <IconEdit size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                      <Tooltip label={podeEditarItens ? 'Remover item' : 'Remoção só em rascunho'}>
-                        <ActionIcon
-                          variant="subtle"
-                          color="red"
-                          onClick={() => setItemParaRemover(item)}
-                          disabled={!podeEditarItens}
-                        >
-                          <IconTrash size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
+              {itens.map((item) => {
+                const expandido = !!itensExpandidos[item.id]
+                return (
+                  <Fragment key={item.id}>
+                    <Table.Tr>
+                      <Table.Td ta="center">
+                        <Checkbox
+                          aria-label={`Selecionar item ${item.sequencia}`}
+                          checked={selecionados.has(item.id)}
+                          onChange={() => toggleSelecionado(item.id)}
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <Tooltip label={expandido ? 'Ocultar planos' : 'Ver planos do cálculo'}>
+                          <ActionIcon variant="subtle" color="gray" onClick={() => toggleExpandir(item.id)}>
+                            {expandido ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
+                          </ActionIcon>
+                        </Tooltip>
+                      </Table.Td>
+                      <Table.Td fw={600}>{item.sequencia}</Table.Td>
+                      <Table.Td>
+                        <Group gap={6}>
+                          <Text size="sm">{orcamento.tipoEmbalagem?.descricao || item.tipoEmbalagemId}</Text>
+                          {item.pendente && (
+                            <Badge size="xs" color="orange" variant="light">Pendente</Badge>
+                          )}
+                          <BadgeOp label={statusOp[item.id]?.label} />
+                        </Group>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="sm" c="dimmed">{item.descricao || '—'}</Text>
+                      </Table.Td>
+                      <Table.Td ta="right">{item.quantidade?.toLocaleString('pt-BR')}</Table.Td>
+                      <Table.Td ta="right">{formatCurrency(item.custoProducao)}</Table.Td>
+                      <Table.Td ta="right" fw={600}>{formatCurrency(item.valorTotal)}</Table.Td>
+                      <Table.Td>
+                        <Group gap={4} justify="center">
+                          <Tooltip label="Relatório do item (pré-cálculo)">
+                            <ActionIcon
+                              variant="subtle"
+                              color="grape"
+                              onClick={() => setItemRelatorio(item)}
+                            >
+                              <IconReportAnalytics size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                          <Tooltip label="Emitir OP para este item">
+                            <ActionIcon
+                              variant="subtle"
+                              color="green"
+                              onClick={() => abrirEmitirItem(item.id)}
+                              disabled={emitindo}
+                            >
+                              <IconFileInvoice size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                          <Tooltip label={podeEditarItens ? 'Editar item' : 'Edição só em rascunho'}>
+                            <ActionIcon
+                              variant="subtle"
+                              color="blue"
+                              onClick={() => abrirEdicaoItem(item)}
+                              disabled={!podeEditarItens}
+                            >
+                              <IconEdit size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                          <Tooltip label={podeEditarItens ? 'Remover item' : 'Remoção só em rascunho'}>
+                            <ActionIcon
+                              variant="subtle"
+                              color="red"
+                              onClick={() => setItemParaRemover(item)}
+                              disabled={!podeEditarItens}
+                            >
+                              <IconTrash size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </Group>
+                      </Table.Td>
+                    </Table.Tr>
+                    <Table.Tr>
+                      <Table.Td colSpan={9} p={0} style={{ borderBottom: 0 }}>
+                        <Collapse in={expandido}>
+                          <Paper p="md" bg="var(--mantine-color-gray-light)" radius={0}>
+                            <Group gap={6} mb="xs">
+                              <IconStack2 size={16} />
+                              <Text size="sm" fw={600}>
+                                Planos do cálculo — item #{item.sequencia}
+                              </Text>
+                            </Group>
+                            <PlanosDoItem
+                              orcamentoId={id}
+                              itemId={item.id}
+                              planosIniciais={item.planos ?? null}
+                              suporteProducaoItemInicial={item.suporteProducaoId ?? null}
+                              rotuloTrocaItemInicial={item.rotuloTrocaSuporte ?? null}
+                              podeEditar={podeEditarItens}
+                              onChanged={carregar}
+                            />
+                          </Paper>
+                        </Collapse>
+                      </Table.Td>
+                    </Table.Tr>
+                  </Fragment>
+                )
+              })}
               {!temItens && (
                 <Table.Tr>
-                  <Table.Td colSpan={7}>
+                  <Table.Td colSpan={9}>
                     <Text ta="center" c="dimmed" py="md">
                       Nenhum item neste orçamento.{podeEditarItens ? ' Use "Novo Item" para adicionar.' : ''}
                     </Text>
@@ -634,7 +816,7 @@ export default function OrcamentoDetalhePage() {
             {temItens && (
               <Table.Tfoot>
                 <Table.Tr>
-                  <Table.Td colSpan={4} ta="right" fw={700}>Total consolidado</Table.Td>
+                  <Table.Td colSpan={6} ta="right" fw={700}>Total consolidado</Table.Td>
                   <Table.Td ta="right" fw={700} c="red">{formatCurrency(orcamento.custoProducaoConsolidado)}</Table.Td>
                   <Table.Td ta="right" fw={700} c="green">{formatCurrency(orcamento.valorTotalConsolidado)}</Table.Td>
                   <Table.Td />
@@ -995,6 +1177,36 @@ export default function OrcamentoDetalhePage() {
         item={itemEmEdicao}
         onSaved={carregar}
       />
+
+      {/* Modal de opções de emissão de OP (item único e em lote — Task 24) */}
+      <OpModalOpcoes
+        opened={opModalOpen}
+        onClose={() => setOpModalOpen(false)}
+        titulo={opAlvo === 'lote' ? 'Emitir OP em lote' : 'Emitir OP'}
+        descricao={
+          opAlvo === 'lote'
+            ? `Emitir Ordens de Produção para ${selecionados.size} ${selecionados.size === 1 ? 'item selecionado' : 'itens selecionados'}.`
+            : 'Emitir a Ordem de Produção para este item.'
+        }
+        loading={emitindo}
+        onConfirmar={confirmarEmissaoOp}
+      />
+
+      {/* Relatório fiel do item (pré-cálculo Calcgraf) — Task 30 */}
+      <Modal
+        opened={!!itemRelatorio}
+        onClose={() => setItemRelatorio(null)}
+        title={
+          itemRelatorio
+            ? `Relatório do item #${itemRelatorio.sequencia} — Orçamento #${orcamento.numero}`
+            : 'Relatório do item'
+        }
+        size="xl"
+      >
+        {itemRelatorio && (
+          <RelatorioItem orcamentoId={id} itemId={itemRelatorio.id} />
+        )}
+      </Modal>
     </Stack>
   )
 }

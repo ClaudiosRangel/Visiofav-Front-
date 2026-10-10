@@ -16,7 +16,9 @@ import StepPapel from './StepPapel'
 import StepCores from './StepCores'
 import StepAcabamentos from './StepAcabamentos'
 import StepItensDiversos from './StepItensDiversos'
+import StepDadosTecnicos from './StepDadosTecnicos'
 import StepRevisao from './StepRevisao'
+import { montarPayloadDadosTecnicos } from './dadosTecnicosPayload'
 
 // ============================================================================
 // Tipos do Wizard
@@ -109,6 +111,40 @@ export interface WizardFormData {
   itensDiversos?: Array<{ descricao: string; quantidade: number; valor: number; fixo: boolean }>
   itensFornecidos?: Array<{ descricao: string; quantidade: number }>
   camposLivres?: Array<{ rotulo: string; conteudo: string }>
+  // ──────────────────────────────────────────────────────────────────────────
+  // Task 4 (spec orcamento-grafico-op-relatorio-paridade) — Dados Técnicos:
+  // paridade (Req 1), geometria/formatos (Req 2) e acondicionamento (Req 3).
+  // Campos de paridade são apenas persistidos/exibidos; os de geometria afetam
+  // o cálculo no backend. Todos opcionais.
+  // ──────────────────────────────────────────────────────────────────────────
+  // Paridade (Req 1 / 3)
+  siglaAcabado?: string
+  tributacao?: string
+  processoImpressao?: string
+  coberturaTintaTexto?: string
+  fabricante?: string
+  microondulado?: boolean
+  fornecido?: boolean
+  qtdModelos?: number | null
+  arte?: string
+  observacao?: string
+  observacaoAreasOp?: string
+  conteudoVolume?: number | null
+  acondicionamento?: Array<{ descricao: string }>
+  // Geometria / formatos (Req 2)
+  comprimentoMm?: number | null
+  larguraMm?: number | null
+  alturaMm?: number | null
+  abaColaMm?: number | null
+  abaFechamentoMm?: number | null
+  fibra?: boolean
+  montagemLinhas?: number | null
+  montagemColunas?: number | null
+  formatoSupLarguraMm?: number | null
+  formatoSupAlturaMm?: number | null
+  formatoCorteLarguraMm?: number | null
+  formatoCorteAlturaMm?: number | null
+  ajusteCorteMicroMm?: number | null
 }
 
 const INITIAL_FORM: WizardFormData = {
@@ -153,9 +189,39 @@ const INITIAL_FORM: WizardFormData = {
   itensDiversos: [],
   itensFornecidos: [],
   camposLivres: [],
+  // Task 4 — Dados Técnicos (paridade / geometria / acondicionamento)
+  siglaAcabado: '',
+  tributacao: '',
+  processoImpressao: '',
+  coberturaTintaTexto: '',
+  fabricante: '',
+  microondulado: false,
+  fornecido: false,
+  qtdModelos: null,
+  arte: '',
+  observacao: '',
+  observacaoAreasOp: '',
+  conteudoVolume: null,
+  acondicionamento: [],
+  comprimentoMm: null,
+  larguraMm: null,
+  alturaMm: null,
+  abaColaMm: null,
+  abaFechamentoMm: null,
+  fibra: false,
+  montagemLinhas: null,
+  montagemColunas: null,
+  formatoSupLarguraMm: null,
+  formatoSupAlturaMm: null,
+  formatoCorteLarguraMm: null,
+  formatoCorteAlturaMm: null,
+  ajusteCorteMicroMm: null,
 }
 
-const STEP_LABELS = ['Cliente', 'Tipo', 'Medidas', 'Papel', 'Cores', 'Acabamentos', 'Diversos', 'Revisão']
+// Fluxo: 'Dados Técnicos' entra logo após 'Cores' (índice 5), antes dos
+// acabamentos — reúne geometria/montagem/formatos que descrevem a peça depois
+// de definidos papel e cores. 'Revisão' continua sendo o último step (índice 8).
+const STEP_LABELS = ['Cliente', 'Tipo', 'Medidas', 'Papel', 'Cores', 'Dados Técnicos', 'Acabamentos', 'Diversos', 'Revisão']
 
 export default function NovoOrcamentoGraficoPage() {
   const router = useRouter()
@@ -267,6 +333,35 @@ export default function NovoOrcamentoGraficoPage() {
           itensDiversos: data.itensDiversos ?? [],
           itensFornecidos: data.itensFornecidos ?? [],
           camposLivres: data.camposLivres ?? [],
+          // Task 4 — Dados Técnicos (paridade / geometria / acondicionamento)
+          siglaAcabado: data.siglaAcabado ?? '',
+          tributacao: data.tributacao ?? '',
+          processoImpressao: data.processoImpressao ?? '',
+          coberturaTintaTexto: data.coberturaTintaTexto ?? '',
+          fabricante: data.fabricante ?? '',
+          microondulado: data.microondulado ?? false,
+          fornecido: data.fornecido ?? false,
+          qtdModelos: data.qtdModelos != null ? Number(data.qtdModelos) : null,
+          arte: data.arte ?? '',
+          observacao: data.observacao ?? '',
+          observacaoAreasOp: data.observacaoAreasOp ?? '',
+          conteudoVolume: data.conteudoVolume != null ? Number(data.conteudoVolume) : null,
+          acondicionamento: Array.isArray(data.acondicionamento)
+            ? data.acondicionamento.map((a: any) => ({ descricao: a?.descricao ?? '' }))
+            : [],
+          comprimentoMm: data.comprimentoMm != null ? Number(data.comprimentoMm) : null,
+          larguraMm: data.larguraMm != null ? Number(data.larguraMm) : null,
+          alturaMm: data.alturaMm != null ? Number(data.alturaMm) : null,
+          abaColaMm: data.abaColaMm != null ? Number(data.abaColaMm) : null,
+          abaFechamentoMm: data.abaFechamentoMm != null ? Number(data.abaFechamentoMm) : null,
+          fibra: data.fibra ?? false,
+          montagemLinhas: data.montagemLinhas != null ? Number(data.montagemLinhas) : null,
+          montagemColunas: data.montagemColunas != null ? Number(data.montagemColunas) : null,
+          formatoSupLarguraMm: data.formatoSupLarguraMm != null ? Number(data.formatoSupLarguraMm) : null,
+          formatoSupAlturaMm: data.formatoSupAlturaMm != null ? Number(data.formatoSupAlturaMm) : null,
+          formatoCorteLarguraMm: data.formatoCorteLarguraMm != null ? Number(data.formatoCorteLarguraMm) : null,
+          formatoCorteAlturaMm: data.formatoCorteAlturaMm != null ? Number(data.formatoCorteAlturaMm) : null,
+          ajusteCorteMicroMm: data.ajusteCorteMicroMm != null ? Number(data.ajusteCorteMicroMm) : null,
         }
 
         setFormData(formCarregado)
@@ -289,8 +384,8 @@ export default function NovoOrcamentoGraficoPage() {
     setFormData(prev => ({ ...prev, ...partial }))
   }, [])
 
-  // Navegação
-  const nextStep = () => setActive(prev => Math.min(prev + 1, 7))
+  // Navegação — 9 steps (0..8); Revisão é o último (índice 8)
+  const nextStep = () => setActive(prev => Math.min(prev + 1, STEP_LABELS.length - 1))
   const prevStep = () => setActive(prev => Math.max(prev - 1, 0))
 
   // Validação simples por step
@@ -305,9 +400,10 @@ export default function NovoOrcamentoGraficoPage() {
       }
       case 3: return isEditing || (!!formData.suporteId && !!formData.papelId && formData.gramatura > 0 && formData.precoKg > 0)
       case 4: return formData.cores.length > 0
-      case 5: return true
-      case 6: return true // Diversos é opcional
-      case 7: return formData.quantidade > 0
+      case 5: return true // Dados Técnicos é opcional
+      case 6: return true // Acabamentos
+      case 7: return true // Diversos é opcional
+      case 8: return formData.quantidade > 0
       default: return true
     }
   }
@@ -358,6 +454,10 @@ export default function NovoOrcamentoGraficoPage() {
         itensDiversos: formData.itensDiversos?.length ? formData.itensDiversos : undefined,
         itensFornecidos: formData.itensFornecidos?.length ? formData.itensFornecidos : undefined,
         camposLivres: formData.camposLivres?.length ? formData.camposLivres : undefined,
+        // Task 4 — Dados Técnicos (paridade / geometria / acondicionamento).
+        // Envia apenas os campos preenchidos (strings não-vazias, números
+        // informados); acondicionamento só quando houver ao menos 1 item.
+        ...montarPayloadDadosTecnicos(formData),
       }
 
       const { data } = isEditing
@@ -403,9 +503,10 @@ export default function NovoOrcamentoGraficoPage() {
           {active === 2 && <StepMedidas formData={formData} updateForm={updateForm} />}
           {active === 3 && <StepPapel formData={formData} updateForm={updateForm} />}
           {active === 4 && <StepCores formData={formData} updateForm={updateForm} />}
-          {active === 5 && <StepAcabamentos formData={formData} updateForm={updateForm} />}
-          {active === 6 && <StepItensDiversos formData={formData} updateForm={updateForm} />}
-          {active === 7 && <StepRevisao formData={formData} updateForm={updateForm} />}
+          {active === 5 && <StepDadosTecnicos formData={formData} updateForm={updateForm} />}
+          {active === 6 && <StepAcabamentos formData={formData} updateForm={updateForm} />}
+          {active === 7 && <StepItensDiversos formData={formData} updateForm={updateForm} />}
+          {active === 8 && <StepRevisao formData={formData} updateForm={updateForm} />}
         </Paper>
 
         {/* Navigation */}
@@ -420,7 +521,7 @@ export default function NovoOrcamentoGraficoPage() {
           </Button>
 
           <Group>
-            {active === 7 ? (
+            {active === STEP_LABELS.length - 1 ? (
               <>
                 <Button
                   variant="outline"

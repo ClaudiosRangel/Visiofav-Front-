@@ -30,7 +30,9 @@ import StepPapel from '../novo/StepPapel'
 import StepCores from '../novo/StepCores'
 import StepAcabamentos from '../novo/StepAcabamentos'
 import StepItensDiversos from '../novo/StepItensDiversos'
+import StepDadosTecnicos from '../novo/StepDadosTecnicos'
 import StepRevisao from '../novo/StepRevisao'
+import { montarPayloadDadosTecnicos } from '../novo/dadosTecnicosPayload'
 
 // ============================================================================
 // Estado inicial do item (espelha o INITIAL_FORM do wizard, sem campos de
@@ -79,9 +81,37 @@ const INITIAL_ITEM: WizardFormData = {
   itensDiversos: [],
   itensFornecidos: [],
   camposLivres: [],
+  // Task 4 — Dados Técnicos (paridade / geometria / acondicionamento)
+  siglaAcabado: '',
+  tributacao: '',
+  processoImpressao: '',
+  coberturaTintaTexto: '',
+  fabricante: '',
+  microondulado: false,
+  fornecido: false,
+  qtdModelos: null,
+  arte: '',
+  observacao: '',
+  observacaoAreasOp: '',
+  conteudoVolume: null,
+  acondicionamento: [],
+  comprimentoMm: null,
+  larguraMm: null,
+  alturaMm: null,
+  abaColaMm: null,
+  abaFechamentoMm: null,
+  fibra: false,
+  montagemLinhas: null,
+  montagemColunas: null,
+  formatoSupLarguraMm: null,
+  formatoSupAlturaMm: null,
+  formatoCorteLarguraMm: null,
+  formatoCorteAlturaMm: null,
+  ajusteCorteMicroMm: null,
 }
 
-const STEP_LABELS = ['Tipo', 'Medidas', 'Papel', 'Cores', 'Acabamentos', 'Diversos', 'Revisão']
+// 'Dados Técnicos' logo após 'Cores'; 'Revisão' permanece o último step.
+const STEP_LABELS = ['Tipo', 'Medidas', 'Papel', 'Cores', 'Dados Técnicos', 'Acabamentos', 'Diversos', 'Revisão']
 
 export interface ItemParaEditar {
   id: string
@@ -106,6 +136,33 @@ export interface ItemParaEditar {
   itensDiversos?: Array<{ descricao: string; quantidade: number; valor: number; fixo: boolean }> | null
   itensFornecidos?: Array<{ descricao: string; quantidade: number }> | null
   camposLivres?: Array<{ rotulo: string; conteudo: string }> | null
+  // Task 4 — Dados Técnicos (paridade / geometria / acondicionamento)
+  siglaAcabado?: string | null
+  tributacao?: string | null
+  processoImpressao?: string | null
+  coberturaTintaTexto?: string | null
+  fabricante?: string | null
+  microondulado?: boolean | null
+  fornecido?: boolean | null
+  qtdModelos?: number | string | null
+  arte?: string | null
+  observacao?: string | null
+  observacaoAreasOp?: string | null
+  conteudoVolume?: number | string | null
+  acondicionamento?: Array<{ descricao: string }> | null
+  comprimentoMm?: number | string | null
+  larguraMm?: number | string | null
+  alturaMm?: number | string | null
+  abaColaMm?: number | string | null
+  abaFechamentoMm?: number | string | null
+  fibra?: boolean | null
+  montagemLinhas?: number | string | null
+  montagemColunas?: number | string | null
+  formatoSupLarguraMm?: number | string | null
+  formatoSupAlturaMm?: number | string | null
+  formatoCorteLarguraMm?: number | string | null
+  formatoCorteAlturaMm?: number | string | null
+  ajusteCorteMicroMm?: number | string | null
   quantidade: number
   resultadoCalculo?: { papel?: { precoKg?: number } } | null
 }
@@ -161,6 +218,35 @@ function itemParaForm(item: ItemParaEditar): WizardFormData {
     itensDiversos: (item.itensDiversos as any) ?? [],
     itensFornecidos: (item.itensFornecidos as any) ?? [],
     camposLivres: (item.camposLivres as any) ?? [],
+    // Task 4 — Dados Técnicos (paridade / geometria / acondicionamento)
+    siglaAcabado: item.siglaAcabado ?? '',
+    tributacao: item.tributacao ?? '',
+    processoImpressao: item.processoImpressao ?? '',
+    coberturaTintaTexto: item.coberturaTintaTexto ?? '',
+    fabricante: item.fabricante ?? '',
+    microondulado: item.microondulado ?? false,
+    fornecido: item.fornecido ?? false,
+    qtdModelos: item.qtdModelos != null ? Number(item.qtdModelos) : null,
+    arte: item.arte ?? '',
+    observacao: item.observacao ?? '',
+    observacaoAreasOp: item.observacaoAreasOp ?? '',
+    conteudoVolume: item.conteudoVolume != null ? Number(item.conteudoVolume) : null,
+    acondicionamento: Array.isArray(item.acondicionamento)
+      ? item.acondicionamento.map((a: any) => ({ descricao: a?.descricao ?? '' }))
+      : [],
+    comprimentoMm: item.comprimentoMm != null ? Number(item.comprimentoMm) : null,
+    larguraMm: item.larguraMm != null ? Number(item.larguraMm) : null,
+    alturaMm: item.alturaMm != null ? Number(item.alturaMm) : null,
+    abaColaMm: item.abaColaMm != null ? Number(item.abaColaMm) : null,
+    abaFechamentoMm: item.abaFechamentoMm != null ? Number(item.abaFechamentoMm) : null,
+    fibra: item.fibra ?? false,
+    montagemLinhas: item.montagemLinhas != null ? Number(item.montagemLinhas) : null,
+    montagemColunas: item.montagemColunas != null ? Number(item.montagemColunas) : null,
+    formatoSupLarguraMm: item.formatoSupLarguraMm != null ? Number(item.formatoSupLarguraMm) : null,
+    formatoSupAlturaMm: item.formatoSupAlturaMm != null ? Number(item.formatoSupAlturaMm) : null,
+    formatoCorteLarguraMm: item.formatoCorteLarguraMm != null ? Number(item.formatoCorteLarguraMm) : null,
+    formatoCorteAlturaMm: item.formatoCorteAlturaMm != null ? Number(item.formatoCorteAlturaMm) : null,
+    ajusteCorteMicroMm: item.ajusteCorteMicroMm != null ? Number(item.ajusteCorteMicroMm) : null,
   }
 }
 
@@ -195,9 +281,10 @@ export default function ItemWizardModal({ opened, onClose, orcamentoId, item, on
       // Em edição, o papel pode já estar resolvido no backend; não bloquear.
       case 2: return isEditing || (!!formData.suporteId && !!formData.papelId && formData.gramatura > 0 && formData.precoKg > 0)
       case 3: return formData.cores.length > 0
-      case 4: return true
-      case 5: return true // Diversos é opcional
-      case 6: return formData.quantidade > 0
+      case 4: return true // Dados Técnicos é opcional
+      case 5: return true // Acabamentos
+      case 6: return true // Diversos é opcional
+      case 7: return formData.quantidade > 0
       default: return true
     }
   }
@@ -241,6 +328,8 @@ export default function ItemWizardModal({ opened, onClose, orcamentoId, item, on
         itensDiversos: formData.itensDiversos?.length ? formData.itensDiversos : undefined,
         itensFornecidos: formData.itensFornecidos?.length ? formData.itensFornecidos : undefined,
         camposLivres: formData.camposLivres?.length ? formData.camposLivres : undefined,
+        // Task 4 — Dados Técnicos (paridade / geometria / acondicionamento)
+        ...montarPayloadDadosTecnicos(formData),
       }
 
       if (isEditing) {
@@ -287,9 +376,10 @@ export default function ItemWizardModal({ opened, onClose, orcamentoId, item, on
           {active === 1 && <StepMedidas formData={formData} updateForm={updateForm} />}
           {active === 2 && <StepPapel formData={formData} updateForm={updateForm} />}
           {active === 3 && <StepCores formData={formData} updateForm={updateForm} />}
-          {active === 4 && <StepAcabamentos formData={formData} updateForm={updateForm} />}
-          {active === 5 && <StepItensDiversos formData={formData} updateForm={updateForm} />}
-          {active === 6 && <StepRevisao formData={formData} updateForm={updateForm} />}
+          {active === 4 && <StepDadosTecnicos formData={formData} updateForm={updateForm} />}
+          {active === 5 && <StepAcabamentos formData={formData} updateForm={updateForm} />}
+          {active === 6 && <StepItensDiversos formData={formData} updateForm={updateForm} />}
+          {active === 7 && <StepRevisao formData={formData} updateForm={updateForm} />}
         </Paper>
 
         <Group justify="space-between" pb="md">
