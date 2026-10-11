@@ -77,6 +77,30 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
 
   const selecionados = formData.acabamentosRicos
   const selById = new Map(selecionados.map((s) => [s.acabamentoId, s]))
+  // Fallback por NOME: acabamentos salvos sem `acabamentoId` (ex.: seed/importação
+  // que gravou por nome) não casavam com o cadastro e apareciam DESMARCADOS ao
+  // editar. Mapeamos também por nome normalizado para marcar o checkbox correto.
+  const norm = (s: string) => s.trim().toLowerCase()
+  const selByNome = new Map(
+    selecionados.filter((s) => !s.acabamentoId && s.nome).map((s) => [norm(s.nome!), s]),
+  )
+
+  // Hidrata o `acabamentoId` nos selecionados que vieram só por nome, assim que
+  // o cadastro carrega — para o toggle/patch funcionarem e o payload sair correto.
+  useEffect(() => {
+    if (cadastro.length === 0 || selByNome.size === 0) return
+    let mudou = false
+    const hidratados = selecionados.map((s) => {
+      if (s.acabamentoId || !s.nome) return s
+      const ac = cadastro.find((c) => norm(c.nome) === norm(s.nome!))
+      if (ac) {
+        mudou = true
+        return { ...s, acabamentoId: ac.id }
+      }
+      return s
+    })
+    if (mudou) updateForm({ acabamentosRicos: hidratados })
+  }, [cadastro]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Carrega as restrições (sub-opções) de um acabamento sob demanda. Só busca
   // uma vez por acabamento e só para HORA_MAQUINA (os demais não têm restrição).
@@ -103,8 +127,14 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
   }, [cadastro]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggle = (ac: AcabamentoCadastro) => {
-    if (selById.has(ac.id)) {
-      updateForm({ acabamentosRicos: selecionados.filter((s) => s.acabamentoId !== ac.id) })
+    const jaSelecionado = selById.has(ac.id) || selByNome.has(norm(ac.nome))
+    if (jaSelecionado) {
+      // Remove casando por id OU por nome (cobre itens salvos sem acabamentoId).
+      updateForm({
+        acabamentosRicos: selecionados.filter(
+          (s) => s.acabamentoId !== ac.id && norm(s.nome ?? '') !== norm(ac.nome),
+        ),
+      })
     } else {
       carregarRestricoes(ac)
       // O cadastro vem com Decimals serializados como STRING (ex.: custoHora "320").
@@ -167,7 +197,7 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
 
       <Stack gap="sm">
         {filtrados.map((ac) => {
-          const sel = selById.get(ac.id)
+          const sel = selById.get(ac.id) ?? selByNome.get(norm(ac.nome))
           const ativo = !!sel
           const nb = naturezaBadge[ac.naturezaCusto]
           return (
