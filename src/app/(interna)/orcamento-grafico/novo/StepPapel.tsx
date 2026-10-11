@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Stack, Text, Select, NumberInput, Group, Badge, Loader, Paper, SimpleGrid, Alert,
   Button, Modal, TextInput, Table, ScrollArea, Center, ActionIcon, Tooltip,
@@ -100,6 +100,41 @@ export default function StepPapel({ formData, updateForm }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.suporteId])
 
+  // ------------------------------------------------------------------
+  // Hidratação em EDIÇÃO: ao editar um item existente, o form chega com
+  // `suporteId` preenchido porém `suporteNome` VAZIO (o item persiste só o id
+  // do suporte, não o nome). Sem o nome, a option não é injetada e o Select
+  // aparece vazio — embora o cálculo funcione. Aqui resolvemos o nome por id
+  // no backend UMA única vez por suporteId (guardado por ref), populando a
+  // lista + o `suporteNome` no form. Quem já vem com `suporteNome` preenchido
+  // não é afetado. Só EXIBIÇÃO — não toca cálculo/persistência.
+  // ------------------------------------------------------------------
+  const suporteHidratadoRef = useRef<string | null>(null)
+  useEffect(() => {
+    const id = formData.suporteId
+    if (!id) return
+    // Já tem nome resolvido (seja do form, seja já na lista) → nada a fazer.
+    if (formData.suporteNome) return
+    if (suportes.some(s => s.id === id)) return
+    // Evita refazer a busca para o mesmo id.
+    if (suporteHidratadoRef.current === id) return
+    suporteHidratadoRef.current = id
+
+    api.get('/orcamento-grafico/suportes', { params: { limit: 100 } })
+      .then(({ data }) => {
+        const items = (Array.isArray(data) ? data : data.data || [])
+        const encontrado = items.find((s: any) => s.id === id)
+        if (encontrado) {
+          setSuportes(prev => prev.some(s => s.id === id)
+            ? prev
+            : [{ id: encontrado.id, descricao: encontrado.descricao }, ...prev])
+          updateForm({ suporteNome: encontrado.descricao })
+        }
+      })
+      .catch(() => { /* exibição apenas — silenciar falha */ })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.suporteId, formData.suporteNome])
+
   // Busca de preços do papel SEMPRE filtrada pelo suporte selecionado (nível 2).
   useEffect(() => {
     if (!formData.suporteId) {
@@ -147,6 +182,49 @@ export default function StepPapel({ formData, updateForm }: Props) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.papelId])
+
+  // ------------------------------------------------------------------
+  // Hidratação em EDIÇÃO (papel): rede de segurança caso o item venha com
+  // `papelId` mas sem `papelDescricao` (o caminho normal persiste a descrição,
+  // mas um item antigo/importado pode não tê-la). Resolve a descrição por id
+  // via precos-mp (filtrando pelo suporte quando houver) UMA vez por papelId.
+  // Só EXIBIÇÃO — não toca cálculo/persistência.
+  // ------------------------------------------------------------------
+  const papelHidratadoRef = useRef<string | null>(null)
+  useEffect(() => {
+    const id = formData.papelId
+    if (!id) return
+    if (formData.papelDescricao) return
+    if (materiais.some(m => m.id === id)) return
+    if (papelHidratadoRef.current === id) return
+    papelHidratadoRef.current = id
+
+    api.get('/orcamento-grafico/precos-mp', {
+      params: {
+        tipo: 'PAPEL',
+        ...(formData.suporteId ? { suporteId: formData.suporteId } : {}),
+        limit: 100,
+      },
+    })
+      .then(({ data }) => {
+        const items = (Array.isArray(data) ? data : data.data || [])
+        const encontrado = items.find((m: any) => m.id === id)
+        if (encontrado) {
+          setMateriais(prev => prev.some(m => m.id === id)
+            ? prev
+            : [{
+                id: encontrado.id,
+                descricao: encontrado.descricao,
+                precoUnitario: Number(encontrado.precoUnitario) || (formData.precoKg || 0),
+                unidade: encontrado.unidade || 'KG',
+                gramatura: encontrado.gramatura != null ? Number(encontrado.gramatura) : undefined,
+              }, ...prev])
+          updateForm({ papelDescricao: encontrado.descricao })
+        }
+      })
+      .catch(() => { /* exibição apenas — silenciar falha */ })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.papelId, formData.papelDescricao, formData.suporteId])
 
   const handleSelectSuporte = (suporteId: string | null) => {
     const found = suportes.find(s => s.id === suporteId)

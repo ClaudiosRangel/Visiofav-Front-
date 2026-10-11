@@ -183,15 +183,19 @@ function formatDateTime(dateStr: string | null | undefined): string {
 // ============================================================================
 
 function BreakdownBar({ breakdown }: { breakdown: { papel: number; tinta: number; maquina: number; acabamento: number; overhead: number } }) {
-  const total = breakdown.papel + breakdown.tinta + breakdown.maquina + breakdown.acabamento + breakdown.overhead
-  if (total === 0) return null
+  const b = breakdown || ({} as Partial<typeof breakdown>)
+  const n = (v: unknown) => (typeof v === 'number' && !isNaN(v) ? v : 0)
+  const papel = n(b.papel), tinta = n(b.tinta), maquina = n(b.maquina),
+        acabamento = n(b.acabamento), overhead = n(b.overhead)
+  const total = papel + tinta + maquina + acabamento + overhead
+  if (total <= 0) return null
 
   const items = [
-    { label: 'Papel', value: breakdown.papel, color: 'blue' },
-    { label: 'Tinta', value: breakdown.tinta, color: 'grape' },
-    { label: 'Máquina', value: breakdown.maquina, color: 'orange' },
-    { label: 'Acabamento', value: breakdown.acabamento, color: 'teal' },
-    { label: 'Overhead', value: breakdown.overhead, color: 'gray' },
+    { label: 'Papel', value: papel, color: 'blue' },
+    { label: 'Tinta', value: tinta, color: 'grape' },
+    { label: 'Máquina', value: maquina, color: 'orange' },
+    { label: 'Acabamento', value: acabamento, color: 'teal' },
+    { label: 'Overhead', value: overhead, color: 'gray' },
   ]
 
   const sections = items
@@ -326,7 +330,7 @@ export default function OrcamentoDetalhePage() {
   }, [id])
 
   useEffect(() => {
-    const ids = (orcamento?.itens ?? []).map((i) => i.id)
+    const ids = (Array.isArray(orcamento?.itens) ? orcamento!.itens : []).map((i) => i.id)
     carregarStatusOps(ids)
   }, [orcamento?.itens, carregarStatusOps])
 
@@ -514,7 +518,7 @@ export default function OrcamentoDetalhePage() {
   }
 
   const resultado = orcamento.resultadoCalculo
-  const itens = orcamento.itens ?? []
+  const itens = Array.isArray(orcamento.itens) ? orcamento.itens : []
   const temItens = itens.length > 0
   const podeEditarItens = orcamento.status === 'RASCUNHO'
 
@@ -790,7 +794,7 @@ export default function OrcamentoDetalhePage() {
                             <PlanosDoItem
                               orcamentoId={id}
                               itemId={item.id}
-                              planosIniciais={item.planos ?? null}
+                              planosIniciais={Array.isArray(item.planos) ? item.planos : null}
                               suporteProducaoItemInicial={item.suporteProducaoId ?? null}
                               rotuloTrocaItemInicial={item.rotuloTrocaSuporte ?? null}
                               podeEditar={podeEditarItens}
@@ -859,25 +863,29 @@ export default function OrcamentoDetalhePage() {
           </SimpleGrid>
 
           {/* Medidas */}
-          {orcamento.medidas && Object.keys(orcamento.medidas).length > 0 && (
+          {orcamento.medidas && typeof orcamento.medidas === 'object' &&
+           Object.keys(orcamento.medidas).length > 0 && (
             <Paper p="md" withBorder>
               <Text fw={600} size="sm" mb="xs">Medidas</Text>
               <Group gap="lg">
                 {Object.entries(orcamento.medidas).map(([key, val]) => (
-                  <Text key={key} size="sm"><strong>{key}:</strong> {val} mm</Text>
+                  <Text key={key} size="sm">
+                    <strong>{key}:</strong>{' '}
+                    {val != null && typeof val !== 'object' ? String(val) : '—'} mm
+                  </Text>
                 ))}
               </Group>
             </Paper>
           )}
 
           {/* Cores */}
-          {orcamento.cores && orcamento.cores.length > 0 && (
+          {Array.isArray(orcamento.cores) && orcamento.cores.length > 0 && (
             <Paper p="md" withBorder>
               <Text fw={600} size="sm" mb="xs">Cores</Text>
               <Group gap="xs">
                 {orcamento.cores.map((cor, i) => (
-                  <Badge key={i} variant="light" color={cor.tipo === 'CMYK' ? 'blue' : 'grape'}>
-                    {cor.nome} ({cor.coberturaPercent}%)
+                  <Badge key={i} variant="light" color={cor?.tipo === 'CMYK' ? 'blue' : 'grape'}>
+                    {cor?.nome ?? '—'} ({cor?.coberturaPercent ?? 0}%)
                   </Badge>
                 ))}
               </Group>
@@ -885,12 +893,12 @@ export default function OrcamentoDetalhePage() {
           )}
 
           {/* Acabamentos */}
-          {orcamento.acabamentos && orcamento.acabamentos.length > 0 && (
+          {Array.isArray(orcamento.acabamentos) && orcamento.acabamentos.length > 0 && (
             <Paper p="md" withBorder>
               <Text fw={600} size="sm" mb="xs">Acabamentos</Text>
               <Group gap="xs">
                 {orcamento.acabamentos.map((acab, i) => (
-                  <Badge key={i} variant="light" color="teal">{acab.tipo}</Badge>
+                  <Badge key={i} variant="light" color="teal">{acab?.tipo ?? '—'}</Badge>
                 ))}
               </Group>
             </Paper>
@@ -981,22 +989,22 @@ export default function OrcamentoDetalhePage() {
                 <Paper p="md" withBorder>
                   <Text fw={500} size="sm" mb="xs">Tinta</Text>
                   <Text size="sm" c="dimmed">Custo: {formatCurrency(resultado.tinta?.custoTotal)}</Text>
-                  {resultado.tinta?.detalhePorCor?.map((c, i) => (
-                    <Text key={i} size="xs" c="dimmed">{c.cor}: {c.consumoKg?.toFixed(3)} kg = {formatCurrency(c.custo)}</Text>
+                  {(Array.isArray(resultado.tinta?.detalhePorCor) ? resultado.tinta!.detalhePorCor : []).map((c, i) => (
+                    <Text key={i} size="xs" c="dimmed">{c?.cor ?? '—'}: {c?.consumoKg?.toFixed(3) ?? '—'} kg = {formatCurrency(c?.custo)}</Text>
                   ))}
                 </Paper>
                 <Paper p="md" withBorder>
                   <Text fw={500} size="sm" mb="xs">Máquinas</Text>
                   <Text size="sm" c="dimmed">Custo: {formatCurrency(resultado.maquinas?.custoTotal)}</Text>
-                  {resultado.maquinas?.detalhePorEtapa?.map((e, i) => (
-                    <Text key={i} size="xs" c="dimmed">{e.etapa}: {e.tempoMin?.toFixed(0)} min = {formatCurrency(e.custo)}</Text>
+                  {(Array.isArray(resultado.maquinas?.detalhePorEtapa) ? resultado.maquinas!.detalhePorEtapa : []).map((e, i) => (
+                    <Text key={i} size="xs" c="dimmed">{e?.etapa ?? '—'}: {e?.tempoMin?.toFixed(0) ?? '—'} min = {formatCurrency(e?.custo)}</Text>
                   ))}
                 </Paper>
                 <Paper p="md" withBorder>
                   <Text fw={500} size="sm" mb="xs">Acabamentos</Text>
                   <Text size="sm" c="dimmed">Custo: {formatCurrency(resultado.acabamentos?.custoTotal)}</Text>
-                  {resultado.acabamentos?.detalhePorAcabamento?.map((a, i) => (
-                    <Text key={i} size="xs" c="dimmed">{a.tipo}: {formatCurrency(a.custo)}</Text>
+                  {(Array.isArray(resultado.acabamentos?.detalhePorAcabamento) ? resultado.acabamentos!.detalhePorAcabamento : []).map((a, i) => (
+                    <Text key={i} size="xs" c="dimmed">{a?.tipo ?? '—'}: {formatCurrency(a?.custo)}</Text>
                   ))}
                 </Paper>
               </SimpleGrid>
@@ -1029,7 +1037,7 @@ export default function OrcamentoDetalhePage() {
           )}
 
           {/* Variações de tiragem */}
-          {orcamento.variacoes && orcamento.variacoes.length > 0 && (
+          {Array.isArray(orcamento.variacoes) && orcamento.variacoes.length > 0 && (
             <>
               <Divider label="Variações de Tiragem" labelPosition="left" />
               <Table striped highlightOnHover withTableBorder withColumnBorders>
