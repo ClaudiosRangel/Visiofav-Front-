@@ -5,13 +5,13 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   Title, Stack, Group, Button, Text, Loader, Center, Paper, SimpleGrid,
   Badge, Divider, Progress, Table, Modal, Textarea, Alert, ScrollArea,
-  ActionIcon, Tooltip, Collapse, Checkbox,
+  ActionIcon, Tooltip, Collapse, Checkbox, TextInput, NumberInput,
 } from '@mantine/core'
 import {
   IconArrowLeft, IconEdit, IconCopy, IconSend, IconCheck, IconX,
   IconChartPie, IconAlertCircle, IconFileText, IconPlus, IconTrash,
   IconChevronDown, IconChevronRight, IconStack2, IconFileInvoice,
-  IconReportAnalytics,
+  IconReportAnalytics, IconRepeat,
 } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
@@ -245,6 +245,13 @@ export default function OrcamentoDetalhePage() {
   const [recusaModalOpen, setRecusaModalOpen] = useState(false)
   const [motivoRecusa, setMotivoRecusa] = useState('')
 
+  // Modal de reaproveitar cálculo (repetição — paridade Calcgraf)
+  const [reaproveitarOpen, setReaproveitarOpen] = useState(false)
+  const [reapClienteNome, setReapClienteNome] = useState('')
+  const [reapQuantidade, setReapQuantidade] = useState<number | ''>('')
+  const [reapObs, setReapObs] = useState('')
+  const [reaproveitando, setReaproveitando] = useState(false)
+
   // Editor de item (modal reusando os steps)
   const [itemModalOpen, setItemModalOpen] = useState(false)
   const [itemEmEdicao, setItemEmEdicao] = useState<ItemParaEditar | null>(null)
@@ -348,6 +355,58 @@ export default function OrcamentoDetalhePage() {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao copiar', color: 'red' })
     } finally {
       setActionLoading(false)
+    }
+  }
+
+  // Abre o modal de reaproveitamento pré-preenchido com os dados atuais.
+  const abrirReaproveitar = () => {
+    setReapClienteNome(orcamento?.clienteNome ?? '')
+    setReapQuantidade(orcamento?.quantidade ?? '')
+    setReapObs('')
+    setReaproveitarOpen(true)
+  }
+
+  // Reaproveita o cálculo deste orçamento num NOVO orçamento (repetição):
+  // clona cabeçalho + itens (+ planos) e recalcula para a nova tiragem/cliente.
+  const handleReaproveitar = async () => {
+    setReaproveitando(true)
+    try {
+      const payload: Record<string, unknown> = {}
+      if (reapClienteNome.trim() && reapClienteNome.trim() !== (orcamento?.clienteNome ?? '')) {
+        payload.clienteNome = reapClienteNome.trim()
+        // Novo cliente por nome livre → desvincula o clienteId antigo.
+        payload.clienteId = null
+      }
+      if (typeof reapQuantidade === 'number' && reapQuantidade > 0) {
+        payload.quantidade = reapQuantidade
+      }
+      if (reapObs.trim()) payload.observacoes = reapObs.trim()
+
+      const { data } = await api.post(`/orcamento-grafico/${id}/reaproveitar`, payload)
+      const avisos: string[] = Array.isArray(data?.avisos) ? data.avisos : []
+      notifications.show({
+        title: 'Cálculo reaproveitado',
+        message: `Novo orçamento #${data.numero} criado${avisos.length ? ' (com avisos)' : ''}.`,
+        color: 'green',
+      })
+      if (avisos.length) {
+        notifications.show({
+          title: 'Avisos do reaproveitamento',
+          message: avisos.join('\n'),
+          color: 'yellow',
+          autoClose: 9000,
+        })
+      }
+      setReaproveitarOpen(false)
+      router.push(`/orcamento-grafico/${data.id}`)
+    } catch (err: any) {
+      notifications.show({
+        title: 'Erro',
+        message: err?.response?.data?.message || 'Falha ao reaproveitar o cálculo.',
+        color: 'red',
+      })
+    } finally {
+      setReaproveitando(false)
     }
   }
 
@@ -567,6 +626,15 @@ export default function OrcamentoDetalhePage() {
             loading={actionLoading}
           >
             Copiar
+          </Button>
+          <Button
+            variant="light"
+            color="grape"
+            leftSection={<IconRepeat size={16} />}
+            onClick={abrirReaproveitar}
+            disabled={actionLoading}
+          >
+            Reaproveitar cálculo
           </Button>
           <Button
             variant="outline"
@@ -1149,6 +1217,53 @@ export default function OrcamentoDetalhePage() {
             </Button>
             <Button color="red" onClick={handleRecusar} loading={actionLoading}>
               Confirmar Recusa
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Modal de Reaproveitar cálculo (repetição — paridade Calcgraf) */}
+      <Modal
+        opened={reaproveitarOpen}
+        onClose={() => setReaproveitarOpen(false)}
+        title="Reaproveitar cálculo"
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Cria um orçamento NOVO (número novo) a partir deste, copiando todos os
+            itens e planos e recalculando. O orçamento atual fica intacto. Ajuste
+            o que muda na repetição:
+          </Text>
+          <TextInput
+            label="Cliente"
+            description="Deixe como está para manter o mesmo cliente"
+            value={reapClienteNome}
+            onChange={(e) => setReapClienteNome(e.currentTarget.value)}
+          />
+          <NumberInput
+            label="Nova tiragem (quantidade)"
+            description="Aplicada a todos os itens. Vazio = mantém a tiragem atual de cada item"
+            value={reapQuantidade}
+            onChange={(v) => setReapQuantidade(typeof v === 'number' ? v : '')}
+            min={1}
+            thousandSeparator="."
+            decimalSeparator=","
+            allowDecimal={false}
+          />
+          <Textarea
+            label="Observações (opcional)"
+            placeholder="Ex.: repetição do pedido anterior, nova tiragem..."
+            value={reapObs}
+            onChange={(e) => setReapObs(e.currentTarget.value)}
+            minRows={2}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setReaproveitarOpen(false)} disabled={reaproveitando}>
+              Cancelar
+            </Button>
+            <Button color="grape" leftSection={<IconRepeat size={16} />} onClick={handleReaproveitar} loading={reaproveitando}>
+              Reaproveitar
             </Button>
           </Group>
         </Stack>
