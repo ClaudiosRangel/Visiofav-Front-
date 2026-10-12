@@ -1063,7 +1063,7 @@ export default function ProgramacaoPage() {
     try {
       await api.patch(`/pcp/requisicoes-corte/${rcId}/iniciar`, {})
       notifications.show({ title: 'Corte iniciado', message: `Requisição ${numero} em corte.`, color: 'blue' })
-      atualizarRcLocal(rcId, { status: 'EM_CORTE' })
+      atualizarRcLocal(rcId, { status: 'EM_PRODUCAO', estagio: 'CORTE', dataInicioCorte: new Date().toISOString() })
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao iniciar o corte', color: 'red' })
     }
@@ -1757,7 +1757,11 @@ export default function ProgramacaoPage() {
   // - EM_GUILHOTINA (na Guilhotina destino): iniciar refile / concluir refile
   //   / reimprimir. (Não exclui da guilhotina — volta pela cortadeira.)
   function acoesRc(etapa: any) {
-    if (etapa.status === 'EM_GUILHOTINA') {
+    // Estágio (CORTE|GUILHOTINA) agora vem do backend derivado das datas — o
+    // status é EM_PRODUCAO em ambos. Fallback para o status antigo (compat.).
+    const estagio = etapa.estagio ?? (etapa.status === 'EM_GUILHOTINA' ? 'GUILHOTINA' : 'CORTE')
+    const corteIniciado = !!etapa.dataInicioCorte || etapa.status === 'EM_CORTE'
+    if (estagio === 'GUILHOTINA') {
       return (
         <Group gap={4} wrap="nowrap">
           {!etapa.dataInicioGuilhotina && (
@@ -1775,10 +1779,10 @@ export default function ProgramacaoPage() {
         </Group>
       )
     }
-    // ABERTA / EM_CORTE (na Cortadeira)
+    // CORTE (na Cortadeira)
     return (
       <Group gap={4} wrap="nowrap">
-        {etapa.status !== 'EM_CORTE' && (
+        {!corteIniciado && (
           <ActionIcon size="sm" variant="light" color="blue" onClick={() => iniciarRc(etapa.id, etapa.numero)} title="Iniciar corte">
             <IconPlayerPlay size={14} />
           </ActionIcon>
@@ -2625,11 +2629,8 @@ export default function ProgramacaoPage() {
               <ActionIcon color="teal" variant="light" size="sm" onClick={() => { setModalAdicionarOS({ centroId: centro.centro.id, centroDescricao: centro.centro.descricao }); carregarProdutosEClientes() }} title="Adicionar OS">
                 <IconPlus size={14} />
               </ActionIcon>
-              {centro.centro.tipoProcesso?.codigo === 'CORTADEIRA' && (
-                <Button size="xs" variant="light" color="grape" leftSection={<IconPlus size={14} />} onClick={() => { setFormRc(formRcInicial); setFormRcGuilhotinaId(guilhotinaDefaultId()); setModalRc({ centroId: centro.centro.id, centroDescricao: centro.centro.descricao }) }} title="Adicionar Requisição de Corte">
-                  RC
-                </Button>
-              )}
+              {/* RC agora é criada no menu Ordem de Produção → Requisições de Corte.
+                  Aqui na Programação a RC só aparece na fila quando LIBERADA. */}
             </Group>
           </Group>
 
@@ -2691,7 +2692,7 @@ export default function ProgramacaoPage() {
                               </Table.Td>
                             </SortableParentRow>
                           ) : etapa.tipoFila === 'rc' ? (
-                            <SortableRow key={etapa.dndId} etapa={{ id: etapa.dndId }} background={etapa.status === 'EM_CORTE' ? 'var(--mantine-color-blue-light)' : 'var(--mantine-color-grape-light)'}>
+                            <SortableRow key={etapa.dndId} etapa={{ id: etapa.dndId }} background={(etapa.estagio ?? (etapa.status === 'EM_GUILHOTINA' ? 'GUILHOTINA' : 'CORTE')) === 'GUILHOTINA' ? 'var(--mantine-color-orange-light)' : (etapa.dataInicioCorte || etapa.status === 'EM_CORTE' ? 'var(--mantine-color-blue-light)' : 'var(--mantine-color-grape-light)')}>
                               <Table.Td colSpan={3} style={{ padding: '0 4px' }}>
                                 <Badge color="grape" size="xs" leftSection={<IconCut size={10} />}>RC {etapa.numero}</Badge>
                               </Table.Td>
@@ -2704,8 +2705,8 @@ export default function ProgramacaoPage() {
                                     {etapa.gramaturaG != null && <Text size="xs" c="dimmed">{etapa.gramaturaG} g</Text>}
                                     {etapa.qtdFolhasCortadeira != null && <Text size="xs" c="dimmed">{etapa.qtdFolhasCortadeira.toLocaleString('pt-BR')} fls</Text>}
                                     {etapa.pesoKg != null && <Text size="xs" c="dimmed">{etapa.pesoKg.toLocaleString('pt-BR')} kg</Text>}
-                                    {etapa.status === 'EM_CORTE' && <Badge color="blue" size="xs">EM CORTE</Badge>}
-                                    {etapa.status === 'EM_GUILHOTINA' && <Badge color="orange" size="xs">GUILHOTINA</Badge>}
+                                    {(etapa.dataInicioCorte || etapa.status === 'EM_CORTE') && (etapa.estagio ?? 'CORTE') !== 'GUILHOTINA' && <Badge color="blue" size="xs">EM CORTE</Badge>}
+                                    {(etapa.estagio === 'GUILHOTINA' || etapa.status === 'EM_GUILHOTINA') && <Badge color="orange" size="xs">GUILHOTINA</Badge>}
                                   </Group>
                                   {acoesRc(etapa)}
                                 </Group>
@@ -2951,7 +2952,7 @@ export default function ProgramacaoPage() {
                               </Table.Td>
                             </SortableParentRow>
                           ) : etapa.tipoFila === 'rc' ? (
-                            <SortableRow key={etapa.dndId} etapa={{ id: etapa.dndId }} background={etapa.status === 'EM_CORTE' ? 'var(--mantine-color-blue-light)' : 'var(--mantine-color-grape-light)'}>
+                            <SortableRow key={etapa.dndId} etapa={{ id: etapa.dndId }} background={(etapa.estagio ?? (etapa.status === 'EM_GUILHOTINA' ? 'GUILHOTINA' : 'CORTE')) === 'GUILHOTINA' ? 'var(--mantine-color-orange-light)' : (etapa.dataInicioCorte || etapa.status === 'EM_CORTE' ? 'var(--mantine-color-blue-light)' : 'var(--mantine-color-grape-light)')}>
                               <Table.Td colSpan={3} style={{ padding: '0 4px' }}>
                                 <Badge color="grape" size="xs" leftSection={<IconCut size={10} />}>RC {etapa.numero}</Badge>
                               </Table.Td>
@@ -2964,8 +2965,8 @@ export default function ProgramacaoPage() {
                                     {etapa.gramaturaG != null && <Text size="xs" c="dimmed">{etapa.gramaturaG} g</Text>}
                                     {etapa.qtdFolhasCortadeira != null && <Text size="xs" c="dimmed">{etapa.qtdFolhasCortadeira.toLocaleString('pt-BR')} fls</Text>}
                                     {etapa.pesoKg != null && <Text size="xs" c="dimmed">{etapa.pesoKg.toLocaleString('pt-BR')} kg</Text>}
-                                    {etapa.status === 'EM_CORTE' && <Badge color="blue" size="xs">EM CORTE</Badge>}
-                                    {etapa.status === 'EM_GUILHOTINA' && <Badge color="orange" size="xs">GUILHOTINA</Badge>}
+                                    {(etapa.dataInicioCorte || etapa.status === 'EM_CORTE') && (etapa.estagio ?? 'CORTE') !== 'GUILHOTINA' && <Badge color="blue" size="xs">EM CORTE</Badge>}
+                                    {(etapa.estagio === 'GUILHOTINA' || etapa.status === 'EM_GUILHOTINA') && <Badge color="orange" size="xs">GUILHOTINA</Badge>}
                                   </Group>
                                   {acoesRc(etapa)}
                                 </Group>
