@@ -20,7 +20,7 @@ import {
   // Integração
   IconKey, IconWebhook, IconUpload, IconCloudDownload, IconDownload, IconPlugConnected,
   // PCP
-  IconAssembly, IconListDetails, IconCalendarEvent, IconRoute, IconSitemap, IconTool, IconClock, IconPalette, IconLink, IconCategory,
+  IconAssembly, IconListDetails, IconCalendarEvent, IconRoute, IconSitemap, IconTool, IconClock, IconPalette, IconLink, IconCategory, IconGauge,
   // Orçamento Gráfico
   IconPlus, IconScissors,
   // Hierarquia Mercadológica Fase 2
@@ -426,6 +426,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       { icon: IconEye, label: 'Quadro de Produção', href: '/pcp/quadro-producao' },
       { icon: IconEye, label: 'Painel de Produção (TV)', href: '/pcp/painel-producao' },
       { icon: IconClipboardCheck, label: 'Apontamentos', href: '/pcp/apontamentos' },
+      { icon: IconGauge, label: 'Contagem por Contador', href: '/pcp/contagem' },
       { icon: IconPackage, label: 'Liberação de Materiais', href: '/pcp/liberacoes' },
       { icon: IconArrowsExchange, label: 'Conversão de Unidades', href: '/pcp/conversao' },
       { icon: IconDatabase, label: 'Mapa de Custos (RKW)', href: '/pcp/mapa-custo' },

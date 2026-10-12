@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { Title, Stack, Table, Group, Button, Badge, Text, Loader, Center, Modal, TextInput, Select, NumberInput, ActionIcon, Divider, SimpleGrid, Switch } from '@mantine/core'
-import { IconPlus, IconEdit, IconPower } from '@tabler/icons-react'
+import { IconPlus, IconEdit, IconPower, IconGauge } from '@tabler/icons-react'
+import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
 
 export default function CentrosProducaoPage() {
+  const router = useRouter()
   useEffect(() => { document.title = 'PCP - Centros de Produção' }, [])
 
   const [data, setData] = useState<any[]>([])
@@ -15,7 +17,7 @@ export default function CentrosProducaoPage() {
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
   const [editando, setEditando] = useState<any>(null)
-  const [form, setForm] = useState({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null as string | null, turnoProducaoId: null as string | null, capacidadeHora: 0, custoHora: 0, velocidade: 0, unidadeVelocidade: null as string | null, formatoFolhaLargura: 0, formatoFolhaAltura: 0, pincaMm: 0, acertoPorCorMin: 0, tempoSetupMin: 0, disponivelProgramacao: true })
+  const [form, setForm] = useState({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null as string | null, turnoProducaoId: null as string | null, capacidadeHora: 0, custoHora: 0, velocidade: 0, unidadeVelocidade: null as string | null, formatoFolhaLargura: 0, formatoFolhaAltura: 0, pincaMm: 0, acertoPorCorMin: 0, tempoSetupMin: 0, disponivelProgramacao: true, modoContagem: 'QUANTIDADE', contadorZeraDiariamente: false })
 
   async function carregar() {
     setLoading(true)
@@ -34,8 +36,8 @@ export default function CentrosProducaoPage() {
 
   useEffect(() => { carregar() }, [])
 
-  function abrirNovo() { setEditando(null); setForm({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null, turnoProducaoId: null, capacidadeHora: 0, custoHora: 0, velocidade: 0, unidadeVelocidade: null, formatoFolhaLargura: 0, formatoFolhaAltura: 0, pincaMm: 0, acertoPorCorMin: 0, tempoSetupMin: 0, disponivelProgramacao: true }); setModalAberto(true) }
-  function abrirEdicao(item: any) { setEditando(item); setForm({ codigo: item.codigo, descricao: item.descricao, tipo: item.tipo, tipoProcessoId: item.tipoProcessoId || null, turnoProducaoId: item.turnoProducaoId || null, capacidadeHora: Number(item.capacidadeHora) || 0, custoHora: Number(item.custoHora) || 0, velocidade: Number(item.velocidade) || 0, unidadeVelocidade: item.unidadeVelocidade || null, formatoFolhaLargura: Number(item.formatoFolhaLargura) || 0, formatoFolhaAltura: Number(item.formatoFolhaAltura) || 0, pincaMm: Number(item.pincaMm) || 0, acertoPorCorMin: Number(item.acertoPorCorMin) || 0, tempoSetupMin: Number(item.tempoSetupMin) || 0, disponivelProgramacao: item.disponivelProgramacao ?? true }); setModalAberto(true) }
+  function abrirNovo() { setEditando(null); setForm({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null, turnoProducaoId: null, capacidadeHora: 0, custoHora: 0, velocidade: 0, unidadeVelocidade: null, formatoFolhaLargura: 0, formatoFolhaAltura: 0, pincaMm: 0, acertoPorCorMin: 0, tempoSetupMin: 0, disponivelProgramacao: true, modoContagem: 'QUANTIDADE', contadorZeraDiariamente: false }); setModalAberto(true) }
+  function abrirEdicao(item: any) { setEditando(item); setForm({ codigo: item.codigo, descricao: item.descricao, tipo: item.tipo, tipoProcessoId: item.tipoProcessoId || null, turnoProducaoId: item.turnoProducaoId || null, capacidadeHora: Number(item.capacidadeHora) || 0, custoHora: Number(item.custoHora) || 0, velocidade: Number(item.velocidade) || 0, unidadeVelocidade: item.unidadeVelocidade || null, formatoFolhaLargura: Number(item.formatoFolhaLargura) || 0, formatoFolhaAltura: Number(item.formatoFolhaAltura) || 0, pincaMm: Number(item.pincaMm) || 0, acertoPorCorMin: Number(item.acertoPorCorMin) || 0, tempoSetupMin: Number(item.tempoSetupMin) || 0, disponivelProgramacao: item.disponivelProgramacao ?? true, modoContagem: item.modoContagem || 'QUANTIDADE', contadorZeraDiariamente: item.contadorZeraDiariamente ?? false }); setModalAberto(true) }
 
   async function salvar() {
     if (!form.tipoProcessoId) {
@@ -66,7 +68,7 @@ export default function CentrosProducaoPage() {
 
       {loading ? <Center py="xl"><Loader /></Center> : (
         <Table striped highlightOnHover>
-          <Table.Thead><Table.Tr><Table.Th>Código</Table.Th><Table.Th>Descrição</Table.Th><Table.Th>Tipo</Table.Th><Table.Th>Processo</Table.Th><Table.Th>Turno</Table.Th><Table.Th>Cap/Hora</Table.Th><Table.Th>Status</Table.Th><Table.Th></Table.Th></Table.Tr></Table.Thead>
+          <Table.Thead><Table.Tr><Table.Th>Código</Table.Th><Table.Th>Descrição</Table.Th><Table.Th>Tipo</Table.Th><Table.Th>Processo</Table.Th><Table.Th>Contagem</Table.Th><Table.Th>Turno</Table.Th><Table.Th>Cap/Hora</Table.Th><Table.Th>Status</Table.Th><Table.Th></Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>
             {data.map((item) => (
               <Table.Tr key={item.id}>
@@ -74,6 +76,15 @@ export default function CentrosProducaoPage() {
                 <Table.Td>{item.descricao}</Table.Td>
                 <Table.Td><Badge variant="light">{item.tipo}</Badge></Table.Td>
                 <Table.Td><Badge variant="light" color="teal">{item.tipoProcesso?.descricao || '—'}</Badge></Table.Td>
+                <Table.Td>
+                  {item.modoContagem === 'CONTADOR' ? (
+                    <Badge variant="light" color="teal" title={item.contadorZeraDiariamente ? 'Zera diariamente' : undefined}>
+                      Contador{item.contadorZeraDiariamente ? ' (zera/dia)' : ''}
+                    </Badge>
+                  ) : (
+                    <Text size="xs" c="dimmed">Quantidade</Text>
+                  )}
+                </Table.Td>
                 <Table.Td>
                   {item.turnoProducao ? (
                     <Badge variant="light" color="indigo">{item.turnoProducao.descricao} ({item.turnoProducao.horaInicio}-{item.turnoProducao.horaFim})</Badge>
@@ -92,6 +103,16 @@ export default function CentrosProducaoPage() {
                 </Table.Td>
                 <Table.Td>
                   <Group gap={4}>
+                    {item.modoContagem === 'CONTADOR' && (
+                      <ActionIcon
+                        variant="subtle"
+                        color="teal"
+                        title="Histórico de contagem (contador)"
+                        onClick={() => router.push(`/pcp/cadastros/centros/${item.id}/contador`)}
+                      >
+                        <IconGauge size={16} />
+                      </ActionIcon>
+                    )}
                     <ActionIcon variant="subtle" onClick={() => abrirEdicao(item)}><IconEdit size={16} /></ActionIcon>
                     <ActionIcon variant="subtle" color={item.status ? 'red' : 'green'} onClick={() => toggleStatus(item)}><IconPower size={16} /></ActionIcon>
                   </Group>
@@ -137,6 +158,29 @@ export default function CentrosProducaoPage() {
             checked={form.disponivelProgramacao}
             onChange={(e) => setForm({ ...form, disponivelProgramacao: e.currentTarget.checked })}
           />
+
+          <Divider label="Contagem de Produção" labelPosition="left" mt="sm" />
+
+          <Select
+            label="Modo de Contagem"
+            description="Como a Produção é apontada neste centro (Perda/Retrabalho sempre por quantidade)"
+            data={[
+              { value: 'QUANTIDADE', label: 'Quantidade' },
+              { value: 'CONTADOR', label: 'Contador de máquina' },
+            ]}
+            value={form.modoContagem}
+            onChange={(v) => setForm({ ...form, modoContagem: v || 'QUANTIDADE' })}
+            allowDeselect={false}
+          />
+
+          {form.modoContagem === 'CONTADOR' && (
+            <Switch
+              label="Contador zera diariamente"
+              description="O display reseta no início do 1º turno do dia — a 1ª leitura do dia parte de 0"
+              checked={form.contadorZeraDiariamente}
+              onChange={(e) => setForm({ ...form, contadorZeraDiariamente: e.currentTarget.checked })}
+            />
+          )}
 
           <Divider label="Parâmetros de Orçamento" labelPosition="left" mt="sm" />
 
