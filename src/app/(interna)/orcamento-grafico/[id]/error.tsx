@@ -30,6 +30,12 @@ export default function OrcamentoDetalheError({
     console.error('[orcamento-grafico/[id]] erro de render:', error)
   }, [error])
 
+  // Em produção o React minifica os erros (ex.: "Minified React error #31")
+  // e joga o detalhe (as chaves do objeto renderizado por engano) na query
+  // string `?args[]=`. Decodificamos aqui para exibir uma mensagem legível na
+  // própria tela, sem depender de abrir o console/link do react.dev.
+  const detalheDecodificado = decodeReactMinifiedError(error?.message)
+
   return (
     <Stack gap="md" p="md">
       <Alert
@@ -42,6 +48,11 @@ export default function OrcamentoDetalheError({
             Ocorreu um erro ao renderizar esta tela. A mensagem técnica abaixo
             ajuda a identificar a causa:
           </Text>
+          {detalheDecodificado && (
+            <Alert color="orange" variant="light" title="Detalhe decodificado">
+              <Text size="sm">{detalheDecodificado}</Text>
+            </Alert>
+          )}
           <ScrollArea.Autosize mah={300}>
             <Code block style={{ whiteSpace: 'pre-wrap' }}>
               {error?.message || 'Erro desconhecido'}
@@ -66,4 +77,47 @@ export default function OrcamentoDetalheError({
       </Group>
     </Stack>
   )
+}
+
+/**
+ * Decodifica a mensagem de um erro React minificado em produção.
+ *
+ * O React de produção emite mensagens como:
+ *   "Minified React error #31; visit https://react.dev/errors/31?args[]=object%20with%20keys%20%7Bnome%2C%20tipo%7D&args[]=..."
+ *
+ * O erro #31 ("Objects are not valid as a React child") inclui, no primeiro
+ * `args[]`, a descrição do objeto renderizado por engano — tipicamente
+ * "object with keys {campoA, campoB}". Extraímos e exibimos isso para apontar
+ * direto o campo problemático, sem depender de abrir o console ou o link.
+ */
+function decodeReactMinifiedError(message?: string | null): string | null {
+  if (!message) return null
+
+  const numeroMatch = message.match(/Minified React error #(\d+)/)
+  if (!numeroMatch) return null
+  const numero = numeroMatch[1]
+
+  // Coleta todos os args[] da query string e decodifica.
+  const args: string[] = []
+  const regex = /args\[\]=([^&\s]+)/g
+  let m: RegExpExecArray | null
+  while ((m = regex.exec(message)) !== null) {
+    try {
+      args.push(decodeURIComponent(m[1]))
+    } catch {
+      args.push(m[1])
+    }
+  }
+
+  if (numero === '31') {
+    const alvo = args[0] || 'um objeto'
+    return `React #31 — "Objects are not valid as a React child". ` +
+      `Um objeto está sendo renderizado como texto (encontrado: ${alvo}). ` +
+      `Procure por esse objeto sendo exibido direto no JSX desta tela.`
+  }
+
+  if (args.length) {
+    return `React #${numero} — detalhes: ${args.join(' | ')}`
+  }
+  return `React #${numero} (sem detalhes adicionais na mensagem minificada).`
 }

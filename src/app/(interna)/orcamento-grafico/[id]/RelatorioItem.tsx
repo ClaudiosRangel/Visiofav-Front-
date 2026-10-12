@@ -48,7 +48,11 @@ interface RelatorioPlano {
   corte?: string | null
   aprovacao?: string | null
   tiragem?: number | null
-  impressao?: string | null
+  // NOTA: `impressao` é a SEÇÃO detalhada (RelatorioSecaoLinha[]), declarada mais
+  // abaixo. NÃO existe um descritivo-texto "impressao" — o backend reusa a mesma
+  // chave para a seção. (Antes havia um `impressao?: string | null` duplicado
+  // aqui que fazia o BlocoPlano renderizar o ARRAY de seção como texto → React
+  // #31 "Objects are not valid as a React child".)
   producaoHora?: number | null
   quebraPerc?: number | null
   aparaPerc?: number | null
@@ -221,7 +225,9 @@ function BlocoPlano({ plano, indice }: { plano: RelatorioPlano; indice: number }
     ['Corte', plano.corte],
     ['Aprovação', plano.aprovacao],
     ['Tiragem', plano.tiragem != null ? fmtNum(plano.tiragem) : null],
-    ['Impressão', plano.impressao],
+    // 'Impressão' NÃO é um descritivo-texto: `plano.impressao` é a SEÇÃO
+    // detalhada (array de linhas), exibida mais abaixo em SecaoLinhas. Renderizá-la
+    // aqui como texto causava React #31 (objeto renderizado como filho).
     ['Produção/h', plano.producaoHora != null ? fmtNum(plano.producaoHora) : null],
     ['Quebra', plano.quebraPerc != null ? fmtPerc(plano.quebraPerc) : null],
     ['Apara', plano.aparaPerc != null ? fmtPerc(plano.aparaPerc) : null],
