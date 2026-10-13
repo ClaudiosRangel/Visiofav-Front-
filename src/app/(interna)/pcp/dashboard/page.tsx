@@ -234,7 +234,7 @@ export default function DashboardPcpPage() {
 
           {/* ABA PRODUÇÃO DIÁRIA — linha por centro */}
           <Tabs.Panel value="producao" pt="md">
-            <CardGrafico titulo="Produção diária por estágio" subtitulo="Quantidade apontada (produzida) por dia, no período selecionado">
+            <CardGrafico titulo="Produção diária por estágio" subtitulo="Quantidade apontada por dia. Base por estágio: Colagem em unidade (peças); demais em tiragem (folhas).">
               <ResponsiveContainer>
                 <LineChart data={indicadores.producaoDiaria[0]?.serie.map((_: any, i: number) => {
                   const ponto: any = { data: formatarDataBR(indicadores.producaoDiaria[0].serie[i].data) }

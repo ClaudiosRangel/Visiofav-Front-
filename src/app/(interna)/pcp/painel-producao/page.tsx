@@ -17,6 +17,8 @@ interface EtapaPainel {
   quantidade: number
   quantidadeProduzida: number
   percentual: number
+  // Base de contagem por Tipo de Processo (spec base-contagem-por-tipo-processo).
+  contagem?: { base: 'UNIDADE' | 'TIRAGEM'; planejado: number; apontado: number; progresso: number }
   dataEntrega: string | null
   dataInicioReal: string | null
   tiragem: number | null
@@ -131,6 +133,7 @@ export default function PainelProducaoPage() {
             quantidade: etapa.quantidade,
             quantidadeProduzida: etapa.quantidadeProduzida,
             percentual: etapa.percentual,
+            contagem: etapa.contagem,
             dataEntrega: etapa.dataEntrega,
             dataInicioReal: etapa.dataInicioReal,
             tiragem: etapa.tiragem,
@@ -357,10 +360,16 @@ export default function PainelProducaoPage() {
                   </Text>
                 </Table.Td>
 
-                {/* Quantidade */}
+                {/* Quantidade — na base de contagem do processo (COLAGEM→Unidade;
+                    demais→Tiragem). Usa `contagem.planejado` com sufixo da base. */}
                 <Table.Td style={{ textAlign: 'right' }}>
                   <Text size="sm" c={COLORS.textPrimary}>
-                    {etapa.quantidade?.toLocaleString('pt-BR') || '—'}
+                    {(() => {
+                      const planejado = etapa.contagem?.planejado ?? etapa.quantidade
+                      if (!planejado) return '—'
+                      const sufixo = etapa.contagem?.base === 'UNIDADE' ? ' un' : etapa.contagem?.base === 'TIRAGEM' ? ' fls' : ''
+                      return `${planejado.toLocaleString('pt-BR')}${sufixo}`
+                    })()}
                   </Text>
                 </Table.Td>
 
@@ -371,28 +380,28 @@ export default function PainelProducaoPage() {
                   </Text>
                 </Table.Td>
 
-                {/* Situação */}
+                {/* Situação — progresso na base de contagem do processo. */}
                 <Table.Td>
-                  {etapa.percentual >= 100 ? (
-                    <Badge color="green" variant="filled" size="md">100%</Badge>
-                  ) : etapa.status === 'PAUSADA' ? (
-                    <Badge color="yellow" variant="filled" size="md">Pausado</Badge>
-                  ) : etapa.status === 'PENDENTE' ? (
-                    <Badge color="gray" variant="light" size="md">Planejado</Badge>
-                  ) : (
-                    <Group gap={6} wrap="nowrap">
-                      <Progress
-                        value={etapa.percentual}
-                        color="green"
-                        size="lg"
-                        style={{ flex: 1 }}
-                        styles={{ root: { background: COLORS.border } }}
-                      />
-                      <Text size="xs" c={COLORS.textSecondary} w={36} ta="right">
-                        {etapa.percentual}%
-                      </Text>
-                    </Group>
-                  )}
+                  {(() => {
+                    const progresso = Math.round(etapa.contagem?.progresso ?? etapa.percentual)
+                    if (progresso >= 100) return <Badge color="green" variant="filled" size="md">100%</Badge>
+                    if (etapa.status === 'PAUSADA') return <Badge color="yellow" variant="filled" size="md">Pausado</Badge>
+                    if (etapa.status === 'PENDENTE') return <Badge color="gray" variant="light" size="md">Planejado</Badge>
+                    return (
+                      <Group gap={6} wrap="nowrap">
+                        <Progress
+                          value={progresso}
+                          color="green"
+                          size="lg"
+                          style={{ flex: 1 }}
+                          styles={{ root: { background: COLORS.border } }}
+                        />
+                        <Text size="xs" c={COLORS.textSecondary} w={36} ta="right">
+                          {progresso}%
+                        </Text>
+                      </Group>
+                    )
+                  })()}
                 </Table.Td>
               </Table.Tr>
             ))}

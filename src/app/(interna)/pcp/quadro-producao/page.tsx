@@ -14,6 +14,8 @@ interface EtapaAtual {
   quantidade: number
   quantidadeProduzida: number
   percentual: number
+  // Base de contagem por Tipo de Processo (spec base-contagem-por-tipo-processo).
+  contagem?: { base: 'UNIDADE' | 'TIRAGEM'; planejado: number; apontado: number; progresso: number }
   tempoNaEtapa: number
   operadores: string[]
 }
@@ -341,22 +343,32 @@ function MaquinaCard({ maquina }: { maquina: Maquina }) {
             <Text size="xs" c={COLORS.textSecondary} lineClamp={1}>{etapaAtual.produto}</Text>
           )}
 
-          {/* Progresso */}
-          <Box mt={4}>
-            <Group justify="space-between" mb={4}>
-              <Text size="xs" c={COLORS.textSecondary}>
-                {etapaAtual.quantidadeProduzida.toLocaleString('pt-BR')} / {etapaAtual.quantidade.toLocaleString('pt-BR')}
-              </Text>
-              <Text size="xs" fw={600} c={COLORS.textPrimary}>{etapaAtual.percentual}%</Text>
-            </Group>
-            <Progress
-              value={etapaAtual.percentual}
-              size="lg"
-              radius="sm"
-              color={etapaAtual.percentual >= 100 ? 'green' : status === 'PARADA' ? 'orange' : 'blue'}
-              style={{ background: '#373a40' }}
-            />
-          </Box>
+          {/* Progresso — na BASE DE CONTAGEM do processo (COLAGEM→Unidade;
+              demais→Tiragem). Usa `contagem` (fonte única do backend) com
+              fallback aos campos legados. */}
+          {(() => {
+            const apontado = etapaAtual.contagem?.apontado ?? etapaAtual.quantidadeProduzida
+            const planejado = etapaAtual.contagem?.planejado ?? etapaAtual.quantidade
+            const progresso = etapaAtual.contagem?.progresso ?? etapaAtual.percentual
+            const sufixo = etapaAtual.contagem?.base === 'UNIDADE' ? ' un' : etapaAtual.contagem?.base === 'TIRAGEM' ? ' fls' : ''
+            return (
+              <Box mt={4}>
+                <Group justify="space-between" mb={4}>
+                  <Text size="xs" c={COLORS.textSecondary}>
+                    {apontado.toLocaleString('pt-BR')} / {planejado.toLocaleString('pt-BR')}{sufixo}
+                  </Text>
+                  <Text size="xs" fw={600} c={COLORS.textPrimary}>{Math.round(progresso)}%</Text>
+                </Group>
+                <Progress
+                  value={progresso}
+                  size="lg"
+                  radius="sm"
+                  color={progresso >= 100 ? 'green' : status === 'PARADA' ? 'orange' : 'blue'}
+                  style={{ background: '#373a40' }}
+                />
+              </Box>
+            )
+          })()}
 
           {/* Tempo na etapa */}
           <Text size="sm" c={COLORS.textPrimary} mt={4}>

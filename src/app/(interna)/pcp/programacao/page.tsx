@@ -33,14 +33,19 @@ function getCategoriaCentro(tipoProcessoCodigo: string | null | undefined): stri
 }
 
 /**
- * Regra de negócio confirmada pelo usuário: só as máquinas de Colagem/
- * Coladeira contam a produção em "embalagem" (unidade fechada, unitário) —
- * todas as outras (Impressão, Cortadeira, demais Acabamentos) contam em
- * "folhas" (tiragem). Usado no modal de Apontar/Finalizar Etapa para rotular
- * corretamente o campo de quantidade produzida.
+ * Rótulo do campo de quantidade no modal de Apontar/Finalizar Etapa conforme a
+ * BASE DE CONTAGEM do processo (spec base-contagem-por-tipo-processo). A base é
+ * resolvida no backend (fonte única, campo `etapa.contagem.base`) e passada
+ * para o modal; só caímos no código do tipo de processo como fallback quando a
+ * base ainda não vier no payload (COLAGEM → Unidade/embalagem; demais → Tiragem/
+ * folhas — mesma regra única do backend).
  */
-function unidadeContagem(tipoProcessoCodigo: string | null | undefined): { label: string; placeholder: string } {
-  if (tipoProcessoCodigo === 'COLAGEM') return { label: 'Quantidade Produzida (embalagem)', placeholder: 'Un. de embalagem' }
+function unidadeContagem(
+  base: 'UNIDADE' | 'TIRAGEM' | null | undefined,
+  tipoProcessoCodigo?: string | null,
+): { label: string; placeholder: string } {
+  const efetiva = base ?? (tipoProcessoCodigo === 'COLAGEM' ? 'UNIDADE' : 'TIRAGEM')
+  if (efetiva === 'UNIDADE') return { label: 'Quantidade Produzida (embalagem)', placeholder: 'Un. de embalagem' }
   return { label: 'Quantidade Produzida (folhas)', placeholder: 'Tiragem em folhas' }
 }
 
@@ -290,7 +295,7 @@ export default function ProgramacaoPage() {
   // exibida no modal: máquinas de Colagem/Coladeira contam em "embalagem"
   // (unitário), as demais em "folhas/tiragem" (regra de negócio confirmada
   // pelo usuário).
-  const [modalApontar, setModalApontar] = useState<{ etapaId: string; opNumero: number; descricao: string; finalizando?: boolean; quantidadeEtapa?: number; jaProduzido?: number; tipoProcessoCodigo?: string | null } | null>(null)
+  const [modalApontar, setModalApontar] = useState<{ etapaId: string; opNumero: number; descricao: string; finalizando?: boolean; quantidadeEtapa?: number; jaProduzido?: number; tipoProcessoCodigo?: string | null; baseContagem?: 'UNIDADE' | 'TIRAGEM' | null } | null>(null)
   // Foto anexada pelo operador como evidência da contagem produzida (opcional)
   const [fotoApontar, setFotoApontar] = useState<File | null>(null)
   const [modalPausar, setModalPausar] = useState<{ etapaId: string; opNumero: number } | null>(null)
@@ -2605,22 +2610,23 @@ export default function ProgramacaoPage() {
               )}
             </Group>
             <Group gap="xs">
-              {/* Totalizador de Tiragem do grupo — soma da coluna Tiragem de
-                  todas as etapas visíveis (já filtradas por busca/status/etc,
-                  igual ao total exibido no relatório impresso).
-                  EXCEÇÃO Colagem: a colagem conta em unidade de embalagem
-                  (unitário), não em folhas — por isso o totalizador soma a
-                  coluna Qtd (quantidade) em vez da tiragem. */}
+              {/* Totalizador do grupo na BASE DE CONTAGEM do processo
+                  (spec base-contagem-por-tipo-processo): a base vem do backend
+                  (`etapa.contagem`), fonte única — COLAGEM soma Unidade (peças),
+                  demais somam Tiragem (folhas). Fallback ao campo legado quando
+                  `contagem` ainda não vier no payload. */}
               {(() => {
-                const isColagem = centro.centro.tipoProcesso?.codigo === 'COLAGEM'
-                const totalTiragem = centro.etapas.reduce(
-                  (acc: number, e: any) => acc + ((isColagem ? e.quantidade : e.tiragem) || 0),
+                const base = centro.etapas.find((e: any) => e.contagem)?.contagem?.base
+                  ?? (centro.centro.tipoProcesso?.codigo === 'COLAGEM' ? 'UNIDADE' : 'TIRAGEM')
+                const totalPlanejado = centro.etapas.reduce(
+                  (acc: number, e: any) => acc + (e.contagem?.planejado ?? (base === 'UNIDADE' ? e.quantidade : e.tiragem) ?? 0),
                   0,
                 )
-                const totalProduzida = centro.etapas.reduce((acc: number, e: any) => acc + (e.quantidadeProduzida || 0), 0)
-                const saldo = totalTiragem - totalProduzida
-                return totalTiragem > 0 ? (
-                  <Badge color="yellow" variant="light" size="sm">Tiragem: {saldo.toLocaleString('pt-BR')}</Badge>
+                const totalProduzida = centro.etapas.reduce((acc: number, e: any) => acc + (e.contagem?.apontado ?? e.quantidadeProduzida ?? 0), 0)
+                const saldo = totalPlanejado - totalProduzida
+                const rotulo = base === 'UNIDADE' ? 'Unidade' : 'Tiragem'
+                return totalPlanejado > 0 ? (
+                  <Badge color="yellow" variant="light" size="sm">{rotulo}: {saldo.toLocaleString('pt-BR')}</Badge>
                 ) : null
               })()}
               {centro.resumo.emAndamento > 0 && <Badge color="blue" size="sm">{centro.resumo.emAndamento} em andamento</Badge>}
@@ -3181,7 +3187,7 @@ export default function ProgramacaoPage() {
                                 {etapa.status === 'EM_ANDAMENTO' && (
                                   <>
                                     {podeExecutar('podeApontar', centro.centro.tipoProcessoId) && (
-                                    <ActionIcon color="blue" variant="light" size="sm" onClick={() => setModalApontar({ etapaId: etapa.id, opNumero: etapa.opNumero, descricao: etapa.descricao, tipoProcessoCodigo: centro.centro.tipoProcesso?.codigo })} title="Apontar Produção">
+                                    <ActionIcon color="blue" variant="light" size="sm" onClick={() => setModalApontar({ etapaId: etapa.id, opNumero: etapa.opNumero, descricao: etapa.descricao, tipoProcessoCodigo: centro.centro.tipoProcesso?.codigo, baseContagem: (etapa as any).contagem?.base ?? null })} title="Apontar Produção">
                                       <IconClipboardCheck size={14} />
                                     </ActionIcon>
                                     )}
@@ -3242,8 +3248,8 @@ export default function ProgramacaoPage() {
           )}
           <Group grow>
             <NumberInput
-              label={unidadeContagem(modalApontar?.tipoProcessoCodigo).label}
-              placeholder={unidadeContagem(modalApontar?.tipoProcessoCodigo).placeholder}
+              label={unidadeContagem(modalApontar?.baseContagem, modalApontar?.tipoProcessoCodigo).label}
+              placeholder={unidadeContagem(modalApontar?.baseContagem, modalApontar?.tipoProcessoCodigo).placeholder}
               value={formApontar.quantidadeProduzida}
               onChange={(v) => setFormApontar({ ...formApontar, quantidadeProduzida: typeof v === 'number' ? v : 0 })}
               min={0}
