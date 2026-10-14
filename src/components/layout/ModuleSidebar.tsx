@@ -420,6 +420,12 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       // Produção (não mais item de menu). A tela dedicada continua acessível
       // pela rota /pcp/ordens-producao/requisicoes-corte se necessário.
       { icon: IconUpload, label: 'Importar OP (PDF)', href: '/pcp/importar-op' },
+      {
+        label: 'Importador Calcgraf', icon: IconCloudDownload, items: [
+          { icon: IconAlertCircle, label: 'Alterações Pendentes', href: '/pcp/importador-calcgraf/pendentes' },
+          { icon: IconKey, label: 'Chaves do Agente', href: '/pcp/importador-calcgraf/api-keys' },
+        ],
+      },
       { icon: IconLink, label: 'De/Para (Vínculos)', href: '/pcp/de-para' },
       { icon: IconAssembly, label: 'Kanban', href: '/pcp/kanban' },
       { icon: IconCalendarEvent, label: 'Programação', href: '/pcp/programacao' },
