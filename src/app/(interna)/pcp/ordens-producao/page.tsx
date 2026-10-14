@@ -42,6 +42,10 @@ export default function OrdensProducaoPage() {
   const [uploadTargetOpId, setUploadTargetOpId] = useState<string | null>(null)
   // Modal de criação de Requisição de Corte (acessível por botão nesta tela).
   const [modalRcAberto, setModalRcAberto] = useState(false)
+  // Requisições de Corte listadas JUNTO das OPs (como RC-001, RC-002...),
+  // seguindo os mesmos status/abas. São poucas: carregadas inteiras e
+  // mescladas/filtradas no cliente.
+  const [rcs, setRcs] = useState<any[]>([])
 
   async function carregarOps() {
     setLoading(true)
@@ -67,6 +71,39 @@ export default function OrdensProducaoPage() {
       setLoading(false)
     }
   }
+
+  async function carregarRcs() {
+    try {
+      const res = await api.get('/pcp/requisicoes-corte', { params: { limit: 100 } })
+      setRcs(Array.isArray(res.data) ? res.data : res.data?.data || [])
+    } catch {
+      setRcs([])
+    }
+  }
+
+  // Exibe o número da RC como "RC-NNN" (deriva do sequencial NN/AAAA).
+  function formatarNumeroRc(numero: string): string {
+    const seq = String(numero || '').split('/')[0].replace(/\D/g, '')
+    return `RC-${seq.padStart(3, '0')}`
+  }
+
+  // RCs filtradas pela aba de status e pela busca por número — convertidas em
+  // "linhas" com a mesma forma que a tabela espera (marcadas com _tipo: 'RC').
+  const rcsFiltradas = rcs
+    .filter((rc) => statusFilter === 'TODAS' || rc.status === statusFilter)
+    .filter((rc) => {
+      if (!busca.trim()) return true
+      const alvo = `${formatarNumeroRc(rc.numero)} ${rc.numero}`.toLowerCase()
+      return alvo.includes(busca.trim().toLowerCase())
+    })
+    // Filtros de cliente/produto não se aplicam à RC; se preenchidos, oculta as RCs.
+    .filter(() => !filtroCliente.trim() && !filtroProduto.trim())
+
+  // Lista combinada exibida na tabela: RCs no topo (mais recentes) + OPs.
+  const linhasCombinadas = [
+    ...rcsFiltradas.map((rc) => ({ _tipo: 'RC' as const, ...rc })),
+    ...data.map((op) => ({ _tipo: 'OP' as const, ...op })),
+  ]
 
   async function handlePdfUpload(file: File) {
     if (!uploadTargetOpId) return
@@ -98,6 +135,7 @@ export default function OrdensProducaoPage() {
   }
 
   useEffect(() => { carregarOps() }, [page, statusFilter])
+  useEffect(() => { carregarRcs() }, [])
 
   // Busca enquanto digita (debounce 400ms) para número, cliente e produto.
   // Ao mudar um filtro de texto, volta para a página 1 e recarrega. O
@@ -136,7 +174,7 @@ export default function OrdensProducaoPage() {
         </Group>
       </Group>
 
-      <ModalNovaRequisicaoCorte opened={modalRcAberto} onClose={() => setModalRcAberto(false)} />
+      <ModalNovaRequisicaoCorte opened={modalRcAberto} onClose={() => setModalRcAberto(false)} onCriada={carregarRcs} />
 
       <Group>
         <TextInput
@@ -175,7 +213,7 @@ export default function OrdensProducaoPage() {
 
       {loading ? (
         <Center py="xl"><Loader /></Center>
-      ) : data.length === 0 ? (
+      ) : linhasCombinadas.length === 0 ? (
         <Text c="dimmed" ta="center" py="xl">Nenhuma ordem de produção encontrada.</Text>
       ) : (
         <>
@@ -198,6 +236,47 @@ export default function OrdensProducaoPage() {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
+              {/* Linhas de Requisição de Corte (RC-NNN) — mescladas com as OPs,
+                  mesmos status/abas. Clique abre a tela de RC para gerenciar. */}
+              {rcsFiltradas.map((rc) => (
+                <Table.Tr key={`rc-${rc.id}`} style={{ background: 'var(--mantine-color-teal-light)' }}>
+                  <Table.Td fw={600}>
+                    <Group gap={6} wrap="nowrap">
+                      <IconScissors size={14} />
+                      {formatarNumeroRc(rc.numero)}
+                    </Group>
+                  </Table.Td>
+                  <Table.Td>{rc.nomeProduto || <Text c="dimmed" span>-</Text>}</Table.Td>
+                  <Table.Td>{rc.fabricanteCartao || <Text c="dimmed" span>-</Text>}</Table.Td>
+                  <Table.Td>{rc.qtdFolhasCortadeira ? `${Number(rc.qtdFolhasCortadeira).toLocaleString('pt-BR')} fls` : '—'}</Table.Td>
+                  {temQuantidadeProduzida && <Table.Td>—</Table.Td>}
+                  <Table.Td><Badge color={STATUS_COLORS[rc.status] || 'gray'}>{rc.status}</Badge></Table.Td>
+                  <Table.Td><Badge color="teal" variant="light">CORTE</Badge></Table.Td>
+                  <Table.Td>{rc.dataSolicitacao ? new Date(rc.dataSolicitacao).toLocaleDateString('pt-BR') : '-'}</Table.Td>
+                  <Table.Td>—</Table.Td>
+                  <Table.Td>
+                    <Group gap={4} wrap="nowrap">
+                      <ActionIcon variant="subtle" color="teal" onClick={() => router.push('/pcp/ordens-producao/requisicoes-corte')} title="Gerenciar Requisição de Corte">
+                        <IconEye size={18} />
+                      </ActionIcon>
+                      <Tooltip label="Imprimir RC">
+                        <ActionIcon
+                          variant="subtle"
+                          color="blue"
+                          onClick={() => {
+                            api.get(`/pcp/requisicoes-corte/${rc.id}/pdf`, { responseType: 'blob' }).then((res) => {
+                              const blob = new Blob([res.data], { type: 'application/pdf' })
+                              window.open(URL.createObjectURL(blob), '_blank')
+                            }).catch(() => notifications.show({ title: 'Erro', message: 'Falha ao gerar PDF da RC', color: 'red' }))
+                          }}
+                        >
+                          <IconFileTypePdf size={18} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
               {data.map((op) => (
                 <Table.Tr key={op.id}>
                   <Table.Td fw={600}>{op.referenciaExterna || op.numero}</Table.Td>
