@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { Title, Stack, Table, Badge, Group, Button, TextInput, Pagination, ActionIcon, Text, Loader, Center, Tooltip, Tabs } from '@mantine/core'
-import { IconPlus, IconSearch, IconEye, IconTrash, IconFileTypePdf, IconUpload, IconHistory } from '@tabler/icons-react'
+import { IconPlus, IconSearch, IconEye, IconTrash, IconFileTypePdf, IconUpload, IconHistory, IconScissors } from '@tabler/icons-react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
+import { ModalNovaRequisicaoCorte } from './ModalNovaRequisicaoCorte'
 
 const STATUS_COLORS: Record<string, string> = {
   RASCUNHO: 'gray',
@@ -39,6 +40,8 @@ export default function OrdensProducaoPage() {
   const [pdfStatus, setPdfStatus] = useState<Record<string, boolean>>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadTargetOpId, setUploadTargetOpId] = useState<string | null>(null)
+  // Modal de criação de Requisição de Corte (acessível por botão nesta tela).
+  const [modalRcAberto, setModalRcAberto] = useState(false)
 
   async function carregarOps() {
     setLoading(true)
@@ -120,10 +123,17 @@ export default function OrdensProducaoPage() {
     <Stack gap="md">
       <Group justify="space-between">
         <Title order={3}>Ordens de Produção</Title>
-        <Button leftSection={<IconPlus size={16} />} onClick={() => router.push('/pcp/ordens-producao/nova')}>
-          Nova OP
-        </Button>
+        <Group gap="xs">
+          <Button variant="light" color="teal" leftSection={<IconScissors size={16} />} onClick={() => setModalRcAberto(true)}>
+            Nova Requisição de Corte
+          </Button>
+          <Button leftSection={<IconPlus size={16} />} onClick={() => router.push('/pcp/ordens-producao/nova')}>
+            Nova OP
+          </Button>
+        </Group>
       </Group>
+
+      <ModalNovaRequisicaoCorte opened={modalRcAberto} onClose={() => setModalRcAberto(false)} />
 
       <Group>
         <TextInput

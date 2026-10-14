@@ -14,13 +14,14 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   Title, Stack, Group, Button, Text, Loader, Center, Paper, Table, Badge,
-  Modal, TextInput, Textarea, Select, ScrollArea, ActionIcon, Tooltip,
+  ScrollArea, ActionIcon, Tooltip,
 } from '@mantine/core'
 import {
   IconPlus, IconTrash, IconPrinter, IconCircleCheck, IconRefresh,
 } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
+import { ModalNovaRequisicaoCorte } from '../ModalNovaRequisicaoCorte'
 
 // ============================================================================
 // Status (seguem a OP)
@@ -62,35 +63,12 @@ interface RC {
 
 interface CentroOpt { value: string; label: string; codigo?: string }
 
-const formInicial = {
-  dataSolicitacao: new Date().toISOString().slice(0, 10),
-  dataCorte: '',
-  requisitante: '',
-  fabricanteCartao: '',
-  fornecedor: '',
-  larguraBobinaCm: '',
-  gramaturaG: '',
-  tamanhoCorteCm: '',
-  formatoCorte: '',
-  qtdFolhasCortadeira: '',
-  textoGuilhotina: '',
-  qtdFolhasGuilhotina: '',
-  nomeProduto: '',
-  nomeServico: '',
-  pesoKg: '',
-  instrucoesRefile: '',
-}
-
 export default function RequisicoesCortePage() {
   const [lista, setLista] = useState<RC[]>([])
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
-  const [salvando, setSalvando] = useState(false)
-  const [form, setForm] = useState<Record<string, string>>(formInicial)
+  // Nomes de cortadeiras só para exibir a coluna "Cortadeira" na listagem.
   const [cortadeiras, setCortadeiras] = useState<CentroOpt[]>([])
-  const [guilhotinas, setGuilhotinas] = useState<CentroOpt[]>([])
-  const [cortadeiraId, setCortadeiraId] = useState<string | null>(null)
-  const [guilhotinaId, setGuilhotinaId] = useState<string | null>(null)
 
   useEffect(() => { document.title = 'Requisições de Corte' }, [])
 
@@ -106,88 +84,24 @@ export default function RequisicoesCortePage() {
     }
   }, [])
 
-  // Centros: cortadeiras (para escolher onde entra) e guilhotinas (destino).
-  const carregarCentros = useCallback(async () => {
+  // Carrega os nomes das cortadeiras para a coluna da tabela.
+  const carregarCortadeiras = useCallback(async () => {
     try {
-      const { data } = await api.get('/centros-producao', { params: { limit: 200 } })
+      const { data } = await api.get('/centros-producao', { params: { limit: 200, status: 'true' } })
       const centros = (data?.data || data || []) as any[]
-      const cort = centros
-        .filter((c) => /cortadeira/i.test(c?.tipoProcesso?.codigo || '') || /cortadeira/i.test(c?.descricao || ''))
-        .map((c) => ({ value: c.id, label: `${c.codigo} - ${c.descricao}`, codigo: c.codigo }))
-      const guil = centros
-        .filter((c) => /guilhotina/i.test(c?.tipoProcesso?.codigo || '') || /guilhotina/i.test(c?.descricao || ''))
-        .map((c) => ({ value: c.id, label: `${c.codigo} - ${c.descricao}`, codigo: c.codigo }))
-      setCortadeiras(cort)
-      setGuilhotinas(guil)
+      setCortadeiras(
+        centros
+          .filter((c) => /cortadeira/i.test(c?.tipoProcesso?.codigo || '') || /cortadeira/i.test(c?.descricao || ''))
+          .map((c) => ({ value: c.id, label: `${c.codigo} - ${c.descricao}`, codigo: c.codigo })),
+      )
     } catch {
-      setCortadeiras([]); setGuilhotinas([])
+      setCortadeiras([])
     }
   }, [])
 
-  useEffect(() => { carregar(); carregarCentros() }, [carregar, carregarCentros])
+  useEffect(() => { carregar(); carregarCortadeiras() }, [carregar, carregarCortadeiras])
 
-  const abrirNova = () => {
-    setForm(formInicial)
-    setCortadeiraId(null)
-    // Guilhotina default = "Tigger/Trigger" se existir.
-    const def = guilhotinas.find((g) => /tigger|trigger/i.test(g.label))?.value ?? null
-    setGuilhotinaId(def)
-    setModalAberto(true)
-  }
-
-  async function salvar(imprimir: boolean) {
-    if (!form.requisitante.trim() || !form.fabricanteCartao.trim() || !form.nomeProduto.trim() || !form.nomeServico.trim()) {
-      notifications.show({ title: 'Validação', message: 'Preencha Requisitante, Fabricante/Cartão, Nome do produto e Nome do serviço.', color: 'red' })
-      return
-    }
-    if (!cortadeiraId) {
-      notifications.show({ title: 'Validação', message: 'Selecione a Cortadeira que vai entrar.', color: 'red' })
-      return
-    }
-    setSalvando(true)
-    try {
-      const dec = (v: string) => (v.trim() === '' ? undefined : Number(v.replace(/\./g, '').replace(',', '.')))
-      const int = (v: string) => (v.trim() === '' ? undefined : Math.round(Number(v.replace(/\./g, '').replace(',', '.'))))
-      const payload = {
-        centroProducaoId: cortadeiraId,
-        dataSolicitacao: form.dataSolicitacao || undefined,
-        dataCorte: form.dataCorte || undefined,
-        requisitante: form.requisitante,
-        fabricanteCartao: form.fabricanteCartao,
-        fornecedor: form.fornecedor || undefined,
-        larguraBobinaCm: dec(form.larguraBobinaCm),
-        gramaturaG: dec(form.gramaturaG),
-        tamanhoCorteCm: dec(form.tamanhoCorteCm),
-        formatoCorte: form.formatoCorte || undefined,
-        qtdFolhasCortadeira: int(form.qtdFolhasCortadeira),
-        textoGuilhotina: form.textoGuilhotina || undefined,
-        qtdFolhasGuilhotina: int(form.qtdFolhasGuilhotina),
-        nomeProduto: form.nomeProduto,
-        nomeServico: form.nomeServico,
-        pesoKg: dec(form.pesoKg),
-        instrucoesRefile: form.instrucoesRefile || undefined,
-        guilhotinaDestinoId: guilhotinaId || undefined,
-        // Nasce em RASCUNHO (o avanço de status é feito na própria tela).
-        status: 'RASCUNHO',
-      }
-      const { data: rc } = await api.post('/pcp/requisicoes-corte', payload)
-      notifications.show({ title: 'RC criada', message: `Requisição de corte Nº ${rc.numero} salva (Rascunho).`, color: 'green' })
-      setModalAberto(false)
-      await carregar()
-      if (imprimir) {
-        try {
-          const pdf = await api.get(`/pcp/requisicoes-corte/${rc.id}/pdf`, { responseType: 'blob' })
-          const url = URL.createObjectURL(new Blob([pdf.data], { type: 'application/pdf' }))
-          window.open(url, '_blank')
-          setTimeout(() => URL.revokeObjectURL(url), 60000)
-        } catch { /* ignore */ }
-      }
-    } catch (err: any) {
-      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar a requisição.', color: 'red' })
-    } finally {
-      setSalvando(false)
-    }
-  }
+  const abrirNova = () => setModalAberto(true)
 
   async function avancarStatus(rc: RC) {
     const prox = PROXIMO_STATUS[rc.status]
@@ -316,61 +230,8 @@ export default function RequisicoesCortePage() {
         )}
       </Paper>
 
-      {/* Modal: Nova Requisição de Corte (mesmo formulário de antes + Cortadeira) */}
-      <Modal opened={modalAberto} onClose={() => setModalAberto(false)} title="Nova Requisição de Corte" centered size="lg">
-        <Stack gap="sm">
-          <Select
-            label="Cortadeira (vai entrar)"
-            description="Centro de produção onde o corte será executado. A RC aparece na fila dele quando liberada."
-            placeholder="Selecione a cortadeira"
-            data={cortadeiras}
-            value={cortadeiraId}
-            onChange={setCortadeiraId}
-            searchable
-            required
-          />
-          <Group grow>
-            <TextInput label="Data da solicitação" type="date" value={form.dataSolicitacao} onChange={(e) => setForm({ ...form, dataSolicitacao: e.currentTarget.value })} />
-            <TextInput label="Data do corte" type="date" value={form.dataCorte} onChange={(e) => setForm({ ...form, dataCorte: e.currentTarget.value })} />
-          </Group>
-          <TextInput label="Requisitante" required placeholder="Ex: CAIO RANGEL" value={form.requisitante} onChange={(e) => setForm({ ...form, requisitante: e.currentTarget.value })} />
-          <Group grow>
-            <TextInput label="Fabricante / Cartão" required placeholder="Ex: STORA ENZO" value={form.fabricanteCartao} onChange={(e) => setForm({ ...form, fabricanteCartao: e.currentTarget.value })} />
-            <TextInput label="Fornecedor" placeholder="Opcional" value={form.fornecedor} onChange={(e) => setForm({ ...form, fornecedor: e.currentTarget.value })} />
-          </Group>
-          <Group grow>
-            <TextInput label="Largura bobina (cm)" placeholder="Ex: 116,8" value={form.larguraBobinaCm} onChange={(e) => setForm({ ...form, larguraBobinaCm: e.currentTarget.value })} />
-            <TextInput label="Gramatura (g)" placeholder="Ex: 231" value={form.gramaturaG} onChange={(e) => setForm({ ...form, gramaturaG: e.currentTarget.value })} />
-            <TextInput label="Tamanho do corte (cm)" placeholder="Ex: 97,0" value={form.tamanhoCorteCm} onChange={(e) => setForm({ ...form, tamanhoCorteCm: e.currentTarget.value })} />
-          </Group>
-          <Group grow>
-            <TextInput label="Formato corte" placeholder="Ex: 116,8 x 97,0" value={form.formatoCorte} onChange={(e) => setForm({ ...form, formatoCorte: e.currentTarget.value })} />
-            <TextInput label="Qtd folhas (cortadeira)" placeholder="Ex: 5834" value={form.qtdFolhasCortadeira} onChange={(e) => setForm({ ...form, qtdFolhasCortadeira: e.currentTarget.value })} />
-          </Group>
-          <Select
-            label="Guilhotina destino"
-            description="Para onde a RC segue quando o corte terminar (padrão: Guilhotina Tigger)."
-            placeholder="Selecione a guilhotina"
-            data={guilhotinas}
-            value={guilhotinaId}
-            onChange={setGuilhotinaId}
-            clearable
-            searchable
-          />
-          <Group grow>
-            <TextInput label="Guilhotina (observação)" placeholder="Ex: Segue observação" value={form.textoGuilhotina} onChange={(e) => setForm({ ...form, textoGuilhotina: e.currentTarget.value })} />
-            <TextInput label="Qtd folhas (guilhotina)" placeholder="Opcional" value={form.qtdFolhasGuilhotina} onChange={(e) => setForm({ ...form, qtdFolhasGuilhotina: e.currentTarget.value })} />
-          </Group>
-          <TextInput label="Nome do produto" required placeholder="Ex: CORTE PARA ACTUAL - STORA ENZO 231G - 116,8 CM" value={form.nomeProduto} onChange={(e) => setForm({ ...form, nomeProduto: e.currentTarget.value })} />
-          <TextInput label="Nome do serviço" required placeholder="Ex: CORTE PARA ACTUAL - STORA ENZO 231G - 116,8 CM" value={form.nomeServico} onChange={(e) => setForm({ ...form, nomeServico: e.currentTarget.value })} />
-          <TextInput label="Peso (kg)" placeholder="Ex: 1527,0" value={form.pesoKg} onChange={(e) => setForm({ ...form, pesoKg: e.currentTarget.value })} />
-          <Textarea label="Instruções de refile" placeholder="Ex: REFILAR 5.824 FOLHAS 47,5 x 97,0 CM" minRows={2} autosize value={form.instrucoesRefile} onChange={(e) => setForm({ ...form, instrucoesRefile: e.currentTarget.value })} />
-          <Group justify="flex-end" mt="sm">
-            <Button variant="default" onClick={() => salvar(false)} loading={salvando}>Salvar</Button>
-            <Button color="grape" onClick={() => salvar(true)} loading={salvando}>Salvar e Imprimir</Button>
-          </Group>
-        </Stack>
-      </Modal>
+      {/* Modal compartilhado (mesmo usado pelo botão da tela de Ordens de Produção). */}
+      <ModalNovaRequisicaoCorte opened={modalAberto} onClose={() => setModalAberto(false)} onCriada={carregar} />
     </Stack>
   )
 }

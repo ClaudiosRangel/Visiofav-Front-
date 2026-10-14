@@ -416,7 +416,9 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       { icon: IconHome, label: 'Dashboard', href: '/pcp/dashboard' },
       { icon: IconClipboardCheck, label: 'Análise de Produção', href: '/pcp/analise-producao' },
       { icon: IconListDetails, label: 'Ordens de Produção', href: '/pcp/ordens-producao' },
-      { icon: IconScissors, label: 'Requisições de Corte', href: '/pcp/ordens-producao/requisicoes-corte' },
+      // Requisição de Corte agora é criada por botão na tela de Ordens de
+      // Produção (não mais item de menu). A tela dedicada continua acessível
+      // pela rota /pcp/ordens-producao/requisicoes-corte se necessário.
       { icon: IconUpload, label: 'Importar OP (PDF)', href: '/pcp/importar-op' },
       { icon: IconLink, label: 'De/Para (Vínculos)', href: '/pcp/de-para' },
       { icon: IconAssembly, label: 'Kanban', href: '/pcp/kanban' },
