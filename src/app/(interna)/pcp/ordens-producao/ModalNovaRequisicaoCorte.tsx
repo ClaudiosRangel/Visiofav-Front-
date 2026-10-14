@@ -141,7 +141,12 @@ export function ModalNovaRequisicaoCorte({
         status: 'RASCUNHO',
       }
       const { data: rc } = await api.post('/pcp/requisicoes-corte', payload)
-      notifications.show({ title: 'RC criada', message: `Requisição de corte Nº ${rc.numero} salva (Rascunho).`, color: 'green' })
+      notifications.show({
+        title: `RC Nº ${rc.numero} criada (Rascunho)`,
+        message: 'Veja em "Requisições de Corte". Ela só aparece no painel de Programação quando for Liberada.',
+        color: 'green',
+        autoClose: 6000,
+      })
       onClose()
       onCriada?.()
       if (imprimir) {

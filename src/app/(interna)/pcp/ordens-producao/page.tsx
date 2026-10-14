@@ -124,6 +124,9 @@ export default function OrdensProducaoPage() {
       <Group justify="space-between">
         <Title order={3}>Ordens de Produção</Title>
         <Group gap="xs">
+          <Button variant="subtle" color="teal" leftSection={<IconScissors size={16} />} onClick={() => router.push('/pcp/ordens-producao/requisicoes-corte')}>
+            Requisições de Corte
+          </Button>
           <Button variant="light" color="teal" leftSection={<IconScissors size={16} />} onClick={() => setModalRcAberto(true)}>
             Nova Requisição de Corte
           </Button>
