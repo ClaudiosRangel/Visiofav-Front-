@@ -87,7 +87,7 @@ export default function RequisicoesCortePage() {
   // Carrega os nomes das cortadeiras para a coluna da tabela.
   const carregarCortadeiras = useCallback(async () => {
     try {
-      const { data } = await api.get('/centros-producao', { params: { limit: 200, status: 'true' } })
+      const { data } = await api.get('/centros-producao', { params: { limit: 100, status: 'true' } })
       const centros = (data?.data || data || []) as any[]
       setCortadeiras(
         centros
