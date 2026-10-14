@@ -33,7 +33,11 @@ export default function ProdutosPage() {
   async function handleDelete(id: string, desc: string) {
     if (!confirm(`Deseja excluir "${desc}"?`)) return
     try { await excluir.mutateAsync(id); notifications.show({ title: 'Sucesso', message: 'Excluído', color: 'green' }) }
-    catch { notifications.show({ title: 'Erro', message: 'Falha ao excluir', color: 'red' }) }
+    catch (err: any) {
+      // Exibe a mensagem do backend (ex.: 409 quando o produto tem
+      // movimentação/vínculos e deve ser inativado, não excluído).
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao excluir', color: 'red' })
+    }
   }
 
   async function handleRecalcularCurvaAbc() {
