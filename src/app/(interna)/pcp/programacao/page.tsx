@@ -337,6 +337,9 @@ export default function ProgramacaoPage() {
   const [formNovoGrupo, setFormNovoGrupo] = useState({ descricao: '', tipo: '' })
   // Feature 5b: Adicionar OS manual
   const [modalAdicionarOS, setModalAdicionarOS] = useState<{ centroId: string; centroDescricao: string } | null>(null)
+  // Menu de contexto (botão direito) do card do centro — admin desliga um centro
+  // VAZIO para tirá-lo do painel de Programação (disponivelProgramacao=false).
+  const [menuCentro, setMenuCentro] = useState<{ x: number; y: number; centroId: string; centroDescricao: string } | null>(null)
   const [formAdicionarOS, setFormAdicionarOS] = useState({ opNumero: 0, descricao: '' })
   // Trava de duplo clique/duplo submit no botão "Adicionar à Fila"
   const [salvandoAdicionarOS, setSalvandoAdicionarOS] = useState(false)
@@ -755,6 +758,32 @@ export default function ProgramacaoPage() {
   async function reordenarFilaCentro(centroId: string, etapaIds: string[], etapaMovidaId?: string) {
     await api.patch('/pcp/etapas/reordenar', { centroProducaoId: centroId, etapaIds, etapaMovidaId })
     await carregar()
+  }
+
+  /**
+   * Desliga um centro no painel (disponivelProgramacao=false) via o menu de
+   * contexto. Só admin, e só para centro VAZIO (o backend ainda revalida a fila
+   * e responde 409 se houver etapas). Após desligar, o centro some do painel.
+   */
+  async function desligarCentroDaProgramacao(centroId: string, centroDescricao: string) {
+    try {
+      await api.patch(`/centros-producao/${centroId}/disponibilidade-programacao`, { disponivel: false })
+      notifications.show({
+        title: 'Centro desligado',
+        message: `"${centroDescricao}" não aparece mais no painel. Reative no cadastro de Centros (toggle "Disponível na Programação").`,
+        color: 'green',
+        autoClose: 7000,
+      })
+      await carregar()
+    } catch (err: any) {
+      notifications.show({
+        title: 'Não foi possível desligar',
+        message: err?.response?.data?.message || 'Erro ao desligar o centro.',
+        color: 'red',
+      })
+    } finally {
+      setMenuCentro(null)
+    }
   }
 
   // Cicla a prioridade da OP (BAIXA→NORMAL→ALTA→URGENTE→BAIXA) — mesma lógica
@@ -2585,7 +2614,17 @@ export default function ProgramacaoPage() {
           <div style={{ opacity: ordenacaoMutation.isPending ? 0.7 : 1, transition: 'opacity 0.2s' }}>
           {centrosFiltrados.map((centro: any) => (
             <SortableCentroItem key={centro.centro.id} id={centro.centro.id}>
-            <Card withBorder padding="xs">
+            <Card
+              withBorder
+              padding="xs"
+              onContextMenu={(e: React.MouseEvent) => {
+                // Botão direito: só admin, e só em centro VAZIO (sem OPs na fila).
+                if (!isAdmin && !minhasPermissoes.isAdmin) return
+                if ((centro.resumo?.total ?? 0) > 0) return
+                e.preventDefault()
+                setMenuCentro({ x: e.clientX, y: e.clientY, centroId: centro.centro.id, centroDescricao: centro.centro.descricao })
+              }}
+            >
           <Group justify="space-between" py={4} px={8}>
             <Group gap="sm" style={{ flex: 1 }}>
               <UnstyledButton onClick={() => toggleCentro(centro.centro.id)}>
@@ -3250,6 +3289,34 @@ export default function ProgramacaoPage() {
       </DndContext>
       </>
       )}
+
+      {/* Menu de contexto (botão direito) do card do centro — admin desliga um
+          centro VAZIO para tirá-lo do painel de Programação. Posicionado nas
+          coordenadas do clique via um alvo fixed de 0x0. */}
+      <Menu
+        opened={!!menuCentro}
+        onClose={() => setMenuCentro(null)}
+        position="bottom-start"
+        withinPortal
+        shadow="md"
+      >
+        <Menu.Target>
+          <div style={{ position: 'fixed', left: menuCentro?.x ?? 0, top: menuCentro?.y ?? 0, width: 0, height: 0 }} />
+        </Menu.Target>
+        <Menu.Dropdown>
+          <Menu.Label>{menuCentro?.centroDescricao}</Menu.Label>
+          <Menu.Item
+            color="red"
+            leftSection={<IconX size={14} />}
+            onClick={() => { if (menuCentro) desligarCentroDaProgramacao(menuCentro.centroId, menuCentro.centroDescricao) }}
+          >
+            Desligar centro (tirar da Programação)
+          </Menu.Item>
+          <Menu.Item disabled style={{ fontSize: 11 }}>
+            Reative depois no cadastro de Centros
+          </Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
 
       {/* Modal: Apontar Produção (também usado ao Finalizar a etapa) */}
       <Modal opened={!!modalApontar} onClose={() => { setModalApontar(null); setFotoApontar(null) }} title={modalApontar?.finalizando ? `Finalizar Etapa — OP #${modalApontar?.opNumero}` : `Apontar Produção — OP #${modalApontar?.opNumero}`} centered>
