@@ -22,6 +22,10 @@ export default function DetalheOpPage() {
   const [variacoes, setVariacoes] = useState<any[]>([])
   const [programacoes, setProgramacoes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  // Indica se a OP tem PDF ORIGINAL salvo (importado do Calcgraf OU enviado
+  // manualmente). Decide se mostramos "Ver PDF Original" — independente da
+  // origem. Consultado via /ordens-producao/pdf-status.
+  const [temPdf, setTemPdf] = useState(false)
   // Edição manual da quantidade produzida — usado principalmente em OPs
   // antigas que foram concluídas antes de existir a propagação automática
   // da quantidade apontada nas etapas (ficaram com %Concluído travado em 0%).
@@ -67,10 +71,14 @@ export default function DetalheOpPage() {
       api.get(`/ordens-producao/${id}`),
       api.get(`/ordens-producao/${id}/variacoes`).catch(() => ({ data: { variacoes: [] } })),
       api.get(`/ordens-producao/${id}/programacao-entrega`).catch(() => ({ data: { programacoes: [] } })),
-    ]).then(([opRes, varRes, progRes]) => {
+      // Checa se há PDF original salvo (qualquer origem). Falha → assume sem PDF.
+      api.post('/ordens-producao/pdf-status', { ids: [id] }).catch(() => ({ data: {} })),
+    ]).then(([opRes, varRes, progRes, pdfRes]) => {
       setOp(opRes.data)
       setVariacoes(varRes.data.variacoes || [])
       setProgramacoes(progRes.data.programacoes || [])
+      // pdf-status retorna um mapa { [id]: boolean }.
+      setTemPdf(Boolean(pdfRes.data?.[id as string]))
     }).finally(() => setLoading(false))
   }, [id])
 
@@ -323,7 +331,9 @@ export default function DetalheOpPage() {
         <Badge color={STATUS_COLORS[op.status]} size="lg">{op.status}</Badge>
         <Badge color={PRIORIDADE_COLORS[op.prioridade]} variant="light">{op.prioridade}</Badge>
         <Text size="sm" c="dimmed">{op.percentualConcluido}% concluído</Text>
-        {op.origemImportacao === 'PDF_GPRINT' && (
+        {/* "Ver PDF Original": aparece quando a OP TEM PDF salvo — importado do
+            Calcgraf OU enviado manualmente (qualquer origem). */}
+        {temPdf && (
           <Button
             size="xs"
             variant="light"

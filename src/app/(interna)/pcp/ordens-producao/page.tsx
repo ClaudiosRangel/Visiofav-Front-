@@ -297,13 +297,13 @@ export default function OrdensProducaoPage() {
                       <ActionIcon variant="subtle" onClick={() => router.push(`/pcp/ordens-producao/${op.id}`)} title="Visualizar">
                         <IconEye size={18} />
                       </ActionIcon>
-                      <Tooltip label={pdfStatus[op.id] ? 'PDF disponível — clique para ver' : 'PDF não encontrado — clique para enviar'}>
+                      <Tooltip label={pdfStatus[op.id] ? 'PDF original — clique para ver' : 'Sem PDF original — clique para ver o relatório gerado pelo Vizor'}>
                         <ActionIcon
                           variant="subtle"
-                          color={pdfStatus[op.id] ? 'green' : 'gray'}
+                          color={pdfStatus[op.id] ? 'green' : 'teal'}
                           onClick={() => {
                             if (pdfStatus[op.id]) {
-                              // Visualizar PDF
+                              // Visualizar PDF ORIGINAL (Calcgraf ou enviado).
                               api.get(`/ordens-producao/${op.id}/pdf`, { responseType: 'blob' }).then((res) => {
                                 const blob = new Blob([res.data], { type: 'application/pdf' })
                                 window.open(URL.createObjectURL(blob), '_blank')
@@ -311,9 +311,14 @@ export default function OrdensProducaoPage() {
                                 notifications.show({ title: 'PDF não disponível', message: 'Erro ao abrir o PDF', color: 'orange' })
                               })
                             } else {
-                              // Abrir file picker para upload
-                              setUploadTargetOpId(op.id)
-                              fileInputRef.current?.click()
+                              // Sem PDF original → relatório gerado pelo Vizor
+                              // (consulta completa, com todas as observações).
+                              api.get(`/ordens-producao/${op.id}/pdf-gerado`, { responseType: 'blob' }).then((res) => {
+                                const blob = new Blob([res.data], { type: 'application/pdf' })
+                                window.open(URL.createObjectURL(blob), '_blank')
+                              }).catch(() => {
+                                notifications.show({ title: 'Erro', message: 'Falha ao gerar o relatório da OP', color: 'red' })
+                              })
                             }
                           }}
                         >
