@@ -299,7 +299,9 @@ export default function ProgramacaoPage() {
   // Foto anexada pelo operador como evidência da contagem produzida (opcional)
   const [fotoApontar, setFotoApontar] = useState<File | null>(null)
   const [modalPausar, setModalPausar] = useState<{ etapaId: string; opNumero: number } | null>(null)
-  const [modalDesmembrar, setModalDesmembrar] = useState<{ etapaId: string; opNumero: number; quantidade: number; descricao: string } | null>(null)
+  const [modalDesmembrar, setModalDesmembrar] = useState<{ etapaId: string; opNumero: number; quantidade: number; tiragem: number; descricao: string } | null>(null)
+  // Base da divisão do desmembramento: QUANTIDADE (unidades) ou TIRAGEM (folhas).
+  const [baseDesmembrar, setBaseDesmembrar] = useState<'QUANTIDADE' | 'TIRAGEM'>('QUANTIDADE')
   const [formApontar, setFormApontar] = useState({ quantidadeProduzida: 0, quantidadePerda: 0, motivoPerda: '', observacao: '' })
   const [formPausar, setFormPausar] = useState({ motivoParada: 'ACERTO_MAQUINA', observacao: '' })
   const [formDesmembrar, setFormDesmembrar] = useState<Array<{ centroProducaoId: string; quantidade: number }>>([{ centroProducaoId: '', quantidade: 0 }, { centroProducaoId: '', quantidade: 0 }])
@@ -1246,11 +1248,10 @@ export default function ProgramacaoPage() {
       return
     }
     try {
-      await api.post(`/pcp/etapas/${modalDesmembrar.etapaId}/desmembrar`, { partes: partesValidas })
-      notifications.show({ title: 'Etapa desmembrada', message: `Dividida em ${partesValidas.length} partes`, color: 'green' })
+      await api.post(`/pcp/etapas/${modalDesmembrar.etapaId}/desmembrar`, { partes: partesValidas, base: baseDesmembrar })
+      notifications.show({ title: 'Etapa desmembrada', message: `Dividida em ${partesValidas.length} partes (${baseDesmembrar === 'TIRAGEM' ? 'tiragem' : 'quantidade'})`, color: 'green' })
       setModalDesmembrar(null)
       setFormDesmembrar([{ centroProducaoId: '', quantidade: 0 }, { centroProducaoId: '', quantidade: 0 }])
-      carregar()
     } catch (err: any) { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' }) }
   }
 
@@ -3173,7 +3174,7 @@ export default function ProgramacaoPage() {
                                     </ActionIcon>
                                     )}
                                     {podeExecutar('podeDesmembrar', centro.centro.tipoProcessoId) && (
-                                    <ActionIcon color="violet" variant="light" size="sm" onClick={() => { setModalDesmembrar({ etapaId: etapa.id, opNumero: etapa.opNumero, quantidade: etapa.quantidade, descricao: etapa.descricao }); setFormDesmembrar([{ centroProducaoId: '', quantidade: Math.floor(etapa.quantidade / 2) }, { centroProducaoId: '', quantidade: Math.ceil(etapa.quantidade / 2) }]) }} title="Desmembrar">
+                                    <ActionIcon color="violet" variant="light" size="sm" onClick={() => { setBaseDesmembrar('QUANTIDADE'); setModalDesmembrar({ etapaId: etapa.id, opNumero: etapa.opNumero, quantidade: etapa.quantidade, tiragem: etapa.tiragem || etapa.quantidade, descricao: etapa.descricao }); setFormDesmembrar([{ centroProducaoId: '', quantidade: Math.floor(etapa.quantidade / 2) }, { centroProducaoId: '', quantidade: Math.ceil(etapa.quantidade / 2) }]) }} title="Desmembrar">
                                       <IconCut size={14} />
                                     </ActionIcon>
                                     )}
@@ -3315,9 +3316,37 @@ export default function ProgramacaoPage() {
 
       {/* Modal: Desmembrar Etapa */}
       <Modal opened={!!modalDesmembrar} onClose={() => setModalDesmembrar(null)} title={`Desmembrar — OP #${modalDesmembrar?.opNumero}`} centered size="lg">
+        {(() => {
+          // Total de referência conforme a base escolhida (quantidade ou tiragem).
+          const totalBase = baseDesmembrar === 'TIRAGEM'
+            ? (modalDesmembrar?.tiragem ?? 0)
+            : (modalDesmembrar?.quantidade ?? 0)
+          const unidadeLabel = baseDesmembrar === 'TIRAGEM' ? 'folhas' : 'un'
+          const somaPartes = formDesmembrar.reduce((a, p) => a + p.quantidade, 0)
+          const metade = Math.floor(totalBase / 2)
+          return (
         <Stack gap="md">
-          <Text size="sm" c="dimmed">{modalDesmembrar?.descricao} — Total: <strong>{modalDesmembrar?.quantidade?.toLocaleString('pt-BR')} un</strong></Text>
-          <Text size="xs" c="orange">A soma das partes deve ser igual à quantidade total ({modalDesmembrar?.quantidade?.toLocaleString('pt-BR')})</Text>
+          {/* Seletor da BASE: dividir por quantidade (unidades) ou por tiragem (folhas) */}
+          <SegmentedControl
+            fullWidth
+            value={baseDesmembrar}
+            onChange={(v) => {
+              const base = v as 'QUANTIDADE' | 'TIRAGEM'
+              setBaseDesmembrar(base)
+              // Reinicia as partes com metade/metade do novo total de referência.
+              const total = base === 'TIRAGEM' ? (modalDesmembrar?.tiragem ?? 0) : (modalDesmembrar?.quantidade ?? 0)
+              setFormDesmembrar([
+                { centroProducaoId: '', quantidade: Math.floor(total / 2) },
+                { centroProducaoId: '', quantidade: Math.ceil(total / 2) },
+              ])
+            }}
+            data={[
+              { label: 'Por Quantidade (un)', value: 'QUANTIDADE' },
+              { label: 'Por Tiragem (folhas)', value: 'TIRAGEM' },
+            ]}
+          />
+          <Text size="sm" c="dimmed">{modalDesmembrar?.descricao} — Total: <strong>{totalBase.toLocaleString('pt-BR')} {unidadeLabel}</strong></Text>
+          <Text size="xs" c="orange">A soma das partes deve ser igual ao total ({totalBase.toLocaleString('pt-BR')} {unidadeLabel})</Text>
 
           {formDesmembrar.map((parte, idx) => (
             <Group key={idx} grow>
@@ -3330,7 +3359,7 @@ export default function ProgramacaoPage() {
                 placeholder="Selecione a máquina"
               />
               <NumberInput
-                label="Quantidade"
+                label={baseDesmembrar === 'TIRAGEM' ? 'Tiragem (folhas)' : 'Quantidade (un)'}
                 value={parte.quantidade}
                 onChange={(v) => { const novo = [...formDesmembrar]; novo[idx].quantidade = typeof v === 'number' ? v : 0; setFormDesmembrar(novo) }}
                 min={1}
@@ -3342,15 +3371,17 @@ export default function ProgramacaoPage() {
             <Button variant="light" size="xs" onClick={() => setFormDesmembrar([...formDesmembrar, { centroProducaoId: '', quantidade: 0 }])}>
               + Adicionar Parte
             </Button>
-            <Text size="sm" fw={600} c={formDesmembrar.reduce((a, p) => a + p.quantidade, 0) === modalDesmembrar?.quantidade ? 'green' : 'red'}>
-              Soma: {formDesmembrar.reduce((a, p) => a + p.quantidade, 0).toLocaleString('pt-BR')} / {modalDesmembrar?.quantidade?.toLocaleString('pt-BR')}
+            <Text size="sm" fw={600} c={somaPartes === totalBase ? 'green' : 'red'}>
+              Soma: {somaPartes.toLocaleString('pt-BR')} / {totalBase.toLocaleString('pt-BR')} {unidadeLabel}
             </Text>
           </Group>
 
-          <Button color="violet" onClick={enviarDesmembramento} fullWidth leftSection={<IconCut size={16} />} disabled={formDesmembrar.reduce((a, p) => a + p.quantidade, 0) !== modalDesmembrar?.quantidade}>
+          <Button color="violet" onClick={enviarDesmembramento} fullWidth leftSection={<IconCut size={16} />} disabled={somaPartes !== totalBase}>
             Desmembrar Etapa
           </Button>
         </Stack>
+          )
+        })()}
       </Modal>
 
       {/* Modal: Novo Grupo (Feature 5a) */}
@@ -4035,10 +4066,12 @@ export default function ProgramacaoPage() {
                 style={{ borderRadius: 4, fontSize: 13 }}
                 className="mantine-Menu-item"
                 onClick={() => {
+                  setBaseDesmembrar('QUANTIDADE')
                   setModalDesmembrar({
                     etapaId: contextMenu.etapa.id,
                     opNumero: contextMenu.etapa.opNumero,
                     quantidade: contextMenu.etapa.quantidade,
+                    tiragem: contextMenu.etapa.tiragem || contextMenu.etapa.quantidade,
                     descricao: contextMenu.etapa.descricao || contextMenu.etapa.produtoNome || '',
                   })
                   setContextMenu(null)
