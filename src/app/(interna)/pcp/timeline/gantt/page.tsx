@@ -10,6 +10,16 @@ import {
 } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
+import { rotuloPlano } from '@/lib/plano-rotulo'
+
+/** Deriva o rótulo de face/plano da descrição da etapa (Req 3). Ver gantt/page.tsx. */
+function faceDaDescricao(descricao: string | null | undefined): string {
+  const txt = rotuloPlano(descricao)
+  const idx = txt.lastIndexOf('—')
+  if (idx < 0) return ''
+  const face = txt.slice(idx + 1).trim()
+  return face.length > 0 && face.length <= 24 ? face : ''
+}
 
 // ============================================================================
 // TYPES
@@ -70,6 +80,10 @@ interface GanttBar {
   tempoTotalPrevisto: number
   tempoRealMinutos: number | null
   prioridade: string
+  // Rótulo de face/plano (Req 3) + nº da passada da mesma OP no mesmo centro.
+  opId: string
+  faceLabel: string
+  passada: number
 }
 
 interface Raia {
@@ -215,13 +229,23 @@ export default function GanttPage() {
           tempoTotalPrevisto: etapa.tempoTotalPrevisto,
           tempoRealMinutos: etapa.tempoRealMinutos,
           prioridade: op.prioridade,
+          opId: op.opId,
+          faceLabel: faceDaDescricao(etapa.descricao),
+          passada: 1,
         })
       }
     }
 
-    // Ordenar barras por início dentro de cada raia
+    // Ordenar barras por início dentro de cada raia + numerar a passada da
+    // mesma OP no mesmo centro (Req 3.5).
     for (const raia of raiaMap.values()) {
       raia.barras.sort((a, b) => a.inicioMs - b.inicioMs)
+      const contagemPorOp = new Map<string, number>()
+      for (const bar of raia.barras) {
+        const n = (contagemPorOp.get(bar.opId) ?? 0) + 1
+        contagemPorOp.set(bar.opId, n)
+        bar.passada = n
+      }
     }
 
     // Ordenar raias por tipo de processo (ordem da programação)
@@ -450,8 +474,11 @@ export default function GanttPage() {
                               w={280}
                               label={
                                 <div>
-                                  <Text size="xs" fw={700}>OP {bar.opNumero} — {bar.clienteNome || '—'}</Text>
-                                  <Text size="xs">{bar.descricao}</Text>
+                                  <Text size="xs" fw={700}>
+                                    OP {bar.opNumero} — {bar.clienteNome || '—'}
+                                    {bar.faceLabel ? ` · ${bar.faceLabel}` : ''}
+                                  </Text>
+                                  <Text size="xs">{rotuloPlano(bar.descricao)}{bar.passada > 1 ? ` · ${bar.passada}ª passada` : ''}</Text>
                                   <Text size="xs" c="dimmed">
                                     Previsto: {formatMinutos(bar.tempoTotalPrevisto)}
                                     {bar.tempoRealMinutos !== null && ` | Real: ${formatMinutos(bar.tempoRealMinutos)}`}
@@ -487,8 +514,20 @@ export default function GanttPage() {
                               }}>
                                 {barWidth > 40 && (
                                   <Text size="9px" c="white" fw={600} lineClamp={1} px={4}>
-                                    {bar.opNumero}
+                                    {bar.opNumero}{bar.faceLabel ? ` · ${bar.faceLabel}` : ''}
                                   </Text>
+                                )}
+                                {/* Marca de 2ª+ passada da mesma OP no mesmo centro (Req 3.5) */}
+                                {bar.passada > 1 && (
+                                  <div style={{
+                                    position: 'absolute', top: -2, right: -2, zIndex: 2,
+                                    background: '#fff', color: '#333',
+                                    fontSize: 7, fontWeight: 800, lineHeight: '11px',
+                                    minWidth: 13, height: 13, borderRadius: 6, textAlign: 'center',
+                                    border: '1px solid #333', padding: '0 2px',
+                                  }}>
+                                    {bar.passada}ª
+                                  </div>
                                 )}
                               </div>
                             </Tooltip>

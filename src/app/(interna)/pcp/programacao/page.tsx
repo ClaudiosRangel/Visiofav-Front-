@@ -9,6 +9,7 @@ import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
+import { rotuloPlano } from '@/lib/plano-rotulo'
 import { SortableCentroItem } from '@/components/pcp/SortableCentroItem'
 import VisaoDetalhadaProgramacao from '@/components/pcp/VisaoDetalhadaProgramacao'
 import { useCentrosOrdenacao } from '@/hooks/useCentrosOrdenacao'
@@ -121,16 +122,10 @@ function SortableParentRow({ dndId, children, onToggle }: { dndId: string; child
   )
 }
 
-/**
- * Rótulo de exibição do plano. Padroniza a nomenclatura "VERSO" (spec
- * importador-calcgraf-paridade-pdf, T8): OPs antigas importadas por PDF podem
- * ter o plano gravado como "... (COSTA)"; aqui exibimos "... (VERSO)" sem
- * tocar o dado. O valor técnico (tipo='FACE') é inalterado. Novas importações
- * (PDF e agente Calcgraf) já gravam "(VERSO)".
- */
-function rotuloPlano(nome?: string | null): string {
-  return (nome ?? '').replace(/\(COSTA\)/gi, '(VERSO)')
-}
+// Rótulo de exibição do plano: padroniza "VERSO" (nunca "COSTA"). Usa o helper
+// compartilhado `src/lib/plano-rotulo.ts` (spec pcp-visualizacao-planos-gantt,
+// Req 1) — regra única para todo o PCP. OPs antigas podem ter "(COSTA)"
+// gravado; a exibição mostra "(VERSO)" sem tocar o dado.
 
 export default function ProgramacaoPage() {
   useEffect(() => { document.title = 'PCP - Painel Operacional' }, [])

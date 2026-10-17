@@ -8,6 +8,23 @@ import {
 import { IconSearch, IconTimeline, IconRefresh } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
+import { rotuloPlano } from '@/lib/plano-rotulo'
+
+/**
+ * Deriva o rótulo de face/plano a partir da descrição da etapa (Spec
+ * pcp-visualizacao-planos-gantt, Req 3). A descrição do roteiro multi-plano/
+ * retiração traz "<nome> — FRENTE/VERSO/<PLANO>"; extraímos o trecho após o
+ * último "—". Sempre normaliza "COSTA" → "VERSO". '' quando não há face/plano.
+ */
+function faceDaDescricao(descricao: string | null | undefined): string {
+  const txt = rotuloPlano(descricao)
+  const idx = txt.lastIndexOf('—')
+  if (idx < 0) return ''
+  const face = txt.slice(idx + 1).trim()
+  // Só considera "face" quando é curta (FRENTE/VERSO/TAMPA/CAIXA...), evitando
+  // pegar um traço no meio de uma descrição longa sem plano.
+  return face.length > 0 && face.length <= 24 ? face : ''
+}
 
 // ============================================================================
 // TYPES
@@ -78,6 +95,10 @@ interface GanttBar {
   sequencia: number
   // Para setas de dependência
   opEtapaAnteriorCentro: string | null
+  // Rótulo de face/plano derivado da descrição (ex.: "VERSO", "TAMPA"). '' = sem.
+  faceLabel: string
+  // Nº da passada da MESMA OP neste MESMO centro (1 = 1ª; >1 marca "2ª passada").
+  passada: number
 }
 
 interface Raia {
@@ -257,6 +278,8 @@ export default function GanttProducaoPage() {
           riscoEntrega: op.riscoEntrega,
           sequencia: etapa.sequencia,
           opEtapaAnteriorCentro: etapaAnteriorCentro,
+          faceLabel: faceDaDescricao(etapa.descricao),
+          passada: 1,
         })
 
         etapaAnteriorCentro = etapa.centroProducao
@@ -265,6 +288,14 @@ export default function GanttProducaoPage() {
 
     for (const raia of raiaMap.values()) {
       raia.barras.sort((a, b) => a.inicioMs - b.inicioMs)
+      // Numera a passada de cada OP dentro da raia (mesmo centro): a 2ª+ barra
+      // da mesma OP recebe passada>1 → marca visual de "2ª passada" (Req 3.5).
+      const contagemPorOp = new Map<string, number>()
+      for (const bar of raia.barras) {
+        const n = (contagemPorOp.get(bar.opId) ?? 0) + 1
+        contagemPorOp.set(bar.opId, n)
+        bar.passada = n
+      }
     }
 
     const raiasArr = Array.from(raiaMap.values())
@@ -517,8 +548,12 @@ export default function GanttProducaoPage() {
                       multiline w={300}
                       label={
                         <div>
-                          <Text size="xs" fw={700}>OP {bar.opNumero} — {bar.produtoNome || bar.descricao}</Text>
+                          <Text size="xs" fw={700}>
+                            OP {bar.opNumero} — {bar.produtoNome || rotuloPlano(bar.descricao)}
+                            {bar.faceLabel ? ` · ${bar.faceLabel}` : ''}
+                          </Text>
                           <Text size="xs">{bar.clienteNome || '—'} | Qtd: {bar.quantidade.toLocaleString('pt-BR')}</Text>
+                          <Text size="xs" c="dimmed">Operação: {rotuloPlano(bar.descricao)}{bar.passada > 1 ? ` · ${bar.passada}ª passada` : ''}</Text>
                           <Text size="xs" c="dimmed">Setup: {formatMinutos(bar.tempoSetupMinutos)} | Operação: {formatMinutos(bar.tempoTotalPrevisto - bar.tempoSetupMinutos)}</Text>
                           <Text size="xs" c="dimmed">Previsto: {formatHora(bar.inicioMs)} → {formatHora(bar.fimMs)}</Text>
                           {bar.tempoRealMinutos !== null && <Text size="xs" c="dimmed">Real: {formatMinutos(bar.tempoRealMinutos)}</Text>}
@@ -550,13 +585,25 @@ export default function GanttProducaoPage() {
                         }}>
                           <div style={{ overflow: 'hidden', width: '100%' }}>
                             <Text size="9px" c="white" fw={700} lineClamp={1}>
-                              OP{bar.opNumero} {bar.produtoNome ? `- ${bar.produtoNome.slice(0, 25)}` : ''}
+                              OP{bar.opNumero}{bar.faceLabel ? ` · ${bar.faceLabel}` : (bar.produtoNome ? ` - ${bar.produtoNome.slice(0, 22)}` : '')}
                             </Text>
                             <Text size="8px" c="rgba(255,255,255,0.8)" lineClamp={1}>
-                              x{bar.quantidade.toLocaleString('pt-BR')} | {formatMinutos(bar.tempoTotalPrevisto)}
+                              {bar.passada > 1 ? `${bar.passada}ª passada · ` : ''}x{bar.quantidade.toLocaleString('pt-BR')} | {formatMinutos(bar.tempoTotalPrevisto)}
                             </Text>
                           </div>
                         </div>
+                        {/* Marca de 2ª+ passada da mesma OP no mesmo centro (Req 3.5) */}
+                        {bar.passada > 1 && (
+                          <div style={{
+                            position: 'absolute', top: -3, right: -3, zIndex: 2,
+                            background: '#fff', color: borderColor,
+                            fontSize: 8, fontWeight: 800, lineHeight: '12px',
+                            minWidth: 14, height: 14, borderRadius: 7, textAlign: 'center',
+                            border: `1.5px solid ${borderColor}`, padding: '0 2px',
+                          }}>
+                            {bar.passada}ª
+                          </div>
+                        )}
                         {/* Seta de dependência (da etapa anterior) */}
                         {bar.opEtapaAnteriorCentro && bar.opEtapaAnteriorCentro !== bar.centroProducao && (
                           <div style={{

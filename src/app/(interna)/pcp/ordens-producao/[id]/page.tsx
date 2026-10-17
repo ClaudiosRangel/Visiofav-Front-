@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { Title, Stack, Card, Group, Badge, Text, Table, Tabs, Button, Loader, Center, Divider, Timeline, NumberInput, ActionIcon, Tooltip, Modal, TextInput, Select } from '@mantine/core'
-import { IconArrowLeft, IconPackage, IconRoute, IconClipboardCheck, IconTruck, IconPalette, IconFileTypePdf, IconPencil, IconCheck, IconX, IconPlus } from '@tabler/icons-react'
+import { IconArrowLeft, IconPackage, IconRoute, IconClipboardCheck, IconTruck, IconPalette, IconFileTypePdf, IconPencil, IconCheck, IconX, IconPlus, IconLayoutGrid } from '@tabler/icons-react'
 import { useRouter, useParams } from 'next/navigation'
 import { api } from '@/lib/api'
 import { getAuthToken } from '@/lib/authStorage'
 import { notifications } from '@mantine/notifications'
+import PlanosOverview, { PlanoOP } from '@/components/pcp/PlanosOverview'
+import { rotuloPlano } from '@/lib/plano-rotulo'
 
 const STATUS_COLORS: Record<string, string> = {
   RASCUNHO: 'gray', PLANEJADA: 'blue', PROGRAMADA: 'indigo', LIBERADA: 'cyan', EM_PRODUCAO: 'orange', CONCLUIDA: 'green', CANCELADA: 'red',
@@ -20,6 +22,7 @@ export default function DetalheOpPage() {
 
   const [op, setOp] = useState<any>(null)
   const [variacoes, setVariacoes] = useState<any[]>([])
+  const [planos, setPlanos] = useState<PlanoOP[]>([])
   const [programacoes, setProgramacoes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   // Indica se a OP tem PDF ORIGINAL salvo (importado do Calcgraf OU enviado
@@ -71,12 +74,15 @@ export default function DetalheOpPage() {
       api.get(`/ordens-producao/${id}`),
       api.get(`/ordens-producao/${id}/variacoes`).catch(() => ({ data: { variacoes: [] } })),
       api.get(`/ordens-producao/${id}/programacao-entrega`).catch(() => ({ data: { programacoes: [] } })),
+      // Planos/componentes reais (PlanoOrdemProducao) — agente/PDF. Falha → vazio.
+      api.get(`/ordens-producao/${id}/planos`).catch(() => ({ data: { planos: [] } })),
       // Checa se há PDF original salvo (qualquer origem). Falha → assume sem PDF.
       api.post('/ordens-producao/pdf-status', { ids: [id] }).catch(() => ({ data: {} })),
-    ]).then(([opRes, varRes, progRes, pdfRes]) => {
+    ]).then(([opRes, varRes, progRes, planosRes, pdfRes]) => {
       setOp(opRes.data)
       setVariacoes(varRes.data.variacoes || [])
       setProgramacoes(progRes.data.programacoes || [])
+      setPlanos(planosRes.data.planos || [])
       // pdf-status retorna um mapa { [id]: boolean }.
       setTemPdf(Boolean(pdfRes.data?.[id as string]))
     }).finally(() => setLoading(false))
@@ -560,6 +566,7 @@ export default function DetalheOpPage() {
         <Tabs.List>
           <Tabs.Tab value="etapas" leftSection={<IconRoute size={16} />}>Etapas ({op.etapas?.length || 0})</Tabs.Tab>
           <Tabs.Tab value="materiais" leftSection={<IconPackage size={16} />}>Materiais ({op.itens?.length || 0})</Tabs.Tab>
+          <Tabs.Tab value="planos" leftSection={<IconLayoutGrid size={16} />}>Planos ({planos.length})</Tabs.Tab>
           <Tabs.Tab value="variacoes" leftSection={<IconPalette size={16} />}>Variações ({variacoes.length})</Tabs.Tab>
           <Tabs.Tab value="entregas" leftSection={<IconTruck size={16} />}>Entregas ({programacoes.length})</Tabs.Tab>
           <Tabs.Tab value="historico" leftSection={<IconClipboardCheck size={16} />}>Histórico</Tabs.Tab>
@@ -595,7 +602,7 @@ export default function DetalheOpPage() {
                 {op.etapas.map((etapa: any) => (
                   <Table.Tr key={etapa.id}>
                     <Table.Td>{etapa.sequencia}</Table.Td>
-                    <Table.Td>{etapa.descricao}</Table.Td>
+                    <Table.Td>{rotuloPlano(etapa.descricao)}</Table.Td>
                     <Table.Td>{etapa.centroProducao?.descricao || '—'}</Table.Td>
                     <Table.Td>{Number(etapa.tempoSetupMinutos)}</Table.Td>
                     <Table.Td>{Number(etapa.tempoOperacaoCalculado)}</Table.Td>
@@ -638,6 +645,11 @@ export default function DetalheOpPage() {
               </Table.Tbody>
             </Table>
           ) : <Text c="dimmed" ta="center">Nenhum material</Text>}
+        </Tabs.Panel>
+
+        {/* ABA PLANOS — PlanoOrdemProducao (TAMPA/CAIXA/FACE FRENTE/VERSO) */}
+        <Tabs.Panel value="planos" pt="md">
+          <PlanosOverview planos={planos} />
         </Tabs.Panel>
 
         {/* ABA VARIAÇÕES */}
