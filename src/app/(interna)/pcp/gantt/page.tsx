@@ -5,7 +5,8 @@ import {
   Title, Stack, Group, Text, Loader, Center, Badge, Paper, Box,
   Tooltip, TextInput, SegmentedControl, ActionIcon,
 } from '@mantine/core'
-import { IconSearch, IconTimeline, IconRefresh } from '@tabler/icons-react'
+import { IconSearch, IconTimeline, IconRefresh, IconLock, IconLockOpen } from '@tabler/icons-react'
+import { Menu } from '@mantine/core'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
 import { rotuloPlano } from '@/lib/plano-rotulo'
@@ -49,6 +50,8 @@ interface EtapaTimeline {
   indicador: string
   desvioMinutos: number
   desvioPercent: number
+  agendaTravada?: boolean
+  inicioAgendadoManual?: string | null
   paradas: Array<{ motivo: string; duracaoMinutos: number; observacao: string | null }>
 }
 
@@ -99,6 +102,9 @@ interface GanttBar {
   faceLabel: string
   // Nº da passada da MESMA OP neste MESMO centro (1 = 1ª; >1 marca "2ª passada").
   passada: number
+  // Âncora de agenda (spec pcp-gantt-travar-mover).
+  agendaTravada: boolean
+  inicioAgendadoManual: string | null
 }
 
 interface Raia {
@@ -203,6 +209,75 @@ export default function GanttProducaoPage() {
     return () => clearInterval(interval)
   }, [])
 
+  // ── Edição do Gantt (spec pcp-gantt-travar-mover) ──
+  // pixelsPorMinuto vivo num ref para o handler de drag (que não re-renderiza).
+  const ppmRef = useRef(1.2)
+  // Deslocamento visual otimista por etapa (minutos) durante/após o arraste.
+  const [offsetMin, setOffsetMin] = useState<Record<string, number>>({})
+  const dragRef = useRef<{ etapaId: string; startX: number; inicioMs: number } | null>(null)
+  const [salvandoAgenda, setSalvandoAgenda] = useState(false)
+
+  /** Trava a etapa numa data (ISO) — usado pelo drag e pelo menu. */
+  async function agendarEtapa(etapaId: string, inicioISO: string) {
+    setSalvandoAgenda(true)
+    try {
+      await api.patch(`/pcp/etapas/${etapaId}/agendar`, { inicio: inicioISO })
+      notifications.show({ title: 'Etapa travada', message: 'Agenda fixada nesta data.', color: 'green' })
+      setOffsetMin((p) => { const n = { ...p }; delete n[etapaId]; return n })
+      await carregar()
+    } catch (e: any) {
+      notifications.show({ title: 'Não foi possível agendar', message: e?.response?.data?.message || 'Falha ao travar a etapa.', color: 'red' })
+      // Reverte o deslocamento otimista (Req 3.5).
+      setOffsetMin((p) => { const n = { ...p }; delete n[etapaId]; return n })
+    } finally {
+      setSalvandoAgenda(false)
+    }
+  }
+
+  /** Destrava a etapa (volta ao cálculo automático). */
+  async function destravarEtapa(etapaId: string) {
+    setSalvandoAgenda(true)
+    try {
+      await api.patch(`/pcp/etapas/${etapaId}/destravar`, {})
+      notifications.show({ title: 'Etapa destravada', message: 'Agenda volta ao cálculo automático.', color: 'blue' })
+      await carregar()
+    } catch (e: any) {
+      notifications.show({ title: 'Erro', message: e?.response?.data?.message || 'Falha ao destravar.', color: 'red' })
+    } finally {
+      setSalvandoAgenda(false)
+    }
+  }
+
+  // Pointer drag: início no bloco, delta horizontal → delta de minutos.
+  const onBarPointerDown = useCallback((e: React.PointerEvent, bar: GanttBar) => {
+    // Só botão esquerdo; ignora se já salvando.
+    if (e.button !== 0) return
+    e.preventDefault()
+    dragRef.current = { etapaId: bar.etapaId, startX: e.clientX, inicioMs: bar.inicioMs }
+    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+  }, [])
+
+  const onBarPointerMove = useCallback((e: React.PointerEvent) => {
+    const d = dragRef.current
+    if (!d) return
+    const deltaPx = e.clientX - d.startX
+    const deltaMin = deltaPx / (ppmRef.current || 1.2)
+    setOffsetMin((p) => ({ ...p, [d.etapaId]: deltaMin }))
+  }, [])
+
+  const onBarPointerUp = useCallback((e: React.PointerEvent) => {
+    const d = dragRef.current
+    dragRef.current = null
+    if (!d) return
+    const deltaPx = e.clientX - d.startX
+    const deltaMin = deltaPx / (ppmRef.current || 1.2)
+    // Ignora cliques (sem arraste significativo) — < 3px.
+    if (Math.abs(deltaPx) < 3) return
+    // Snap a 15 min.
+    const snapped = Math.round((d.inicioMs + deltaMin * 60000) / (15 * 60000)) * (15 * 60000)
+    agendarEtapa(d.etapaId, new Date(snapped).toISOString())
+  }, [])
+
   const pixelsPorMinuto = useMemo(() => {
     switch (visao) {
       case '12h': return 2.5
@@ -212,6 +287,8 @@ export default function GanttProducaoPage() {
       default: return 1.2
     }
   }, [visao])
+  // Mantém o ref vivo para o handler de drag (que roda fora do render).
+  ppmRef.current = pixelsPorMinuto
 
   // Mapa de cores por OP
   const opColorMap = useMemo(() => new Map<string, string>(), [timeline])
@@ -280,6 +357,8 @@ export default function GanttProducaoPage() {
           opEtapaAnteriorCentro: etapaAnteriorCentro,
           faceLabel: faceDaDescricao(etapa.descricao),
           passada: 1,
+          agendaTravada: Boolean(etapa.agendaTravada),
+          inicioAgendadoManual: etapa.inicioAgendadoManual ?? null,
         })
 
         etapaAnteriorCentro = etapa.centroProducao
@@ -535,16 +614,19 @@ export default function GanttProducaoPage() {
               return grupo.raias.map((raia, ri) => {
                 const raiaTop = offsetY + 28 + ri * RAIA_HEIGHT
                 return raia.barras.map((bar, bi) => {
-                  const barLeft = ((bar.inicioMs - minTime) / 60000) * pixelsPorMinuto
+                  const offMin = offsetMin[bar.etapaId] || 0
+                  const barLeft = ((bar.inicioMs - minTime) / 60000) * pixelsPorMinuto + offMin * pixelsPorMinuto
                   const barWidth = Math.max(20, ((bar.fimMs - bar.inicioMs) / 60000) * pixelsPorMinuto)
                   const setupWidth = bar.tempoSetupMinutos > 0 ? Math.max(4, bar.tempoSetupMinutos * pixelsPorMinuto) : 0
                   const color = getOpColor(bar.opId, opColorMap)
                   const borderColor = STATUS_BORDER[bar.indicador] || '#9e9e9e'
                   const isActive = bar.status === 'EM_ANDAMENTO'
+                  const podeEditar = bar.status !== 'CONCLUIDO' && bar.status !== 'CONCLUIDA'
 
                   return (
+                    <Menu key={`${gi}-${ri}-${bi}`} shadow="md" width={210} position="bottom-start" withinPortal trigger="click" openDelay={0}>
+                      <Menu.Target>
                     <Tooltip
-                      key={`${gi}-${ri}-${bi}`}
                       multiline w={300}
                       label={
                         <div>
@@ -556,12 +638,18 @@ export default function GanttProducaoPage() {
                           <Text size="xs" c="dimmed">Operação: {rotuloPlano(bar.descricao)}{bar.passada > 1 ? ` · ${bar.passada}ª passada` : ''}</Text>
                           <Text size="xs" c="dimmed">Setup: {formatMinutos(bar.tempoSetupMinutos)} | Operação: {formatMinutos(bar.tempoTotalPrevisto - bar.tempoSetupMinutos)}</Text>
                           <Text size="xs" c="dimmed">Previsto: {formatHora(bar.inicioMs)} → {formatHora(bar.fimMs)}</Text>
+                          {bar.agendaTravada && <Text size="xs" c="yellow">🔒 Travado{bar.inicioAgendadoManual ? ` em ${formatHora(new Date(bar.inicioAgendadoManual).getTime())}` : ''}</Text>}
                           {bar.tempoRealMinutos !== null && <Text size="xs" c="dimmed">Real: {formatMinutos(bar.tempoRealMinutos)}</Text>}
                           {bar.dataEntrega && <Text size="xs" c={bar.riscoEntrega ? 'red' : 'green'}>Entrega: {new Date(bar.dataEntrega).toLocaleDateString('pt-BR')}{bar.riscoEntrega ? ' ⚠️ RISCO' : ' ✓'}</Text>}
                         </div>
                       }
                     >
-                      <div style={{ position: 'absolute', top: raiaTop + 8, left: barLeft, width: barWidth, height: RAIA_HEIGHT - 16 }}>
+                      <div
+                        style={{ position: 'absolute', top: raiaTop + 8, left: barLeft, width: barWidth, height: RAIA_HEIGHT - 16, touchAction: 'none' }}
+                        onPointerDown={podeEditar ? (e) => onBarPointerDown(e, bar) : undefined}
+                        onPointerMove={podeEditar ? onBarPointerMove : undefined}
+                        onPointerUp={podeEditar ? onBarPointerUp : undefined}
+                      >
                         {/* Setup block */}
                         {setupWidth > 0 && (
                           <div style={{
@@ -604,6 +692,17 @@ export default function GanttProducaoPage() {
                             {bar.passada}ª
                           </div>
                         )}
+                        {/* Cadeado quando a etapa está travada (Req 5.1) */}
+                        {bar.agendaTravada && (
+                          <div style={{
+                            position: 'absolute', top: -3, left: -3, zIndex: 3,
+                            background: '#fff', borderRadius: 7, width: 14, height: 14,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            border: `1.5px solid ${borderColor}`,
+                          }}>
+                            <IconLock size={9} color={borderColor} />
+                          </div>
+                        )}
                         {/* Seta de dependência (da etapa anterior) */}
                         {bar.opEtapaAnteriorCentro && bar.opEtapaAnteriorCentro !== bar.centroProducao && (
                           <div style={{
@@ -616,6 +715,29 @@ export default function GanttProducaoPage() {
                         )}
                       </div>
                     </Tooltip>
+                      </Menu.Target>
+                      <Menu.Dropdown>
+                        <Menu.Label>OP {bar.opNumero} · {rotuloPlano(bar.descricao)}</Menu.Label>
+                        {bar.agendaTravada ? (
+                          <Menu.Item
+                            leftSection={<IconLockOpen size={14} />}
+                            disabled={salvandoAgenda}
+                            onClick={() => destravarEtapa(bar.etapaId)}
+                          >
+                            Destravar (cálculo automático)
+                          </Menu.Item>
+                        ) : (
+                          <Menu.Item
+                            leftSection={<IconLock size={14} />}
+                            disabled={salvandoAgenda || !podeEditar}
+                            onClick={() => agendarEtapa(bar.etapaId, new Date(bar.inicioMs).toISOString())}
+                          >
+                            Travar nesta data
+                          </Menu.Item>
+                        )}
+                        <Menu.Label>Dica: arraste o bloco para reagendar</Menu.Label>
+                      </Menu.Dropdown>
+                    </Menu>
                   )
                 })
               })
