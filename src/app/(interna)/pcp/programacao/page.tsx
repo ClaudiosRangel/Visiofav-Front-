@@ -71,7 +71,7 @@ function getRowBackground(etapa: any, usaCoresStatus: boolean = true): string | 
   return undefined
 }
 
-function SortableRow({ etapa, children, background, highlighted, selected, onToggleSelect, onContextMenu }: { etapa: { id: string }; children: React.ReactNode; background?: string; highlighted?: boolean; selected?: boolean; onToggleSelect?: () => void; onContextMenu?: (e: React.MouseEvent) => void }) {
+function SortableRow({ etapa, children, background, highlighted, selected, onToggleSelect, onContextMenu, ehFilhoPlano }: { etapa: { id: string }; children: React.ReactNode; background?: string; highlighted?: boolean; selected?: boolean; onToggleSelect?: () => void; onContextMenu?: (e: React.MouseEvent) => void; ehFilhoPlano?: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: etapa.id })
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -86,9 +86,18 @@ function SortableRow({ etapa, children, background, highlighted, selected, onTog
 
   return (
     <Table.Tr ref={setNodeRef} style={style} {...attributes} data-etapa-id={etapa.id} onContextMenu={onContextMenu}>
-      <Table.Td style={{ width: 30, cursor: 'grab' }} {...listeners}>
-        <IconGripVertical size={14} color="gray" />
-      </Table.Td>
+      {ehFilhoPlano ? (
+        // FILHO de plano (detalhe da árvore): NÃO é arrastável — sem grip e sem
+        // listeners de drag. O arraste é só na linha-PAI, que leva todos os
+        // filhos juntos. Mostra o conector de árvore (└) indentado.
+        <Table.Td style={{ width: 30, textAlign: 'center', color: 'var(--mantine-color-dimmed)' }}>
+          <span style={{ fontSize: 13, lineHeight: 1 }}>└</span>
+        </Table.Td>
+      ) : (
+        <Table.Td style={{ width: 30, cursor: 'grab' }} {...listeners}>
+          <IconGripVertical size={14} color="gray" />
+        </Table.Td>
+      )}
       <Table.Td style={{ width: 30, padding: '0 4px' }} onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
         <div onClick={() => onToggleSelect?.()} style={{ cursor: 'pointer', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #adb5bd', borderRadius: 3, background: selected ? '#228be6' : 'transparent' }}>
           {selected && <span style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>✓</span>}
@@ -1009,7 +1018,10 @@ export default function ProgramacaoPage() {
       }
       // Oculta os filhos quando o pai está recolhido.
       if (temPai && centroId && planosRecolhidos.has(`${centroId}:${it.opId}`)) continue
-      resultado.push(it)
+      // Marca a etapa como FILHA de plano (detalhe da árvore): sem grip/drag
+      // próprio — o arraste é só na linha-pai, que leva todos os filhos juntos
+      // (spec/pedido Carton Wega). Só o PRINCIPAL arrasta.
+      resultado.push(temPai ? { ...it, ehFilhoPlano: true } : it)
     }
     return resultado
   }
@@ -2765,7 +2777,7 @@ export default function ProgramacaoPage() {
                               </Table.Td>
                             </SortableRow>
                           ) : (
-                          <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa, usaCoresStatus)} highlighted={highlightedEtapa === etapa.id} selected={selectedEtapas.has(etapa.id)} onToggleSelect={() => toggleSelectEtapa(etapa.id)} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, etapa, centro }) }}>
+                          <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa, usaCoresStatus)} highlighted={highlightedEtapa === etapa.id} selected={selectedEtapas.has(etapa.id)} onToggleSelect={() => toggleSelectEtapa(etapa.id)} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, etapa, centro }) }} ehFilhoPlano={etapa.ehFilhoPlano}>
                             <Table.Td style={{ width: 28, padding: '0 4px' }}>
                               {etapa.etapaAnteriorConcluida === true && <IconCheck size={20} color="#00d26a" strokeWidth={3} />}
                               {etapa.etapaAnteriorConcluida === false && <span style={{ color: '#adb5bd', fontSize: 10 }}>—</span>}
@@ -3025,7 +3037,7 @@ export default function ProgramacaoPage() {
                               </Table.Td>
                             </SortableRow>
                           ) : (
-                          <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa, usaCoresStatus)} highlighted={highlightedEtapa === etapa.id} selected={selectedEtapas.has(etapa.id)} onToggleSelect={() => toggleSelectEtapa(etapa.id)} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, etapa, centro }) }}>
+                          <SortableRow key={etapa.id} etapa={etapa} background={getRowBackground(etapa, usaCoresStatus)} highlighted={highlightedEtapa === etapa.id} selected={selectedEtapas.has(etapa.id)} onToggleSelect={() => toggleSelectEtapa(etapa.id)} onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, etapa, centro }) }} ehFilhoPlano={etapa.ehFilhoPlano}>
                             <Table.Td style={{ width: 28, padding: '0 4px' }}>
                               {etapa.etapaAnteriorConcluida === true && <IconCheck size={20} color="#00d26a" strokeWidth={3} />}
                               {etapa.etapaAnteriorConcluida === false && <span style={{ color: '#adb5bd', fontSize: 10 }}>—</span>}
