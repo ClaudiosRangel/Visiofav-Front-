@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Title, Stack, Table, Group, Button, Badge, Loader, Center, Modal, TextInput, NumberInput, MultiSelect, ActionIcon } from '@mantine/core'
+import { Title, Stack, Group, Button, Badge, Modal, TextInput, MultiSelect, ActionIcon } from '@mantine/core'
 import { IconPlus, IconEdit, IconPower } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
+import { DataTablePadrao } from '@/components/ui/DataTablePadrao'
 
 const DIAS = [
   { value: '0', label: 'Domingo' }, { value: '1', label: 'Segunda' }, { value: '2', label: 'Terça' },
@@ -52,30 +53,32 @@ export default function TurnosProducaoPage() {
         <Button leftSection={<IconPlus size={16} />} onClick={abrirNovo}>Novo Turno</Button>
       </Group>
 
-      {loading ? <Center py="xl"><Loader /></Center> : (
-        <Table striped highlightOnHover>
-          <Table.Thead><Table.Tr><Table.Th>Código</Table.Th><Table.Th>Descrição</Table.Th><Table.Th>Início</Table.Th><Table.Th>Fim</Table.Th><Table.Th>Duração</Table.Th><Table.Th>Dias</Table.Th><Table.Th>Status</Table.Th><Table.Th></Table.Th></Table.Tr></Table.Thead>
-          <Table.Tbody>
-            {data.map((item) => (
-              <Table.Tr key={item.id}>
-                <Table.Td fw={600}>{item.codigo}</Table.Td>
-                <Table.Td>{item.descricao}</Table.Td>
-                <Table.Td>{item.horaInicio}</Table.Td>
-                <Table.Td>{item.horaFim}</Table.Td>
-                <Table.Td>{item.duracaoMinutos} min</Table.Td>
-                <Table.Td>{(item.diasSemana || []).map((d: number) => DIAS[d]?.label?.substring(0, 3)).join(', ')}</Table.Td>
-                <Table.Td><Badge color={item.status ? 'green' : 'red'}>{item.status ? 'Ativo' : 'Inativo'}</Badge></Table.Td>
-                <Table.Td>
-                  <Group gap={4}>
-                    <ActionIcon variant="subtle" onClick={() => abrirEdicao(item)}><IconEdit size={16} /></ActionIcon>
-                    <ActionIcon variant="subtle" color="red" onClick={() => inativar(item)}><IconPower size={16} /></ActionIcon>
-                  </Group>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      )}
+      <DataTablePadrao
+        dados={data}
+        carregando={loading}
+        buscaPlaceholder="Buscar por código ou descrição..."
+        camposBusca={['codigo', 'descricao']}
+        ordenacaoInicial={{ columnAccessor: 'codigo', direction: 'asc' }}
+        textoVazio="Nenhum turno encontrado"
+        colunas={[
+          { accessor: 'codigo', title: 'Código', sortable: true, width: 110 },
+          { accessor: 'descricao', title: 'Descrição', sortable: true },
+          { accessor: 'horaInicio', title: 'Início', width: 90, sortable: true },
+          { accessor: 'horaFim', title: 'Fim', width: 90, sortable: true },
+          { accessor: 'duracaoMinutos', title: 'Duração', width: 100, render: (item: any) => `${item.duracaoMinutos} min` },
+          { accessor: 'diasSemana', title: 'Dias', render: (item: any) => (item.diasSemana || []).map((d: number) => DIAS[d]?.label?.substring(0, 3)).join(', ') },
+          { accessor: 'status', title: 'Status', width: 100, sortable: true, render: (item: any) => <Badge color={item.status ? 'green' : 'red'}>{item.status ? 'Ativo' : 'Inativo'}</Badge> },
+          {
+            accessor: 'acoes', title: '', width: 90,
+            render: (item: any) => (
+              <Group gap={4}>
+                <ActionIcon variant="subtle" onClick={() => abrirEdicao(item)}><IconEdit size={16} /></ActionIcon>
+                <ActionIcon variant="subtle" color="red" onClick={() => inativar(item)}><IconPower size={16} /></ActionIcon>
+              </Group>
+            ),
+          },
+        ]}
+      />
 
       <Modal opened={modalAberto} onClose={() => setModalAberto(false)} title={editando ? 'Editar Turno' : 'Novo Turno'} centered>
         <Stack gap="md">
