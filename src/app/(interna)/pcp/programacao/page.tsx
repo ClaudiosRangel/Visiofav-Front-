@@ -659,12 +659,12 @@ export default function ProgramacaoPage() {
     try {
       const [painelRes, centrosRes, tiposRes, depositosRes] = await Promise.all([
         api.get('/pcp/programacao/painel'),
-        api.get('/centros-producao', { params: { limit: 50, status: 'true' } }),
+        api.get('/centros-producao', { params: { limit: 100, status: 'true' } }),
         api.get('/tipos-processo', { params: { status: 'true' } }),
         api.get('/depositos', { params: { limit: 100 } }).catch(() => ({ data: { data: [] } })),
       ])
       setPainel(painelRes.data)
-      setCentrosDisponiveis((centrosRes.data.data || []).map((c: any) => ({ value: c.id, label: `${c.codigo} - ${c.descricao}` })))
+      setCentrosDisponiveis((centrosRes.data.data || []).map((c: any) => ({ value: c.id, label: `${c.codigo} - ${c.descricao}`, tipoProcessoCodigo: c.tipoProcesso?.codigo ?? null, disponivelProgramacao: c.disponivelProgramacao })))
       setTiposProcesso(tiposRes.data.data || [])
       // Depósitos ativos para a coluna "Enviado" — mostra o código (DEP-001) e a descrição
       setDepositos((depositosRes.data.data || [])
@@ -3924,10 +3924,10 @@ export default function ProgramacaoPage() {
           <Text size="sm" c="dimmed">Selecione o grupo de destino (mesmo tipo de processo):</Text>
           <Select
             data={centrosDisponiveis.filter((c: any) => {
-              // Filtrar apenas centros do mesmo tipo de processo da aba ativa
-              const centroData = painel?.centros?.find((ct: any) => ct.centro.id === c.value)
-              if (!centroData) return false
-              return getCategoriaCentro(centroData.centro.tipoProcesso?.codigo) === activeTab
+              // Mesmo tipo de processo da aba ativa, usando o tipoProcessoCodigo
+              // do próprio item (inclui centros sem etapas no painel).
+              if (c.disponivelProgramacao === false) return false
+              return getCategoriaCentro(c.tipoProcessoCodigo) === activeTab
             })}
             value={centroDestinoLote}
             onChange={setCentroDestinoLote}
@@ -3997,16 +3997,14 @@ export default function ProgramacaoPage() {
           <Select
             data={centrosDisponiveis.filter((c: any) => {
               if (c.value === modalMover?.centroAtualId) return false
-              // Filtrar pela mesma categoria — baseado no Tipo de Processo do centro atual
+              if (c.disponivelProgramacao === false) return false
+              // Mesma categoria (tipo de processo). O tipoProcessoCodigo agora vem
+              // no próprio item de centrosDisponiveis (não depende de o centro ter
+              // etapas no painel), então centros vazios do mesmo processo aparecem.
               const centroAtual = painel?.centros?.find((ct: any) => ct.centro.id === modalMover?.centroAtualId)
-              if (centroAtual) {
-                const categoriaAtual = getCategoriaCentro(centroAtual.centro.tipoProcesso?.codigo)
-                // Buscar Tipo de Processo do centro opção pelo ID
-                const centroOpcao = painel?.centros?.find((ct: any) => ct.centro.id === c.value)
-                const categoriaOpcao = centroOpcao ? getCategoriaCentro(centroOpcao.centro.tipoProcesso?.codigo) : 'outros'
-                return categoriaOpcao === categoriaAtual
-              }
-              return true
+              const categoriaAtual = getCategoriaCentro(centroAtual?.centro?.tipoProcesso?.codigo)
+              const categoriaOpcao = getCategoriaCentro(c.tipoProcessoCodigo)
+              return categoriaOpcao === categoriaAtual
             })}
             searchable
             placeholder="Selecione o grupo destino..."
