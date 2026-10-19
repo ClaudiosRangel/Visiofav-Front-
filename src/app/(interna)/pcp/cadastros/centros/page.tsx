@@ -1,14 +1,12 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { Title, Stack, Group, Button, Badge, Text, Modal, TextInput, Select, NumberInput, ActionIcon, Divider, SimpleGrid, Switch } from '@mantine/core'
-import { IconPlus, IconEdit, IconPower, IconGauge, IconSearch } from '@tabler/icons-react'
-import { DataTable, type DataTableSortStatus } from 'mantine-datatable'
+import { IconPlus, IconEdit, IconPower, IconGauge } from '@tabler/icons-react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
-
-const PAGE_SIZE = 15
+import { DataTablePadrao } from '@/components/ui/DataTablePadrao'
 
 export default function CentrosProducaoPage() {
   const router = useRouter()
@@ -62,39 +60,6 @@ export default function CentrosProducaoPage() {
     } catch {}
   }
 
-  const [busca, setBusca] = useState('')
-  const [page, setPage] = useState(1)
-  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<any>>({ columnAccessor: 'codigo', direction: 'asc' })
-
-  // Filtragem + ordenação + paginação client-side
-  const registros = useMemo(() => {
-    let filtrado = data
-    if (busca) {
-      const b = busca.toLowerCase()
-      filtrado = filtrado.filter((c: any) =>
-        c.codigo?.toLowerCase().includes(b) ||
-        c.descricao?.toLowerCase().includes(b) ||
-        c.tipoProcesso?.descricao?.toLowerCase().includes(b),
-      )
-    }
-    filtrado = [...filtrado].sort((a: any, b: any) => {
-      const aVal = a[sortStatus.columnAccessor] ?? ''
-      const bVal = b[sortStatus.columnAccessor] ?? ''
-      const cmp = String(aVal).localeCompare(String(bVal), 'pt-BR', { numeric: true })
-      return sortStatus.direction === 'asc' ? cmp : -cmp
-    })
-    return filtrado
-  }, [data, busca, sortStatus])
-
-  const totalRegistros = registros.length
-  const paginado = useMemo(() => {
-    const from = (page - 1) * PAGE_SIZE
-    return registros.slice(from, from + PAGE_SIZE)
-  }, [registros, page])
-
-  // Reset page quando muda busca
-  useEffect(() => { setPage(1) }, [busca])
-
   return (
     <Stack gap="md">
       <Group justify="space-between">
@@ -102,31 +67,14 @@ export default function CentrosProducaoPage() {
         <Button leftSection={<IconPlus size={16} />} onClick={abrirNovo}>Novo Centro</Button>
       </Group>
 
-      <TextInput
-        placeholder="Buscar por código, descrição ou processo..."
-        leftSection={<IconSearch size={16} />}
-        value={busca}
-        onChange={(e) => setBusca(e.currentTarget.value)}
-        w={400}
-      />
-
-      <Text size="xs" c="dimmed">{totalRegistros} registro(s) encontrado(s)</Text>
-
-      <DataTable
-        withTableBorder
-        striped
-        highlightOnHover
-        minHeight={200}
-        fetching={loading}
-        records={paginado}
-        totalRecords={totalRegistros}
-        recordsPerPage={PAGE_SIZE}
-        page={page}
-        onPageChange={setPage}
-        sortStatus={sortStatus}
-        onSortStatusChange={setSortStatus}
-        idAccessor="id"
-        columns={[
+      <DataTablePadrao
+        dados={data}
+        carregando={loading}
+        buscaPlaceholder="Buscar por código, descrição ou processo..."
+        camposBusca={['codigo', 'descricao', 'tipoProcesso.descricao']}
+        ordenacaoInicial={{ columnAccessor: 'codigo', direction: 'asc' }}
+        textoVazio="Nenhum centro encontrado"
+        colunas={[
           { accessor: 'codigo', title: 'Código', sortable: true, width: 100 },
           { accessor: 'descricao', title: 'Descrição', sortable: true },
           {
@@ -185,7 +133,6 @@ export default function CentrosProducaoPage() {
             ),
           },
         ]}
-        noRecordsText="Nenhum centro encontrado"
       />
 
       <Modal opened={modalAberto} onClose={() => setModalAberto(false)} title={editando ? 'Editar Centro' : 'Novo Centro'} centered>

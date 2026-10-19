@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Title, Stack, Table, Group, Button, Badge, Text, Loader, Center, Modal, TextInput, Select, NumberInput, ActionIcon } from '@mantine/core'
+import { Title, Stack, Group, Button, Badge, Modal, TextInput, Select, NumberInput, ActionIcon } from '@mantine/core'
 import { IconPlus, IconEdit, IconPower } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
+import { DataTablePadrao } from '@/components/ui/DataTablePadrao'
 
 export default function RecursosProducaoPage() {
   useEffect(() => { document.title = 'PCP - Recursos' }, [])
@@ -53,29 +54,31 @@ export default function RecursosProducaoPage() {
         <Button leftSection={<IconPlus size={16} />} onClick={abrirNovo}>Novo Recurso</Button>
       </Group>
 
-      {loading ? <Center py="xl"><Loader /></Center> : (
-        <Table striped highlightOnHover>
-          <Table.Thead><Table.Tr><Table.Th>Código</Table.Th><Table.Th>Descrição</Table.Th><Table.Th>Tipo</Table.Th><Table.Th>Centro</Table.Th><Table.Th>Custo/Hora</Table.Th><Table.Th>Status</Table.Th><Table.Th></Table.Th></Table.Tr></Table.Thead>
-          <Table.Tbody>
-            {data.map((item) => (
-              <Table.Tr key={item.id}>
-                <Table.Td fw={600}>{item.codigo}</Table.Td>
-                <Table.Td>{item.descricao}</Table.Td>
-                <Table.Td><Badge variant="light">{item.tipo}</Badge></Table.Td>
-                <Table.Td>{item.centroProducao?.descricao || '—'}</Table.Td>
-                <Table.Td>{Number(item.custoHora) ? `R$ ${Number(item.custoHora)}` : '—'}</Table.Td>
-                <Table.Td><Badge color={item.status ? 'green' : 'red'}>{item.status ? 'Ativo' : 'Inativo'}</Badge></Table.Td>
-                <Table.Td>
-                  <Group gap={4}>
-                    <ActionIcon variant="subtle" onClick={() => abrirEdicao(item)}><IconEdit size={16} /></ActionIcon>
-                    <ActionIcon variant="subtle" color="red" onClick={() => inativar(item)}><IconPower size={16} /></ActionIcon>
-                  </Group>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      )}
+      <DataTablePadrao
+        dados={data}
+        carregando={loading}
+        buscaPlaceholder="Buscar por código, descrição ou tipo..."
+        camposBusca={['codigo', 'descricao', 'tipo']}
+        ordenacaoInicial={{ columnAccessor: 'codigo', direction: 'asc' }}
+        textoVazio="Nenhum recurso encontrado"
+        colunas={[
+          { accessor: 'codigo', title: 'Código', sortable: true, width: 110 },
+          { accessor: 'descricao', title: 'Descrição', sortable: true },
+          { accessor: 'tipo', title: 'Tipo', sortable: true, width: 140, render: (item: any) => <Badge variant="light">{item.tipo}</Badge> },
+          { accessor: 'centroProducao.descricao', title: 'Centro', render: (item: any) => item.centroProducao?.descricao || '—' },
+          { accessor: 'custoHora', title: 'Custo/Hora', width: 120, sortable: true, render: (item: any) => Number(item.custoHora) ? `R$ ${Number(item.custoHora)}` : '—' },
+          { accessor: 'status', title: 'Status', width: 100, sortable: true, render: (item: any) => <Badge color={item.status ? 'green' : 'red'}>{item.status ? 'Ativo' : 'Inativo'}</Badge> },
+          {
+            accessor: 'acoes', title: '', width: 90,
+            render: (item: any) => (
+              <Group gap={4}>
+                <ActionIcon variant="subtle" onClick={() => abrirEdicao(item)}><IconEdit size={16} /></ActionIcon>
+                <ActionIcon variant="subtle" color="red" onClick={() => inativar(item)}><IconPower size={16} /></ActionIcon>
+              </Group>
+            ),
+          },
+        ]}
+      />
 
       <Modal opened={modalAberto} onClose={() => setModalAberto(false)} title={editando ? 'Editar Recurso' : 'Novo Recurso'} centered>
         <Stack gap="md">
