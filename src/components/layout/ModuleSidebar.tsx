@@ -437,8 +437,14 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       { icon: IconGauge, label: 'Contagem por Contador', href: '/pcp/contagem' },
       { icon: IconPackage, label: 'Liberação de Materiais', href: '/pcp/liberacoes' },
       { icon: IconArrowsExchange, label: 'Conversão de Unidades', href: '/pcp/conversao' },
-      { icon: IconDatabase, label: 'Mapa de Custos (RKW)', href: '/pcp/mapa-custo' },
-      { icon: IconReportAnalytics, label: 'Análise Gerencial (RKW)', href: '/pcp/analise-gerencial' },
+      {
+        label: 'Gerencial', icon: IconReportAnalytics, items: [
+          { icon: IconReportAnalytics, label: 'Relatório Mensal de Produção', href: '/pcp/gerencial/producao-mensal' },
+          { icon: IconDatabase, label: 'Mapa de Custos (RKW)', href: '/pcp/mapa-custo' },
+          { icon: IconReportAnalytics, label: 'Análise Gerencial (RKW)', href: '/pcp/analise-gerencial' },
+          { icon: IconClipboardCheck, label: 'Códigos de Parada', href: '/pcp/gerencial/codigos-parada' },
+        ],
+      },
       {
         label: 'Cadastros', icon: IconDatabase, items: [
           { icon: IconTool, label: 'Centros de Produção', href: '/pcp/cadastros/centros' },
