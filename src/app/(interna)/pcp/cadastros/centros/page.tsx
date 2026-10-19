@@ -1,11 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Title, Stack, Table, Group, Button, Badge, Text, Loader, Center, Modal, TextInput, Select, NumberInput, ActionIcon, Divider, SimpleGrid, Switch } from '@mantine/core'
-import { IconPlus, IconEdit, IconPower, IconGauge } from '@tabler/icons-react'
+import { useEffect, useState, useMemo } from 'react'
+import { Title, Stack, Group, Button, Badge, Text, Modal, TextInput, Select, NumberInput, ActionIcon, Divider, SimpleGrid, Switch } from '@mantine/core'
+import { IconPlus, IconEdit, IconPower, IconGauge, IconSearch } from '@tabler/icons-react'
+import { DataTable, type DataTableSortStatus } from 'mantine-datatable'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
+
+const PAGE_SIZE = 15
 
 export default function CentrosProducaoPage() {
   const router = useRouter()
@@ -59,6 +62,39 @@ export default function CentrosProducaoPage() {
     } catch {}
   }
 
+  const [busca, setBusca] = useState('')
+  const [page, setPage] = useState(1)
+  const [sortStatus, setSortStatus] = useState<DataTableSortStatus<any>>({ columnAccessor: 'codigo', direction: 'asc' })
+
+  // Filtragem + ordenação + paginação client-side
+  const registros = useMemo(() => {
+    let filtrado = data
+    if (busca) {
+      const b = busca.toLowerCase()
+      filtrado = filtrado.filter((c: any) =>
+        c.codigo?.toLowerCase().includes(b) ||
+        c.descricao?.toLowerCase().includes(b) ||
+        c.tipoProcesso?.descricao?.toLowerCase().includes(b),
+      )
+    }
+    filtrado = [...filtrado].sort((a: any, b: any) => {
+      const aVal = a[sortStatus.columnAccessor] ?? ''
+      const bVal = b[sortStatus.columnAccessor] ?? ''
+      const cmp = String(aVal).localeCompare(String(bVal), 'pt-BR', { numeric: true })
+      return sortStatus.direction === 'asc' ? cmp : -cmp
+    })
+    return filtrado
+  }, [data, busca, sortStatus])
+
+  const totalRegistros = registros.length
+  const paginado = useMemo(() => {
+    const from = (page - 1) * PAGE_SIZE
+    return registros.slice(from, from + PAGE_SIZE)
+  }, [registros, page])
+
+  // Reset page quando muda busca
+  useEffect(() => { setPage(1) }, [busca])
+
   return (
     <Stack gap="md">
       <Group justify="space-between">
@@ -66,62 +102,91 @@ export default function CentrosProducaoPage() {
         <Button leftSection={<IconPlus size={16} />} onClick={abrirNovo}>Novo Centro</Button>
       </Group>
 
-      {loading ? <Center py="xl"><Loader /></Center> : (
-        <Table striped highlightOnHover>
-          <Table.Thead><Table.Tr><Table.Th>Código</Table.Th><Table.Th>Descrição</Table.Th><Table.Th>Tipo</Table.Th><Table.Th>Processo</Table.Th><Table.Th>Contagem</Table.Th><Table.Th>Turno</Table.Th><Table.Th>Cap/Hora</Table.Th><Table.Th>Status</Table.Th><Table.Th></Table.Th></Table.Tr></Table.Thead>
-          <Table.Tbody>
-            {data.map((item) => (
-              <Table.Tr key={item.id}>
-                <Table.Td fw={600}>{item.codigo}</Table.Td>
-                <Table.Td>{item.descricao}</Table.Td>
-                <Table.Td><Badge variant="light">{item.tipo}</Badge></Table.Td>
-                <Table.Td><Badge variant="light" color="teal">{item.tipoProcesso?.descricao || '—'}</Badge></Table.Td>
-                <Table.Td>
-                  {item.modoContagem === 'CONTADOR' ? (
-                    <Badge variant="light" color="teal" title={item.contadorZeraDiariamente ? 'Zera diariamente' : undefined}>
-                      Contador{item.contadorZeraDiariamente ? ' (zera/dia)' : ''}
-                    </Badge>
-                  ) : (
-                    <Text size="xs" c="dimmed">Quantidade</Text>
-                  )}
-                </Table.Td>
-                <Table.Td>
-                  {item.turnoProducao ? (
-                    <Badge variant="light" color="indigo">{item.turnoProducao.descricao} ({item.turnoProducao.horaInicio}-{item.turnoProducao.horaFim})</Badge>
-                  ) : (
-                    <Text size="xs" c="dimmed">24h</Text>
-                  )}
-                </Table.Td>
-                <Table.Td>{Number(item.capacidadeHora) || '—'}</Table.Td>
-                <Table.Td>
-                  <Group gap={4}>
-                    <Badge color={item.status ? 'green' : 'red'}>{item.status ? 'Ativo' : 'Inativo'}</Badge>
-                    {item.disponivelProgramacao === false && (
-                      <Badge color="gray" variant="light" title="Não aparece no painel de Programação">Fora da Programação</Badge>
-                    )}
-                  </Group>
-                </Table.Td>
-                <Table.Td>
-                  <Group gap={4}>
-                    {item.modoContagem === 'CONTADOR' && (
-                      <ActionIcon
-                        variant="subtle"
-                        color="teal"
-                        title="Histórico de contagem (contador)"
-                        onClick={() => router.push(`/pcp/cadastros/centros/${item.id}/contador`)}
-                      >
-                        <IconGauge size={16} />
-                      </ActionIcon>
-                    )}
-                    <ActionIcon variant="subtle" onClick={() => abrirEdicao(item)}><IconEdit size={16} /></ActionIcon>
-                    <ActionIcon variant="subtle" color={item.status ? 'red' : 'green'} onClick={() => toggleStatus(item)}><IconPower size={16} /></ActionIcon>
-                  </Group>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      )}
+      <TextInput
+        placeholder="Buscar por código, descrição ou processo..."
+        leftSection={<IconSearch size={16} />}
+        value={busca}
+        onChange={(e) => setBusca(e.currentTarget.value)}
+        w={400}
+      />
+
+      <Text size="xs" c="dimmed">{totalRegistros} registro(s) encontrado(s)</Text>
+
+      <DataTable
+        withTableBorder
+        striped
+        highlightOnHover
+        minHeight={200}
+        fetching={loading}
+        records={paginado}
+        totalRecords={totalRegistros}
+        recordsPerPage={PAGE_SIZE}
+        page={page}
+        onPageChange={setPage}
+        sortStatus={sortStatus}
+        onSortStatusChange={setSortStatus}
+        idAccessor="id"
+        columns={[
+          { accessor: 'codigo', title: 'Código', sortable: true, width: 100 },
+          { accessor: 'descricao', title: 'Descrição', sortable: true },
+          {
+            accessor: 'tipo', title: 'Tipo', sortable: true, width: 120,
+            render: (item: any) => <Badge variant="light">{item.tipo}</Badge>,
+          },
+          {
+            accessor: 'tipoProcesso.descricao', title: 'Processo', sortable: true,
+            render: (item: any) => <Badge variant="light" color="teal">{item.tipoProcesso?.descricao || '—'}</Badge>,
+          },
+          {
+            accessor: 'modoContagem', title: 'Contagem', width: 140,
+            render: (item: any) =>
+              item.modoContagem === 'CONTADOR' ? (
+                <Badge variant="light" color="teal" title={item.contadorZeraDiariamente ? 'Zera diariamente' : undefined}>
+                  Contador{item.contadorZeraDiariamente ? ' (zera/dia)' : ''}
+                </Badge>
+              ) : <Text size="xs" c="dimmed">Quantidade</Text>,
+          },
+          {
+            accessor: 'turnoProducao.descricao', title: 'Turno',
+            render: (item: any) =>
+              item.turnoProducao ? (
+                <Badge variant="light" color="indigo">{item.turnoProducao.descricao} ({item.turnoProducao.horaInicio}-{item.turnoProducao.horaFim})</Badge>
+              ) : <Text size="xs" c="dimmed">24h</Text>,
+          },
+          {
+            accessor: 'custoHora', title: 'Custo/h', width: 100, sortable: true,
+            render: (item: any) => Number(item.custoHora) ? `R$ ${Number(item.custoHora).toLocaleString('pt-BR')}` : '—',
+          },
+          {
+            accessor: 'capacidadeHora', title: 'Cap/h', width: 90, sortable: true,
+            render: (item: any) => Number(item.capacidadeHora) || '—',
+          },
+          {
+            accessor: 'status', title: 'Status', width: 160, sortable: true,
+            render: (item: any) => (
+              <Group gap={4}>
+                <Badge color={item.status ? 'green' : 'red'}>{item.status ? 'Ativo' : 'Inativo'}</Badge>
+                {item.disponivelProgramacao === false && (
+                  <Badge color="gray" variant="light" title="Não aparece no painel de Programação">Fora Prog.</Badge>
+                )}
+              </Group>
+            ),
+          },
+          {
+            accessor: 'acoes', title: '', width: 100,
+            render: (item: any) => (
+              <Group gap={4}>
+                {item.modoContagem === 'CONTADOR' && (
+                  <ActionIcon variant="subtle" color="teal" title="Histórico de contagem" onClick={() => router.push(`/pcp/cadastros/centros/${item.id}/contador`)}><IconGauge size={16} /></ActionIcon>
+                )}
+                <ActionIcon variant="subtle" onClick={() => abrirEdicao(item)}><IconEdit size={16} /></ActionIcon>
+                <ActionIcon variant="subtle" color={item.status ? 'red' : 'green'} onClick={() => toggleStatus(item)}><IconPower size={16} /></ActionIcon>
+              </Group>
+            ),
+          },
+        ]}
+        noRecordsText="Nenhum centro encontrado"
+      />
 
       <Modal opened={modalAberto} onClose={() => setModalAberto(false)} title={editando ? 'Editar Centro' : 'Novo Centro'} centered>
         <Stack gap="md">

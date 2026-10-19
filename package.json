@@ -29,6 +29,7 @@
     "@tanstack/react-table": "^8.20.6",
     "axios": "^1.7.9",
     "dayjs": "^1.11.13",
+    "mantine-datatable": "^7.17.1",
     "next": "^15.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
