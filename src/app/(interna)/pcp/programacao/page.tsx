@@ -318,7 +318,13 @@ export default function ProgramacaoPage() {
   // Base da divisão do desmembramento: QUANTIDADE (unidades) ou TIRAGEM (folhas).
   const [baseDesmembrar, setBaseDesmembrar] = useState<'QUANTIDADE' | 'TIRAGEM'>('QUANTIDADE')
   const [formApontar, setFormApontar] = useState({ quantidadeProduzida: 0, quantidadePerda: 0, motivoPerda: '', observacao: '' })
-  const [formPausar, setFormPausar] = useState({ motivoParada: 'ACERTO_MAQUINA', observacao: '' })
+  const [formPausar, setFormPausar] = useState({ motivoParada: 'ACERTO_MAQUINA', observacao: '', codigoParadaId: null as string | null })
+  const [codigosParada, setCodigosParada] = useState<{ value: string; label: string }[]>([])
+  useEffect(() => {
+    api.get('/pcp/gerencial/codigos-parada').then(({ data }) => {
+      setCodigosParada((Array.isArray(data) ? data : []).filter((c: any) => c.status !== false).map((c: any) => ({ value: c.id, label: `${c.codigo} - ${c.descricao}` })))
+    }).catch(() => setCodigosParada([]))
+  }, [])
   const [formDesmembrar, setFormDesmembrar] = useState<Array<{ centroProducaoId: string; quantidade: number }>>([{ centroProducaoId: '', quantidade: 0 }, { centroProducaoId: '', quantidade: 0 }])
   const [centrosDisponiveis, setCentrosDisponiveis] = useState<any[]>([])
   const [editingObs, setEditingObs] = useState<{ id: string; value: string } | null>(null)
@@ -1278,12 +1284,13 @@ export default function ProgramacaoPage() {
     try {
       await api.patch(`/pcp/etapas/${modalPausar.etapaId}/pausar`, {
         motivoParada: formPausar.motivoParada,
+        ...(formPausar.codigoParadaId ? { codigoParadaId: formPausar.codigoParadaId } : {}),
         observacao: formPausar.observacao || undefined,
       })
       notifications.show({ title: 'Etapa pausada', message: formPausar.motivoParada, color: 'orange' })
       atualizarEtapaLocal(modalPausar.etapaId, { status: 'PAUSADA' })
       setModalPausar(null)
-      setFormPausar({ motivoParada: 'ACERTO_MAQUINA', observacao: '' })
+      setFormPausar({ motivoParada: 'ACERTO_MAQUINA', observacao: '', codigoParadaId: null })
     } catch (err: any) { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' }) }
   }
 
@@ -3394,6 +3401,11 @@ export default function ProgramacaoPage() {
             { value: 'TROCA_TURNO', label: 'Troca de Turno' },
             { value: 'OUTRO', label: 'Outro' },
           ]} value={formPausar.motivoParada} onChange={(v) => setFormPausar({ ...formPausar, motivoParada: v || 'OUTRO' })} />
+          {codigosParada.length > 0 && (
+            <Select label="Código de Parada (opcional)" placeholder="Selecione" clearable searchable
+              data={codigosParada} value={formPausar.codigoParadaId}
+              onChange={(v) => setFormPausar({ ...formPausar, codigoParadaId: v })} />
+          )}
           <Textarea label="Observação" placeholder="Descreva o motivo" value={formPausar.observacao} onChange={(e) => setFormPausar({ ...formPausar, observacao: e.currentTarget.value })} />
           <Button color="orange" onClick={enviarPausa} fullWidth leftSection={<IconAlertTriangle size={16} />}>Registrar Parada</Button>
         </Stack>
