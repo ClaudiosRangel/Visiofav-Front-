@@ -81,6 +81,7 @@ export default function RelatorioProducaoMensalPage() {
             <Tabs.Tab value="produtividade" leftSection={<IconUsers size={16} />}>Produtividade</Tabs.Tab>
             <Tabs.Tab value="ops" leftSection={<IconClipboardList size={16} />}>OPs Emitidas</Tabs.Tab>
             <Tabs.Tab value="pareto" leftSection={<IconAlertTriangle size={16} />}>Pareto</Tabs.Tab>
+            <Tabs.Tab value="trabalhos" leftSection={<IconClipboardList size={16} />}>Trabalhos em Máquina</Tabs.Tab>
           </Tabs.List>
 
           <Tabs.Panel value="resumo" pt="md">
@@ -160,6 +161,10 @@ export default function RelatorioProducaoMensalPage() {
 
           <Tabs.Panel value="ops" pt="md">
             <OpsEmitidasAba ano={ano} />
+          </Tabs.Panel>
+
+          <Tabs.Panel value="trabalhos" pt="md">
+            <TrabalhosEmMaquinaAba ano={ano} mes={mes} pico={diaria?.pico ?? null} />
           </Tabs.Panel>
 
           <Tabs.Panel value="pareto" pt="md">
@@ -356,6 +361,49 @@ function OpsEmitidasAba({ ano }: { ano: number }) {
             </Table.Tbody>
           </Table>
         </>
+      )}
+    </Stack>
+  )
+}
+
+// ─── Aba Trabalhos em Máquina (OPs/clientes num dia) ────────────────────────
+interface TrabalhoMaquina { opNumero: number | null; referenciaExterna: string | null; cliente: string | null; centroDescricao: string }
+function TrabalhosEmMaquinaAba({ ano, mes, pico }: { ano: number; mes: number; pico: SerieDia | null }) {
+  const diasNoMes = new Date(ano, mes, 0).getDate()
+  const [dia, setDia] = useState<string>(pico?.data || `${ano}-${String(mes).padStart(2, '0')}-01`)
+  const [itens, setItens] = useState<TrabalhoMaquina[]>([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    api.get('/pcp/gerencial/trabalhos-em-maquina', { params: { data: dia } })
+      .then(({ data }) => setItens(data)).catch(() => setItens([])).finally(() => setLoading(false))
+  }, [dia])
+
+  const opcoesDia = Array.from({ length: diasNoMes }, (_, i) => {
+    const d = `${ano}-${String(mes).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`
+    return { value: d, label: diaCurto(d) }
+  })
+
+  return (
+    <Stack>
+      <Group align="end">
+        <Select label="Dia" w={160} data={opcoesDia} value={dia} onChange={(v) => v && setDia(v)} searchable />
+        {pico && <Text size="sm" c="dimmed">Dica: {diaCurto(pico.data)} foi o pico do mês ({num(pico.produzido)}).</Text>}
+      </Group>
+      {loading ? <Center py="xl"><Loader /></Center> : itens.length === 0 ? <Text c="dimmed" ta="center" py="md">Nenhum trabalho apontado nesse dia.</Text> : (
+        <Table striped withTableBorder>
+          <Table.Thead><Table.Tr><Table.Th>OP</Table.Th><Table.Th>Cliente</Table.Th><Table.Th>Máquina</Table.Th></Table.Tr></Table.Thead>
+          <Table.Tbody>
+            {itens.map((t, i) => (
+              <Table.Tr key={`${t.opNumero}-${t.centroDescricao}-${i}`}>
+                <Table.Td fw={600}>{t.referenciaExterna || (t.opNumero ? `#${t.opNumero}` : '—')}</Table.Td>
+                <Table.Td>{t.cliente || '—'}</Table.Td>
+                <Table.Td>{t.centroDescricao}</Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
       )}
     </Stack>
   )
