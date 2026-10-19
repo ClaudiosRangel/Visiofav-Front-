@@ -55,7 +55,7 @@ export default function ApontamentosPage() {
 
   // Centros ativos+disponíveis (backend já filtra via /quadro-producao? usamos cadastro)
   useEffect(() => {
-    api.get('/centros-producao', { params: { limit: 200, status: 'true' } })
+    api.get('/centros-producao', { params: { limit: 100, status: 'true' } })
       .then(({ data }) => {
         const lista = (data?.data || data || [])
           .filter((c: any) => (c?.status === true || c?.status === 'true' || c?.status === undefined) && c?.disponivelProgramacao !== false)
