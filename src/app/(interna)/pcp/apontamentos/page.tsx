@@ -55,11 +55,11 @@ export default function ApontamentosPage() {
 
   // Centros ativos+disponíveis (backend já filtra via /quadro-producao? usamos cadastro)
   useEffect(() => {
-    api.get('/centros-producao', { params: { limit: 200 } })
-      .then((r) => {
-        const lista = (Array.isArray(r.data) ? r.data : r.data?.data ?? [])
-          .filter((c: any) => c.status !== false && c.disponivelProgramacao !== false)
-          .map((c: any) => ({ id: c.id, descricao: c.descricao }))
+    api.get('/centros-producao', { params: { limit: 200, status: 'true' } })
+      .then(({ data }) => {
+        const lista = (data?.data || data || [])
+          .filter((c: any) => (c?.status === true || c?.status === 'true' || c?.status === undefined) && c?.disponivelProgramacao !== false)
+          .map((c: any) => ({ id: c.id, descricao: c.descricao || c.codigo }))
         setCentros(lista)
       })
       .catch(() => setCentros([]))
