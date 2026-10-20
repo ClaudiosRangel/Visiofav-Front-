@@ -52,6 +52,7 @@ interface EtapaTimeline {
   desvioPercent: number
   agendaTravada?: boolean
   inicioAgendadoManual?: string | null
+  turno?: { horaInicio: string; horaFim: string; diasSemana: number[] } | null
   paradas: Array<{ motivo: string; duracaoMinutos: number; observacao: string | null }>
 }
 
@@ -105,6 +106,8 @@ interface GanttBar {
   // Âncora de agenda (spec pcp-gantt-travar-mover).
   agendaTravada: boolean
   inicioAgendadoManual: string | null
+  // Turno do centro — usado para segmentar a barra por janelas de trabalho.
+  turno: { horaInicio: string; horaFim: string; diasSemana: number[] } | null
 }
 
 interface Raia {
@@ -153,6 +156,52 @@ function formatMinutos(min: number): string {
   const m = Math.abs(min) % 60
   if (h === 0) return `${m}min`
   return `${h}h${m > 0 ? `${m}m` : ''}`
+}
+
+/**
+ * Intervalos NÃO-trabalhados (fora do turno) dentro de [inicioMs, fimMs].
+ * Usado para "segmentar" visualmente a barra do Gantt: os vãos noturnos e de
+ * fim de semana recebem um overlay, deixando a barra aparecer só nas janelas
+ * de trabalho (padrão DHTMLX/Bryntum). Retorna [] quando não há turno.
+ */
+function intervalosForaDoTurno(
+  inicioMs: number,
+  fimMs: number,
+  turno: { horaInicio: string; horaFim: string; diasSemana: number[] } | null,
+): Array<{ ini: number; fim: number }> {
+  if (!turno || fimMs <= inicioMs) return []
+  const [hIni, mIni] = turno.horaInicio.split(':').map(Number)
+  const [hFim, mFim] = turno.horaFim.split(':').map(Number)
+  const tIni = hIni * 60 + mIni
+  const tFim = hFim * 60 + mFim
+  const dias = turno.diasSemana || []
+
+  const gaps: Array<{ ini: number; fim: number }> = []
+  // Varre dia a dia do range, somando os trechos fora do expediente.
+  const cursor = new Date(inicioMs)
+  cursor.setHours(0, 0, 0, 0)
+  const limite = new Date(fimMs)
+  let guard = 0
+  while (cursor.getTime() <= fimMs && guard < 400) {
+    guard++
+    const diaConv = cursor.getDay() === 0 ? 7 : cursor.getDay()
+    const base = cursor.getTime()
+    const trabalha = dias.includes(diaConv)
+    if (!trabalha) {
+      // Dia inteiro é vão.
+      gaps.push({ ini: base, fim: base + 24 * 60 * 60000 })
+    } else {
+      // Antes do turno (00:00 → tIni) e depois do turno (tFim → 24:00).
+      if (tIni > 0) gaps.push({ ini: base, fim: base + tIni * 60000 })
+      if (tFim < 24 * 60) gaps.push({ ini: base + tFim * 60000, fim: base + 24 * 60 * 60000 })
+    }
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  void limite
+  // Recorta cada gap ao range da barra e descarta os vazios.
+  return gaps
+    .map((g) => ({ ini: Math.max(g.ini, inicioMs), fim: Math.min(g.fim, fimMs) }))
+    .filter((g) => g.fim > g.ini)
 }
 
 function getOpColor(opId: string, colorMap: Map<string, string>): string {
@@ -359,6 +408,7 @@ export default function GanttProducaoPage() {
           passada: 1,
           agendaTravada: Boolean(etapa.agendaTravada),
           inicioAgendadoManual: etapa.inicioAgendadoManual ?? null,
+          turno: etapa.turno ?? null,
         })
 
         etapaAnteriorCentro = etapa.centroProducao
@@ -680,6 +730,22 @@ export default function GanttProducaoPage() {
                             </Text>
                           </div>
                         </div>
+                        {/* Vãos fora do turno (noite/fim de semana): overlays que
+                            "segmentam" a barra, mostrando só o tempo útil (padrão APS). */}
+                        {intervalosForaDoTurno(bar.inicioMs, bar.fimMs, bar.turno).map((g, idx) => {
+                          const left = ((g.ini - bar.inicioMs) / 60000) * pixelsPorMinuto
+                          const w = ((g.fim - g.ini) / 60000) * pixelsPorMinuto
+                          if (w < 1) return null
+                          return (
+                            <div key={`gap-${idx}`} style={{
+                              position: 'absolute', left, top: 0, width: w, height: '100%',
+                              background: 'var(--mantine-color-body)', opacity: 0.82,
+                              borderLeft: '1px dashed rgba(120,120,120,0.5)',
+                              borderRight: '1px dashed rgba(120,120,120,0.5)',
+                              pointerEvents: 'none', zIndex: 1,
+                            }} />
+                          )
+                        })}
                         {/* Marca de 2ª+ passada da mesma OP no mesmo centro (Req 3.5) */}
                         {bar.passada > 1 && (
                           <div style={{
