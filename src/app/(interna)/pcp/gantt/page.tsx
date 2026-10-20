@@ -36,6 +36,7 @@ interface EtapaTimeline {
   sequencia: number
   descricao: string
   centroProducao: string | null
+  centroProducaoId: string | null
   tipoProcesso: string | null
   tipoProcessoPosicao: number
   status: string
@@ -108,6 +109,8 @@ interface GanttBar {
   inicioAgendadoManual: string | null
   // Turno do centro — usado para segmentar a barra por janelas de trabalho.
   turno: { horaInicio: string; horaFim: string; diasSemana: number[] } | null
+  // Id do centro — chave para buscar as exceções de calendário na segmentação.
+  centroProducaoId: string | null
 }
 
 interface Raia {
@@ -158,46 +161,89 @@ function formatMinutos(min: number): string {
   return `${h}h${m > 0 ? `${m}m` : ''}`
 }
 
+/** Exceção de calendário de um centro (vinda do backend). */
+interface ExcecaoCalendarioFront {
+  data: string // "YYYY-MM-DD"
+  tipo: string // HORA_EXTRA | DIA_EXTRA | NAO_TRABALHO
+  horaInicio: string | null
+  horaFim: string | null
+}
+
+/** Chave "YYYY-MM-DD" (dia civil local) — igual ao backend (janelaDoDia). */
+function chaveDiaLocalFront(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 /**
  * Intervalos NÃO-trabalhados (fora do turno) dentro de [inicioMs, fimMs].
  * Usado para "segmentar" visualmente a barra do Gantt: os vãos noturnos e de
  * fim de semana recebem um overlay, deixando a barra aparecer só nas janelas
  * de trabalho (padrão DHTMLX/Bryntum). Retorna [] quando não há turno.
+ *
+ * As exceções de calendário (spec pcp-excecoes-calendario-gantt) sobrepõem o
+ * turno-base na data: HORA_EXTRA/DIA_EXTRA mostram a janela extra como tempo
+ * útil; NAO_TRABALHO esmaece o dia inteiro.
  */
 function intervalosForaDoTurno(
   inicioMs: number,
   fimMs: number,
   turno: { horaInicio: string; horaFim: string; diasSemana: number[] } | null,
+  excecoes: ExcecaoCalendarioFront[] = [],
 ): Array<{ ini: number; fim: number }> {
   if (!turno || fimMs <= inicioMs) return []
   const [hIni, mIni] = turno.horaInicio.split(':').map(Number)
   const [hFim, mFim] = turno.horaFim.split(':').map(Number)
-  const tIni = hIni * 60 + mIni
-  const tFim = hFim * 60 + mFim
+  const tIniBase = hIni * 60 + mIni
+  const tFimBase = hFim * 60 + mFim
   const dias = turno.diasSemana || []
 
   const gaps: Array<{ ini: number; fim: number }> = []
   // Varre dia a dia do range, somando os trechos fora do expediente.
   const cursor = new Date(inicioMs)
   cursor.setHours(0, 0, 0, 0)
-  const limite = new Date(fimMs)
   let guard = 0
   while (cursor.getTime() <= fimMs && guard < 400) {
     guard++
     const diaConv = cursor.getDay() === 0 ? 7 : cursor.getDay()
     const base = cursor.getTime()
-    const trabalha = dias.includes(diaConv)
+
+    // Resolve a janela efetiva do dia: exceção da data vence o turno-base.
+    const exc = excecoes.find((e) => e.data === chaveDiaLocalFront(cursor))
+    let trabalha: boolean
+    let tIni = tIniBase
+    let tFim = tFimBase
+    if (exc) {
+      if (exc.tipo === 'NAO_TRABALHO') {
+        trabalha = false
+      } else if (exc.horaInicio && exc.horaFim) {
+        const [ehi, emi] = exc.horaInicio.split(':').map(Number)
+        const [ehf, emf] = exc.horaFim.split(':').map(Number)
+        const ei = ehi * 60 + emi
+        const ef = ehf * 60 + emf
+        if (ef > ei) {
+          trabalha = true
+          tIni = ei
+          tFim = ef
+        } else {
+          trabalha = dias.includes(diaConv) // janela inválida → turno-base
+        }
+      } else {
+        trabalha = dias.includes(diaConv)
+      }
+    } else {
+      trabalha = dias.includes(diaConv)
+    }
+
     if (!trabalha) {
       // Dia inteiro é vão.
       gaps.push({ ini: base, fim: base + 24 * 60 * 60000 })
     } else {
-      // Antes do turno (00:00 → tIni) e depois do turno (tFim → 24:00).
+      // Antes da janela (00:00 → tIni) e depois (tFim → 24:00).
       if (tIni > 0) gaps.push({ ini: base, fim: base + tIni * 60000 })
       if (tFim < 24 * 60) gaps.push({ ini: base + tFim * 60000, fim: base + 24 * 60 * 60000 })
     }
     cursor.setDate(cursor.getDate() + 1)
   }
-  void limite
   // Recorta cada gap ao range da barra e descarta os vazios.
   return gaps
     .map((g) => ({ ini: Math.max(g.ini, inicioMs), fim: Math.min(g.fim, fimMs) }))
@@ -221,6 +267,8 @@ export default function GanttProducaoPage() {
   const [loading, setLoading] = useState(true)
   const [timeline, setTimeline] = useState<OpTimeline[]>([])
   const [conflitos, setConflitos] = useState<any[]>([])
+  // Exceções de calendário por centro (spec pcp-excecoes-calendario-gantt).
+  const [excecoesPorCentro, setExcecoesPorCentro] = useState<Record<string, ExcecaoCalendarioFront[]>>({})
   const [busca, setBusca] = useState('')
   const [visao, setVisao] = useState<'12h' | '24h' | '3d' | '7d'>('24h')
 
@@ -244,6 +292,7 @@ export default function GanttProducaoPage() {
     try {
       const { data } = await api.get('/pcp/timeline')
       setTimeline(data.timeline)
+      setExcecoesPorCentro(data.excecoesPorCentro || {})
       setConflitos(data.conflitos || [])
     } catch {
       notifications.show({ title: 'Erro', message: 'Falha ao carregar dados', color: 'red' })
@@ -409,6 +458,7 @@ export default function GanttProducaoPage() {
           agendaTravada: Boolean(etapa.agendaTravada),
           inicioAgendadoManual: etapa.inicioAgendadoManual ?? null,
           turno: etapa.turno ?? null,
+          centroProducaoId: etapa.centroProducaoId ?? null,
         })
 
         etapaAnteriorCentro = etapa.centroProducao
@@ -732,7 +782,7 @@ export default function GanttProducaoPage() {
                         </div>
                         {/* Vãos fora do turno (noite/fim de semana): overlays que
                             "segmentam" a barra, mostrando só o tempo útil (padrão APS). */}
-                        {intervalosForaDoTurno(bar.inicioMs, bar.fimMs, bar.turno).map((g, idx) => {
+                        {intervalosForaDoTurno(bar.inicioMs, bar.fimMs, bar.turno, bar.centroProducaoId ? (excecoesPorCentro[bar.centroProducaoId] || []) : []).map((g, idx) => {
                           const left = ((g.ini - bar.inicioMs) / 60000) * pixelsPorMinuto
                           const w = ((g.fim - g.ini) / 60000) * pixelsPorMinuto
                           if (w < 1) return null

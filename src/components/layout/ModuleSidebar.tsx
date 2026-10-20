@@ -451,6 +451,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconCategory, label: 'Tipo de Processo', href: '/pcp/cadastros/tipos-processo' },
           { icon: IconTool, label: 'Recursos', href: '/pcp/cadastros/recursos' },
           { icon: IconClock, label: 'Turnos', href: '/pcp/cadastros/turnos' },
+          { icon: IconClock, label: 'Exceções de Calendário', href: '/pcp/cadastros/excecoes-calendario' },
           { icon: IconSitemap, label: 'Estruturas (BOM)', href: '/pcp/cadastros/estruturas' },
           { icon: IconRoute, label: 'Roteiros', href: '/pcp/cadastros/roteiros' },
           { icon: IconPalette, label: 'Atributos Gráficos', href: '/pcp/cadastros/atributos-graficos' },
