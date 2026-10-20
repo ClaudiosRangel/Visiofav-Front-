@@ -5,7 +5,6 @@ import { Title, Stack, Card, Group, Badge, Text, Table, Tabs, Button, Loader, Ce
 import { IconArrowLeft, IconPackage, IconRoute, IconClipboardCheck, IconTruck, IconPalette, IconFileTypePdf, IconPencil, IconCheck, IconX, IconPlus, IconLayoutGrid } from '@tabler/icons-react'
 import { useRouter, useParams } from 'next/navigation'
 import { api } from '@/lib/api'
-import { getAuthToken } from '@/lib/authStorage'
 import { notifications } from '@mantine/notifications'
 import PlanosOverview, { PlanoOP } from '@/components/pcp/PlanosOverview'
 import { rotuloPlano } from '@/lib/plano-rotulo'
@@ -346,9 +345,19 @@ export default function DetalheOpPage() {
             color="red"
             leftSection={<IconFileTypePdf size={14} />}
             onClick={() => {
-              const token = getAuthToken()
-              const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
-              window.open(`${apiUrl}/pcp/op-pdf/${id}?token=${token}`, '_blank')
+              // Baixa o PDF original com o header de auth (axios) e abre via
+              // blob — mesmo caminho confiável da listagem. Evitar window.open
+              // com ?token= (token podia vir vazio → "Não autenticado").
+              api.get(`/ordens-producao/${id}/pdf`, { responseType: 'blob' })
+                .then((res) => {
+                  const blob = new Blob([res.data], { type: 'application/pdf' })
+                  const url = URL.createObjectURL(blob)
+                  window.open(url, '_blank')
+                  setTimeout(() => URL.revokeObjectURL(url), 60000)
+                })
+                .catch(() => {
+                  notifications.show({ title: 'PDF não disponível', message: 'Erro ao abrir o PDF original', color: 'orange' })
+                })
             }}
           >
             Ver PDF Original
