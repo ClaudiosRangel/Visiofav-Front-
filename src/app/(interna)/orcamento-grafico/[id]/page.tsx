@@ -11,12 +11,13 @@ import {
   IconArrowLeft, IconEdit, IconCopy, IconSend, IconCheck, IconX,
   IconChartPie, IconAlertCircle, IconFileText, IconPlus, IconTrash,
   IconChevronDown, IconChevronRight, IconStack2, IconFileInvoice,
-  IconReportAnalytics, IconRepeat,
+  IconReportAnalytics, IconRepeat, IconSearch,
 } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
 import { StatusBadge } from '../page'
 import ItemWizardModal, { type ItemParaEditar } from './ItemWizardModal'
+import BuscaCalculoModal from './BuscaCalculoModal'
 import RelatorioItem from './RelatorioItem'
 import PlanosDoItem, { type PlanoCalculo } from './PlanosDoItem'
 import {
@@ -255,6 +256,9 @@ export default function OrcamentoDetalhePage() {
   // Editor de item (modal reusando os steps)
   const [itemModalOpen, setItemModalOpen] = useState(false)
   const [itemEmEdicao, setItemEmEdicao] = useState<ItemParaEditar | null>(null)
+
+  // Busca de cálculo da biblioteca (Task 12.1) — cria item a partir de um cálculo
+  const [buscaCalcOpen, setBuscaCalcOpen] = useState(false)
 
   // Confirmação de remoção de item
   const [itemParaRemover, setItemParaRemover] = useState<ItemOrcamento | null>(null)
@@ -740,9 +744,19 @@ export default function OrcamentoDetalhePage() {
               </Button>
             )}
             {podeEditarItens && (
-              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={abrirNovoItem}>
-                Novo Item
-              </Button>
+              <>
+                <Button
+                  size="xs"
+                  variant="light"
+                  leftSection={<IconSearch size={14} />}
+                  onClick={() => setBuscaCalcOpen(true)}
+                >
+                  Localizar Cálculo
+                </Button>
+                <Button size="xs" leftSection={<IconPlus size={14} />} onClick={abrirNovoItem}>
+                  Novo Item
+                </Button>
+              </>
             )}
           </Group>
         </Group>
@@ -1299,6 +1313,14 @@ export default function OrcamentoDetalhePage() {
         orcamentoId={id}
         item={itemEmEdicao}
         onSaved={carregar}
+      />
+
+      {/* Busca de cálculo da biblioteca → cria item a partir do cálculo (Task 12.1) */}
+      <BuscaCalculoModal
+        opened={buscaCalcOpen}
+        onClose={() => setBuscaCalcOpen(false)}
+        orcamentoId={id}
+        onUsado={carregar}
       />
 
       {/* Modal de opções de emissão de OP (item único e em lote — Task 24) */}

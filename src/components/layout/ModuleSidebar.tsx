@@ -473,6 +473,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
     entries: [
       { icon: IconListDetails, label: 'Orçamentos', href: '/orcamento-grafico' },
       { icon: IconPlus, label: 'Novo Orçamento', href: '/orcamento-grafico/novo' },
+      { icon: IconBook2, label: 'Biblioteca de Cálculos', href: '/orcamento-grafico/biblioteca-calculos' },
       {
         label: 'Cadastros', icon: IconDatabase, items: [
           { icon: IconPackage, label: 'Tipos de Embalagem', href: '/orcamento-grafico/cadastros/tipos-embalagem' },

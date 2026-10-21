@@ -35,7 +35,13 @@ export default function StepCores({ formData, updateForm }: Props) {
         const items = (data.data || data || [])
           .filter((c: any) =>
             (c?.tipoProcesso?.codigo === 'IMPRESSAO' || /impress/i.test(c?.tipoProcesso?.descricao || '')) &&
-            (c?.status === true || c?.status === 'true' || c?.status === undefined),
+            (c?.status === true || c?.status === 'true' || c?.status === undefined) &&
+            // Só máquinas "de orçamento": precisam ter FORMATO DE FOLHA cadastrado
+            // (largura × altura), pois o cálculo de papel/impressão depende disso.
+            // Isso elimina as máquinas importadas do PDF (usadas só na Programação,
+            // sem formato de folha) que duplicavam o seletor. Ver steering
+            // migracao-calcgraf (dois mundos de máquina).
+            Number(c?.formatoFolhaLargura) > 0 && Number(c?.formatoFolhaAltura) > 0,
           )
           .map((c: any) => ({ value: c.id, label: c.descricao || c.codigo }))
         setMaquinas(items)
