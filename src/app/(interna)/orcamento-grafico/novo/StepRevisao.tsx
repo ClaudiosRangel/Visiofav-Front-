@@ -137,7 +137,20 @@ export default function StepRevisao({ formData, updateForm }: Props) {
       const { data } = await api.post('/orcamento-grafico/calcular', payload)
       setResultado(data)
     } catch (err: any) {
-      setErro(err?.response?.data?.message || 'Erro ao calcular orçamento.')
+      // O backend já compõe `message` com os campos que falharam. Como reforço,
+      // se vier o array `issues` (erro de validação), montamos "campo: motivo"
+      // para o operador saber exatamente o que corrigir (em vez do genérico).
+      const resp = err?.response?.data
+      const issues = Array.isArray(resp?.issues) ? resp.issues : []
+      const detalhe = issues.length
+        ? issues
+            .map((i: { campo?: string; mensagem?: string }) =>
+              i.campo ? `${i.campo}: ${i.mensagem}` : i.mensagem,
+            )
+            .filter(Boolean)
+            .join('\n')
+        : ''
+      setErro(detalhe || resp?.message || 'Erro ao calcular orçamento.')
       setResultado(null)
     } finally {
       setLoading(false)
@@ -245,8 +258,8 @@ export default function StepRevisao({ formData, updateForm }: Props) {
       )}
 
       {erro && (
-        <Alert icon={<IconAlertCircle size={16} />} color="red" title="Erro no cálculo">
-          {erro}
+        <Alert icon={<IconAlertCircle size={16} />} color="red" title="Corrija os dados do item">
+          <Text size="sm" style={{ whiteSpace: 'pre-line' }}>{erro}</Text>
         </Alert>
       )}
 
