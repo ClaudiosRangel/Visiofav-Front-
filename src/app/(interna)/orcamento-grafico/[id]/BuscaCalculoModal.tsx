@@ -36,9 +36,16 @@ interface RespostaBusca {
 interface BuscaCalculoModalProps {
   opened: boolean
   onClose: () => void
-  orcamentoId: string
-  /** Chamado após criar o item a partir do cálculo (sucesso). */
-  onUsado: () => void
+  /**
+   * Quando presente (modo 1 — dentro de um orçamento existente), o "Usar" cria
+   * um item nesse orçamento. Quando ausente (modo 2 — a partir da criação), o
+   * "Usar" cria um orçamento novo a partir do cálculo.
+   */
+  orcamentoId?: string
+  /** Modo 1: chamado após criar o item a partir do cálculo (sucesso). */
+  onUsado?: () => void
+  /** Modo 2: chamado após criar o orçamento a partir do cálculo (sucesso). */
+  onCriado?: (orcamentoId: string) => void
 }
 
 const TAMANHO = 20
@@ -69,6 +76,7 @@ export default function BuscaCalculoModal({
   onClose,
   orcamentoId,
   onUsado,
+  onCriado,
 }: BuscaCalculoModalProps) {
   // Filtros
   const [cliente, setCliente] = useState('')
@@ -137,14 +145,28 @@ export default function BuscaCalculoModal({
       if (typeof novaQuantidade === 'number' && novaQuantidade > 0) {
         body.novaQuantidade = novaQuantidade
       }
-      await api.post(`/orcamento-grafico/${orcamentoId}/itens/de-calculo`, body)
-      notifications.show({
-        title: 'Item criado',
-        message: 'Item criado a partir do cálculo.',
-        color: 'green',
-      })
-      onUsado()
-      onClose()
+
+      if (orcamentoId) {
+        // Modo 1 — dentro de um orçamento existente (comportamento atual).
+        await api.post(`/orcamento-grafico/${orcamentoId}/itens/de-calculo`, body)
+        notifications.show({
+          title: 'Item criado',
+          message: 'Item criado a partir do cálculo.',
+          color: 'green',
+        })
+        onUsado?.()
+        onClose()
+      } else {
+        // Modo 2 — criação: cria o orçamento a partir do cálculo e navega.
+        const res = await api.post('/orcamento-grafico/de-calculo', body)
+        notifications.show({
+          title: 'Orçamento criado',
+          message: 'Orçamento criado a partir do cálculo.',
+          color: 'green',
+        })
+        onCriado?.(res.data.id)
+        onClose()
+      }
     } catch (err: any) {
       notifications.show({
         title: 'Erro',

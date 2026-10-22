@@ -7,9 +7,10 @@ import {
   TextInput, Select, Paper, ScrollArea, Pagination,
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
-import { IconPlus, IconSearch, IconFilter } from '@tabler/icons-react'
+import { IconPlus, IconSearch, IconFilter, IconListSearch } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
+import BuscaCalculoModal from './[id]/BuscaCalculoModal'
 
 // ============================================================================
 // Tipos
@@ -91,6 +92,9 @@ export default function OrcamentosGraficoPage() {
   const [dataInicio, setDataInicio] = useState<Date | null>(null)
   const [dataFim, setDataFim] = useState<Date | null>(null)
 
+  // Puxar Cálculo da Biblioteca (modo criação — sem orcamentoId)
+  const [buscaCalcOpen, setBuscaCalcOpen] = useState(false)
+
   const LIMIT = 50
 
   const carregar = useCallback(async () => {
@@ -137,12 +141,21 @@ export default function OrcamentosGraficoPage() {
             {total} orçamento{total !== 1 ? 's' : ''} encontrado{total !== 1 ? 's' : ''}
           </Text>
         </div>
-        <Button
-          leftSection={<IconPlus size={16} />}
-          onClick={() => router.push('/orcamento-grafico/novo')}
-        >
-          Novo Orçamento
-        </Button>
+        <Group gap="sm">
+          <Button
+            variant="light"
+            leftSection={<IconListSearch size={16} />}
+            onClick={() => setBuscaCalcOpen(true)}
+          >
+            Puxar Cálculo
+          </Button>
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => router.push('/orcamento-grafico/novo')}
+          >
+            Novo Orçamento
+          </Button>
+        </Group>
       </Group>
 
       {/* Filtros */}
@@ -248,6 +261,16 @@ export default function OrcamentosGraficoPage() {
           />
         </Group>
       )}
+
+      {/* Puxar Cálculo da Biblioteca — modo criação (sem orcamentoId) */}
+      <BuscaCalculoModal
+        opened={buscaCalcOpen}
+        onClose={() => setBuscaCalcOpen(false)}
+        onCriado={(id) => {
+          setBuscaCalcOpen(false)
+          router.push('/orcamento-grafico/' + id)
+        }}
+      />
     </Stack>
   )
 }
