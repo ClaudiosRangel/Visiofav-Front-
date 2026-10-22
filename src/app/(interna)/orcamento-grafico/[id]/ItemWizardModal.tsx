@@ -165,6 +165,9 @@ export interface ItemParaEditar {
   ajusteCorteMicroMm?: number | string | null
   quantidade: number
   resultadoCalculo?: { papel?: { precoKg?: number } } | null
+  // Origem (repetição): cálculo da biblioteca de onde o item foi copiado.
+  // Habilita a Conferência foto × recálculo no StepRevisao.
+  calculoGraficoOrigemId?: string | null
 }
 
 interface Props {
@@ -178,7 +181,7 @@ interface Props {
 }
 
 /** Mapeia um item carregado da API de volta para o WizardFormData. */
-function itemParaForm(item: ItemParaEditar): WizardFormData {
+function itemParaForm(item: ItemParaEditar, orcamentoId?: string): WizardFormData {
   const coresMapeadas: CorItem[] = (item.cores || []).map((c: any) => ({
     nome: c.nome,
     tipo: c.tipo,
@@ -247,6 +250,9 @@ function itemParaForm(item: ItemParaEditar): WizardFormData {
     formatoCorteLarguraMm: item.formatoCorteLarguraMm != null ? Number(item.formatoCorteLarguraMm) : null,
     formatoCorteAlturaMm: item.formatoCorteAlturaMm != null ? Number(item.formatoCorteAlturaMm) : null,
     ajusteCorteMicroMm: item.ajusteCorteMicroMm != null ? Number(item.ajusteCorteMicroMm) : null,
+    // Contexto da Conferência foto × recálculo (só quando o item veio de cálculo).
+    _conferenciaOrcamentoId: item.calculoGraficoOrigemId && orcamentoId ? orcamentoId : null,
+    _conferenciaItemId: item.calculoGraficoOrigemId ? item.id : null,
   }
 }
 
@@ -260,8 +266,8 @@ export default function ItemWizardModal({ opened, onClose, orcamentoId, item, on
   useEffect(() => {
     if (!opened) return
     setActive(0)
-    setFormData(item ? itemParaForm(item) : INITIAL_ITEM)
-  }, [opened, item])
+    setFormData(item ? itemParaForm(item, orcamentoId) : INITIAL_ITEM)
+  }, [opened, item, orcamentoId])
 
   const updateForm = useCallback((partial: Partial<WizardFormData>) => {
     setFormData(prev => ({ ...prev, ...partial }))

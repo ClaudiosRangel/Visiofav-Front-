@@ -145,6 +145,13 @@ export interface WizardFormData {
   formatoCorteLarguraMm?: number | null
   formatoCorteAlturaMm?: number | null
   ajusteCorteMicroMm?: number | null
+  // Contexto para a Conferência foto × recálculo (spec
+  // orcamento-repeticao-engenharia-completa). Preenchidos só na EDIÇÃO de um item
+  // que veio de um cálculo da biblioteca: permitem o StepRevisao chamar
+  // GET /orcamento-grafico/:orcId/itens/:itemId/conferencia. Ausentes na criação.
+  _conferenciaOrcamentoId?: string | null
+  _conferenciaItemId?: string | null
+  _engenhariaPendentes?: string[] | null
 }
 
 const INITIAL_FORM: WizardFormData = {

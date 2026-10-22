@@ -32,11 +32,13 @@ export default function StepCliente({ formData, updateForm }: Props) {
     setLoading(true)
     api.get('/clientes', { params: termo ? { busca: termo, limit: 20 } : { limit: 20 } })
       .then(({ data }) => {
-        const items = (data.data || data || []).map((c: any) => ({
-          value: c.nome || c.razaoSocial || c.nomeFantasia || '',
-          label: c.nome || c.razaoSocial || c.nomeFantasia || '',
-          id: c.id,
-        })).filter((c: ClienteOption) => c.label)
+        const items = (data.data || data || []).map((c: any) => {
+          const base = c.nome || c.razaoSocial || c.nomeFantasia || ''
+          // Mostra o código do Calcgraf junto do nome quando existir, para o
+          // usuário conferir/localizar pelo código (de-para por CNPJ já importado).
+          const label = c.codigoCalcgraf ? `${c.codigoCalcgraf} - ${base}` : base
+          return { value: label, label, id: c.id }
+        }).filter((c: ClienteOption) => c.label)
         setClientes(items)
       })
       .catch(() => setClientes([]))
@@ -103,7 +105,7 @@ export default function StepCliente({ formData, updateForm }: Props) {
 
       <Autocomplete
         label="Cliente"
-        placeholder="Busque por nome, razão social..."
+        placeholder="Busque por nome, razão social, CNPJ ou código..."
         leftSection={<IconSearch size={16} />}
         data={Array.from(new Set(clientes.map(c => c.label)))}
         value={busca}

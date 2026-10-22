@@ -26,6 +26,7 @@ interface OrcamentoGrafico {
   quantidade: number
   precoVenda?: number | string | null
   status: string
+  tipo?: string | null // NOVO | REPETICAO (spec orcamento-repeticao-engenharia-completa)
   criadoEm: string
 }
 
@@ -227,7 +228,14 @@ export default function OrcamentosGraficoPage() {
                   style={{ cursor: 'pointer' }}
                   onClick={() => router.push(`/orcamento-grafico/${orc.id}`)}
                 >
-                  <Table.Td fw={600}>{orc.numero}</Table.Td>
+                  <Table.Td fw={600}>
+                    <Group gap={6} wrap="nowrap">
+                      {orc.numero}
+                      {orc.tipo === 'REPETICAO' && (
+                        <Badge size="xs" color="violet" variant="light">Repetição</Badge>
+                      )}
+                    </Group>
+                  </Table.Td>
                   <Table.Td>V{orc.versao}</Table.Td>
                   <Table.Td>{orc.clienteNome || '—'}</Table.Td>
                   <Table.Td>{orc.tipoEmbalagem?.descricao || '—'}</Table.Td>

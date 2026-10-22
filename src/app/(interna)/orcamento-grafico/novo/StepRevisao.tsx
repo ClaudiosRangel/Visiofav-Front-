@@ -53,11 +53,22 @@ interface Simulacao {
   custoTotal: number
 }
 
+interface Conferencia {
+  numeroCalcgraf: number | null
+  foto: { custoProducao: number; valorTotal: number }
+  vizor: { custoProducao: number | null; valorTotal: number | null } | null
+  desvio: { custoPercent: number | null; valorPercent: number | null; totalPercent: number | null }
+  confere: boolean
+  alerta: string | null
+}
+
 export default function StepRevisao({ formData, updateForm }: Props) {
   const [resultado, setResultado] = useState<Resultado | null>(null)
   const [simulacoes, setSimulacoes] = useState<Simulacao[]>([])
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  // Conferência foto × recálculo (spec orcamento-repeticao-engenharia-completa).
+  const [conferencia, setConferencia] = useState<Conferencia | null>(null)
   // Máquinas de impressão (paridade Calcgraf: o acerto-por-cor é por máquina).
   const [maquinas, setMaquinas] = useState<{ value: string; label: string }[]>([])
 
@@ -71,6 +82,18 @@ export default function StepRevisao({ formData, updateForm }: Props) {
       })
       .catch(() => setMaquinas([]))
   }, [])
+
+  // Conferência foto × recálculo: só quando o item veio de um cálculo da
+  // biblioteca (edição de repetição). Compara o valor original do Calcgraf com o
+  // recálculo do Vizor; a FOTO nunca é alterada.
+  const orcId = formData._conferenciaOrcamentoId
+  const itemId = formData._conferenciaItemId
+  useEffect(() => {
+    if (!orcId || !itemId) { setConferencia(null); return }
+    api.get(`/orcamento-grafico/${orcId}/itens/${itemId}/conferencia`)
+      .then(({ data }) => setConferencia(data))
+      .catch(() => setConferencia(null))
+  }, [orcId, itemId])
 
   // Planificação esquemática (contorno da caixa aberta) do gabarito do tipo de
   // embalagem selecionado. Null quando o tipo não tem gabarito (→ retângulo).
@@ -267,6 +290,44 @@ export default function StepRevisao({ formData, updateForm }: Props) {
         <Alert color="blue" variant="light" title="Repetição de produto">
           Este orçamento é uma repetição do produto <strong>{formData.produtoNome}</strong>.
           A OP usará a estrutura (BOM) e o roteiro cadastrados dele.
+        </Alert>
+      )}
+
+      {/* Conferência FOTO (Calcgraf) × RECÁLCULO (Vizor) — anti-vergonha.
+          spec orcamento-repeticao-engenharia-completa (Req 6). */}
+      {conferencia && (
+        <Alert
+          color={conferencia.confere ? 'green' : 'orange'}
+          variant="light"
+          title={
+            conferencia.confere
+              ? `Confere com o Calcgraf${conferencia.numeroCalcgraf ? ` (cálculo ${conferencia.numeroCalcgraf})` : ''}`
+              : 'Atenção: divergência com o Calcgraf'
+          }
+        >
+          <Stack gap={4}>
+            <Group gap="xl">
+              <Text size="sm">
+                <strong>Calcgraf (foto):</strong> {formatCurrency(conferencia.foto.valorTotal)}
+                {' · C.Prod '}{formatCurrency(conferencia.foto.custoProducao)}
+              </Text>
+              {conferencia.vizor && (
+                <Text size="sm">
+                  <strong>Vizor (recálculo):</strong> {formatCurrency(conferencia.vizor.valorTotal ?? undefined)}
+                  {' · C.Prod '}{formatCurrency(conferencia.vizor.custoProducao ?? undefined)}
+                </Text>
+              )}
+              {conferencia.desvio.totalPercent != null && (
+                <Badge color={conferencia.confere ? 'green' : 'orange'}>
+                  Desvio {conferencia.desvio.totalPercent.toFixed(2)}%
+                </Badge>
+              )}
+            </Group>
+            {conferencia.alerta && <Text size="xs" c="dimmed">{conferencia.alerta}</Text>}
+            <Text size="xs" c="dimmed">
+              A foto do Calcgraf é preservada. Use-a na proposta quando houver divergência não resolvida.
+            </Text>
+          </Stack>
         </Alert>
       )}
 

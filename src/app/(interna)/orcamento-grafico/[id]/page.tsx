@@ -104,6 +104,7 @@ interface OrcamentoDetalhe {
   numero: number
   versao: number
   serie?: string | null
+  tipo?: string | null // NOVO | REPETICAO (spec orcamento-repeticao-engenharia-completa)
   dataOrcamento?: string | null
   clienteId?: string | null
   clienteNome?: string | null
@@ -602,6 +603,9 @@ export default function OrcamentoDetalhePage() {
               <Title order={3}>Orçamento #{orcamento.numero}</Title>
               {orcamento.serie && <Badge variant="light" size="lg">Série {orcamento.serie}</Badge>}
               <Badge variant="outline" size="lg">V{orcamento.versao}</Badge>
+              {orcamento.tipo === 'REPETICAO' && (
+                <Badge color="violet" variant="light" size="lg">Repetição</Badge>
+              )}
               <StatusBadge status={orcamento.status} />
             </Group>
             <Text size="sm" c="dimmed">
