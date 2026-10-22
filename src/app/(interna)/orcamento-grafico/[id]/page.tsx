@@ -650,7 +650,7 @@ export default function OrcamentoDetalhePage() {
             onClick={handleRelatorio}
             loading={actionLoading}
           >
-            Relatório (Calcgraf)
+            Relatório
           </Button>
           {orcamento.status === 'RASCUNHO' && (
             <Button
