@@ -155,6 +155,10 @@ export default function StepRevisao({ formData, updateForm }: Props) {
         tabelaMargemId: formData.tabelaMargemId || undefined,
         maquinaId: formData.maquinaId || undefined,
         aproveitamentoManual: formData.aproveitamentoManual || undefined,
+        // Formato de corte (folha real do Calcgraf) — para a prévia bater com o
+        // orçamento salvo. O preço do papel é resolvido no backend pelo papelId.
+        formatoCorteLarguraMm: formData.formatoCorteLarguraMm || undefined,
+        formatoCorteAlturaMm: formData.formatoCorteAlturaMm || undefined,
       }
 
       const { data } = await api.post('/orcamento-grafico/calcular', payload)
