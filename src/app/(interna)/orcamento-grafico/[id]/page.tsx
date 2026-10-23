@@ -140,6 +140,8 @@ interface OrcamentoDetalhe {
   itens?: ItemOrcamento[] | null
   custoProducaoConsolidado?: number | string | null
   valorTotalConsolidado?: number | string | null
+  // Cálculo da biblioteca que originou o orçamento (repetição / "Puxar Cálculo")
+  calculoOrigem?: { id: string; numero: number | null; numeroCalcgraf: number | null } | null
 }
 
 interface VersaoResumida {
@@ -699,6 +701,12 @@ export default function OrcamentoDetalhePage() {
           <Stack gap={4}>
             <Text size="sm"><strong>Cliente:</strong> {orcamento.clienteNome || '—'}</Text>
             <Text size="sm"><strong>Série:</strong> {orcamento.serie || '—'}</Text>
+            {orcamento.calculoOrigem && (
+              <Text size="sm">
+                <strong>Cálculo utilizado:</strong>{' '}
+                nº {orcamento.calculoOrigem.numeroCalcgraf ?? orcamento.calculoOrigem.numero}
+              </Text>
+            )}
             <Text size="sm"><strong>Data:</strong> {formatDate(orcamento.dataOrcamento)}</Text>
             <Text size="sm"><strong>Status:</strong> <StatusBadge status={orcamento.status} /></Text>
             {orcamento.validadeAte && (
