@@ -161,7 +161,17 @@ export default function StepRevisao({ formData, updateForm }: Props) {
         formatoCorteAlturaMm: formData.formatoCorteAlturaMm || undefined,
       }
 
-      const { data } = await api.post('/orcamento-grafico/calcular', payload)
+      // Item de repetição (puxado de um cálculo): usa a rota do ITEM, que ANCORA
+      // o custo no valor real do Calcgraf (diferença zero). A rota /calcular
+      // genérica (sem itemId) recalcularia pelo motor e divergiria ~5%.
+      let data: Resultado
+      if (orcId && itemId) {
+        const resp = await api.post(`/orcamento-grafico/${orcId}/itens/${itemId}/calcular`, payload)
+        data = (resp.data?.resultado ?? resp.data) as Resultado
+      } else {
+        const resp = await api.post('/orcamento-grafico/calcular', payload)
+        data = resp.data as Resultado
+      }
       setResultado(data)
     } catch (err: any) {
       // O backend já compõe `message` com os campos que falharam. Como reforço,
