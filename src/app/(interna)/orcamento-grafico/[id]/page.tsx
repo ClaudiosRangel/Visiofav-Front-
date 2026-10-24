@@ -90,6 +90,9 @@ interface ItemOrcamento {
   custoProducao?: number | string | null
   valorTotal?: number | string | null
   pendente?: boolean
+  // Origem (repetição): cálculo da biblioteca de onde o item foi copiado.
+  // Habilita a ancoragem/conferência no StepRevisao ao editar.
+  calculoGraficoOrigemId?: string | null
   // Suporte de produção no nível do item (Task 18). Usado quando o item não
   // tem planos — o Select/badge de troca aparecem no PlanosDoItem.
   suporteProducaoId?: string | null
@@ -502,6 +505,9 @@ export default function OrcamentoDetalhePage() {
       maquinaId: item.maquinaId ?? null,
       quantidade: item.quantidade,
       resultadoCalculo: item.resultadoCalculo ?? null,
+      // Origem do cálculo (repetição) — habilita a ancoragem do custo real do
+      // Calcgraf no StepRevisao (usa a rota /itens/:itemId/calcular ancorada).
+      calculoGraficoOrigemId: item.calculoGraficoOrigemId ?? null,
     })
     setItemModalOpen(true)
   }
