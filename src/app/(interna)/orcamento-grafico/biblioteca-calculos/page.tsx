@@ -282,6 +282,35 @@ function texto(val: string | null | undefined): string {
 
 // ============================================================================
 // Foto rica (versaoFoto === 2) — renderização completa, espelho do Calcgraf
+// ----------------------------------------------------------------------------
+// Memória STC — demonstração (read-only) da memória de custo do Calcgraf.
+// Espelha GET /calculo-grafico/:id/memoria-stc.
+// ----------------------------------------------------------------------------
+interface ComponenteMemoria {
+  origem: string
+  grupo: 'MD' | 'CT' | 'SE'
+  descricao: string
+  valorTotal: number
+}
+interface MemoriaStc {
+  numeroCalcgraf: number | null
+  temMemoria: boolean
+  materialDireto: number
+  custoTransformacao: number
+  servicoExterno: number
+  custoProducao: number
+  componentes: ComponenteMemoria[]
+}
+
+const moeda = (v: number | null | undefined): string =>
+  v == null ? '—' : `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+const GRUPO_LABEL: Record<string, { label: string; color: string }> = {
+  MD: { label: 'Material Direto', color: 'blue' },
+  CT: { label: 'Custo de Transformação', color: 'orange' },
+  SE: { label: 'Serviço Externo', color: 'grape' },
+}
+
 // ============================================================================
 
 function FotoRicaView({ foto }: { foto: FotoRica }) {
@@ -714,6 +743,10 @@ export default function BibliotecaCalculosPage() {
   const [detalhe, setDetalhe] = useState<CalculoDetalhe | null>(null)
   const [detalheLoading, setDetalheLoading] = useState(false)
 
+  // Modal "Memória STC" (demonstração read-only da memória de custo do Calcgraf)
+  const [memoria, setMemoria] = useState<MemoriaStc | null>(null)
+  const [memoriaLoading, setMemoriaLoading] = useState(false)
+
   // Modal "Usar em orçamento"
   const [usarAlvo, setUsarAlvo] = useState<ResumoCalculo | null>(null)
   const [rascunhos, setRascunhos] = useState<OrcamentoRascunho[]>([])
@@ -775,6 +808,25 @@ export default function BibliotecaCalculosPage() {
       setDetalhe(null)
     } finally {
       setDetalheLoading(false)
+    }
+  }
+
+  // Abre o modal "Memória STC" (demonstração read-only da memória de custo).
+  const abrirMemoria = async (calculoId: string) => {
+    setMemoriaLoading(true)
+    setMemoria({ numeroCalcgraf: null, temMemoria: false, materialDireto: 0, custoTransformacao: 0, servicoExterno: 0, custoProducao: 0, componentes: [] })
+    try {
+      const res = await api.get(`/calculo-grafico/${calculoId}/memoria-stc`)
+      setMemoria(res.data)
+    } catch (err: any) {
+      notifications.show({
+        title: 'Erro',
+        message: err?.response?.data?.message || 'Falha ao abrir a memória de custo.',
+        color: 'red',
+      })
+      setMemoria(null)
+    } finally {
+      setMemoriaLoading(false)
     }
   }
 
@@ -935,6 +987,9 @@ export default function BibliotecaCalculosPage() {
                     <Group gap="xs" justify="center" wrap="nowrap">
                       <Button size="xs" variant="light" onClick={() => abrirDetalhe(c.id)}>
                         Abrir
+                      </Button>
+                      <Button size="xs" variant="subtle" color="teal" onClick={() => abrirMemoria(c.id)}>
+                        Memória STC
                       </Button>
                       <Button size="xs" variant="subtle" onClick={() => abrirUsarEmOrcamento(c)}>
                         Usar em orçamento
@@ -1115,6 +1170,90 @@ export default function BibliotecaCalculosPage() {
             )
           })()
         )}
+      </Modal>
+
+      {/* Modal "Memória STC" — demonstração read-only da memória de custo do Calcgraf */}
+      <Modal
+        opened={!!memoria}
+        onClose={() => setMemoria(null)}
+        title={`Memória de Custo (CalculoSTC)${memoria?.numeroCalcgraf ? ` — cálculo ${memoria.numeroCalcgraf}` : ''}`}
+        size="xl"
+      >
+        {memoriaLoading ? (
+          <Center py="xl"><Loader /></Center>
+        ) : memoria && !memoria.temMemoria ? (
+          <Alert color="gray" variant="light" icon={<IconAlertTriangle size={16} />}>
+            Não há memória de custo registrada para este cálculo.
+          </Alert>
+        ) : memoria ? (
+          <Stack gap="md">
+            <Alert color="teal" variant="light">
+              Demonstração <strong>somente leitura</strong> dos custos registrados no
+              Calcgraf, componente a componente, agrupados em Material Direto (MD),
+              Custo de Transformação (CT) e Serviço Externo (SE).
+            </Alert>
+
+            {/* Subtotais */}
+            <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm">
+              <Paper p="sm" withBorder ta="center">
+                <Text size="xs" c="dimmed" tt="uppercase">Material Direto</Text>
+                <Text fw={700} c="blue">{moeda(memoria.materialDireto)}</Text>
+              </Paper>
+              <Paper p="sm" withBorder ta="center">
+                <Text size="xs" c="dimmed" tt="uppercase">Transformação</Text>
+                <Text fw={700} c="orange">{moeda(memoria.custoTransformacao)}</Text>
+              </Paper>
+              <Paper p="sm" withBorder ta="center">
+                <Text size="xs" c="dimmed" tt="uppercase">Serviço Externo</Text>
+                <Text fw={700} c="grape">{moeda(memoria.servicoExterno)}</Text>
+              </Paper>
+              <Paper p="sm" withBorder ta="center">
+                <Text size="xs" c="dimmed" tt="uppercase">Custo de Produção</Text>
+                <Text fw={700} c="green">{moeda(memoria.custoProducao)}</Text>
+              </Paper>
+            </SimpleGrid>
+
+            {/* Componentes */}
+            <ScrollArea>
+              <Table striped highlightOnHover withTableBorder>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Componente</Table.Th>
+                    <Table.Th>Origem</Table.Th>
+                    <Table.Th>Grupo</Table.Th>
+                    <Table.Th ta="right">Valor</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {memoria.componentes.map((c, i) => (
+                    <Table.Tr key={i}>
+                      <Table.Td>{c.descricao}</Table.Td>
+                      <Table.Td>
+                        <Text size="xs" c="dimmed">{c.origem}</Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Badge size="sm" color={GRUPO_LABEL[c.grupo]?.color ?? 'gray'} variant="light">
+                          {GRUPO_LABEL[c.grupo]?.label ?? c.grupo}
+                        </Badge>
+                      </Table.Td>
+                      <Table.Td ta="right" fw={500}>{moeda(c.valorTotal)}</Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+                <Table.Tfoot>
+                  <Table.Tr>
+                    <Table.Td colSpan={3} fw={700}>Custo de Produção (MD + CT + SE)</Table.Td>
+                    <Table.Td ta="right" fw={700} c="green">{moeda(memoria.custoProducao)}</Table.Td>
+                  </Table.Tr>
+                </Table.Tfoot>
+              </Table>
+            </ScrollArea>
+
+            <Group justify="flex-end">
+              <Button variant="default" onClick={() => setMemoria(null)}>Fechar</Button>
+            </Group>
+          </Stack>
+        ) : null}
       </Modal>
 
       {/* Modal "Usar em orçamento" — escolher orçamento rascunho de destino */}
