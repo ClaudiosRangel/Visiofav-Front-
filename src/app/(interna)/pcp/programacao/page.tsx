@@ -17,6 +17,7 @@ import { IconLayoutGrid, IconListDetails } from '@tabler/icons-react'
 import { getUserPerfil, getEmpresaId } from '@/hooks/usePerfilGuard'
 import ModalMaquinasTempos from '@/components/pcp/ModalMaquinasTempos'
 import ModalApontamentoCompleto from '@/components/pcp/ModalApontamentoCompleto'
+import HistoricoEtapaModal from './HistoricoEtapaModal'
 
 const PRIORIDADE_COLORS: Record<string, string> = { BAIXA: 'gray', NORMAL: 'blue', ALTA: 'orange', URGENTE: 'red' }
 const STATUS_COLORS: Record<string, string> = { PENDENTE: 'gray', EM_ANDAMENTO: 'blue', PAUSADA: 'orange', CONCLUIDA: 'green' }
@@ -313,6 +314,8 @@ export default function ProgramacaoPage() {
   const [modalApontar, setModalApontar] = useState<{ etapaId: string; opNumero: number; descricao: string; finalizando?: boolean; quantidadeEtapa?: number; jaProduzido?: number; tipoProcessoCodigo?: string | null; baseContagem?: 'UNIDADE' | 'TIRAGEM' | null } | null>(null)
   // Foto anexada pelo operador como evidência da contagem produzida (opcional)
   const [fotoApontar, setFotoApontar] = useState<File | null>(null)
+  // Histórico de apontamentos exibido ao CONCLUIR a etapa (R2 — pedido do Caio).
+  const [historicoModal, setHistoricoModal] = useState<{ etapaId: string; opNumero?: string } | null>(null)
   const [modalPausar, setModalPausar] = useState<{ etapaId: string; opNumero: number } | null>(null)
   const [modalDesmembrar, setModalDesmembrar] = useState<{ etapaId: string; opNumero: number; quantidade: number; tiragem: number; descricao: string } | null>(null)
   // Base da divisão do desmembramento: QUANTIDADE (unidades) ou TIRAGEM (folhas).
@@ -1182,6 +1185,8 @@ export default function ProgramacaoPage() {
     try {
       await api.patch(`/pcp/etapas/${etapaId}/concluir`, {})
       notifications.show({ title: 'Etapa finalizada', message: `OS ${opNumero || ''} concluída`, color: 'green' })
+      // Histórico de apontamentos ao concluir (R2 — pedido do Caio).
+      setHistoricoModal({ etapaId, opNumero: opNumero != null ? String(opNumero) : undefined })
       // Remove a etapa concluída da fila imediatamente (feedback visual rápido)
       setPainel((prev: any) => {
         if (!prev) return prev
@@ -1240,6 +1245,8 @@ export default function ProgramacaoPage() {
       if (modalApontar.finalizando) {
         await api.patch(`/pcp/etapas/${modalApontar.etapaId}/concluir`, {})
         notifications.show({ title: 'Etapa finalizada', message: `Quantidade produzida registrada: ${(modalApontar.jaProduzido || 0) + formApontar.quantidadeProduzida}`, color: 'green' })
+        // Histórico de apontamentos ao concluir (R2 — pedido do Caio).
+        setHistoricoModal({ etapaId: modalApontar.etapaId, opNumero: String(modalApontar.opNumero) })
       } else {
         notifications.show({ title: 'Apontamento registrado', message: `+${formApontar.quantidadeProduzida} produzidas`, color: 'green' })
       }
@@ -3331,6 +3338,14 @@ export default function ProgramacaoPage() {
           </Menu.Item>
         </Menu.Dropdown>
       </Menu>
+
+      {/* Histórico de apontamentos exibido ao concluir a etapa (R2) */}
+      <HistoricoEtapaModal
+        etapaId={historicoModal?.etapaId ?? null}
+        opNumero={historicoModal?.opNumero}
+        opened={!!historicoModal}
+        onClose={() => setHistoricoModal(null)}
+      />
 
       {/* Modal: Apontar Produção (também usado ao Finalizar a etapa) */}
       <Modal opened={!!modalApontar} onClose={() => { setModalApontar(null); setFotoApontar(null) }} title={modalApontar?.finalizando ? `Finalizar Etapa — OP #${modalApontar?.opNumero}` : `Apontar Produção — OP #${modalApontar?.opNumero}`} centered>

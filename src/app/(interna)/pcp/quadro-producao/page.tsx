@@ -25,6 +25,8 @@ interface Maquina {
   centroNome: string
   tipoProcesso: string
   status: 'PRODUZINDO' | 'PARADA' | 'OCIOSA'
+  tempoParadaMinutos?: number | null
+  paradaDesde?: string | null
   etapaAtual: EtapaAtual | null
   ultimoApontamento: string | null
   motivoParada: string | null
@@ -282,7 +284,7 @@ function Badge({ color, label }: { color: string; label: string }) {
 // ─── Card de Máquina ────────────────────────────────────────────────────────
 
 function MaquinaCard({ maquina }: { maquina: Maquina }) {
-  const { status, etapaAtual, centroNome, tipoProcesso, motivoParada } = maquina
+  const { status, etapaAtual, centroNome, tipoProcesso, motivoParada, tempoParadaMinutos } = maquina
 
   const borderColor = status === 'PRODUZINDO' ? COLORS.green
     : status === 'PARADA' ? COLORS.orange
@@ -325,9 +327,12 @@ function MaquinaCard({ maquina }: { maquina: Maquina }) {
         {statusLabel}
       </Text>
 
-      {/* Motivo parada */}
-      {status === 'PARADA' && motivoParada && (
-        <Text size="xs" c={COLORS.orange} fw={500}>{motivoParada}</Text>
+      {/* Motivo + tempo da parada atual (R3 — pedido do Caio) */}
+      {status === 'PARADA' && (
+        <Text size="xs" c={COLORS.orange} fw={500}>
+          {motivoParada ? `${motivoParada} · ` : ''}
+          ⏸ parada há {formatarTempo(tempoParadaMinutos ?? 0)}
+        </Text>
       )}
 
       {/* Info da etapa atual */}

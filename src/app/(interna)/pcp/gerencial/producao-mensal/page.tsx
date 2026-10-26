@@ -24,7 +24,7 @@ function diaCurto(d: string) { const p = d.split('-'); return `${p[2]}/${p[1]}` 
 interface ResumoProc { tipoProcessoId: string | null; tipoProcessoCodigo: string | null; base: string; produzido: number; valorRs: number; metaQuantidade: number | null; percentualAtingido: number | null }
 interface SerieDia { data: string; produzido: number; valorRs: number }
 interface Diaria { serie: SerieDia[]; pico: SerieDia | null; segundoMaior: SerieDia | null; terceiroMaior: SerieDia | null; mediaDiaria: number; menorDia: SerieDia | null }
-interface ParetoItem { codigo: string; descricao: string; ocorrencias: number }
+interface ParetoItem { codigo: string; descricao: string; minutos: number; ocorrencias: number }
 interface ProdLinha { chaveId: string; nome: string; meses: { mes: string; quantidade: number }[]; totalQuantidade: number }
 interface OpsAno { ano: number; meses: number[] }
 interface TipoProcesso { id: string; codigo: string; descricao: string }
@@ -171,17 +171,17 @@ export default function RelatorioProducaoMensalPage() {
             {pareto.length === 0 ? <Text c="dimmed" ta="center" py="md">Sem paradas no mês.</Text> : (
               <Stack>
                 <Card withBorder h={300}>
-                  <Text size="sm" fw={600} mb="xs">Principais códigos de parada</Text>
+                  <Text size="sm" fw={600} mb="xs">Tempo de parada por motivo (minutos)</Text>
                   <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={pareto.slice(0, 10).map((p) => ({ nome: p.codigo, Ocorrências: p.ocorrencias }))}>
-                      <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="nome" fontSize={11} /><YAxis fontSize={11} /><Tooltip /><Bar dataKey="Ocorrências" fill="#2e8b57" />
+                    <BarChart data={pareto.slice(0, 10).map((p) => ({ nome: p.codigo, Minutos: p.minutos }))}>
+                      <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="nome" fontSize={11} /><YAxis fontSize={11} /><Tooltip /><Bar dataKey="Minutos" fill="#2e8b57" />
                     </BarChart>
                   </ResponsiveContainer>
                 </Card>
                 <Table striped withTableBorder>
-                  <Table.Thead><Table.Tr><Table.Th>Código</Table.Th><Table.Th>Descrição</Table.Th><Table.Th ta="right">Ocorrências</Table.Th></Table.Tr></Table.Thead>
+                  <Table.Thead><Table.Tr><Table.Th>Código</Table.Th><Table.Th>Descrição</Table.Th><Table.Th ta="right">Minutos</Table.Th><Table.Th ta="right">Ocorrências</Table.Th></Table.Tr></Table.Thead>
                   <Table.Tbody>
-                    {pareto.map((p) => (<Table.Tr key={`${p.codigo}-${p.descricao}`}><Table.Td fw={600}>{p.codigo}</Table.Td><Table.Td>{p.descricao}</Table.Td><Table.Td ta="right">{p.ocorrencias}</Table.Td></Table.Tr>))}
+                    {pareto.map((p) => (<Table.Tr key={`${p.codigo}-${p.descricao}`}><Table.Td fw={600}>{p.codigo}</Table.Td><Table.Td>{p.descricao}</Table.Td><Table.Td ta="right" fw={600}>{p.minutos.toLocaleString('pt-BR')}</Table.Td><Table.Td ta="right">{p.ocorrencias}</Table.Td></Table.Tr>))}
                   </Table.Tbody>
                 </Table>
               </Stack>
