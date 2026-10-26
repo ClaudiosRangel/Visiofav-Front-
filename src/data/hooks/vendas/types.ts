@@ -3,7 +3,10 @@ import type { PaginatedResponse } from '../fiscal/types'
 // === Enums ===
 
 export type PrioridadePedido = 'BAIXA' | 'NORMAL' | 'URGENTE'
-export type OrigemPedido = 'MANUAL' | 'ECOMMERCE' | 'EDI' | 'ORCAMENTO'
+// ORCAMENTO_GRAFICO: pedidos gerados pela conversão do Orçamento Gráfico
+// (hand-off comercial). O backend grava esse valor; sem ele o comercial não
+// conseguia filtrar esses pedidos na tela de Pedidos.
+export type OrigemPedido = 'MANUAL' | 'ECOMMERCE' | 'EDI' | 'ORCAMENTO' | 'ORCAMENTO_GRAFICO'
 export type StatusPedido = 'RASCUNHO' | 'CONFIRMADO' | 'EM_SEPARACAO' | 'EFETIVADO' | 'FATURADO' | 'CANCELADO'
 export type TipoDesconto = 'PERCENTUAL' | 'VALOR_FIXO'
 export type TipoAcrescimo = 'FRETE' | 'SEGURO' | 'OUTRAS_DESPESAS'

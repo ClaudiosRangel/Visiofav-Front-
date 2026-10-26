@@ -43,6 +43,7 @@ const ORIGEM_OPTIONS = [
   { value: 'ECOMMERCE', label: 'E-commerce' },
   { value: 'EDI', label: 'EDI' },
   { value: 'ORCAMENTO', label: 'Orçamento' },
+  { value: 'ORCAMENTO_GRAFICO', label: 'Orçamento Gráfico' },
 ]
 
 export default function PedidosVendaPage() {
