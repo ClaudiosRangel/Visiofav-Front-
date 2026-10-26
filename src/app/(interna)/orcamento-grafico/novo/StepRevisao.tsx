@@ -55,6 +55,9 @@ interface Simulacao {
 
 interface Conferencia {
   numeroCalcgraf: number | null
+  // Fonte da conferência: CALCULO_STC = decomposição real por componente
+  // (bate item a item com o Calcgraf); MOTOR = recálculo cru do motor Vizor.
+  fonte?: 'CALCULO_STC' | 'MOTOR'
   foto: { custoProducao: number; valorTotal: number }
   vizor: { custoProducao: number | null; valorTotal: number | null } | null
   desvio: { custoPercent: number | null; valorPercent: number | null; totalPercent: number | null }
@@ -327,7 +330,8 @@ export default function StepRevisao({ formData, updateForm }: Props) {
               </Text>
               {conferencia.vizor && (
                 <Text size="sm">
-                  <strong>Vizor (recálculo):</strong> {formatCurrency(conferencia.vizor.valorTotal ?? undefined)}
+                  <strong>{conferencia.fonte === 'CALCULO_STC' ? 'Vizor (decomposição):' : 'Vizor (recálculo):'}</strong>{' '}
+                  {formatCurrency(conferencia.vizor.valorTotal ?? undefined)}
                   {' · C.Prod '}{formatCurrency(conferencia.vizor.custoProducao ?? undefined)}
                 </Text>
               )}
@@ -338,9 +342,17 @@ export default function StepRevisao({ formData, updateForm }: Props) {
               )}
             </Group>
             {conferencia.alerta && <Text size="xs" c="dimmed">{conferencia.alerta}</Text>}
-            <Text size="xs" c="dimmed">
-              A foto do Calcgraf é preservada. Use-a na proposta quando houver divergência não resolvida.
-            </Text>
+            {conferencia.confere ? (
+              <Text size="xs" c="dimmed">
+                {conferencia.fonte === 'CALCULO_STC'
+                  ? 'Decomposição por componente (CalculoSTC) bate com o Calcgraf item a item.'
+                  : 'O recálculo do Vizor confere com a foto do Calcgraf.'}
+              </Text>
+            ) : (
+              <Text size="xs" c="dimmed">
+                A foto do Calcgraf é preservada. Use-a na proposta quando houver divergência não resolvida.
+              </Text>
+            )}
           </Stack>
         </Alert>
       )}
