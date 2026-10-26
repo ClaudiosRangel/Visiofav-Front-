@@ -24,6 +24,7 @@ interface PrecoMaterial {
   suporteId?: string | null
   gramatura?: number | null
   densidadeTinta?: number | null
+  creditoPisCofinsPercent?: number | null
 }
 
 interface FormData {
@@ -35,6 +36,7 @@ interface FormData {
   suporteId: string | null
   gramatura: number | null
   densidadeTinta: number | null
+  creditoPisCofinsPercent: number | null
 }
 
 const FORM_INICIAL: FormData = {
@@ -46,6 +48,7 @@ const FORM_INICIAL: FormData = {
   suporteId: null,
   gramatura: null,
   densidadeTinta: null,
+  creditoPisCofinsPercent: null,
 }
 
 const TIPOS_MATERIAL = [
@@ -138,6 +141,7 @@ export default function PrecosMaterialPage() {
       suporteId: item.suporteId ?? null,
       gramatura: item.gramatura != null ? Number(item.gramatura) : null,
       densidadeTinta: item.densidadeTinta != null ? Number(item.densidadeTinta) : null,
+      creditoPisCofinsPercent: item.creditoPisCofinsPercent != null ? Number(item.creditoPisCofinsPercent) : null,
     })
     setModalAberto(true)
   }
@@ -160,10 +164,23 @@ export default function PrecosMaterialPage() {
         densidadeTinta: form.tipo === 'TINTA' ? (form.densidadeTinta ?? null) : null,
       }
 
+      let materialId = editando?.id
       if (editando) {
         await api.put(`/orcamento-grafico/precos-mp/${editando.id}`, payload)
       } else {
-        await api.post('/orcamento-grafico/precos-mp', payload)
+        const resp = await api.post('/orcamento-grafico/precos-mp', payload)
+        materialId = resp.data?.id ?? materialId
+      }
+      // Crédito fiscal do papel (PIS/COFINS) — rota dedicada do configurador.
+      // Só para PAPEL e quando temos o id do material salvo.
+      if (form.tipo === 'PAPEL' && materialId && form.creditoPisCofinsPercent != null) {
+        try {
+          await api.put(`/configurador-grafico/papel/${materialId}/credito-fiscal`, {
+            creditoPisCofinsPercent: form.creditoPisCofinsPercent,
+          })
+        } catch {
+          /* não bloqueia o salvamento do material se o crédito falhar */
+        }
       }
       notifications.show({ title: 'Salvo', message: `Preço ${editando ? 'atualizado' : 'criado'} com sucesso`, color: 'green' })
       setModalAberto(false)
@@ -385,6 +402,33 @@ export default function PrecosMaterialPage() {
                 min={0}
                 max={2000}
               />
+            </Group>
+          )}
+
+          {/* Papel: crédito fiscal (PIS/COFINS) descontado do material direto,
+              como o Calcgraf. Preço líquido = bruto / (1 + crédito%/100). */}
+          {form.tipo === 'PAPEL' && (
+            <Group grow align="flex-end">
+              <NumberInput
+                label="Crédito PIS/COFINS (%)"
+                description="Descontado do custo do material direto"
+                value={form.creditoPisCofinsPercent ?? ''}
+                onChange={(v) => setForm({ ...form, creditoPisCofinsPercent: typeof v === 'number' ? v : null })}
+                min={0}
+                max={100}
+                decimalScale={2}
+              />
+              <Text size="sm" c="dimmed">
+                Preço líquido:{' '}
+                <Text component="span" fw={600} c="teal">
+                  {(() => {
+                    const bruto = Number(form.precoUnitario) || 0
+                    const cr = Number(form.creditoPisCofinsPercent) || 0
+                    const liq = cr > 0 ? bruto / (1 + cr / 100) : bruto
+                    return `R$ ${liq.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
+                  })()}
+                </Text>
+              </Text>
             </Group>
           )}
 
