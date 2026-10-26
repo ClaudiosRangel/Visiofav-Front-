@@ -194,16 +194,27 @@ function AbaDashboard({ params }: { params: () => Record<string, string | undefi
 }
 
 // ─── Aba Produtividade ────────────────────────────────────────────────────
+interface ProdOperadorMaquina {
+  operadorId: string
+  operadorNome: string
+  totalQuantidade: number
+  maquinas: { centroId: string; centroDescricao: string; quantidade: number }[]
+}
+
 function AbaProdutividade({ params }: { params: () => Record<string, string | undefined> }) {
-  const [por, setPor] = useState<'operador' | 'maquina'>('operador')
+  const [por, setPor] = useState<'operador' | 'maquina' | 'operador-maquina'>('operador')
   const [linhas, setLinhas] = useState<ProdLinha[]>([])
+  const [opMaq, setOpMaq] = useState<ProdOperadorMaquina[]>([])
   const [loading, setLoading] = useState(true)
   const p = params()
   useEffect(() => {
     setLoading(true)
     api.get('/pcp/apontamentos-bi/produtividade', { params: { ...p, por } })
-      .then((r) => setLinhas(r.data))
-      .catch(() => setLinhas([]))
+      .then((r) => {
+        if (por === 'operador-maquina') { setOpMaq(r.data); setLinhas([]) }
+        else { setLinhas(r.data); setOpMaq([]) }
+      })
+      .catch(() => { setLinhas([]); setOpMaq([]) })
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(p), por])
@@ -213,11 +224,46 @@ function AbaProdutividade({ params }: { params: () => Record<string, string | un
   return (
     <Stack>
       <Select
-        label="Agrupar por" w={200} value={por}
-        onChange={(v) => setPor((v as 'operador' | 'maquina') || 'operador')}
-        data={[{ value: 'operador', label: 'Operador' }, { value: 'maquina', label: 'Máquina' }]}
+        label="Agrupar por" w={220} value={por}
+        onChange={(v) => setPor((v as 'operador' | 'maquina' | 'operador-maquina') || 'operador')}
+        data={[
+          { value: 'operador', label: 'Operador' },
+          { value: 'maquina', label: 'Máquina' },
+          { value: 'operador-maquina', label: 'Operador × Máquina' },
+        ]}
       />
-      {loading ? <Center py="xl"><Loader /></Center> : linhas.length === 0 ? (
+      {loading ? <Center py="xl"><Loader /></Center> : por === 'operador-maquina' ? (
+        opMaq.length === 0 ? (
+          <Text c="dimmed" ta="center" py="xl">Sem dados no período.</Text>
+        ) : (
+          <Stack gap="md">
+            {opMaq.map((op) => (
+              <Card key={op.operadorId} withBorder>
+                <Group justify="space-between" mb="xs">
+                  <Text fw={700}>{op.operadorNome}</Text>
+                  <Badge variant="light">Total: {num(op.totalQuantidade)}</Badge>
+                </Group>
+                <Table withTableBorder>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Máquina</Table.Th>
+                      <Table.Th ta="right">Produzido</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {op.maquinas.map((m) => (
+                      <Table.Tr key={m.centroId}>
+                        <Table.Td>{m.centroDescricao}</Table.Td>
+                        <Table.Td ta="right">{num(m.quantidade)}</Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </Card>
+            ))}
+          </Stack>
+        )
+      ) : linhas.length === 0 ? (
         <Text c="dimmed" ta="center" py="xl">Sem dados no período.</Text>
       ) : (
         <Table striped highlightOnHover withTableBorder>

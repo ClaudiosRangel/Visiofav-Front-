@@ -5,12 +5,13 @@ import {
   Title, Stack, Group, Select, NumberInput, Button, Tabs, Card, SimpleGrid,
   Text, Table, Loader, Center, Badge, Progress,
 } from '@mantine/core'
-import { IconChartBar, IconCalendar, IconUsers, IconAlertTriangle, IconPrinter, IconClipboardList, IconTable } from '@tabler/icons-react'
+import { IconChartBar, IconCalendar, IconUsers, IconAlertTriangle, IconPrinter, IconClipboardList, IconTable, IconCurrencyReal } from '@tabler/icons-react'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, ReferenceLine,
 } from 'recharts'
 import { api } from '@/lib/api'
 import { getAuthToken } from '@/lib/authStorage'
+import { getUserPerfil } from '@/hooks/usePerfilGuard'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -57,6 +58,10 @@ export default function RelatorioProducaoMensalPage() {
   const totalProd = resumo.reduce((s, r) => s + r.produzido, 0)
   const totalRs = resumo.reduce((s, r) => s + r.valorRs, 0)
   const periodo = { dataInicio: `${ano}-${String(mes).padStart(2, '0')}-01`, dataFim: `${ano}-${String(mes).padStart(2, '0')}-${new Date(ano, mes, 0).getDate()}` }
+  // R7 — a aba R$/KG por máquina é restrita: só gestão (SUPER_ADMIN/ADMIN/
+  // SUPERVISOR) vê o menu. OPERADOR não vê (e a API também responde 403).
+  const perfil = getUserPerfil()
+  const ehGestao = perfil === 'SUPER_ADMIN' || perfil === 'ADMIN' || perfil === 'SUPERVISOR'
 
   return (
     <Stack gap="md">
@@ -82,6 +87,9 @@ export default function RelatorioProducaoMensalPage() {
             <Tabs.Tab value="ops" leftSection={<IconClipboardList size={16} />}>OPs Emitidas</Tabs.Tab>
             <Tabs.Tab value="pareto" leftSection={<IconAlertTriangle size={16} />}>Pareto</Tabs.Tab>
             <Tabs.Tab value="trabalhos" leftSection={<IconClipboardList size={16} />}>Trabalhos em Máquina</Tabs.Tab>
+            {ehGestao && (
+              <Tabs.Tab value="financeira" leftSection={<IconCurrencyReal size={16} />}>R$ / KG por Máquina</Tabs.Tab>
+            )}
           </Tabs.List>
 
           <Tabs.Panel value="resumo" pt="md">
@@ -167,6 +175,12 @@ export default function RelatorioProducaoMensalPage() {
             <TrabalhosEmMaquinaAba ano={ano} mes={mes} pico={diaria?.pico ?? null} />
           </Tabs.Panel>
 
+          {ehGestao && (
+            <Tabs.Panel value="financeira" pt="md">
+              <ProducaoFinanceiraAba ano={ano} mes={mes} />
+            </Tabs.Panel>
+          )}
+
           <Tabs.Panel value="pareto" pt="md">
             {pareto.length === 0 ? <Text c="dimmed" ta="center" py="md">Sem paradas no mês.</Text> : (
               <Stack>
@@ -208,22 +222,45 @@ function MetasProcessoAba({ ano, mes, resumo }: { ano: number; mes: number; resu
       .then(({ data }) => setDados(data)).catch(() => setDados(null)).finally(() => setLoading(false))
   }, [tpId, ano, mes])
 
-  const serie = (dados?.dias || []).map((d) => ({ dia: diaCurto(d.data), Produção: d.total }))
+  // R6 — máquinas SEPARADAS: uma linha por centro do processo + o total do
+  // processo, com a meta do processo como linha de referência.
+  const centros = dados?.centros ?? []
+  const serie = (dados?.dias || []).map((d) => {
+    const linha: Record<string, number | string> = { dia: diaCurto(d.data), Total: d.total }
+    for (const c of centros) linha[c.descricao] = d.porCentro[c.id] ?? 0
+    return linha
+  })
   const meta = dados?.metaQuantidade ?? null
-  const media = serie.length ? Math.round(serie.reduce((s, d) => s + d.Produção, 0) / serie.length) : 0
+  const media = serie.length ? Math.round(serie.reduce((s, d) => s + Number(d.Total), 0) / serie.length) : 0
+  // Paleta estável para as séries de máquina.
+  const CORES_MAQUINA = ['#1f6feb', '#e8590c', '#2f9e44', '#9c36b5', '#1098ad', '#f08c00', '#e03131', '#5f3dc4']
 
   return (
     <Stack>
       <Select label="Processo" w={240} data={processos} value={tpId} onChange={setTpId} />
       {loading ? <Center py="xl"><Loader /></Center> : !dados || serie.length === 0 ? <Text c="dimmed" ta="center" py="md">Sem dados.</Text> : (
-        <Card withBorder h={340}>
-          <Text size="sm" fw={600} mb="xs">Produção diária x Meta {meta ? `(meta ${num(meta)}/dia)` : '(sem meta cadastrada)'}</Text>
-          <ResponsiveContainer width="100%" height={290}>
+        <Card withBorder h={380}>
+          <Text size="sm" fw={600} mb="xs">
+            Produção diária por máquina x Meta do processo {meta ? `(meta ${num(meta)}/dia)` : '(sem meta cadastrada)'}
+          </Text>
+          <ResponsiveContainer width="100%" height={320}>
             <LineChart data={serie}>
               <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="dia" fontSize={10} /><YAxis fontSize={10} /><Tooltip formatter={(v: number) => num(v)} /><Legend />
               {meta ? <ReferenceLine y={meta} stroke="#d62728" strokeWidth={2} label={{ value: 'Meta', fontSize: 10 }} /> : null}
-              <ReferenceLine y={media} stroke="#2e8b57" strokeDasharray="4 4" label={{ value: 'Média', fontSize: 10 }} />
-              <Line type="monotone" dataKey="Produção" stroke="#1f6feb" strokeWidth={2} dot={{ r: 2 }} />
+              <ReferenceLine y={media} stroke="#868e96" strokeDasharray="4 4" label={{ value: 'Média', fontSize: 10 }} />
+              {/* Total do processo (traço grosso). */}
+              <Line type="monotone" dataKey="Total" stroke="#212529" strokeWidth={3} dot={false} />
+              {/* Uma série por máquina do processo. */}
+              {centros.map((c, i) => (
+                <Line
+                  key={c.id}
+                  type="monotone"
+                  dataKey={c.descricao}
+                  stroke={CORES_MAQUINA[i % CORES_MAQUINA.length]}
+                  strokeWidth={2}
+                  dot={{ r: 2 }}
+                />
+              ))}
             </LineChart>
           </ResponsiveContainer>
         </Card>
@@ -404,6 +441,74 @@ function TrabalhosEmMaquinaAba({ ano, mes, pico }: { ano: number; mes: number; p
             ))}
           </Table.Tbody>
         </Table>
+      )}
+    </Stack>
+  )
+}
+
+// ─── Aba R$ / KG por Máquina (R7 — RESTRITA a gestão) ───────────────────────
+interface FinanceiraMaquina {
+  centroId: string
+  centroDescricao: string
+  tipoProcessoCodigo: string | null
+  base: string
+  produzido: number
+  valorRs: number
+  kgFabricado: number
+}
+function ProducaoFinanceiraAba({ ano, mes }: { ano: number; mes: number }) {
+  const [dados, setDados] = useState<FinanceiraMaquina[]>([])
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    setLoading(true)
+    api.get('/pcp/gerencial/producao-financeira-maquina', { params: { ano, mes } })
+      .then(({ data }) => setDados(data)).catch(() => setDados([])).finally(() => setLoading(false))
+  }, [ano, mes])
+
+  const totalRs = dados.reduce((s, d) => s + d.valorRs, 0)
+  const totalKg = dados.reduce((s, d) => s + d.kgFabricado, 0)
+
+  return (
+    <Stack>
+      <Text c="dimmed" size="sm">
+        Custo de produção (R$) e KG de papel fabricado por máquina no mês. Visível
+        apenas para gestão (Supervisor/Administrador).
+      </Text>
+      {loading ? <Center py="xl"><Loader /></Center> : dados.length === 0 ? <Text c="dimmed" ta="center" py="md">Sem produção no mês.</Text> : (
+        <Stack>
+          <SimpleGrid cols={{ base: 1, sm: 2 }}>
+            <Card withBorder><Text size="sm" c="dimmed">Custo total (R$)</Text><Text fw={700} size="xl">{brl(totalRs)}</Text></Card>
+            <Card withBorder><Text size="sm" c="dimmed">KG fabricado total</Text><Text fw={700} size="xl">{num(totalKg)} kg</Text></Card>
+          </SimpleGrid>
+          <Card withBorder h={320}>
+            <Text size="sm" fw={600} mb="xs">Custo (R$) por máquina</Text>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={dados.map((d) => ({ nome: d.centroDescricao, 'R$': d.valorRs }))}>
+                <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="nome" fontSize={10} /><YAxis fontSize={10} /><Tooltip formatter={(v: number) => brl(v)} /><Bar dataKey="R$" fill="#2f9e44" />
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
+          <Table striped withTableBorder>
+            <Table.Thead><Table.Tr>
+              <Table.Th>Máquina</Table.Th>
+              <Table.Th>Processo</Table.Th>
+              <Table.Th ta="right">Produzido</Table.Th>
+              <Table.Th ta="right">Custo R$</Table.Th>
+              <Table.Th ta="right">KG fabricado</Table.Th>
+            </Table.Tr></Table.Thead>
+            <Table.Tbody>
+              {dados.map((d) => (
+                <Table.Tr key={d.centroId}>
+                  <Table.Td fw={600}>{d.centroDescricao}</Table.Td>
+                  <Table.Td><Badge variant="light">{d.tipoProcessoCodigo ?? '—'}</Badge></Table.Td>
+                  <Table.Td ta="right">{num(d.produzido)}</Table.Td>
+                  <Table.Td ta="right">{brl(d.valorRs)}</Table.Td>
+                  <Table.Td ta="right">{d.kgFabricado > 0 ? `${num(d.kgFabricado)} kg` : '—'}</Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Stack>
       )}
     </Stack>
   )

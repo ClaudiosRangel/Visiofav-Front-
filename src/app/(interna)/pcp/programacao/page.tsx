@@ -1640,6 +1640,27 @@ export default function ProgramacaoPage() {
     }
   }
 
+  // R8 (apontamentos-melhorias-caio) — liberação do CARTÃO por GESTÃO. Marca a
+  // OP como liberada para corte (auditável) via rota restrita a ADMIN/
+  // SUPERVISOR. Atualização otimista do estado do item.
+  async function liberarCartaoGestao(opId: string) {
+    try {
+      const { data } = await api.post(`/pcp/programacao/liberar-cartao/${opId}`)
+      notifications.show({ title: 'Cartão liberado', message: 'OS liberada para corte pela gestão', color: 'green' })
+      setPainel((prev: any) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          aguardandoCartao: (prev.aguardandoCartao || []).map((i: any) =>
+            i.opId === opId ? { ...i, cartaoLiberadoEm: data?.cartaoLiberadoEm ?? new Date().toISOString() } : i,
+          ),
+        }
+      })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao liberar cartão', color: 'red' })
+    }
+  }
+
   // Feature 4: Localizar OS — when busca is a pure number and user presses Enter
   function localizarOS() {
     if (!painel || !busca.trim()) return
@@ -2525,6 +2546,16 @@ export default function ProgramacaoPage() {
                       <Button size="compact-xs" color="green" variant="light" onClick={() => liberarProducao(item.opId)}>
                         Cartão Recebido
                       </Button>
+                      {/* R8 — "Liberar p/ corte" só para gestão (ADMIN/SUPERVISOR/
+                          SUPER_ADMIN). OPERADOR não vê. Quando já liberado, mostra
+                          o selo em vez do botão. */}
+                      {item.cartaoLiberadoEm ? (
+                        <Badge size="xs" color="teal" variant="light">Liberado p/ corte</Badge>
+                      ) : (perfilUsuario === 'SUPER_ADMIN' || perfilUsuario === 'ADMIN' || perfilUsuario === 'SUPERVISOR') ? (
+                        <Button size="compact-xs" color="teal" variant="filled" onClick={() => liberarCartaoGestao(item.opId)}>
+                          Liberar p/ corte
+                        </Button>
+                      ) : null}
                       <ActionIcon color="gray" variant="light" size="sm" onClick={() => verPdfOp(item.opId)} title="Ver PDF">
                         <IconFileText size={14} />
                       </ActionIcon>
@@ -2804,6 +2835,12 @@ export default function ProgramacaoPage() {
                                 {etapa.isAvulsa && <Badge color="pink" size="xs">AVULSA</Badge>}
                                 {etapa.plano && <Badge color={etapa.plano.tipo === 'FACE' ? 'violet' : 'cyan'} size="xs" title={`Plano: ${rotuloPlano(etapa.plano.nome)}`}>{rotuloPlano(etapa.plano.nome)}</Badge>}
                                 {etapa.planosNomes?.map((pn: string) => <Badge key={pn} color="cyan" size="xs" variant="light" title={`Plano: ${rotuloPlano(pn)}`}>{rotuloPlano(pn)}</Badge>)}
+                                {/* R9 — parte desmembrada: mostra % desta parte sobre o total da OP */}
+                                {etapa.isDesmembramento && etapa.percentualDaParte != null && (
+                                  <Badge color="orange" size="xs" variant="light" title="Parte do desmembramento sobre o total da OP">
+                                    Parte {etapa.percentualDaParte}%
+                                  </Badge>
+                                )}
                               </Group>
                               <Text size="xs" fw={600} c="dimmed" style={{ lineHeight: 1.2 }}>
                                 {etapa.clienteNome || '—'}
@@ -3086,6 +3123,12 @@ export default function ProgramacaoPage() {
                                 {etapa.isAvulsa && <Badge color="pink" size="xs">AVULSA</Badge>}
                                 {etapa.plano && <Badge color={etapa.plano.tipo === 'FACE' ? 'violet' : 'cyan'} size="xs" title={`Plano: ${rotuloPlano(etapa.plano.nome)}`}>{rotuloPlano(etapa.plano.nome)}</Badge>}
                                 {etapa.planosNomes?.map((pn: string) => <Badge key={pn} color="cyan" size="xs" variant="light" title={`Plano: ${rotuloPlano(pn)}`}>{rotuloPlano(pn)}</Badge>)}
+                                {/* R9 — parte desmembrada: mostra % desta parte sobre o total da OP */}
+                                {etapa.isDesmembramento && etapa.percentualDaParte != null && (
+                                  <Badge color="orange" size="xs" variant="light" title="Parte do desmembramento sobre o total da OP">
+                                    Parte {etapa.percentualDaParte}%
+                                  </Badge>
+                                )}
                               </Group>
                               <Text size="xs" fw={600} c={etapa.preImpressaoStatus ? 'white' : 'dimmed'} style={{ lineHeight: 1.2 }}>
                                 {etapa.clienteNome || etapa.observacoes?.match(/\[Cliente\]\s*(.+)/)?.[1] || ''}
