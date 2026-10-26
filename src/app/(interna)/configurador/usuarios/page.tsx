@@ -55,7 +55,20 @@ const PERFIS = [
   { value: 'OPERADOR', label: 'Operador' },
 ]
 
-const ALL_MODULES = ['WMS', 'COMPRAS', 'VENDAS', 'FINANCEIRO', 'FISCAL', 'PCP']
+const ALL_MODULES = ['WMS', 'COMPRAS', 'VENDAS', 'FINANCEIRO', 'FISCAL', 'PCP', 'ORCAMENTO_GRAFICO', 'PORTAL_REPRESENTANTE']
+
+// Rótulos amigáveis para os códigos de módulo (o código cru é feio como label,
+// ex.: ORCAMENTO_GRAFICO). Códigos sem entrada caem no próprio código.
+const MODULE_LABELS: Record<string, string> = {
+  WMS: 'WMS',
+  COMPRAS: 'Compras',
+  VENDAS: 'Vendas',
+  FINANCEIRO: 'Financeiro',
+  FISCAL: 'Fiscal',
+  PCP: 'PCP',
+  ORCAMENTO_GRAFICO: 'Orçamento Gráfico',
+  PORTAL_REPRESENTANTE: 'Portal Representante',
+}
 
 const perfilColor: Record<string, string> = { ADMIN: 'red', SUPERVISOR: 'orange', OPERADOR: 'blue' }
 
@@ -562,7 +575,7 @@ function UserFormModal({
               {ALL_MODULES.map((mod) => (
                 <Checkbox
                   key={mod}
-                  label={mod}
+                  label={MODULE_LABELS[mod] ?? mod}
                   checked={selectedModules.includes(mod)}
                   onChange={() => toggleModule(mod)}
                 />

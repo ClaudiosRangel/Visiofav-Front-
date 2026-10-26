@@ -147,7 +147,11 @@ export default function ModulosPage() {
   const modulosVisiveis = MODULOS_CONFIG.filter(
     (m) => {
       if (m.modulo === 'CONFIGURADOR') return true
-      if (m.modulo === 'PORTAL_REPRESENTANTE') return perfil === 'ADMIN' || perfil === 'SUPER_ADMIN'
+      // Portal Representante: visível para ADMIN/SUPER_ADMIN OU para quem recebeu
+      // a permissão do módulo (Configurador → Usuários).
+      if (m.modulo === 'PORTAL_REPRESENTANTE') {
+        return perfil === 'ADMIN' || perfil === 'SUPER_ADMIN' || modulos.includes(m.modulo)
+      }
       return modulos.includes(m.modulo)
     }
   )

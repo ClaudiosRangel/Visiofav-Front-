@@ -6,7 +6,7 @@ import {
   Group, Text, Modal, Grid,
 } from '@mantine/core'
 import { IconEye, IconLink, IconFileText } from '@tabler/icons-react'
-import { usePerfilGuard } from '@/hooks/usePerfilGuard'
+import { usePerfilOuModuloGuard } from '@/hooks/usePerfilOuModuloGuard'
 import { useAprovacoesCliente } from '@/data/hooks/portal-representante/useAprovacoesCliente'
 import type { AprovacaoCliente, StatusAprovacao } from '@/data/hooks/portal-representante/types'
 
@@ -28,7 +28,7 @@ const tipoLabels: Record<string, string> = {
 }
 
 export default function AprovacoesClientePage() {
-  usePerfilGuard(['ADMIN', 'SUPER_ADMIN'])
+  usePerfilOuModuloGuard(['ADMIN', 'SUPER_ADMIN'], 'PORTAL_REPRESENTANTE')
   useEffect(() => { document.title = 'Vizor - Portal Representante - Aprovações de Clientes' }, [])
 
   const { data: aprovacoes, isLoading } = useAprovacoesCliente()

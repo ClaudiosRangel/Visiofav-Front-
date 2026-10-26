@@ -10,7 +10,7 @@ import { DateInput } from '@mantine/dates'
 import { useDebouncedValue, useDisclosure } from '@mantine/hooks'
 import { IconRefresh, IconSearch, IconSend, IconX, IconExternalLink } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
-import { usePerfilGuard } from '@/hooks/usePerfilGuard'
+import { usePerfilOuModuloGuard } from '@/hooks/usePerfilOuModuloGuard'
 import {
   useSolicitacoesOrcamento,
   useEnviarParaOrcamento,
@@ -30,7 +30,7 @@ const STATUS_OPTIONS = [
 ]
 
 export default function SolicitacoesOrcamentoPage() {
-  usePerfilGuard(['ADMIN', 'SUPER_ADMIN'])
+  usePerfilOuModuloGuard(['ADMIN', 'SUPER_ADMIN'], 'PORTAL_REPRESENTANTE')
   useEffect(() => { document.title = 'Vizor - Portal Representante - Solicitações de Orçamento' }, [])
 
   const router = useRouter()

@@ -4,12 +4,12 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, Radio, Text, LoadingOverlay, Group, Button, Stack } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { usePerfilGuard } from '@/hooks/usePerfilGuard'
+import { usePerfilOuModuloGuard } from '@/hooks/usePerfilOuModuloGuard'
 import { useConfiguracaoComissao, useAlterarConfiguracaoComissao } from '@/data/hooks/portal-representante/useConfiguracaoComissao'
 import { criterioComissaoOptions, CriterioComissao } from '@/data/hooks/portal-representante/types'
 
 export default function ConfiguracaoComissaoPage() {
-  usePerfilGuard(['ADMIN', 'SUPER_ADMIN'])
+  usePerfilOuModuloGuard(['ADMIN', 'SUPER_ADMIN'], 'PORTAL_REPRESENTANTE')
   useEffect(() => { document.title = 'Portal Representante - Configuração de Comissão' }, [])
 
   const router = useRouter()

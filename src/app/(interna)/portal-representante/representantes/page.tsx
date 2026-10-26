@@ -11,7 +11,7 @@ import {
   IconCopy, IconCheck,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
-import { usePerfilGuard } from '@/hooks/usePerfilGuard'
+import { usePerfilOuModuloGuard } from '@/hooks/usePerfilOuModuloGuard'
 import {
   useRepresentantes,
   useCriarRepresentante,
@@ -32,7 +32,7 @@ export function isValidEmail(value: string): boolean {
 }
 
 export default function RepresentantesPage() {
-  usePerfilGuard(['ADMIN', 'SUPER_ADMIN'])
+  usePerfilOuModuloGuard(['ADMIN', 'SUPER_ADMIN'], 'PORTAL_REPRESENTANTE')
   useEffect(() => { document.title = 'Vizor - Portal Representante - Representantes' }, [])
 
   const router = useRouter()
