@@ -468,13 +468,23 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       { icon: IconHistory, label: 'Logs de Auditoria', href: '/pcp/logs' },
     ],
   },
+  // Módulo COMERCIAL — separado de Vendas (que cuida de pedido efetivado,
+  // separação e faturamento). Aqui vive o funil pré-venda: orçamento gráfico,
+  // conversão em pedido, aprovação de amostras/modelos e solicitações do
+  // representante. (Ver docs/fluxo-comercial-orcamento-pcp-faturamento.md)
   'orcamento-grafico': {
-    title: 'Orçamento Gráfico',
+    title: 'Comercial',
     entries: [
       { icon: IconListDetails, label: 'Orçamentos', href: '/orcamento-grafico' },
       { icon: IconPlus, label: 'Novo Orçamento', href: '/orcamento-grafico/novo' },
       { icon: IconInbox, label: 'Orçamentos a Converter', href: '/orcamento-grafico/a-converter' },
-      { icon: IconBook2, label: 'Biblioteca de Cálculos', href: '/orcamento-grafico/biblioteca-calculos' },
+      { icon: IconPhoto, label: 'Amostras / Modelos', href: '/orcamento-grafico/amostras' },
+      { icon: IconFileDescription, label: 'Solicitações (Representante)', href: '/portal-representante/solicitacoes-orcamento' },
+      {
+        label: 'Engenharia', icon: IconBook2, items: [
+          { icon: IconBook2, label: 'Biblioteca de Cálculos', href: '/orcamento-grafico/biblioteca-calculos' },
+        ],
+      },
       {
         label: 'Cadastros', icon: IconDatabase, items: [
           { icon: IconPackage, label: 'Tipos de Embalagem', href: '/orcamento-grafico/cadastros/tipos-embalagem' },
@@ -513,7 +523,7 @@ export const MODULE_LABELS: Record<string, string> = {
   wms: 'WMS',
   configurador: 'Configurador',
   pcp: 'PCP',
-  'orcamento-grafico': 'Orçamento Gráfico',
+  'orcamento-grafico': 'Comercial',
   'portal-representante': 'Portal Representante',
 }
 
@@ -545,6 +555,8 @@ export function listarItensMenuWms(): ItemMenuWmsConfig[] {
 }
 
 export function detectModule(pathname: string): string | null {
+  // Solicitações de orçamento do representante aparecem no funil COMERCIAL.
+  if (pathname.startsWith('/portal-representante/solicitacoes-orcamento')) return 'orcamento-grafico'
   if (pathname.startsWith('/portal-representante')) return 'portal-representante'
   if (pathname.startsWith('/orcamento-grafico')) return 'orcamento-grafico'
   if (pathname.startsWith('/compras')) return 'compras'

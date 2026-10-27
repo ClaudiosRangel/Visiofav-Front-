@@ -499,7 +499,7 @@ export default function StepRevisao({ formData, updateForm }: Props) {
                     baixarSvgEncaixe(layout, nome)
                   }}
                 >
-                  Baixar encaixe (SVG)
+                  Baixar prévia do encaixe (SVG)
                 </Button>
               </Group>
             </Stack>

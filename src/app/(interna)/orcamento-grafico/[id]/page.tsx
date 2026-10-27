@@ -23,6 +23,7 @@ import BuscaCalculoModal from './BuscaCalculoModal'
 import RelatorioItem from './RelatorioItem'
 import PlanosDoItem, { type PlanoCalculo } from './PlanosDoItem'
 import AmostrasModal from './AmostrasModal'
+import EncaixeArquivoModal from './EncaixeArquivoModal'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
 import {
@@ -297,6 +298,8 @@ export default function OrcamentoDetalhePage() {
 
   // Hand-off comercial: amostras + conversão em pedido
   const [amostrasOpen, setAmostrasOpen] = useState(false)
+  // Upload/visualização do arquivo de encaixe (gerado por app externo)
+  const [encaixeItem, setEncaixeItem] = useState<{ id: string; descricao?: string | null } | null>(null)
 
   useEffect(() => { document.title = 'Detalhe do Orçamento' }, [])
 
@@ -524,10 +527,10 @@ export default function OrcamentoDetalhePage() {
     }
   }
 
-  // Abre o download do encaixe (SVG ou PDF) de um item em nova aba.
-  const baixarEncaixe = (itemId: string, formato: 'svg' | 'pdf') => {
-    const token = getAuthToken() || ''
-    window.open(`${API_BASE}/orcamento-grafico/${id}/itens/${itemId}/encaixe.${formato}?token=${token}`, '_blank')
+  // Abre o modal de encaixe (upload + visualização do arquivo gerado por app
+  // externo). Substitui o antigo download do desenho gerado internamente.
+  const abrirEncaixe = (item: { id: string; descricao?: string | null }) => {
+    setEncaixeItem({ id: item.id, descricao: item.descricao })
   }
 
   // ============================================================================
@@ -938,22 +941,13 @@ export default function OrcamentoDetalhePage() {
                               <IconFileInvoice size={16} />
                             </ActionIcon>
                           </Tooltip>
-                          <Tooltip label="Baixar encaixe (SVG)">
+                          <Tooltip label="Encaixe / imposição (enviar e visualizar)">
                             <ActionIcon
                               variant="subtle"
                               color="grape"
-                              onClick={() => baixarEncaixe(item.id, 'svg')}
+                              onClick={() => abrirEncaixe(item)}
                             >
                               <IconGridDots size={16} />
-                            </ActionIcon>
-                          </Tooltip>
-                          <Tooltip label="Baixar encaixe (PDF)">
-                            <ActionIcon
-                              variant="subtle"
-                              color="grape"
-                              onClick={() => baixarEncaixe(item.id, 'pdf')}
-                            >
-                              <IconPhoto size={16} />
                             </ActionIcon>
                           </Tooltip>
                           <Tooltip label={podeEditarItens ? 'Editar item' : 'Edição só em rascunho'}>
@@ -1445,6 +1439,15 @@ export default function OrcamentoDetalhePage() {
         onClose={() => setAmostrasOpen(false)}
         orcamentoId={id}
         onMudou={carregar}
+      />
+
+      {/* Upload + visualização do arquivo de encaixe (app externo) — R11 */}
+      <EncaixeArquivoModal
+        opened={!!encaixeItem}
+        onClose={() => setEncaixeItem(null)}
+        orcamentoId={id}
+        itemId={encaixeItem?.id ?? null}
+        itemDescricao={encaixeItem?.descricao}
       />
 
       {/* Modal de opções de emissão de OP (item único e em lote — Task 24) */}
