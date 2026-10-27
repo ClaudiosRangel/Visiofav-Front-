@@ -14,6 +14,7 @@ import { usePedidoVenda, useConfirmarPedido, useCancelarPedido } from '@/data/ho
 import { BadgePrioridade } from '@/components/vendas/BadgePrioridade'
 import { formatarEnderecoEntrega, getProgressColor, MODALIDADE_FRETE_OPTIONS } from '@/components/vendas/utils'
 import { ModalFaturamentoParcial } from '@/components/vendas/ModalFaturamentoParcial'
+import JornadaPedido from '@/components/vendas/JornadaPedido'
 import { api } from '@/lib/api'
 import { useMutation } from '@tanstack/react-query'
 
@@ -78,6 +79,27 @@ export default function DetalhePedidoVendaPage() {
     }
   }
 
+  // Hand-off comercial: liberar o pedido (vindo de orçamento gráfico) para o
+  // PCP — confirma + gera as OPs com a engenharia do orçamento. Trava de amostra.
+  const liberarPcp = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post(`/orcamento-grafico/pedidos/${id}/liberar-pcp`)
+      return data
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['pedidos-venda', id] })
+      const ok = (data?.opsEmitidas || []).filter((o: any) => o.status === 'ok').length
+      notifications.show({ title: 'Liberado para o PCP', message: `${ok} OP(s) emitida(s).`, color: 'green' })
+    },
+    onError: (err: any) => {
+      const code = err?.response?.data?.code
+      const msg = code === 'AMOSTRA_PENDENTE'
+        ? 'Amostra exigida e ainda não aprovada.'
+        : err?.response?.data?.message || 'Falha ao liberar para o PCP'
+      notifications.show({ title: 'Não foi possível liberar', message: msg, color: 'red' })
+    },
+  })
+
   const handleCancelar = () => {
     cancelarMutation.mutate({ id, motivo }, {
       onSuccess: () => {
@@ -113,6 +135,18 @@ export default function DetalhePedidoVendaPage() {
               <Button variant="light" onClick={() => router.push(`/vendas/pedidos/novo?editId=${id}`)}>Editar</Button>
               <Button color="blue" leftSection={<IconCheck size={16} />} onClick={handleConfirmar}>Confirmar</Button>
             </>
+          )}
+          {/* Hand-off comercial: pedido vindo de orçamento gráfico pode ser
+              liberado direto para o PCP (confirma + gera OPs com engenharia). */}
+          {pedido.origemPedido === 'ORCAMENTO_GRAFICO' && ['RASCUNHO', 'CONFIRMADO'].includes(pedido.status) && (
+            <Button
+              color="teal"
+              leftSection={<IconPackage size={16} />}
+              onClick={() => { if (confirm('Liberar este pedido para o PCP? Serão geradas as Ordens de Produção com a engenharia do orçamento.')) liberarPcp.mutate() }}
+              loading={liberarPcp.isPending}
+            >
+              Liberar para PCP
+            </Button>
           )}
           {pedido.status === 'CONFIRMADO' && (
             <>
@@ -170,6 +204,13 @@ export default function DetalhePedidoVendaPage() {
           </div>
         )}
       </Card>
+
+      {/* ═══ JORNADA — régua de estágios (pedidos vindos do orçamento gráfico) ═══ */}
+      {pedido.origemPedido === 'ORCAMENTO_GRAFICO' && (
+        <div style={{ marginBottom: 16 }}>
+          <JornadaPedido pedidoId={id} />
+        </div>
+      )}
 
       {/* ═══ CORPO — Tabs (Itens | Entrega | Financeiro | Observações | Histórico) ═══ */}
       <Card withBorder mb="md" p={0}>

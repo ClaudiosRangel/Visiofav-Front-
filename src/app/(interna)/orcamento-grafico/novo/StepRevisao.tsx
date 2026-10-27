@@ -3,13 +3,72 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
   Stack, Text, NumberInput, Group, Paper, SimpleGrid, Table, Loader,
-  Center, Alert, Badge, Divider, Progress, Select,
+  Center, Alert, Badge, Divider, Progress, Select, Button,
 } from '@mantine/core'
-import { IconCalculator, IconAlertCircle, IconChartPie } from '@tabler/icons-react'
+import { IconCalculator, IconAlertCircle, IconChartPie, IconDownload } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import type { WizardFormData } from './page'
 import EncaixeVisual, { type EncaixeLayout } from './EncaixeVisual'
 import { gerarPlanificacao, type GabaritoId } from './planificacao-gabaritos'
+
+/**
+ * Gera uma string SVG do encaixe (imposição das peças na folha) a partir do
+ * layout calculado pelo motor, para download client-side como documentação de
+ * consulta — espelha o desenho do `EncaixeVisual`, mas sem depender de item
+ * persistido (no wizard o orçamento ainda não tem id salvo).
+ */
+function encaixeParaSvgString(layout: EncaixeLayout, legenda?: string): string {
+  const W = 300
+  const escala = W / layout.folhaLarguraMm
+  const H = Math.round(layout.folhaAlturaMm * escala)
+  const pincaH = layout.pincaMm * escala
+  const pw = layout.pecaLarguraMm * escala
+  const ph = layout.pecaAlturaMm * escala
+  const offsetX = pincaH
+
+  const pecas: string[] = []
+  for (let c = 0; c < layout.colunas; c++) {
+    for (let l = 0; l < layout.linhas; l++) {
+      const x = (offsetX + c * pw + 0.5).toFixed(2)
+      const y = (l * ph + 0.5).toFixed(2)
+      const w = Math.max(0, pw - 1).toFixed(2)
+      const h = Math.max(0, ph - 1).toFixed(2)
+      pecas.push(
+        `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#4dabf7" opacity="0.75" stroke="#1971c2" stroke-width="0.4"/>`,
+      )
+    }
+  }
+
+  const total = layout.colunas * layout.linhas
+  const rodape =
+    legenda ??
+    `Folha ${layout.folhaLarguraMm} x ${layout.folhaAlturaMm} mm · peca ${layout.pecaLarguraMm} x ${layout.pecaAlturaMm} mm · ${total} pecas/folha`
+
+  return [
+    `<?xml version="1.0" encoding="UTF-8"?>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H + 20}" viewBox="0 0 ${W} ${H + 20}">`,
+    `<rect x="0" y="0" width="${W}" height="${H}" fill="#f8f9fa" stroke="#adb5bd" stroke-width="0.8"/>`,
+    pincaH > 0
+      ? `<rect x="0" y="0" width="${pincaH.toFixed(2)}" height="${H}" fill="#dee2e6" opacity="0.6"/>`
+      : '',
+    pecas.join(''),
+    `<text x="2" y="${H + 14}" font-family="sans-serif" font-size="9" fill="#495057">${rodape}</text>`,
+    `</svg>`,
+  ].join('')
+}
+
+function baixarSvgEncaixe(layout: EncaixeLayout, nomeArquivo: string, legenda?: string) {
+  const svg = encaixeParaSvgString(layout, legenda)
+  const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = nomeArquivo
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
 
 interface Props {
   formData: WizardFormData
@@ -420,13 +479,30 @@ export default function StepRevisao({ formData, updateForm }: Props) {
 
           {/* Encaixe gráfico (imposição das peças na folha) */}
           {resultado.encaixe?.layout && (
-            <EncaixeVisual
-              layout={resultado.encaixe.layout}
-              aproveitamento={resultado.encaixe.aproveitamento}
-              percentAproveitamentoFolha={resultado.encaixe.percentAproveitamentoFolha}
-              orientacao={resultado.encaixe.orientacao}
-              plan={planificacao}
-            />
+            <Stack gap="xs">
+              <EncaixeVisual
+                layout={resultado.encaixe.layout}
+                aproveitamento={resultado.encaixe.aproveitamento}
+                percentAproveitamentoFolha={resultado.encaixe.percentAproveitamentoFolha}
+                orientacao={resultado.encaixe.orientacao}
+                plan={planificacao}
+              />
+              <Group justify="flex-end">
+                <Button
+                  size="xs"
+                  variant="light"
+                  leftSection={<IconDownload size={14} />}
+                  onClick={() => {
+                    const layout = resultado.encaixe!.layout!
+                    const base = formData.produtoNome || formData.clienteNome || 'orcamento'
+                    const nome = `encaixe-${base.replace(/[^a-z0-9]+/gi, '-').slice(0, 40)}.svg`
+                    baixarSvgEncaixe(layout, nome)
+                  }}
+                >
+                  Baixar encaixe (SVG)
+                </Button>
+              </Group>
+            </Stack>
           )}
 
           {/* Breakdown visual */}

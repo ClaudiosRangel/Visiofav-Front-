@@ -22,7 +22,7 @@ import {
   // PCP
   IconAssembly, IconListDetails, IconCalendarEvent, IconRoute, IconSitemap, IconTool, IconClock, IconPalette, IconLink, IconCategory, IconGauge,
   // Orçamento Gráfico
-  IconPlus, IconScissors,
+  IconPlus, IconScissors, IconInbox,
   // Hierarquia Mercadológica Fase 2
   IconWand,
   // Configurador
@@ -473,6 +473,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
     entries: [
       { icon: IconListDetails, label: 'Orçamentos', href: '/orcamento-grafico' },
       { icon: IconPlus, label: 'Novo Orçamento', href: '/orcamento-grafico/novo' },
+      { icon: IconInbox, label: 'Orçamentos a Converter', href: '/orcamento-grafico/a-converter' },
       { icon: IconBook2, label: 'Biblioteca de Cálculos', href: '/orcamento-grafico/biblioteca-calculos' },
       {
         label: 'Cadastros', icon: IconDatabase, items: [

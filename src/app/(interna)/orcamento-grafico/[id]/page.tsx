@@ -11,15 +11,20 @@ import {
   IconArrowLeft, IconEdit, IconCopy, IconSend, IconCheck, IconX,
   IconChartPie, IconAlertCircle, IconFileText, IconPlus, IconTrash,
   IconChevronDown, IconChevronRight, IconStack2, IconFileInvoice,
-  IconReportAnalytics, IconRepeat, IconSearch,
+  IconReportAnalytics, IconRepeat, IconSearch, IconShoppingCartPlus,
+  IconPhoto, IconGridDots,
 } from '@tabler/icons-react'
 import { api } from '@/lib/api'
+import { getAuthToken } from '@/lib/authStorage'
 import { notifications } from '@mantine/notifications'
 import { StatusBadge } from '../page'
 import ItemWizardModal, { type ItemParaEditar } from './ItemWizardModal'
 import BuscaCalculoModal from './BuscaCalculoModal'
 import RelatorioItem from './RelatorioItem'
 import PlanosDoItem, { type PlanoCalculo } from './PlanosDoItem'
+import AmostrasModal from './AmostrasModal'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
 import {
   BadgeOp, OpModalOpcoes, useEmissaoOp, carregarStatusOpItem,
   type StatusOpItem, type OpcoesEmissaoOp,
@@ -131,6 +136,7 @@ interface OrcamentoDetalhe {
   precoUnitario?: number | string | null
   margemReal?: number | string | null
   status: string
+  exigeAmostra?: boolean | null
   validadeAte?: string | null
   motivoRecusa?: string | null
   aprovadoEm?: string | null
@@ -288,6 +294,9 @@ export default function OrcamentoDetalhePage() {
   // Alvo da emissão: um itemId específico, ou 'lote' para os selecionados.
   const [opAlvo, setOpAlvo] = useState<string | 'lote' | null>(null)
   const { emitindo, emitirItem, emitirLote } = useEmissaoOp(id)
+
+  // Hand-off comercial: amostras + conversão em pedido
+  const [amostrasOpen, setAmostrasOpen] = useState(false)
 
   useEffect(() => { document.title = 'Detalhe do Orçamento' }, [])
 
@@ -478,6 +487,47 @@ export default function OrcamentoDetalhePage() {
     } finally {
       setActionLoading(false)
     }
+  }
+
+  // Hand-off comercial: converter orçamento APROVADO em pedido completo.
+  const handleConverter = async () => {
+    setActionLoading(true)
+    try {
+      const { data } = await api.post(`/orcamento-grafico/${id}/converter`)
+      notifications.show({
+        title: 'Convertido em pedido',
+        message: `Pedido ${data?.numeroPedido ?? ''} gerado com ${data?.itensCriados ?? 0} item(ns).`,
+        color: 'green',
+      })
+      carregar()
+    } catch (err: any) {
+      const code = err?.response?.data?.code
+      const msg =
+        code === 'AMOSTRA_PENDENTE' ? 'Amostra exigida e ainda não aprovada. Aprove a amostra antes de converter.'
+        : code === 'MARGEM_PENDENTE' ? 'Desconto acima da alçada — aprovação necessária.'
+        : code === 'JA_CONVERTIDO' ? 'Este orçamento já foi convertido em pedido.'
+        : err?.response?.data?.message || 'Falha ao converter'
+      notifications.show({ title: 'Não foi possível converter', message: msg, color: 'red' })
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  // Marca/desmarca exigência de amostra por orçamento (override do padrão).
+  const handleToggleExigeAmostra = async (valor: boolean) => {
+    try {
+      await api.patch(`/orcamento-grafico/${id}/exige-amostra`, { exigeAmostra: valor })
+      notifications.show({ title: 'Atualizado', message: valor ? 'Amostra passou a ser exigida.' : 'Amostra não exigida.', color: 'blue' })
+      carregar()
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao atualizar', color: 'red' })
+    }
+  }
+
+  // Abre o download do encaixe (SVG ou PDF) de um item em nova aba.
+  const baixarEncaixe = (itemId: string, formato: 'svg' | 'pdf') => {
+    const token = getAuthToken() || ''
+    window.open(`${API_BASE}/orcamento-grafico/${id}/itens/${itemId}/encaixe.${formato}?token=${token}`, '_blank')
   }
 
   // ============================================================================
@@ -690,8 +740,38 @@ export default function OrcamentoDetalhePage() {
               </Button>
             </>
           )}
+          {/* Hand-off comercial: amostras (sempre disponível) */}
+          <Button
+            variant="light"
+            leftSection={<IconPhoto size={16} />}
+            onClick={() => setAmostrasOpen(true)}
+          >
+            Amostras
+          </Button>
+          {orcamento.status === 'APROVADO' && (
+            <Button
+              color="teal"
+              leftSection={<IconShoppingCartPlus size={16} />}
+              onClick={handleConverter}
+              loading={actionLoading}
+            >
+              Converter em pedido
+            </Button>
+          )}
+          {orcamento.status === 'CONVERTIDO' && (
+            <Badge color="teal" variant="light" size="lg">Convertido em pedido</Badge>
+          )}
         </Group>
       </Group>
+
+      {/* Hand-off comercial: override de exigência de amostra */}
+      {['ENVIADO', 'APROVADO'].includes(orcamento.status) && (
+        <Checkbox
+          label="Exigir aprovação de amostra antes de produzir"
+          checked={orcamento.exigeAmostra === true}
+          onChange={(e) => handleToggleExigeAmostra(e.currentTarget.checked)}
+        />
+      )}
 
       {/* Motivo de recusa (se recusado) */}
       {orcamento.status === 'RECUSADO' && orcamento.motivoRecusa && (
@@ -856,6 +936,24 @@ export default function OrcamentoDetalhePage() {
                               disabled={emitindo}
                             >
                               <IconFileInvoice size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                          <Tooltip label="Baixar encaixe (SVG)">
+                            <ActionIcon
+                              variant="subtle"
+                              color="grape"
+                              onClick={() => baixarEncaixe(item.id, 'svg')}
+                            >
+                              <IconGridDots size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                          <Tooltip label="Baixar encaixe (PDF)">
+                            <ActionIcon
+                              variant="subtle"
+                              color="grape"
+                              onClick={() => baixarEncaixe(item.id, 'pdf')}
+                            >
+                              <IconPhoto size={16} />
                             </ActionIcon>
                           </Tooltip>
                           <Tooltip label={podeEditarItens ? 'Editar item' : 'Edição só em rascunho'}>
@@ -1339,6 +1437,14 @@ export default function OrcamentoDetalhePage() {
         onClose={() => setBuscaCalcOpen(false)}
         orcamentoId={id}
         onUsado={carregar}
+      />
+
+      {/* Hand-off comercial: aprovação de amostra/modelo */}
+      <AmostrasModal
+        opened={amostrasOpen}
+        onClose={() => setAmostrasOpen(false)}
+        orcamentoId={id}
+        onMudou={carregar}
       />
 
       {/* Modal de opções de emissão de OP (item único e em lote — Task 24) */}

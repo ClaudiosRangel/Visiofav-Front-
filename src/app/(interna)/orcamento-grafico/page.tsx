@@ -46,6 +46,7 @@ const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
   RASCUNHO: { color: 'gray', label: 'Rascunho' },
   ENVIADO: { color: 'blue', label: 'Enviado' },
   APROVADO: { color: 'green', label: 'Aprovado' },
+  CONVERTIDO: { color: 'teal', label: 'Convertido' },
   RECUSADO: { color: 'red', label: 'Recusado' },
   VENCIDO: { color: 'orange', label: 'Vencido' },
 }

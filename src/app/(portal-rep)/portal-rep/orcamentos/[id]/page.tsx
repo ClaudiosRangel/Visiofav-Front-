@@ -21,6 +21,7 @@ import {
 } from '@/data/hooks/portal-rep-app/usePortalRepOrcamentos'
 import { formatarData, formatarMoeda } from '@/components/portal-rep/formatters'
 import { SkeletonCard } from '@/components/portal-rep/SkeletonCard'
+import AmostrasRepSection from '@/components/portal-rep/AmostrasRepSection'
 import type { StatusSolicitacao } from '@/data/hooks/portal-rep-app/types'
 
 const STATUS_COLORS: Record<StatusSolicitacao, string> = {
@@ -201,6 +202,9 @@ export default function OrcamentoDetalhePage() {
           </Stack>
         </Card>
       )}
+
+      {/* Aprovação de amostra/modelo (quando houver amostras vinculadas) */}
+      <AmostrasRepSection solicitacaoId={id} />
 
       {/* Botão cancelar apenas para PENDENTE */}
       {solicitacao.status === 'PENDENTE' && (
