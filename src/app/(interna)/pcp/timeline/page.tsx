@@ -175,7 +175,7 @@ export default function TimelinePage() {
           <Title order={2}>Timeline de Produção</Title>
         </Group>
         <Group gap="sm">
-          <Link href="/pcp/timeline/gantt" style={{ textDecoration: 'none' }}>
+          <Link href="/pcp/gantt" style={{ textDecoration: 'none' }}>
             <Badge size="lg" variant="filled" color="violet" style={{ cursor: 'pointer' }}>
               Visão Gantt
             </Badge>
