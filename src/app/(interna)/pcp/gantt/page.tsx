@@ -162,13 +162,17 @@ const OPCOES_INDICADOR: Array<{ value: string; label: string }> = [
   { value: 'CONCLUIDO', label: 'Concluído' },
 ]
 
+// Borda de STATUS das barras (esquema RAG — padrão de mercado Office Timeline:
+// vermelho=crítico, âmbar=atenção, verde=ok). Tons da paleta Mantine (nível 6),
+// harmônicos com o resto do ERP e legíveis sobre a cor saturada do bloco nos
+// dois temas (claro/escuro). Spec pcp-gantt-tema-cores.
 const STATUS_BORDER: Record<string, string> = {
-  ATRASADO: '#ff1744',
-  PARADA: '#ff9100',
-  ADIANTADO: '#2979ff',
-  NO_TEMPO: '#00e676',
-  CONCLUIDO: '#00bfa5',
-  AGUARDANDO: '#9e9e9e',
+  ATRASADO: '#fa5252',   // red-6 — crítico
+  PARADA: '#fd7e14',     // orange-6 — atenção
+  ADIANTADO: '#228be6',  // blue-6
+  NO_TEMPO: '#40c057',   // green-6 — ok
+  CONCLUIDO: '#12b886',  // teal-6
+  AGUARDANDO: '#adb5bd', // gray-5 — neutro
 }
 
 const LABEL_WIDTH = 200
@@ -1311,10 +1315,10 @@ export default function GanttProducaoPage() {
 
       {/* Alertas de Conflitos */}
       {conflitos.length > 0 && (
-        <Paper p="xs" radius="sm" withBorder style={{ borderColor: 'var(--mantine-color-red-7)', background: 'var(--mantine-color-red-9)' }}>
+        <Paper p="xs" radius="sm" withBorder style={{ borderColor: 'var(--mantine-color-red-light-color)', background: 'var(--mantine-color-red-light)' }}>
           <Group gap="xs" mb={4} justify="space-between">
             <Group gap="xs">
-              <Text size="xs" fw={700} c="red.3">⚠️ {conflitos.length} conflito{conflitos.length > 1 ? 's' : ''} detectado{conflitos.length > 1 ? 's' : ''}</Text>
+              <Text size="xs" fw={700} c="red.7">⚠️ {conflitos.length} conflito{conflitos.length > 1 ? 's' : ''} detectado{conflitos.length > 1 ? 's' : ''}</Text>
               <Text size="xs" c="dimmed">(sobreposição de OPs na mesma máquina)</Text>
             </Group>
             <Button
@@ -1337,13 +1341,13 @@ export default function GanttProducaoPage() {
                   <Text size="xs">× OP {c.etapa2.opNumero} ({c.etapa2.descricao})</Text>
                   <Text size="xs" c="red.3">Sobreposição: {formatMinutos(c.sobreposicaoMinutos)}</Text>
                 </div>
-              }>
+              } withinPortal>
                 <Badge size="xs" color="red" variant="light" style={{ cursor: 'help' }}>
                   {c.centroProducao}: OP{c.etapa1.opNumero} × OP{c.etapa2.opNumero} ({formatMinutos(c.sobreposicaoMinutos)})
                 </Badge>
               </Tooltip>
             ))}
-            {conflitos.length > 5 && <Text size="xs" c="red.3">+{conflitos.length - 5} conflitos</Text>}
+            {conflitos.length > 5 && <Text size="xs" c="red.7">+{conflitos.length - 5} conflitos</Text>}
           </Group>
         </Paper>
       )}
@@ -1361,22 +1365,22 @@ export default function GanttProducaoPage() {
             bottom: 0,
             width: LABEL_WIDTH,
             zIndex: 30,
-            background: 'var(--mantine-color-dark-7)',
-            borderRight: '2px solid var(--mantine-color-gray-5)',
+            background: 'var(--mantine-color-body)',
+            borderRight: '2px solid var(--mantine-color-default-border)',
             overflowY: 'auto',
             overflowX: 'hidden',
             scrollbarWidth: 'none',
           }}
         >
           {/* Spacer para alinhar com header do eixo X */}
-          <div style={{ height: 32, borderBottom: '1px solid var(--mantine-color-dark-4)', display: 'flex', alignItems: 'center', padding: '0 8px', position: 'sticky', top: 0, background: 'var(--mantine-color-dark-7)', zIndex: 5 }}>
+          <div style={{ height: 32, borderBottom: '1px solid var(--mantine-color-default-border)', display: 'flex', alignItems: 'center', padding: '0 8px', position: 'sticky', top: 0, background: 'var(--mantine-color-body)', zIndex: 5 }}>
             <Text size="xs" fw={600} c="dimmed">Máquina / Recurso</Text>
           </div>
           {/* Labels — alturas por raia vêm do mesmo `layout` das barras (Req 4.1) */}
           {layout.map((grupo, gi) => (
             <div key={gi}>
-              <div style={{ height: 28, display: 'flex', alignItems: 'center', padding: '0 8px', background: 'var(--mantine-color-dark-6)', borderBottom: '1px solid var(--mantine-color-dark-4)' }}>
-                <Text size="10px" fw={700} tt="uppercase" c="yellow">{grupo.tipoProcesso}</Text>
+              <div style={{ height: 28, display: 'flex', alignItems: 'center', padding: '0 8px', background: 'var(--mantine-color-default)', borderBottom: '1px solid var(--mantine-color-default-border)' }}>
+                <Text size="10px" fw={700} tt="uppercase" c="var(--mantine-color-text)">{grupo.tipoProcesso}</Text>
               </div>
               {grupo.raias.map((rl, ri) => {
                 // Ocupação/carga média da máquina no período (spec Req 7). A
@@ -1392,14 +1396,14 @@ export default function GanttProducaoPage() {
                 // e rótulo "sobrecarga" sinalizam o excedente).
                 const larguraPct = Math.min(100, Math.max(0, mediaPct))
                 return (
-                  <div key={ri} style={{ height: rl.alturaRaia, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 3, padding: '0 8px', borderBottom: '1px solid var(--mantine-color-dark-5)', overflow: 'hidden' }}>
+                  <div key={ri} style={{ height: rl.alturaRaia, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 3, padding: '0 8px', borderBottom: '1px solid var(--mantine-color-default-border)', overflow: 'hidden' }}>
                     <Text size="xs" lineClamp={1}>{rl.raia.centroProducao}</Text>
                     <Tooltip
                       label={`Ocupação média no período: ${mediaArred}%${sobrecarga ? ' — sobrecarga' : ''}`}
                       withinPortal
                     >
                       <Group gap={4} wrap="nowrap" style={{ cursor: 'help' }}>
-                        <div style={{ flex: 1, height: 4, borderRadius: 2, background: 'var(--mantine-color-dark-4)', overflow: 'hidden' }}>
+                        <div style={{ flex: 1, height: 4, borderRadius: 2, background: 'var(--mantine-color-default-border)', overflow: 'hidden' }}>
                           <div style={{ width: `${larguraPct}%`, height: '100%', background: corFaixa }} />
                         </div>
                         <Text size="9px" c={corFaixa} fw={600} style={{ whiteSpace: 'nowrap' }}>{mediaArred}%</Text>
@@ -1420,13 +1424,13 @@ export default function GanttProducaoPage() {
         >
           <div style={{ width: totalWidth, minHeight: totalContentHeight + 32, position: 'relative' }}>
             {/* Eixo X (sticky top) */}
-            <div style={{ height: 32, position: 'sticky', top: 0, zIndex: 10, background: 'var(--mantine-color-dark-7)', borderBottom: '1px solid var(--mantine-color-dark-4)' }}>
+            <div style={{ height: 32, position: 'sticky', top: 0, zIndex: 10, background: 'var(--mantine-color-body)', borderBottom: '1px solid var(--mantine-color-default-border)' }}>
               {hourMarkers.map((m, i) => (
                 <div key={i} style={{
                   position: 'absolute',
                   left: ((m.ms - minTime) / 60000) * pixelsPorMinuto,
                   top: 0, height: '100%',
-                  borderLeft: `1px ${m.isNewDay ? 'solid' : 'dashed'} var(--mantine-color-dark-${m.isNewDay ? '3' : '5'})`,
+                  borderLeft: `1px ${m.isNewDay ? 'solid' : 'dashed'} var(--mantine-color-gray-${m.isNewDay ? '4' : '3'})`,
                   paddingLeft: 4, display: 'flex', alignItems: 'center',
                 }}>
                   <Text size="10px" c="dimmed" fw={m.isNewDay ? 700 : 400}>
@@ -1442,7 +1446,7 @@ export default function GanttProducaoPage() {
                 position: 'absolute',
                 left: ((m.ms - minTime) / 60000) * pixelsPorMinuto,
                 top: 32, height: totalContentHeight,
-                borderLeft: `1px ${m.isNewDay ? 'solid' : 'dashed'} var(--mantine-color-dark-${m.isNewDay ? '4' : '6'})`,
+                borderLeft: `1px ${m.isNewDay ? 'solid' : 'dashed'} var(--mantine-color-gray-${m.isNewDay ? '4' : '3'})`,
                 pointerEvents: 'none',
               }} />
             ))}
@@ -1452,7 +1456,7 @@ export default function GanttProducaoPage() {
               <div style={{
                 position: 'absolute',
                 left: ((agora - minTime) / 60000) * pixelsPorMinuto,
-                top: 0, height: '100%', width: 2, background: '#ff1744', zIndex: 8, pointerEvents: 'none',
+                top: 0, height: '100%', width: 2, background: 'var(--mantine-color-red-6)', zIndex: 8, pointerEvents: 'none',
               }} />
             )}
 
@@ -1464,7 +1468,7 @@ export default function GanttProducaoPage() {
                   left: ((e.ms - minTime) / 60000) * pixelsPorMinuto - 6,
                   top: 32, width: 0, height: 0,
                   borderLeft: '6px solid transparent', borderRight: '6px solid transparent',
-                  borderTop: '10px solid #ff1744', zIndex: 9, cursor: 'pointer',
+                  borderTop: '10px solid var(--mantine-color-red-6)', zIndex: 9, cursor: 'pointer',
                 }} />
               </Tooltip>
             ))}
@@ -1575,7 +1579,7 @@ export default function GanttProducaoPage() {
                           <Text size="xs" c="dimmed">Setup: {formatMinutos(bar.tempoSetupMinutos)} | Operação: {formatMinutos(bar.tempoTotalPrevisto - bar.tempoSetupMinutos)}</Text>
                           <Text size="xs" c="dimmed">Previsto: {formatHora(bar.inicioMs)} → {formatHora(bar.fimMs)}</Text>
                           {bar.statusObs && <Text size="xs" c="cyan">📌 {bar.statusObs}</Text>}
-                          {bar.agendaTravada && <Text size="xs" c="yellow">🔒 Travado{bar.inicioAgendadoManual ? ` em ${formatHora(new Date(bar.inicioAgendadoManual).getTime())}` : ''}</Text>}
+                          {bar.agendaTravada && <Text size="xs" c="yellow.4">🔒 Travado{bar.inicioAgendadoManual ? ` em ${formatHora(new Date(bar.inicioAgendadoManual).getTime())}` : ''}</Text>}
                           {bar.tempoRealMinutos !== null && <Text size="xs" c="dimmed">Real: {formatMinutos(bar.tempoRealMinutos)}</Text>}
                           {bar.dataEntrega && <Text size="xs" c={bar.riscoEntrega ? 'red' : 'green'}>Entrega: {new Date(bar.dataEntrega).toLocaleDateString('pt-BR')}{bar.riscoEntrega ? ' ⚠️ RISCO' : ' ✓'}</Text>}
                         </div>
@@ -1655,7 +1659,7 @@ export default function GanttProducaoPage() {
                         {bar.passada > 1 && (
                           <div style={{
                             position: 'absolute', top: -3, right: -3, zIndex: 2,
-                            background: '#fff', color: borderColor,
+                            background: 'var(--mantine-color-body)', color: borderColor,
                             fontSize: 8, fontWeight: 800, lineHeight: '12px',
                             minWidth: 14, height: 14, borderRadius: 7, textAlign: 'center',
                             border: `1.5px solid ${borderColor}`, padding: '0 2px',
@@ -1667,7 +1671,7 @@ export default function GanttProducaoPage() {
                         {bar.agendaTravada && (
                           <div style={{
                             position: 'absolute', top: -3, left: -3, zIndex: 3,
-                            background: '#fff', borderRadius: 7, width: 14, height: 14,
+                            background: 'var(--mantine-color-body)', borderRadius: 7, width: 14, height: 14,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             border: `1.5px solid ${borderColor}`,
                           }}>
@@ -1803,7 +1807,7 @@ export default function GanttProducaoPage() {
       <style>{`
         @keyframes pulse-gantt { 0%,100% { opacity: 1; } 50% { opacity: 0.8; } }
         div::-webkit-scrollbar { width: 6px; height: 6px; }
-        div::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+        div::-webkit-scrollbar-thumb { background: var(--mantine-color-gray-5); border-radius: 3px; }
       `}</style>
     </Stack>
   )
