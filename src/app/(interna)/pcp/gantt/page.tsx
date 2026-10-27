@@ -1481,7 +1481,10 @@ export default function GanttProducaoPage() {
               <svg
                 width={totalWidth}
                 height={totalContentHeight + 32}
-                style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none', zIndex: 6 }}
+                // A cor das setas segue o tema via `currentColor`: no tema claro
+                // fica escura (texto padrão), no escuro fica clara — sempre com
+                // contraste (antes era branca fixa e sumia no tema claro).
+                style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none', zIndex: 6, color: 'var(--mantine-color-text)' }}
               >
                 <defs>
                   <marker
@@ -1493,7 +1496,7 @@ export default function GanttProducaoPage() {
                     orient="auto"
                     markerUnits="strokeWidth"
                   >
-                    <path d="M0,0 L6,3 L0,6 Z" fill="rgba(255,255,255,0.9)" />
+                    <path d="M0,0 L6,3 L0,6 Z" fill="currentColor" />
                   </marker>
                 </defs>
                 {segmentosSetas.map((s, i) => {
@@ -1516,7 +1519,8 @@ export default function GanttProducaoPage() {
                       key={i}
                       d={d}
                       fill="none"
-                      stroke="rgba(255,255,255,0.85)"
+                      stroke="currentColor"
+                      strokeOpacity={0.75}
                       strokeWidth={2}
                       strokeDasharray={s.paraTras ? '5,4' : undefined}
                       markerEnd="url(#seta-dep-gantt)"
