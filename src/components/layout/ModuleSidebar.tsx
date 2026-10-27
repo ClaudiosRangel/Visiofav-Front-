@@ -21,8 +21,8 @@ import {
   IconKey, IconWebhook, IconUpload, IconCloudDownload, IconDownload, IconPlugConnected,
   // PCP
   IconAssembly, IconListDetails, IconCalendarEvent, IconRoute, IconSitemap, IconTool, IconClock, IconPalette, IconLink, IconCategory, IconGauge,
-  // Orçamento Gráfico
-  IconPlus, IconScissors, IconInbox,
+  // Orçamento Gráfico / Comercial
+  IconPlus, IconScissors, IconInbox, IconPhoto,
   // Hierarquia Mercadológica Fase 2
   IconWand,
   // Configurador
