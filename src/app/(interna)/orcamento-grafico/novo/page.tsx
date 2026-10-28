@@ -505,7 +505,7 @@ export default function NovoOrcamentoGraficoPage() {
             ))}
           </Stepper>
 
-          {active === 0 && <StepCliente formData={formData} updateForm={updateForm} />}
+          {active === 0 && <StepCliente formData={formData} updateForm={updateForm} mostrarRepeticaoProduto={false} />}
           {active === 1 && <StepTipo formData={formData} updateForm={updateForm} />}
           {active === 2 && <StepMedidas formData={formData} updateForm={updateForm} />}
           {active === 3 && <StepPapel formData={formData} updateForm={updateForm} />}

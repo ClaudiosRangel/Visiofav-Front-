@@ -10,6 +10,10 @@ import type { WizardFormData } from './page'
 interface Props {
   formData: WizardFormData
   updateForm: (partial: Partial<WizardFormData>) => void
+  // Só exibe o campo "Repetição de produto" no fluxo de repetição. No orçamento
+  // novo (default) o campo fica oculto — a repetição real é feita por "Puxar
+  // Cálculo", não pelo wizard.
+  mostrarRepeticaoProduto?: boolean
 }
 
 interface ClienteOption {
@@ -18,7 +22,7 @@ interface ClienteOption {
   id: string
 }
 
-export default function StepCliente({ formData, updateForm }: Props) {
+export default function StepCliente({ formData, updateForm, mostrarRepeticaoProduto = false }: Props) {
   const [busca, setBusca] = useState(formData.clienteNome || '')
   const [debounced] = useDebouncedValue(busca, 300)
   const [clientes, setClientes] = useState<ClienteOption[]>([])
@@ -33,7 +37,14 @@ export default function StepCliente({ formData, updateForm }: Props) {
     api.get('/clientes', { params: termo ? { busca: termo, limit: 20 } : { limit: 20 } })
       .then(({ data }) => {
         const items = (data.data || data || []).map((c: any) => {
-          const base = c.nome || c.razaoSocial || c.nomeFantasia || ''
+          const razao = c.razaoSocial || c.nome || ''
+          const fantasia = (c.nomeFantasia || '').trim()
+          // Nome base = razão social; acrescenta o nome fantasia entre parênteses
+          // quando existir e for diferente da razão (ajuda a localizar pelo nome
+          // comercial, ex.: "MARBRAN... (SOL & NEVE)").
+          const base = fantasia && fantasia.toLowerCase() !== razao.toLowerCase()
+            ? `${razao} (${fantasia})`
+            : razao
           // Mostra o código do Calcgraf junto do nome quando existir, para o
           // usuário conferir/localizar pelo código (de-para por CNPJ já importado).
           const label = c.codigoCalcgraf ? `${c.codigoCalcgraf} - ${base}` : base
@@ -145,29 +156,33 @@ export default function StepCliente({ formData, updateForm }: Props) {
         }}
       />
 
-      <Autocomplete
-        label="Repetição de produto (opcional)"
-        description="Se for reimpressão de um produto já cadastrado, selecione-o para a OP usar a estrutura (BOM) e o roteiro dele."
-        placeholder="Buscar produto cadastrado..."
-        data={Array.from(new Set(produtos.map(p => p.label)))}
-        value={buscaProduto}
-        onChange={(val) => {
-          setBuscaProduto(val)
-          if (!val) updateForm({ produtoId: null, produtoNome: '' })
-        }}
-        onOptionSubmit={(label) => {
-          const found = produtos.find(p => p.label === label)
-          setBuscaProduto(label)
-          updateForm({ produtoId: found ? found.id : null, produtoNome: label })
-        }}
-        limit={20}
-      />
+      {mostrarRepeticaoProduto && (
+        <>
+          <Autocomplete
+            label="Repetição de produto (opcional)"
+            description="Se for reimpressão de um produto já cadastrado, selecione-o para a OP usar a estrutura (BOM) e o roteiro dele."
+            placeholder="Buscar produto cadastrado..."
+            data={Array.from(new Set(produtos.map(p => p.label)))}
+            value={buscaProduto}
+            onChange={(val) => {
+              setBuscaProduto(val)
+              if (!val) updateForm({ produtoId: null, produtoNome: '' })
+            }}
+            onOptionSubmit={(label) => {
+              const found = produtos.find(p => p.label === label)
+              setBuscaProduto(label)
+              updateForm({ produtoId: found ? found.id : null, produtoNome: label })
+            }}
+            limit={20}
+          />
 
-      {formData.produtoId && (
-        <Group gap="xs">
-          <Badge color="blue" variant="light">Repetição</Badge>
-          <Text size="sm">{formData.produtoNome}</Text>
-        </Group>
+          {formData.produtoId && (
+            <Group gap="xs">
+              <Badge color="blue" variant="light">Repetição</Badge>
+              <Text size="sm">{formData.produtoNome}</Text>
+            </Group>
+          )}
+        </>
       )}
     </Stack>
   )

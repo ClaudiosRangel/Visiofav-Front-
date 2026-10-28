@@ -24,12 +24,18 @@ import RelatorioItem from './RelatorioItem'
 import PlanosDoItem, { type PlanoCalculo } from './PlanosDoItem'
 import AmostrasModal from './AmostrasModal'
 import EncaixeArquivoModal from './EncaixeArquivoModal'
+import EditarCabecalhoModal from './EditarCabecalhoModal'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
 import {
   BadgeOp, OpModalOpcoes, useEmissaoOp, carregarStatusOpItem,
   type StatusOpItem, type OpcoesEmissaoOp,
 } from './EmitirOp'
+
+// Flag para ocultar a tela de Comparação de Versões (ponto 11 dos ajustes de Caio).
+// O recurso será substituído pelo conceito de várias tiragens por item; o código
+// do bloco é preservado para reexibição futura — basta voltar esta flag para true.
+const MOSTRAR_COMPARACAO_VERSOES = false
 
 // ============================================================================
 // Tipos
@@ -85,6 +91,10 @@ interface ItemOrcamento {
   numCores: number
   cores?: CorDetalhe[] | null
   maquinaId?: string | null
+  // Matriz de impressão (clichê): quantidade e preço unitário que entram no MD.
+  // Preenchidos ao puxar cálculo (Req 3.1/3.3). Exibidos no detalhe do item.
+  matrizQuantidade?: number | string | null
+  matrizPrecoUnitario?: number | string | null
   acabamentosRicos?: any[] | null
   modeloFacaId?: string | null
   itensDiversos?: any[] | null
@@ -269,6 +279,9 @@ export default function OrcamentoDetalhePage() {
   // Editor de item (modal reusando os steps)
   const [itemModalOpen, setItemModalOpen] = useState(false)
   const [itemEmEdicao, setItemEmEdicao] = useState<ItemParaEditar | null>(null)
+
+  // Modal enxuto "Editar Cabeçalho" (Ponto 10 / Req 7) — cliente + vendedor
+  const [editarCabecalhoOpen, setEditarCabecalhoOpen] = useState(false)
 
   // Busca de cálculo da biblioteca (Task 12.1) — cria item a partir de um cálculo
   const [buscaCalcOpen, setBuscaCalcOpen] = useState(false)
@@ -682,7 +695,7 @@ export default function OrcamentoDetalhePage() {
             <Button
               variant="outline"
               leftSection={<IconEdit size={16} />}
-              onClick={() => router.push(`/orcamento-grafico/novo?editId=${id}`)}
+              onClick={() => setEditarCabecalhoOpen(true)}
               disabled={actionLoading}
             >
               Editar Cabeçalho
@@ -977,6 +990,20 @@ export default function OrcamentoDetalhePage() {
                       <Table.Td colSpan={9} p={0} style={{ borderBottom: 0 }}>
                         <Collapse in={expandido}>
                           <Paper p="md" bg="var(--mantine-color-gray-light)" radius={0}>
+                            {/* Matriz de impressão (Req 3.3): só quando há matriz
+                                preenchida no item (puxada do cálculo de origem). */}
+                            {Number(item.matrizQuantidade ?? 0) > 0 && (
+                              <Group gap="xl" mb="sm">
+                                <Text size="sm">
+                                  <strong>Qtd. de matrizes:</strong>{' '}
+                                  {Number(item.matrizQuantidade).toLocaleString('pt-BR')}
+                                </Text>
+                                <Text size="sm">
+                                  <strong>Preço unitário da matriz:</strong>{' '}
+                                  {formatCurrency(item.matrizPrecoUnitario)}
+                                </Text>
+                              </Group>
+                            )}
                             <Group gap={6} mb="xs">
                               <IconStack2 size={16} />
                               <Text size="sm" fw={600}>
@@ -1264,7 +1291,7 @@ export default function OrcamentoDetalhePage() {
       )}
 
       {/* Comparação de Versões */}
-      {versoes.length > 0 && (
+      {MOSTRAR_COMPARACAO_VERSOES && versoes.length > 0 && (
         <>
           <Divider label="Outras Versões" labelPosition="left" />
           <Paper p="md" withBorder>
@@ -1415,6 +1442,17 @@ export default function OrcamentoDetalhePage() {
           </Group>
         </Stack>
       </Modal>
+
+      {/* Modal enxuto "Editar Cabeçalho" (Ponto 10 / Req 7) — cliente + vendedor */}
+      <EditarCabecalhoModal
+        opened={editarCabecalhoOpen}
+        onClose={() => setEditarCabecalhoOpen(false)}
+        orcamentoId={id}
+        clienteId={orcamento.clienteId}
+        clienteNome={orcamento.clienteNome}
+        vendedorId={orcamento.vendedorId}
+        onSalvo={carregar}
+      />
 
       {/* Editor de item (modal reusando os steps do wizard) */}
       <ItemWizardModal

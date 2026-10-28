@@ -187,6 +187,22 @@ export default function StepRevisao({ formData, updateForm }: Props) {
     })
   }, [formData.tipoEmbalagem, formData.medidas])
 
+  // Itens Diversos informados no passo "Diversos", mapeados para o shape que o
+  // backend espera na prévia (`{descricao, valor}`), achatando por "fixo":
+  // fixo → valor cheio; variável → valor × quantidade (mesmo mapeamento que o
+  // backend usa ao SALVAR, para a prévia da Revisão bater com o orçamento salvo).
+  // Itens sem descrição são descartados. Vazio ⇒ `undefined` (não-regressão:
+  // o motor produz exatamente o resultado atual quando não há diversos).
+  const itensDiversosPayload = useMemo(() => {
+    const itens = (formData.itensDiversos ?? [])
+      .filter((i) => i.descricao?.trim())
+      .map((i) => ({
+        descricao: i.descricao,
+        valor: i.fixo ? i.valor : i.valor * i.quantidade,
+      }))
+    return itens.length ? itens : undefined
+  }, [formData.itensDiversos])
+
   const calcular = useCallback(async () => {
     if (formData.quantidade <= 0) return
 
@@ -217,6 +233,8 @@ export default function StepRevisao({ formData, updateForm }: Props) {
         tabelaMargemId: formData.tabelaMargemId || undefined,
         maquinaId: formData.maquinaId || undefined,
         aproveitamentoManual: formData.aproveitamentoManual || undefined,
+        // Itens Diversos (passo "Diversos") somados ao Material Direto pelo motor.
+        itensDiversos: itensDiversosPayload,
         // Formato de corte (folha real do Calcgraf) — para a prévia bater com o
         // orçamento salvo. O preço do papel é resolvido no backend pelo papelId.
         formatoCorteLarguraMm: formData.formatoCorteLarguraMm || undefined,
@@ -290,6 +308,8 @@ export default function StepRevisao({ formData, updateForm }: Props) {
         tabelaMargemId: formData.tabelaMargemId || undefined,
         maquinaId: formData.maquinaId || undefined,
         aproveitamentoManual: formData.aproveitamentoManual || undefined,
+        // Itens Diversos — coerência da simulação com a prévia e o salvo.
+        itensDiversos: itensDiversosPayload,
       }
 
       const { data } = await api.post('/orcamento-grafico/simular-tiragens', payload)
