@@ -27,6 +27,10 @@ interface AcabamentoCadastro {
   tempoPrimeiroAcertoMin: number | null
   unidadeBase: string | null
   exigeRestricao: boolean
+  // P16 — materiais informativos por atividade (lista de nomes). Só texto.
+  materiais?: string[] | null
+  // P16 — restrições (nomes) vindas no próprio GET do acabamento.
+  restricoes?: Array<{ id: string; nome: string }> | null
 }
 
 interface Restricao {
@@ -68,6 +72,9 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
           tempoPorAcertoMin: num(a.tempoPorAcertoMin),
           tempoPrimeiroAcertoMin: num(a.tempoPrimeiroAcertoMin),
           exigeRestricao: !!a.exigeRestricao,
+          // P16 — materiais informativos (lista de nomes) e restrições (nomes).
+          materiais: Array.isArray(a.materiais) ? a.materiais : [],
+          restricoes: Array.isArray(a.restricoes) ? a.restricoes : [],
         }))
         setCadastro(items)
       })
@@ -274,6 +281,50 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
                       <Text size="xs" fw={500}>Restrição obrigatória não escolhida</Text>
                       <Text size="xs">Este acabamento exige a escolha de uma sub-opção (restrição).</Text>
                     </Alert>
+                  )}
+
+                  {/* P16 — Restrição/Material/Medida INFORMATIVOS (texto, sem
+                      efeito no cálculo). Só aparece quando a atividade tem
+                      restrições e/ou materiais cadastrados. */}
+                  {sel && ((ac.restricoes?.length ?? 0) > 0 || (ac.materiais?.length ?? 0) > 0) && (
+                    <Paper p="xs" withBorder mt="xs" bg="var(--mantine-color-default-hover)">
+                      <Text size="xs" fw={500} mb={4}>Descrição do acabamento (informativo)</Text>
+                      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+                        {(ac.restricoes?.length ?? 0) > 0 && (
+                          <Select
+                            label="Restrição"
+                            description="Sub-opção (só descrição)"
+                            placeholder="Selecione..."
+                            size="xs"
+                            clearable
+                            data={(ac.restricoes || []).map((r) => ({ value: r.nome, label: r.nome }))}
+                            value={sel.restricaoNome ?? null}
+                            onChange={(v) => patch(ac.id, 'restricaoNome', v || undefined)}
+                          />
+                        )}
+                        {(ac.materiais?.length ?? 0) > 0 && (
+                          <Select
+                            label="Material"
+                            description="Material (só descrição)"
+                            placeholder="Selecione..."
+                            size="xs"
+                            clearable
+                            data={(ac.materiais || []).map((m) => ({ value: m, label: m }))}
+                            value={sel.materialNome ?? null}
+                            onChange={(v) => patch(ac.id, 'materialNome', v || undefined)}
+                          />
+                        )}
+                        <NumberInput
+                          label="Medida em mm"
+                          placeholder="Opcional"
+                          size="xs"
+                          min={0}
+                          decimalScale={2}
+                          value={sel.medidaMm ?? ''}
+                          onChange={(v) => patch(ac.id, 'medidaMm', typeof v === 'number' ? v : undefined)}
+                        />
+                      </SimpleGrid>
+                    </Paper>
                   )}
                 </Collapse>
               </Stack>

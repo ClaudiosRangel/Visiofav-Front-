@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import {
   Title, Stack, Table, Group, Button, Badge, Text, Loader, Center,
   Modal, TextInput, Select, NumberInput, ActionIcon, ScrollArea, Divider, SimpleGrid, Pagination,
-  Checkbox, Paper,
+  Checkbox, Paper, TagsInput,
 } from '@mantine/core'
 import { IconPlus, IconEdit, IconTrash } from '@tabler/icons-react'
 import { api } from '@/lib/api'
@@ -34,6 +34,8 @@ interface Acabamento {
   tempoPrimeiroAcertoMin: number | null
   unidadeBase: string | null
   exigeRestricao: boolean
+  // P16 — materiais informativos por atividade (lista de nomes). Só texto.
+  materiais?: string[] | null
   status: boolean
 }
 
@@ -61,6 +63,8 @@ interface FormData {
   tempoPrimeiroAcertoMin: number | ''
   unidadeBase: string
   exigeRestricao: boolean
+  // P16 — materiais informativos (lista de nomes). Editado como TagsInput.
+  materiais: string[]
 }
 
 const FORM_INICIAL: FormData = {
@@ -77,6 +81,7 @@ const FORM_INICIAL: FormData = {
   tempoPrimeiroAcertoMin: '',
   unidadeBase: 'FOLHA',
   exigeRestricao: false,
+  materiais: [],
 }
 
 const NATUREZAS = [
@@ -151,6 +156,7 @@ export default function AcabamentosPage() {
       tempoPrimeiroAcertoMin: n(item.tempoPrimeiroAcertoMin),
       unidadeBase: item.unidadeBase || 'FOLHA',
       exigeRestricao: item.exigeRestricao ?? false,
+      materiais: Array.isArray(item.materiais) ? item.materiais : [],
     })
     setModalAberto(true)
   }
@@ -226,6 +232,8 @@ export default function AcabamentosPage() {
         tempoPrimeiroAcertoMin: numOrNull(form.tempoPrimeiroAcertoMin),
         unidadeBase: form.naturezaCusto === 'HORA_MAQUINA' ? form.unidadeBase : null,
         exigeRestricao: form.exigeRestricao,
+        // P16 — materiais informativos (lista de nomes). Sem efeito no cálculo.
+        materiais: form.materiais.map((m) => m.trim()).filter((m) => m.length > 0),
       }
       if (editando) {
         await api.put(`/orcamento-grafico/acabamentos/${editando.id}`, payload)
@@ -461,6 +469,16 @@ export default function AcabamentosPage() {
               />
             </>
           )}
+
+          <Divider label="Materiais (informativos)" labelPosition="left" />
+          <TagsInput
+            label="Materiais desta atividade"
+            description="Lista de materiais informativos (ex.: Cola Branca, Cola Quente). Apenas descritivo — não altera o cálculo/preço. Digite e pressione Enter para adicionar."
+            placeholder="Digite o material e pressione Enter"
+            value={form.materiais}
+            onChange={(v) => setForm({ ...form, materiais: v })}
+            clearable
+          />
 
           {editando && (
             <>

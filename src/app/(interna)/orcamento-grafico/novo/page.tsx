@@ -66,6 +66,12 @@ export interface AcabamentoRicoSelecionado {
   tempoVarHoras?: number
   // Restrição (sub-opção) escolhida para este acabamento rico (Fase 3 — GCad).
   restricaoAcabamentoId?: string
+  // P16 — seleção INFORMATIVA (restrição/material/medida) por acabamento. Só
+  // texto/número descritivo: persistido em acabamentosRicos e exibido no
+  // relatório/detalhe, SEM efeito no cálculo/preço. Ver spec P16.
+  restricaoNome?: string
+  materialNome?: string
+  medidaMm?: number
 }
 
 export interface WizardFormData {

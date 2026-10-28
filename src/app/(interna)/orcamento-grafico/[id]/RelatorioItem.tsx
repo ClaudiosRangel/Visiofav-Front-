@@ -105,6 +105,14 @@ interface RelatorioOrcamento {
   matAcabamento?: RelatorioSecaoLinha[] | null
   impressao?: RelatorioSecaoLinha[] | null
   acabamento?: RelatorioSecaoLinha[] | null
+  // P16 — restrições/materiais/medidas INFORMATIVOS (texto, sem custo).
+  acabamentosInformativos?: Array<{
+    acabamento?: string | null
+    restricaoNome?: string | null
+    materialNome?: string | null
+    medidaMm?: number | null
+    texto: string
+  }> | null
   custoProducao: {
     materialDireto?: number | null
     custoTransformacao?: number | null
@@ -436,6 +444,19 @@ export default function RelatorioItem({
       {temPlanos
         ? relatorio.planos.map((p, i) => <BlocoPlano key={i} plano={p} indice={i} />)
         : planoRaiz && <BlocoPlano plano={planoRaiz} indice={0} />}
+
+      {/* P16 — Restrições/Materiais informativos dos acabamentos (texto, sem
+          custo). Só aparece quando há seleção. */}
+      {relatorio.acabamentosInformativos && relatorio.acabamentosInformativos.length > 0 && (
+        <Paper p="md" withBorder>
+          <Text fw={600} size="sm" mb="sm">Restrições / Materiais do Acabamento</Text>
+          <Stack gap={4}>
+            {relatorio.acabamentosInformativos.map((info, i) => (
+              <Text key={i} size="sm">• {info.texto}</Text>
+            ))}
+          </Stack>
+        </Paper>
+      )}
 
       {/* Custo de Produção */}
       <Paper p="md" withBorder>
