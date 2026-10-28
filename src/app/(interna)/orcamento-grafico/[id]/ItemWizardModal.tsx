@@ -253,6 +253,9 @@ function itemParaForm(item: ItemParaEditar, orcamentoId?: string): WizardFormDat
     // Contexto da Conferência foto × recálculo (só quando o item veio de cálculo).
     _conferenciaOrcamentoId: item.calculoGraficoOrigemId && orcamentoId ? orcamentoId : null,
     _conferenciaItemId: item.calculoGraficoOrigemId ? item.id : null,
+    // Item salvo em edição (QUALQUER origem) — usado pelo P15 (encaixe real).
+    _itemSalvoOrcamentoId: orcamentoId ?? null,
+    _itemSalvoId: item.id ?? null,
   }
 }
 

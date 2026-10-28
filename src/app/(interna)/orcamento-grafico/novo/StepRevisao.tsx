@@ -3,13 +3,20 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
   Stack, Text, NumberInput, Group, Paper, SimpleGrid, Table, Loader,
-  Center, Alert, Badge, Divider, Progress, Select, Button,
+  Center, Alert, Badge, Divider, Progress, Select, Button, Image,
+  TextInput, Tooltip,
 } from '@mantine/core'
-import { IconCalculator, IconAlertCircle, IconChartPie, IconDownload } from '@tabler/icons-react'
+import { IconCalculator, IconAlertCircle, IconChartPie, IconDownload, IconExternalLink, IconCheck } from '@tabler/icons-react'
 import { api } from '@/lib/api'
+import { getAuthToken } from '@/lib/authStorage'
 import type { WizardFormData } from './page'
 import EncaixeVisual, { type EncaixeLayout } from './EncaixeVisual'
 import { gerarPlanificacao, type GabaritoId } from './planificacao-gabaritos'
+import { parseFaixasTiragem } from './parse-faixas-tiragem'
+
+// Base da API (mesmo padrão do EncaixeArquivoModal), usada para montar a URL do
+// arquivo de encaixe real servido pelo backend (aceita token via query).
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
 
 /**
  * Gera uma string SVG do encaixe (imposição das peças na folha) a partir do
@@ -108,8 +115,38 @@ interface Resultado {
 interface Simulacao {
   quantidade: number
   precoUnitario: number
-  precoTotal: number
+  // O backend retorna `precoVenda` (preço total de venda da faixa); mantemos
+  // `precoTotal` como alias tolerante (derivamos de `precoVenda` quando ausente).
+  precoVenda?: number
+  precoTotal?: number
   custoTotal: number
+}
+
+/**
+ * Linha derivada da grade Tiragem × Margem (Req 2). Além dos campos crus de
+ * `simular-tiragens`, calcula no FRONTEND a Contribuição Marginal (CM) e os
+ * marginais "Primeiro Mil" / "Mil Seguinte" (interpolação entre faixas
+ * consecutivas), sem tocar o backend.
+ */
+interface LinhaGrade {
+  quantidade: number
+  valorUnitario: number
+  valorTotal: number
+  custoTotal: number
+  margemPerc: number | null
+  cmValor: number
+  cmPerc: number
+  primeiroMil: number | null
+  milSeguinte: number | null
+  erro: boolean
+}
+
+// Resposta do endpoint `.../encaixe-arquivo/info` (P15 — encaixe real enviado).
+interface EncaixeArquivoInfo {
+  temArquivo: boolean
+  mime: string | null
+  nome: string | null
+  enviadoEm: string | null
 }
 
 interface Conferencia {
@@ -129,10 +166,17 @@ export default function StepRevisao({ formData, updateForm }: Props) {
   const [simulacoes, setSimulacoes] = useState<Simulacao[]>([])
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  // P1 — faixas de tiragem DIGITADAS pelo operador (texto cru do input). Vazio
+  // ⇒ usa as faixas AUTOMÁTICAS (não-regressão). O parse puro vive em
+  // `parse-faixas-tiragem.ts`.
+  const [faixasTexto, setFaixasTexto] = useState('')
   // Conferência foto × recálculo (spec orcamento-repeticao-engenharia-completa).
   const [conferencia, setConferencia] = useState<Conferencia | null>(null)
   // Máquinas de impressão (paridade Calcgraf: o acerto-por-cor é por máquina).
   const [maquinas, setMaquinas] = useState<{ value: string; label: string }[]>([])
+  // Arquivo de ENCAIXE REAL (imposição) enviado para o item salvo (P15). Só
+  // existe na edição de um item persistido; na criação do zero fica null.
+  const [encaixeArquivo, setEncaixeArquivo] = useState<EncaixeArquivoInfo | null>(null)
 
   useEffect(() => {
     api.get('/centros-producao', { params: { limit: 100 } })
@@ -156,6 +200,20 @@ export default function StepRevisao({ formData, updateForm }: Props) {
       .then(({ data }) => setConferencia(data))
       .catch(() => setConferencia(null))
   }, [orcId, itemId])
+
+  // P15 — busca o ARQUIVO DE ENCAIXE REAL (imposição) do item salvo, para
+  // exibir sua miniatura ao lado do encaixe calculado. Usa os ids do item SALVO
+  // (qualquer origem, não só repetição — `_itemSalvo*`), para cobrir também
+  // itens criados do zero que tenham arquivo de encaixe. Erro tratado em
+  // silêncio: sem arquivo → nada exibido do lado real (não-regressão).
+  const orcIdEncaixe = formData._itemSalvoOrcamentoId
+  const itemIdEncaixe = formData._itemSalvoId
+  useEffect(() => {
+    if (!orcIdEncaixe || !itemIdEncaixe) { setEncaixeArquivo(null); return }
+    api.get(`/orcamento-grafico/${orcIdEncaixe}/itens/${itemIdEncaixe}/encaixe-arquivo/info`)
+      .then(({ data }) => setEncaixeArquivo(data))
+      .catch(() => setEncaixeArquivo(null))
+  }, [orcIdEncaixe, itemIdEncaixe])
 
   // Planificação esquemática (contorno da caixa aberta) do gabarito do tipo de
   // embalagem selecionado. Null quando o tipo não tem gabarito (→ retângulo).
@@ -202,6 +260,14 @@ export default function StepRevisao({ formData, updateForm }: Props) {
       }))
     return itens.length ? itens : undefined
   }, [formData.itensDiversos])
+
+  // P1 — faixas DIGITADAS normalizadas (parser puro). Memoizado para servir de
+  // dependência estável do useEffect que dispara a simulação.
+  const faixasManuais = useMemo(() => parseFaixasTiragem(faixasTexto), [faixasTexto])
+
+  // Chave estável das faixas manuais (string) para usar como dependência do
+  // useEffect sem recriar o array a cada render.
+  const faixasManuaisKey = faixasManuais.join(',')
 
   const calcular = useCallback(async () => {
     if (formData.quantidade <= 0) return
@@ -280,13 +346,22 @@ export default function StepRevisao({ formData, updateForm }: Props) {
         .filter(a => a.ativo)
         .map(a => ({ tipo: a.tipo, custoHora: a.custoHora, velocidade: a.velocidade, custoMaterialM2: a.custoMaterialM2 }))
 
-      const quantidades = [
+      // P1 — se o operador digitou faixas, usa-as; senão mantém as AUTOMÁTICAS
+      // (não-regressão). A `quantidade` atual do item é SEMPRE incluída no
+      // conjunto (destacada na grade) e o resultado é deduplicado/ordenado +
+      // limitado a 20 (limite do backend).
+      const automaticas = [
         Math.max(1000, Math.round(formData.quantidade * 0.5)),
         formData.quantidade,
         Math.round(formData.quantidade * 2),
         Math.round(formData.quantidade * 5),
         Math.round(formData.quantidade * 10),
       ]
+      const base = faixasManuais.length ? faixasManuais : automaticas
+      const quantidades = Array.from(new Set([...base, formData.quantidade]))
+        .filter((q) => q > 0)
+        .sort((a, b) => a - b)
+        .slice(0, 20)
 
       const payload = {
         tipoEmbalagemId: formData.tipoEmbalagemId,
@@ -317,19 +392,99 @@ export default function StepRevisao({ formData, updateForm }: Props) {
     } catch {
       setSimulacoes([])
     }
-  }, [formData])
+  }, [formData, faixasManuais])
 
-  // Calcular ao carregar e quando quantidade / máquina / imposição mudam
+  // Calcular ao carregar e quando quantidade / máquina / imposição mudam.
   useEffect(() => {
     calcular()
     simularTiragens()
   }, [formData.quantidade, formData.maquinaId, formData.aproveitamentoManual]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // P1 — ressimula quando o operador edita as faixas digitadas (grade de
+  // comparação). Separado do efeito acima para não re-disparar `calcular()`
+  // (o resultado principal só muda ao SELECIONAR uma faixa → muda a quantidade).
+  useEffect(() => {
+    simularTiragens()
+  }, [faixasManuaisKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const formatCurrency = (val: number | undefined) =>
     val != null ? `R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'
 
-  const formatPercent = (val: number | undefined) =>
+  const formatPercent = (val: number | undefined | null) =>
     val != null ? `${val.toFixed(1)}%` : '—'
+
+  // ── P1: grade Tiragem × Margem derivada das simulações ───────────────────
+  // Deriva no FRONTEND (sem tocar o backend): Valor Unitário/Total, Margem (%),
+  // Contribuição Marginal (% e $) e os marginais Primeiro Mil / Mil Seguinte
+  // (interpolação entre faixas consecutivas). Faixa com número essencial
+  // ausente é marcada como erro, sem quebrar as demais (Req 2.5).
+  const grade = useMemo<LinhaGrade[]>(() => {
+    const ordenadas = [...simulacoes].sort((a, b) => a.quantidade - b.quantidade)
+    return ordenadas.map((sim, i) => {
+      // O backend retorna `precoVenda` (total); `precoTotal` é alias tolerante.
+      const valorTotal = sim.precoTotal ?? sim.precoVenda ?? 0
+      const custoTotal = sim.custoTotal ?? 0
+      const valorUnitario =
+        sim.precoUnitario ?? (sim.quantidade > 0 ? valorTotal / sim.quantidade : 0)
+      const cmValor = valorTotal - custoTotal
+      const cmPerc = valorTotal > 0 ? (cmValor / valorTotal) * 100 : 0
+      const margemPerc = custoTotal > 0 ? ((valorTotal - custoTotal) / custoTotal) * 100 : null
+
+      // Primeiro Mil: valor total da MENOR faixa por mil peças.
+      let primeiroMil: number | null = null
+      if (i === 0 && sim.quantidade > 0) {
+        primeiroMil = valorTotal / (sim.quantidade / 1000)
+      }
+      // Mil Seguinte: custo marginal por mil peças entre esta faixa e a anterior.
+      let milSeguinte: number | null = null
+      if (i > 0) {
+        const ant = ordenadas[i - 1]
+        const antTotal = ant.precoTotal ?? ant.precoVenda ?? 0
+        const deltaQtd = sim.quantidade - ant.quantidade
+        if (deltaQtd > 0) {
+          milSeguinte = (valorTotal - antTotal) / (deltaQtd / 1000)
+        }
+      }
+
+      const erro = !(valorTotal > 0)
+
+      return {
+        quantidade: sim.quantidade,
+        valorUnitario,
+        valorTotal,
+        custoTotal,
+        margemPerc,
+        cmValor,
+        cmPerc,
+        primeiroMil,
+        milSeguinte,
+        erro,
+      }
+    })
+  }, [simulacoes])
+
+  // Seleção da faixa (Req 3): ao escolher, a faixa vira a `quantidade` oficial do
+  // item. O StepRevisao recalcula ao mudar `formData.quantidade` (useEffect),
+  // então o resultado principal passa a refletir a faixa escolhida; o salvar do
+  // item (wizard/ItemWizardModal) persiste essa quantidade.
+  const usarFaixa = useCallback(
+    (quantidade: number) => {
+      if (quantidade > 0 && quantidade !== formData.quantidade) {
+        updateForm({ quantidade })
+      }
+    },
+    [formData.quantidade, updateForm],
+  )
+
+  // P15 — URL/flags do arquivo de encaixe real (mesmo padrão do
+  // EncaixeArquivoModal: token via query; aceita imagem ou PDF). Usa os ids do
+  // item SALVO (qualquer origem).
+  const temEncaixeReal = !!(orcIdEncaixe && itemIdEncaixe && encaixeArquivo?.temArquivo)
+  const encaixeRealImagem = temEncaixeReal && !!encaixeArquivo?.mime?.startsWith('image/')
+  const encaixeRealPdf = temEncaixeReal && encaixeArquivo?.mime === 'application/pdf'
+  const urlEncaixeReal = temEncaixeReal
+    ? `${API_BASE}/orcamento-grafico/${orcIdEncaixe}/itens/${itemIdEncaixe}/encaixe-arquivo?token=${getAuthToken() || ''}`
+    : ''
 
   return (
     <Stack gap="md">
@@ -368,6 +523,14 @@ export default function StepRevisao({ formData, updateForm }: Props) {
             w={160}
             thousandSeparator="."
             decimalSeparator=","
+          />
+          <TextInput
+            label="Tiragens (separadas por vírgula)"
+            description="Compara faixas na grade abaixo"
+            placeholder="ex.: 10.000, 20.000, 50.000"
+            value={faixasTexto}
+            onChange={(e) => setFaixasTexto(e.currentTarget.value)}
+            w={280}
           />
         </Group>
       </Group>
@@ -497,32 +660,88 @@ export default function StepRevisao({ formData, updateForm }: Props) {
             </Paper>
           )}
 
-          {/* Encaixe gráfico (imposição das peças na folha) */}
+          {/* Encaixe gráfico (imposição das peças na folha).
+              P15 — quando o item já tem ARQUIVO DE ENCAIXE REAL enviado, exibe a
+              miniatura do arquivo ao lado do encaixe calculado (motor), para o
+              operador comparar o teórico com o real. Sem arquivo (ou criação do
+              zero), mantém só o encaixe calculado, como antes (não-regressão). */}
           {resultado.encaixe?.layout && (
-            <Stack gap="xs">
-              <EncaixeVisual
-                layout={resultado.encaixe.layout}
-                aproveitamento={resultado.encaixe.aproveitamento}
-                percentAproveitamentoFolha={resultado.encaixe.percentAproveitamentoFolha}
-                orientacao={resultado.encaixe.orientacao}
-                plan={planificacao}
-              />
-              <Group justify="flex-end">
-                <Button
-                  size="xs"
-                  variant="light"
-                  leftSection={<IconDownload size={14} />}
-                  onClick={() => {
-                    const layout = resultado.encaixe!.layout!
-                    const base = formData.produtoNome || formData.clienteNome || 'orcamento'
-                    const nome = `encaixe-${base.replace(/[^a-z0-9]+/gi, '-').slice(0, 40)}.svg`
-                    baixarSvgEncaixe(layout, nome)
-                  }}
-                >
-                  Baixar prévia do encaixe (SVG)
-                </Button>
-              </Group>
-            </Stack>
+            <SimpleGrid cols={{ base: 1, md: temEncaixeReal ? 2 : 1 }} spacing="md">
+              {/* Lado esquerdo: encaixe CALCULADO (motor) */}
+              <Paper p="md" withBorder>
+                <Text fw={500} size="sm" mb="xs">Encaixe calculado</Text>
+                <Stack gap="xs">
+                  <EncaixeVisual
+                    layout={resultado.encaixe.layout}
+                    aproveitamento={resultado.encaixe.aproveitamento}
+                    percentAproveitamentoFolha={resultado.encaixe.percentAproveitamentoFolha}
+                    orientacao={resultado.encaixe.orientacao}
+                    plan={planificacao}
+                  />
+                  <Group justify="flex-end">
+                    <Button
+                      size="xs"
+                      variant="light"
+                      leftSection={<IconDownload size={14} />}
+                      onClick={() => {
+                        const layout = resultado.encaixe!.layout!
+                        const base = formData.produtoNome || formData.clienteNome || 'orcamento'
+                        const nome = `encaixe-${base.replace(/[^a-z0-9]+/gi, '-').slice(0, 40)}.svg`
+                        baixarSvgEncaixe(layout, nome)
+                      }}
+                    >
+                      Baixar prévia do encaixe (SVG)
+                    </Button>
+                  </Group>
+                </Stack>
+              </Paper>
+
+              {/* Lado direito: encaixe REAL (arquivo de imposição enviado) */}
+              {temEncaixeReal && (
+                <Paper p="md" withBorder>
+                  <Group justify="space-between" mb="xs">
+                    <Text fw={500} size="sm">Encaixe real (arquivo de imposição)</Text>
+                    {encaixeArquivo?.nome && (
+                      <Badge variant="light" maw={200} style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {encaixeArquivo.nome}
+                      </Badge>
+                    )}
+                  </Group>
+                  {encaixeRealImagem && (
+                    <Image
+                      src={urlEncaixeReal}
+                      alt="Encaixe real enviado"
+                      fit="contain"
+                      mah={320}
+                      style={{ border: '1px solid var(--mantine-color-gray-4)', background: 'var(--mantine-color-body)' }}
+                    />
+                  )}
+                  {encaixeRealPdf && (
+                    <Button
+                      variant="light"
+                      leftSection={<IconExternalLink size={16} />}
+                      onClick={() => window.open(urlEncaixeReal, '_blank')}
+                    >
+                      Abrir encaixe real (PDF)
+                    </Button>
+                  )}
+                  {!encaixeRealImagem && !encaixeRealPdf && (
+                    <Button
+                      variant="light"
+                      leftSection={<IconExternalLink size={16} />}
+                      onClick={() => window.open(urlEncaixeReal, '_blank')}
+                    >
+                      Abrir encaixe real
+                    </Button>
+                  )}
+                  {encaixeArquivo?.enviadoEm && (
+                    <Text size="xs" c="dimmed" mt="xs">
+                      enviado em {new Date(encaixeArquivo.enviadoEm).toLocaleString('pt-BR')}
+                    </Text>
+                  )}
+                </Paper>
+              )}
+            </SimpleGrid>
           )}
 
           {/* Breakdown visual */}
@@ -582,41 +801,92 @@ export default function StepRevisao({ formData, updateForm }: Props) {
             )}
           </SimpleGrid>
 
-          {/* Simulação de tiragens */}
-          {simulacoes.length > 0 && (
+          {/* Grade Tiragem × Margem (P1 — Req 2/3).
+              Compara as faixas (digitadas ou automáticas), deriva CM e os
+              marginais Primeiro Mil / Mil Seguinte no front, e permite ESCOLHER
+              a faixa (vira a quantidade oficial do item). A faixa = tiragem
+              atual fica destacada. */}
+          {grade.length > 0 && (
             <>
               <Divider my="sm" />
-              <Text fw={500} size="sm">Comparativo por Tiragem</Text>
-              <Table striped highlightOnHover withTableBorder withColumnBorders>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Quantidade</Table.Th>
-                    <Table.Th>Custo Total</Table.Th>
-                    <Table.Th>Preço Unitário</Table.Th>
-                    <Table.Th>Preço Total</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {simulacoes.map((sim, i) => (
-                    <Table.Tr
-                      key={i}
-                      bg={sim.quantidade === formData.quantidade ? 'var(--mantine-color-blue-light)' : undefined}
-                    >
-                      <Table.Td>
-                        <Group gap={4}>
-                          {sim.quantidade.toLocaleString('pt-BR')}
-                          {sim.quantidade === formData.quantidade && (
-                            <Badge size="xs" color="blue">atual</Badge>
-                          )}
-                        </Group>
-                      </Table.Td>
-                      <Table.Td>{formatCurrency(sim.custoTotal)}</Table.Td>
-                      <Table.Td>{formatCurrency(sim.precoUnitario)}</Table.Td>
-                      <Table.Td fw={500}>{formatCurrency(sim.precoTotal)}</Table.Td>
+              <Group justify="space-between" align="center">
+                <Text fw={500} size="sm">Comparativo por Tiragem</Text>
+                <Text size="xs" c="dimmed">
+                  {faixasManuais.length
+                    ? 'Faixas digitadas'
+                    : 'Faixas automáticas (0,5× a 10× a tiragem)'}
+                </Text>
+              </Group>
+              <Table.ScrollContainer minWidth={760}>
+                <Table striped highlightOnHover withTableBorder withColumnBorders>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Quantidade</Table.Th>
+                      <Table.Th>Valor Unitário</Table.Th>
+                      <Table.Th>Valor Total</Table.Th>
+                      <Table.Th>Margem (%)</Table.Th>
+                      <Table.Th>CM (%)</Table.Th>
+                      <Table.Th>CM ($)</Table.Th>
+                      <Table.Th>
+                        <Tooltip label="Valor por mil peças da menor faixa (primeiro mil) e custo marginal por mil entre faixas consecutivas (mil seguinte)">
+                          <span>1º Mil / Mil Seguinte</span>
+                        </Tooltip>
+                      </Table.Th>
+                      <Table.Th />
                     </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {grade.map((linha) => {
+                      const atual = linha.quantidade === formData.quantidade
+                      return (
+                        <Table.Tr
+                          key={linha.quantidade}
+                          bg={atual ? 'var(--mantine-color-blue-light)' : undefined}
+                        >
+                          <Table.Td>
+                            <Group gap={4} wrap="nowrap">
+                              {linha.quantidade.toLocaleString('pt-BR')}
+                              {atual && <Badge size="xs" color="blue">selecionada</Badge>}
+                            </Group>
+                          </Table.Td>
+                          {linha.erro ? (
+                            <Table.Td colSpan={6} c="red">
+                              <Group gap={4}><IconAlertCircle size={14} /> falha no cálculo desta faixa</Group>
+                            </Table.Td>
+                          ) : (
+                            <>
+                              <Table.Td>{formatCurrency(linha.valorUnitario)}</Table.Td>
+                              <Table.Td fw={500}>{formatCurrency(linha.valorTotal)}</Table.Td>
+                              <Table.Td>{formatPercent(linha.margemPerc)}</Table.Td>
+                              <Table.Td c="teal">{formatPercent(linha.cmPerc)}</Table.Td>
+                              <Table.Td c="teal">{formatCurrency(linha.cmValor)}</Table.Td>
+                              <Table.Td>
+                                <Text size="xs">
+                                  {linha.primeiroMil != null ? formatCurrency(linha.primeiroMil) : '—'}
+                                  {' / '}
+                                  {linha.milSeguinte != null ? formatCurrency(linha.milSeguinte) : '—'}
+                                </Text>
+                              </Table.Td>
+                            </>
+                          )}
+                          <Table.Td>
+                            <Button
+                              size="xs"
+                              variant={atual ? 'filled' : 'light'}
+                              color={atual ? 'blue' : 'gray'}
+                              leftSection={atual ? <IconCheck size={14} /> : undefined}
+                              disabled={linha.erro || atual}
+                              onClick={() => usarFaixa(linha.quantidade)}
+                            >
+                              {atual ? 'Em uso' : 'Usar esta tiragem'}
+                            </Button>
+                          </Table.Td>
+                        </Table.Tr>
+                      )
+                    })}
+                  </Table.Tbody>
+                </Table>
+              </Table.ScrollContainer>
             </>
           )}
         </>

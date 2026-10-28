@@ -152,6 +152,11 @@ export interface WizardFormData {
   _conferenciaOrcamentoId?: string | null
   _conferenciaItemId?: string | null
   _engenhariaPendentes?: string[] | null
+  // Item SALVO em edição (QUALQUER origem, não só repetição). Usados para buscar
+  // recursos vinculados ao item persistido — ex.: o arquivo de encaixe real
+  // (P15). Ausentes na criação do zero.
+  _itemSalvoOrcamentoId?: string | null
+  _itemSalvoId?: string | null
 }
 
 const INITIAL_FORM: WizardFormData = {
