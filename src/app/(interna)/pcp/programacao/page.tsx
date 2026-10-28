@@ -318,8 +318,10 @@ export default function ProgramacaoPage() {
   const [historicoModal, setHistoricoModal] = useState<{ etapaId: string; opNumero?: string } | null>(null)
   const [modalPausar, setModalPausar] = useState<{ etapaId: string; opNumero: number } | null>(null)
   const [modalDesmembrar, setModalDesmembrar] = useState<{ etapaId: string; opNumero: number; quantidade: number; tiragem: number; descricao: string } | null>(null)
-  // Base da divisão do desmembramento: QUANTIDADE (unidades) ou TIRAGEM (folhas).
-  const [baseDesmembrar, setBaseDesmembrar] = useState<'QUANTIDADE' | 'TIRAGEM'>('QUANTIDADE')
+  // Base da divisão do desmembramento: QUANTIDADE (unidades), TIRAGEM (folhas)
+  // ou QTD_TIRAGEM (cada parte com quantidade E tiragem próprias — spec
+  // pcp-desmembrar-qtd-e-tiragem).
+  const [baseDesmembrar, setBaseDesmembrar] = useState<'QUANTIDADE' | 'TIRAGEM' | 'QTD_TIRAGEM'>('QUANTIDADE')
   const [formApontar, setFormApontar] = useState({ quantidadeProduzida: 0, quantidadePerda: 0, motivoPerda: '', observacao: '' })
   const [formPausar, setFormPausar] = useState({ motivoParada: 'ACERTO_MAQUINA', observacao: '', codigoParadaId: null as string | null })
   const [codigosParada, setCodigosParada] = useState<{ value: string; label: string }[]>([])
@@ -328,7 +330,7 @@ export default function ProgramacaoPage() {
       setCodigosParada((Array.isArray(data) ? data : []).filter((c: any) => c.status !== false).map((c: any) => ({ value: c.id, label: `${c.codigo} - ${c.descricao}` })))
     }).catch(() => setCodigosParada([]))
   }, [])
-  const [formDesmembrar, setFormDesmembrar] = useState<Array<{ centroProducaoId: string; quantidade: number }>>([{ centroProducaoId: '', quantidade: 0 }, { centroProducaoId: '', quantidade: 0 }])
+  const [formDesmembrar, setFormDesmembrar] = useState<Array<{ centroProducaoId: string; quantidade: number; tiragem?: number }>>([{ centroProducaoId: '', quantidade: 0 }, { centroProducaoId: '', quantidade: 0 }])
   const [centrosDisponiveis, setCentrosDisponiveis] = useState<any[]>([])
   const [editingObs, setEditingObs] = useState<{ id: string; value: string } | null>(null)
   const [editingQtd, setEditingQtd] = useState<{ opId: string; etapaId: string; value: string } | null>(null)
@@ -1303,13 +1305,31 @@ export default function ProgramacaoPage() {
 
   async function enviarDesmembramento() {
     if (!modalDesmembrar) return
+    if (baseDesmembrar === 'QTD_TIRAGEM') {
+      // Cada parte precisa de centro + quantidade (un) + tiragem (folhas).
+      const partesValidas = formDesmembrar.filter(p => p.centroProducaoId && p.quantidade > 0 && (p.tiragem ?? 0) > 0)
+      if (partesValidas.length < 2) {
+        notifications.show({ title: 'Erro', message: 'Informe pelo menos 2 partes com centro, quantidade e tiragem', color: 'red' })
+        return
+      }
+      try {
+        await api.post(`/pcp/etapas/${modalDesmembrar.etapaId}/desmembrar`, {
+          base: 'QTD_TIRAGEM',
+          partes: partesValidas.map(p => ({ centroProducaoId: p.centroProducaoId, quantidade: p.quantidade, tiragem: p.tiragem })),
+        })
+        notifications.show({ title: 'Etapa desmembrada', message: `Dividida em ${partesValidas.length} partes (quantidade + tiragem)`, color: 'green' })
+        setModalDesmembrar(null)
+        setFormDesmembrar([{ centroProducaoId: '', quantidade: 0 }, { centroProducaoId: '', quantidade: 0 }])
+      } catch (err: any) { notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha', color: 'red' }) }
+      return
+    }
     const partesValidas = formDesmembrar.filter(p => p.centroProducaoId && p.quantidade > 0)
     if (partesValidas.length < 2) {
       notifications.show({ title: 'Erro', message: 'Informe pelo menos 2 partes com centro e quantidade', color: 'red' })
       return
     }
     try {
-      await api.post(`/pcp/etapas/${modalDesmembrar.etapaId}/desmembrar`, { partes: partesValidas, base: baseDesmembrar })
+      await api.post(`/pcp/etapas/${modalDesmembrar.etapaId}/desmembrar`, { partes: partesValidas.map(p => ({ centroProducaoId: p.centroProducaoId, quantidade: p.quantidade })), base: baseDesmembrar })
       notifications.show({ title: 'Etapa desmembrada', message: `Dividida em ${partesValidas.length} partes (${baseDesmembrar === 'TIRAGEM' ? 'tiragem' : 'quantidade'})`, color: 'green' })
       setModalDesmembrar(null)
       setFormDesmembrar([{ centroProducaoId: '', quantidade: 0 }, { centroProducaoId: '', quantidade: 0 }])
@@ -3472,24 +3492,35 @@ export default function ProgramacaoPage() {
       {/* Modal: Desmembrar Etapa */}
       <Modal opened={!!modalDesmembrar} onClose={() => setModalDesmembrar(null)} title={`Desmembrar — OP #${modalDesmembrar?.opNumero}`} centered size="lg">
         {(() => {
+          const totalQtd = modalDesmembrar?.quantidade ?? 0
+          const totalTiragem = modalDesmembrar?.tiragem ?? 0
+          const modoDuplo = baseDesmembrar === 'QTD_TIRAGEM'
           // Total de referência conforme a base escolhida (quantidade ou tiragem).
-          const totalBase = baseDesmembrar === 'TIRAGEM'
-            ? (modalDesmembrar?.tiragem ?? 0)
-            : (modalDesmembrar?.quantidade ?? 0)
+          const totalBase = baseDesmembrar === 'TIRAGEM' ? totalTiragem : totalQtd
           const unidadeLabel = baseDesmembrar === 'TIRAGEM' ? 'folhas' : 'un'
           const somaPartes = formDesmembrar.reduce((a, p) => a + p.quantidade, 0)
-          const metade = Math.floor(totalBase / 2)
+          const somaTiragem = formDesmembrar.reduce((a, p) => a + (p.tiragem ?? 0), 0)
+          const duploBate = somaPartes === totalQtd && somaTiragem === totalTiragem
           return (
         <Stack gap="md">
-          {/* Seletor da BASE: dividir por quantidade (unidades) ou por tiragem (folhas) */}
+          {/* Seletor da BASE: por quantidade (un), por tiragem (folhas) ou por
+              ambas (cada parte com quantidade E tiragem próprias). */}
           <SegmentedControl
             fullWidth
             value={baseDesmembrar}
             onChange={(v) => {
-              const base = v as 'QUANTIDADE' | 'TIRAGEM'
+              const base = v as 'QUANTIDADE' | 'TIRAGEM' | 'QTD_TIRAGEM'
               setBaseDesmembrar(base)
+              if (base === 'QTD_TIRAGEM') {
+                // Reinicia as partes com metade/metade de AMBOS os totais.
+                setFormDesmembrar([
+                  { centroProducaoId: '', quantidade: Math.floor(totalQtd / 2), tiragem: Math.floor(totalTiragem / 2) },
+                  { centroProducaoId: '', quantidade: Math.ceil(totalQtd / 2), tiragem: Math.ceil(totalTiragem / 2) },
+                ])
+                return
+              }
               // Reinicia as partes com metade/metade do novo total de referência.
-              const total = base === 'TIRAGEM' ? (modalDesmembrar?.tiragem ?? 0) : (modalDesmembrar?.quantidade ?? 0)
+              const total = base === 'TIRAGEM' ? totalTiragem : totalQtd
               setFormDesmembrar([
                 { centroProducaoId: '', quantidade: Math.floor(total / 2) },
                 { centroProducaoId: '', quantidade: Math.ceil(total / 2) },
@@ -3498,42 +3529,96 @@ export default function ProgramacaoPage() {
             data={[
               { label: 'Por Quantidade (un)', value: 'QUANTIDADE' },
               { label: 'Por Tiragem (folhas)', value: 'TIRAGEM' },
+              { label: 'Qtd + Tiragem', value: 'QTD_TIRAGEM' },
             ]}
           />
-          <Text size="sm" c="dimmed">{modalDesmembrar?.descricao} — Total: <strong>{totalBase.toLocaleString('pt-BR')} {unidadeLabel}</strong></Text>
-          <Text size="xs" c="orange">A soma das partes deve ser igual ao total ({totalBase.toLocaleString('pt-BR')} {unidadeLabel})</Text>
 
-          {formDesmembrar.map((parte, idx) => (
-            <Group key={idx} grow>
-              <Select
-                label={`Parte ${idx + 1} — Centro`}
-                data={centrosDisponiveis}
-                value={parte.centroProducaoId}
-                onChange={(v) => { const novo = [...formDesmembrar]; novo[idx].centroProducaoId = v || ''; setFormDesmembrar(novo) }}
-                searchable
-                placeholder="Selecione a máquina"
-              />
-              <NumberInput
-                label={baseDesmembrar === 'TIRAGEM' ? 'Tiragem (folhas)' : 'Quantidade (un)'}
-                value={parte.quantidade}
-                onChange={(v) => { const novo = [...formDesmembrar]; novo[idx].quantidade = typeof v === 'number' ? v : 0; setFormDesmembrar(novo) }}
-                min={1}
-              />
-            </Group>
-          ))}
+          {modoDuplo ? (
+            <>
+              <Text size="sm" c="dimmed">{modalDesmembrar?.descricao} — Total: <strong>{totalQtd.toLocaleString('pt-BR')} un</strong> / <strong>{totalTiragem.toLocaleString('pt-BR')} folhas</strong></Text>
+              <Text size="xs" c="orange">Informe quantidade (un) E tiragem (folhas) por parte; as duas somas devem bater com os totais.</Text>
 
-          <Group justify="space-between">
-            <Button variant="light" size="xs" onClick={() => setFormDesmembrar([...formDesmembrar, { centroProducaoId: '', quantidade: 0 }])}>
-              + Adicionar Parte
-            </Button>
-            <Text size="sm" fw={600} c={somaPartes === totalBase ? 'green' : 'red'}>
-              Soma: {somaPartes.toLocaleString('pt-BR')} / {totalBase.toLocaleString('pt-BR')} {unidadeLabel}
-            </Text>
-          </Group>
+              {formDesmembrar.map((parte, idx) => (
+                <Group key={idx} grow align="flex-end">
+                  <Select
+                    label={`Parte ${idx + 1} — Centro`}
+                    data={centrosDisponiveis}
+                    value={parte.centroProducaoId}
+                    onChange={(v) => { const novo = [...formDesmembrar]; novo[idx].centroProducaoId = v || ''; setFormDesmembrar(novo) }}
+                    searchable
+                    placeholder="Selecione a máquina"
+                  />
+                  <NumberInput
+                    label="Quantidade (un)"
+                    value={parte.quantidade}
+                    onChange={(v) => { const novo = [...formDesmembrar]; novo[idx].quantidade = typeof v === 'number' ? v : 0; setFormDesmembrar(novo) }}
+                    min={1}
+                  />
+                  <NumberInput
+                    label="Tiragem (folhas)"
+                    value={parte.tiragem ?? 0}
+                    onChange={(v) => { const novo = [...formDesmembrar]; novo[idx].tiragem = typeof v === 'number' ? v : 0; setFormDesmembrar(novo) }}
+                    min={1}
+                  />
+                </Group>
+              ))}
 
-          <Button color="violet" onClick={enviarDesmembramento} fullWidth leftSection={<IconCut size={16} />} disabled={somaPartes !== totalBase}>
-            Desmembrar Etapa
-          </Button>
+              <Group justify="space-between">
+                <Button variant="light" size="xs" onClick={() => setFormDesmembrar([...formDesmembrar, { centroProducaoId: '', quantidade: 0, tiragem: 0 }])}>
+                  + Adicionar Parte
+                </Button>
+                <Stack gap={2} align="flex-end">
+                  <Text size="sm" fw={600} c={somaPartes === totalQtd ? 'green' : 'red'}>
+                    Qtd: {somaPartes.toLocaleString('pt-BR')} / {totalQtd.toLocaleString('pt-BR')} un
+                  </Text>
+                  <Text size="sm" fw={600} c={somaTiragem === totalTiragem ? 'green' : 'red'}>
+                    Tiragem: {somaTiragem.toLocaleString('pt-BR')} / {totalTiragem.toLocaleString('pt-BR')} folhas
+                  </Text>
+                </Stack>
+              </Group>
+
+              <Button color="violet" onClick={enviarDesmembramento} fullWidth leftSection={<IconCut size={16} />} disabled={!duploBate}>
+                Desmembrar Etapa
+              </Button>
+            </>
+          ) : (
+            <>
+              <Text size="sm" c="dimmed">{modalDesmembrar?.descricao} — Total: <strong>{totalBase.toLocaleString('pt-BR')} {unidadeLabel}</strong></Text>
+              <Text size="xs" c="orange">A soma das partes deve ser igual ao total ({totalBase.toLocaleString('pt-BR')} {unidadeLabel})</Text>
+
+              {formDesmembrar.map((parte, idx) => (
+                <Group key={idx} grow>
+                  <Select
+                    label={`Parte ${idx + 1} — Centro`}
+                    data={centrosDisponiveis}
+                    value={parte.centroProducaoId}
+                    onChange={(v) => { const novo = [...formDesmembrar]; novo[idx].centroProducaoId = v || ''; setFormDesmembrar(novo) }}
+                    searchable
+                    placeholder="Selecione a máquina"
+                  />
+                  <NumberInput
+                    label={baseDesmembrar === 'TIRAGEM' ? 'Tiragem (folhas)' : 'Quantidade (un)'}
+                    value={parte.quantidade}
+                    onChange={(v) => { const novo = [...formDesmembrar]; novo[idx].quantidade = typeof v === 'number' ? v : 0; setFormDesmembrar(novo) }}
+                    min={1}
+                  />
+                </Group>
+              ))}
+
+              <Group justify="space-between">
+                <Button variant="light" size="xs" onClick={() => setFormDesmembrar([...formDesmembrar, { centroProducaoId: '', quantidade: 0 }])}>
+                  + Adicionar Parte
+                </Button>
+                <Text size="sm" fw={600} c={somaPartes === totalBase ? 'green' : 'red'}>
+                  Soma: {somaPartes.toLocaleString('pt-BR')} / {totalBase.toLocaleString('pt-BR')} {unidadeLabel}
+                </Text>
+              </Group>
+
+              <Button color="violet" onClick={enviarDesmembramento} fullWidth leftSection={<IconCut size={16} />} disabled={somaPartes !== totalBase}>
+                Desmembrar Etapa
+              </Button>
+            </>
+          )}
         </Stack>
           )
         })()}
