@@ -16,6 +16,10 @@ export default function CentrosProducaoPage() {
   const [tiposProcesso, setTiposProcesso] = useState<any[]>([])
   const [turnos, setTurnos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  // Por padrão a lista mostra só os centros ATIVOS (padrão de mercado em
+  // cadastros: inativos ficam ocultos até o usuário pedir). O toggle
+  // "Mostrar inativos" traz os inativos de volta para reativar/consultar.
+  const [mostrarInativos, setMostrarInativos] = useState(false)
   const [modalAberto, setModalAberto] = useState(false)
   const [editando, setEditando] = useState<any>(null)
   const [form, setForm] = useState({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null as string | null, turnoProducaoId: null as string | null, capacidadeHora: 0, custoHora: 0, velocidade: 0, unidadeVelocidade: null as string | null, formatoFolhaLargura: 0, formatoFolhaAltura: 0, pincaMm: 0, acertoPorCorMin: 0, tempoSetupMin: 0, disponivelProgramacao: true, modoContagem: 'QUANTIDADE', contadorZeraDiariamente: false })
@@ -24,7 +28,8 @@ export default function CentrosProducaoPage() {
     setLoading(true)
     try {
       const [resCentros, resTipos, resTurnos] = await Promise.all([
-        api.get('/centros-producao', { params: { limit: 100 } }),
+        // status='true' lista só ativos; sem o param, traz todos (ativos+inativos).
+        api.get('/centros-producao', { params: { limit: 100, ...(mostrarInativos ? {} : { status: 'true' }) } }),
         api.get('/tipos-processo', { params: { status: 'true' } }),
         api.get('/turnos-producao', { params: { limit: 50 } }),
       ])
@@ -35,7 +40,7 @@ export default function CentrosProducaoPage() {
     catch {} finally { setLoading(false) }
   }
 
-  useEffect(() => { carregar() }, [])
+  useEffect(() => { carregar() }, [mostrarInativos])
 
   function abrirNovo() { setEditando(null); setForm({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null, turnoProducaoId: null, capacidadeHora: 0, custoHora: 0, velocidade: 0, unidadeVelocidade: null, formatoFolhaLargura: 0, formatoFolhaAltura: 0, pincaMm: 0, acertoPorCorMin: 0, tempoSetupMin: 0, disponivelProgramacao: true, modoContagem: 'QUANTIDADE', contadorZeraDiariamente: false }); setModalAberto(true) }
   function abrirEdicao(item: any) { setEditando(item); setForm({ codigo: item.codigo, descricao: item.descricao, tipo: item.tipo, tipoProcessoId: item.tipoProcessoId || null, turnoProducaoId: item.turnoProducaoId || null, capacidadeHora: Number(item.capacidadeHora) || 0, custoHora: Number(item.custoHora) || 0, velocidade: Number(item.velocidade) || 0, unidadeVelocidade: item.unidadeVelocidade || null, formatoFolhaLargura: Number(item.formatoFolhaLargura) || 0, formatoFolhaAltura: Number(item.formatoFolhaAltura) || 0, pincaMm: Number(item.pincaMm) || 0, acertoPorCorMin: Number(item.acertoPorCorMin) || 0, tempoSetupMin: Number(item.tempoSetupMin) || 0, disponivelProgramacao: item.disponivelProgramacao ?? true, modoContagem: item.modoContagem || 'QUANTIDADE', contadorZeraDiariamente: item.contadorZeraDiariamente ?? false }); setModalAberto(true) }
@@ -64,7 +69,14 @@ export default function CentrosProducaoPage() {
     <Stack gap="md">
       <Group justify="space-between">
         <Title order={3}>Centros de Produção</Title>
-        <Button leftSection={<IconPlus size={16} />} onClick={abrirNovo}>Novo Centro</Button>
+        <Group gap="md">
+          <Switch
+            label="Mostrar inativos"
+            checked={mostrarInativos}
+            onChange={(e) => setMostrarInativos(e.currentTarget.checked)}
+          />
+          <Button leftSection={<IconPlus size={16} />} onClick={abrirNovo}>Novo Centro</Button>
+        </Group>
       </Group>
 
       <DataTablePadrao
