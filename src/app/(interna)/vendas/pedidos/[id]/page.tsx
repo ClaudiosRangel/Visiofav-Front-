@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import {
   Button, Card, Group, Text, Table, Badge, LoadingOverlay, Modal, Textarea,
-  SimpleGrid, Paper, Tabs, Divider,
+  SimpleGrid, Paper, Tabs, Divider, PasswordInput,
 } from '@mantine/core'
 import { IconArrowLeft, IconCheck, IconX, IconFileInvoice, IconPackage, IconTruck, IconCash, IconNotes, IconHistory } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
@@ -46,6 +46,9 @@ export default function DetalhePedidoVendaPage() {
   const [cancelModal, setCancelModal] = useState(false)
   const [motivo, setMotivo] = useState('')
   const [faturarModalOpen, setFaturarModalOpen] = useState(false)
+  // Assinatura do setor na liberação ao PCP (B6)
+  const [assinaturaModal, setAssinaturaModal] = useState(false)
+  const [senhaAssinatura, setSenhaAssinatura] = useState('')
 
   const { data: pedido, isLoading } = usePedidoVenda(id)
 
@@ -82,19 +85,28 @@ export default function DetalhePedidoVendaPage() {
   // Hand-off comercial: liberar o pedido (vindo de orçamento gráfico) para o
   // PCP — confirma + gera as OPs com a engenharia do orçamento. Trava de amostra.
   const liberarPcp = useMutation({
-    mutationFn: async () => {
-      const { data } = await api.post(`/orcamento-grafico/pedidos/${id}/liberar-pcp`)
+    mutationFn: async (senha?: string) => {
+      const { data } = await api.post(`/orcamento-grafico/pedidos/${id}/liberar-pcp`, senha ? { senha } : {})
       return data
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['pedidos-venda', id] })
+      setAssinaturaModal(false)
+      setSenhaAssinatura('')
       const ok = (data?.opsEmitidas || []).filter((o: any) => o.status === 'ok').length
       notifications.show({ title: 'Liberado para o PCP', message: `${ok} OP(s) emitida(s).`, color: 'green' })
     },
     onError: (err: any) => {
       const code = err?.response?.data?.code
+      // Assinatura requerida/ inválida → abre o modal de senha.
+      if (code === 'ASSINATURA_REQUERIDA') {
+        setAssinaturaModal(true)
+        return
+      }
       const msg = code === 'AMOSTRA_PENDENTE'
         ? 'Amostra exigida e ainda não aprovada.'
+        : code === 'ASSINATURA_INVALIDA' ? 'Senha incorreta.'
+        : code === 'SEM_PERMISSAO_LIBERACAO' ? 'Seu perfil não pode liberar pedidos ao PCP.'
         : err?.response?.data?.message || 'Falha ao liberar para o PCP'
       notifications.show({ title: 'Não foi possível liberar', message: msg, color: 'red' })
     },
@@ -397,6 +409,26 @@ export default function DetalhePedidoVendaPage() {
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={() => { setCancelModal(false); setMotivo('') }}>Voltar</Button>
           <Button color="red" onClick={handleCancelar} loading={cancelarMutation.isPending} disabled={motivo.length < 10}>Confirmar Cancelamento</Button>
+        </Group>
+      </Modal>
+
+      {/* Modal Assinatura do setor (B6) — senha para liberar ao PCP */}
+      <Modal opened={assinaturaModal} onClose={() => { setAssinaturaModal(false); setSenhaAssinatura('') }} title="Assinatura do setor de orçamento" centered>
+        <Text size="sm" c="dimmed" mb="sm">
+          A liberação deste pedido para o PCP exige a sua assinatura. Informe sua senha para confirmar.
+        </Text>
+        <PasswordInput
+          label="Sua senha"
+          placeholder="Senha do seu usuário"
+          value={senhaAssinatura}
+          onChange={(e) => setSenhaAssinatura(e.currentTarget.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && senhaAssinatura) liberarPcp.mutate(senhaAssinatura) }}
+        />
+        <Group justify="flex-end" mt="md">
+          <Button variant="default" onClick={() => { setAssinaturaModal(false); setSenhaAssinatura('') }}>Cancelar</Button>
+          <Button color="teal" onClick={() => liberarPcp.mutate(senhaAssinatura)} loading={liberarPcp.isPending} disabled={!senhaAssinatura}>
+            Assinar e liberar
+          </Button>
         </Group>
       </Modal>
 
