@@ -10,13 +10,14 @@
 import { useEffect, useState } from 'react'
 import {
   Title, Stack, Table, Group, Button, Text, Loader, Center, Modal, TextInput,
-  Textarea, Switch, ActionIcon, Badge, Divider, SimpleGrid, Tooltip,
+  Textarea, Switch, ActionIcon, Badge, Divider, SimpleGrid, Tooltip, Select,
 } from '@mantine/core'
 import { IconPlus, IconEdit, IconTrash, IconStar, IconStarFilled } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
 
 interface TemplateConfig {
+  estilo: 'PADRAO' | 'WEGA'
   cabecalho: {
     mostrarLogo: boolean
     mostrarRazaoSocial: boolean
@@ -24,7 +25,7 @@ interface TemplateConfig {
     mostrarTelefone: boolean
     mostrarEmail: boolean
   }
-  textos: { introducao?: string; condicoes?: string; rodape?: string }
+  textos: { introducao?: string; condicoes?: string; rodape?: string; cidadeData?: string }
   blocos: {
     engenharia: boolean
     decomposicaoCustos: boolean
@@ -42,6 +43,7 @@ interface Template {
 }
 
 const CONFIG_INICIAL: TemplateConfig = {
+  estilo: 'PADRAO',
   cabecalho: { mostrarLogo: true, mostrarRazaoSocial: true, mostrarCnpj: true, mostrarTelefone: true, mostrarEmail: true },
   textos: {},
   blocos: { engenharia: true, decomposicaoCustos: true, variacoesTiragem: true, validade: true, observacoes: true },
@@ -82,6 +84,7 @@ export default function TemplatesPropostaPage() {
     setNome(t.nome)
     // mescla com inicial para tolerar config parcial
     setConfig({
+      estilo: t.config?.estilo === 'WEGA' ? 'WEGA' : 'PADRAO',
       cabecalho: { ...CONFIG_INICIAL.cabecalho, ...(t.config?.cabecalho ?? {}) },
       textos: { ...(t.config?.textos ?? {}) },
       blocos: { ...CONFIG_INICIAL.blocos, ...(t.config?.blocos ?? {}) },
@@ -213,6 +216,26 @@ export default function TemplatesPropostaPage() {
         <Stack gap="md">
           <TextInput label="Nome do template" placeholder="Ex.: Padrão Carton Wega" value={nome}
             onChange={(e) => setNome(e.currentTarget.value)} required />
+
+          <Select
+            label="Estilo de layout"
+            description="Padrão = layout genérico; Carton Wega = modelo de proposta ao cliente"
+            data={[
+              { value: 'PADRAO', label: 'Padrão (genérico)' },
+              { value: 'WEGA', label: 'Carton Wega (proposta ao cliente)' },
+            ]}
+            value={config.estilo}
+            onChange={(v) => setConfig((c) => ({ ...c, estilo: v === 'WEGA' ? 'WEGA' : 'PADRAO' }))}
+            allowDeselect={false}
+          />
+          {config.estilo === 'WEGA' && (
+            <TextInput
+              label="Linha de cidade (cabeçalho)"
+              placeholder="Ex.: Comendador Levy Gasp"
+              value={config.textos.cidadeData ?? ''}
+              onChange={(e) => setTexto('cidadeData', e.currentTarget.value)}
+            />
+          )}
 
           <Divider label="Cabeçalho" labelPosition="left" />
           <SimpleGrid cols={2} spacing="xs">
