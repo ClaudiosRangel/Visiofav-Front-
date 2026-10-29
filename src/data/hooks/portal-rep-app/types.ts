@@ -121,6 +121,31 @@ export interface CriarSolicitacaoPayload {
   medidaComprimento?: number
   acabamentos?: string
   observacoes?: string
+  // Campos da planilha Carton Wega (B2 Fase B) — todos opcionais.
+  tipoPedido?: 'REPETICAO' | 'MOSTRUARIO' | 'NOVO'
+  jaCliente?: boolean
+  mercado?: string
+  ufOrigem?: string
+  cidade?: string
+  tipoEntrega?: 'UNICA' | 'FRACIONADA'
+  entregaFracionadaDias?: string
+  prazoPagamento?: string
+  produtoNome?: string
+  dataValidade?: string
+  variacoesArte?: string
+  exportacao?: 'COMUM' | 'EXPORTACAO'
+  cartao?: string
+  gramaturaTexto?: string
+  cartaoFsc?: boolean
+  medidasTexto?: string
+  corteInternoVerso?: boolean
+  passtime?: boolean
+  matriz?: string
+  acabamentoManual?: boolean
+  quantidadePorVolume?: string
+  anexo1Url?: string
+  anexo2Url?: string
+  discriminacao?: string
 }
 
 // ─── Pipeline ────────────────────────────────────────────────────

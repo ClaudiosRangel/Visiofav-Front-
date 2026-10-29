@@ -18,7 +18,7 @@ import { notifications } from '@mantine/notifications'
 import { usePortalRepClientes, useConsultarCnpj, useCriarCliente } from '@/data/hooks/portal-rep-app/usePortalRepClientes'
 import { useCriarSolicitacao } from '@/data/hooks/portal-rep-app/usePortalRepOrcamentos'
 import { portalRepApi } from '@/data/hooks/portal-rep-app/portal-rep-api'
-import { Collapse, TextInput, Divider } from '@mantine/core'
+import { Collapse, TextInput, Divider, SegmentedControl, Switch, SimpleGrid } from '@mantine/core'
 
 // Hooks para buscar catálogo
 function useTiposEmbalagem() {
@@ -124,6 +124,19 @@ export default function NovaSolicitacaoPage() {
   const [acabamentosSelecionados, setAcabamentosSelecionados] = useState<string[]>([])
   const [observacoes, setObservacoes] = useState('')
 
+  // ─── Campos da planilha Carton Wega (B2 Fase B) ─────────────────────────────
+  const [tipoPedido, setTipoPedido] = useState<'REPETICAO' | 'MOSTRUARIO' | 'NOVO'>('NOVO')
+  const [wega, setWega] = useState({
+    mercado: '', ufOrigem: '', cidade: '',
+    tipoEntrega: 'UNICA' as 'UNICA' | 'FRACIONADA', entregaFracionadaDias: '',
+    prazoPagamento: '', produtoNome: '', dataValidade: '', variacoesArte: '',
+    exportacao: 'COMUM' as 'COMUM' | 'EXPORTACAO', cartao: '', gramaturaTexto: '',
+    cartaoFsc: false, medidasTexto: '', corteInternoVerso: false, passtime: false,
+    matriz: '', acabamentoManual: false, quantidadePorVolume: '',
+    anexo1Url: '', anexo2Url: '', discriminacao: '',
+  })
+  const setW = (k: keyof typeof wega, v: string | boolean) => setWega((s) => ({ ...s, [k]: v }))
+
   const clienteOptions = (clientes ?? []).map((c) => ({
     value: c.id,
     label: c.razaoSocial + (c.nomeFantasia ? ` (${c.nomeFantasia})` : ''),
@@ -167,6 +180,32 @@ export default function NovaSolicitacaoPage() {
           ? { acabamentos: acabamentosSelecionados.join(', ') }
           : {}),
         ...(observacoes.trim() ? { observacoes: observacoes.trim() } : {}),
+        // Campos da planilha Carton Wega (B2 Fase B) — só envia os preenchidos.
+        tipoPedido,
+        jaCliente: !!clienteId,
+        ...(wega.mercado.trim() ? { mercado: wega.mercado.trim() } : {}),
+        ...(wega.ufOrigem.trim() ? { ufOrigem: wega.ufOrigem.trim() } : {}),
+        ...(wega.cidade.trim() ? { cidade: wega.cidade.trim() } : {}),
+        tipoEntrega: wega.tipoEntrega,
+        ...(wega.tipoEntrega === 'FRACIONADA' && wega.entregaFracionadaDias.trim()
+          ? { entregaFracionadaDias: wega.entregaFracionadaDias.trim() } : {}),
+        ...(wega.prazoPagamento.trim() ? { prazoPagamento: wega.prazoPagamento.trim() } : {}),
+        ...(wega.produtoNome.trim() ? { produtoNome: wega.produtoNome.trim() } : {}),
+        ...(wega.dataValidade.trim() ? { dataValidade: wega.dataValidade.trim() } : {}),
+        ...(wega.variacoesArte.trim() ? { variacoesArte: wega.variacoesArte.trim() } : {}),
+        exportacao: wega.exportacao,
+        ...(wega.cartao.trim() ? { cartao: wega.cartao.trim() } : {}),
+        ...(wega.gramaturaTexto.trim() ? { gramaturaTexto: wega.gramaturaTexto.trim() } : {}),
+        cartaoFsc: wega.cartaoFsc,
+        ...(wega.medidasTexto.trim() ? { medidasTexto: wega.medidasTexto.trim() } : {}),
+        corteInternoVerso: wega.corteInternoVerso,
+        passtime: wega.passtime,
+        ...(wega.matriz.trim() ? { matriz: wega.matriz.trim() } : {}),
+        acabamentoManual: wega.acabamentoManual,
+        ...(wega.quantidadePorVolume.trim() ? { quantidadePorVolume: wega.quantidadePorVolume.trim() } : {}),
+        ...(wega.anexo1Url.trim() ? { anexo1Url: wega.anexo1Url.trim() } : {}),
+        ...(wega.anexo2Url.trim() ? { anexo2Url: wega.anexo2Url.trim() } : {}),
+        ...(wega.discriminacao.trim() ? { discriminacao: wega.discriminacao.trim() } : {}),
       },
       {
         onSuccess: () => {
@@ -195,6 +234,19 @@ export default function NovaSolicitacaoPage() {
 
       <form onSubmit={handleSubmit}>
         <Stack gap="md">
+          <Card>
+            <Text size="sm" fw={600} mb={6}>Tipo de pedido</Text>
+            <SegmentedControl
+              fullWidth
+              value={tipoPedido}
+              onChange={(v) => setTipoPedido(v as typeof tipoPedido)}
+              data={[
+                { label: 'Novo', value: 'NOVO' },
+                { label: 'Repetição', value: 'REPETICAO' },
+                { label: 'Mostruário', value: 'MOSTRUARIO' },
+              ]}
+            />
+          </Card>
           <Card>
             <Select
               label="Cliente"
@@ -319,6 +371,92 @@ export default function NovaSolicitacaoPage() {
                 minRows={3}
                 autosize
               />
+            </Stack>
+          </Card>
+
+          <Card>
+            <Text size="sm" fw={600} mb="xs">Detalhes do pedido</Text>
+            <Stack gap="sm">
+              <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                <TextInput label="Nome do produto" value={wega.produtoNome}
+                  onChange={(e) => setW('produtoNome', e.currentTarget.value)} />
+                <TextInput label="Mercado atuante" placeholder="Ex.: Alimentício, Cosméticos"
+                  value={wega.mercado} onChange={(e) => setW('mercado', e.currentTarget.value)} />
+              </SimpleGrid>
+              <SimpleGrid cols={{ base: 1, sm: 3 }}>
+                <TextInput label="Cidade de origem" value={wega.cidade}
+                  onChange={(e) => setW('cidade', e.currentTarget.value)} />
+                <TextInput label="UF" maxLength={2} value={wega.ufOrigem}
+                  onChange={(e) => setW('ufOrigem', e.currentTarget.value.toUpperCase())} />
+                <TextInput label="Prazo de pagamento" placeholder="Ex.: 28/35"
+                  value={wega.prazoPagamento} onChange={(e) => setW('prazoPagamento', e.currentTarget.value)} />
+              </SimpleGrid>
+
+              <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                <div>
+                  <Text size="sm" mb={4}>Entrega</Text>
+                  <SegmentedControl fullWidth value={wega.tipoEntrega}
+                    onChange={(v) => setW('tipoEntrega', v)}
+                    data={[{ label: 'Única', value: 'UNICA' }, { label: 'Fracionada', value: 'FRACIONADA' }]} />
+                </div>
+                {wega.tipoEntrega === 'FRACIONADA' && (
+                  <TextInput label="A cada quantos dias?" value={wega.entregaFracionadaDias}
+                    onChange={(e) => setW('entregaFracionadaDias', e.currentTarget.value)} />
+                )}
+              </SimpleGrid>
+
+              <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                <div>
+                  <Text size="sm" mb={4}>Exportação</Text>
+                  <SegmentedControl fullWidth value={wega.exportacao}
+                    onChange={(v) => setW('exportacao', v)}
+                    data={[{ label: 'Comum', value: 'COMUM' }, { label: 'Exportação', value: 'EXPORTACAO' }]} />
+                </div>
+                <TextInput label="Variações de arte (quantas emitir?)" value={wega.variacoesArte}
+                  onChange={(e) => setW('variacoesArte', e.currentTarget.value)} />
+              </SimpleGrid>
+
+              <Divider label="Material" labelPosition="left" />
+              <SimpleGrid cols={{ base: 1, sm: 3 }}>
+                <TextInput label="Cartão" placeholder="Ex.: Duplex, Triplex" value={wega.cartao}
+                  onChange={(e) => setW('cartao', e.currentTarget.value)} />
+                <TextInput label="Gramatura" placeholder="Ex.: 300 g/m²" value={wega.gramaturaTexto}
+                  onChange={(e) => setW('gramaturaTexto', e.currentTarget.value)} />
+                <TextInput label="Medidas (C x L x A mm)" value={wega.medidasTexto}
+                  onChange={(e) => setW('medidasTexto', e.currentTarget.value)} />
+              </SimpleGrid>
+              <Group gap="lg">
+                <Switch label="Cartão FSC" checked={wega.cartaoFsc}
+                  onChange={(e) => setW('cartaoFsc', e.currentTarget.checked)} />
+                <Switch label="Corte interno (verso)" checked={wega.corteInternoVerso}
+                  onChange={(e) => setW('corteInternoVerso', e.currentTarget.checked)} />
+                <Switch label="Passtime (visor)" checked={wega.passtime}
+                  onChange={(e) => setW('passtime', e.currentTarget.checked)} />
+                <Switch label="Acabamento manual" checked={wega.acabamentoManual}
+                  onChange={(e) => setW('acabamentoManual', e.currentTarget.checked)} />
+              </Group>
+
+              <Divider label="Matriz / Validade / Volume" labelPosition="left" />
+              <SimpleGrid cols={{ base: 1, sm: 3 }}>
+                <TextInput label="Matriz (nova ou nº anterior)" value={wega.matriz}
+                  onChange={(e) => setW('matriz', e.currentTarget.value)} />
+                <TextInput label="Data de validade" value={wega.dataValidade}
+                  onChange={(e) => setW('dataValidade', e.currentTarget.value)} />
+                <TextInput label="Quant. por volume" value={wega.quantidadePorVolume}
+                  onChange={(e) => setW('quantidadePorVolume', e.currentTarget.value)} />
+              </SimpleGrid>
+
+              <Divider label="Anexos (links) / Discriminação" labelPosition="left" />
+              <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                <TextInput label="Anexo 1 (link)" placeholder="Drive / WhatsApp" value={wega.anexo1Url}
+                  onChange={(e) => setW('anexo1Url', e.currentTarget.value)} />
+                <TextInput label="Anexo 2 (link)" value={wega.anexo2Url}
+                  onChange={(e) => setW('anexo2Url', e.currentTarget.value)} />
+              </SimpleGrid>
+              <Textarea label="Discriminação (itens do pedido)"
+                placeholder="Produto / descrição / quantidade por item"
+                value={wega.discriminacao} onChange={(e) => setW('discriminacao', e.currentTarget.value)}
+                autosize minRows={2} />
             </Stack>
           </Card>
 
