@@ -497,6 +497,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconListDetails, label: 'Itens de Custo', href: '/orcamento-grafico/cadastros/itens-custo' },
           { icon: IconCalendarEvent, label: 'Tabelas de Custo', href: '/orcamento-grafico/cadastros/tabelas-custo' },
           { icon: IconReceipt, label: 'Tributação', href: '/orcamento-grafico/cadastros/tributacao' },
+          { icon: IconFileDescription, label: 'Templates de Proposta', href: '/orcamento-grafico/cadastros/templates-proposta' },
         ],
       },
     ],
