@@ -32,6 +32,34 @@ export function useCriarCliente() {
   })
 }
 
+// Dados retornados pela consulta de CNPJ (autopreenchimento do cadastro). B2.
+export interface DadosCnpj {
+  cpfCnpj: string
+  razaoSocial: string
+  nomeFantasia?: string | null
+  logradouro?: string | null
+  numero?: string | null
+  complemento?: string | null
+  bairro?: string | null
+  cidade?: string | null
+  uf?: string | null
+  cep?: string | null
+  telefone?: string | null
+  email?: string | null
+}
+
+// Consulta um CNPJ na Receita (via backend → BrasilAPI/CNPJá Open) para
+// autopreencher o cadastro de cliente novo no portal. Spec B2.
+export function useConsultarCnpj() {
+  return useMutation({
+    mutationFn: async (cnpj: string): Promise<DadosCnpj> => {
+      const soDigitos = cnpj.replace(/\D/g, '')
+      const { data } = await portalRepApi.get(`/clientes/cnpj/${soDigitos}`)
+      return data
+    },
+  })
+}
+
 export function useEditarCliente() {
   const qc = useQueryClient()
   return useMutation({

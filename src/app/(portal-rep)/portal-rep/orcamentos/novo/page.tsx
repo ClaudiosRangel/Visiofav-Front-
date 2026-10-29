@@ -15,9 +15,10 @@ import {
   Title,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { usePortalRepClientes } from '@/data/hooks/portal-rep-app/usePortalRepClientes'
+import { usePortalRepClientes, useConsultarCnpj, useCriarCliente } from '@/data/hooks/portal-rep-app/usePortalRepClientes'
 import { useCriarSolicitacao } from '@/data/hooks/portal-rep-app/usePortalRepOrcamentos'
 import { portalRepApi } from '@/data/hooks/portal-rep-app/portal-rep-api'
+import { Collapse, TextInput, Divider } from '@mantine/core'
 
 // Hooks para buscar catálogo
 function useTiposEmbalagem() {
@@ -48,6 +49,71 @@ export default function NovaSolicitacaoPage() {
   const { data: tiposEmbalagem, isLoading: carregandoTipos } = useTiposEmbalagem()
   const { data: acabamentosDisponiveis, isLoading: carregandoAcabamentos } = useAcabamentos()
   const criarSolicitacao = useCriarSolicitacao()
+  const consultarCnpj = useConsultarCnpj()
+  const criarCliente = useCriarCliente()
+
+  // ─── Cliente novo (B2): cadastro com consulta de CNPJ ───────────────────────
+  const [mostrarNovoCliente, setMostrarNovoCliente] = useState(false)
+  const [novoCliente, setNovoCliente] = useState({
+    cpfCnpj: '', razaoSocial: '', nomeFantasia: '', telefone: '', email: '',
+    logradouro: '', numero: '', bairro: '', cidade: '', uf: '', cep: '',
+  })
+
+  async function buscarCnpj() {
+    try {
+      const d = await consultarCnpj.mutateAsync(novoCliente.cpfCnpj)
+      setNovoCliente((c) => ({
+        ...c,
+        cpfCnpj: d.cpfCnpj || c.cpfCnpj,
+        razaoSocial: d.razaoSocial || '',
+        nomeFantasia: d.nomeFantasia || '',
+        telefone: d.telefone || '',
+        email: d.email || '',
+        logradouro: d.logradouro || '',
+        numero: d.numero || '',
+        bairro: d.bairro || '',
+        cidade: d.cidade || '',
+        uf: d.uf || '',
+        cep: d.cep || '',
+      }))
+      notifications.show({ message: 'Dados do CNPJ preenchidos. Confira e salve.', color: 'green' })
+    } catch (err: any) {
+      notifications.show({
+        message: err?.response?.data?.message || 'Não foi possível consultar o CNPJ. Preencha manualmente.',
+        color: 'orange',
+      })
+    }
+  }
+
+  async function salvarNovoCliente() {
+    if (!novoCliente.razaoSocial.trim() || novoCliente.cpfCnpj.replace(/\D/g, '').length < 11) {
+      notifications.show({ message: 'Informe ao menos CNPJ/CPF e razão social.', color: 'red' })
+      return
+    }
+    try {
+      const criado = await criarCliente.mutateAsync({
+        razaoSocial: novoCliente.razaoSocial,
+        nomeFantasia: novoCliente.nomeFantasia || undefined,
+        cpfCnpj: novoCliente.cpfCnpj,
+        telefone: novoCliente.telefone || undefined,
+        email: novoCliente.email || undefined,
+        logradouro: novoCliente.logradouro || undefined,
+        numero: novoCliente.numero || undefined,
+        bairro: novoCliente.bairro || undefined,
+        cidade: novoCliente.cidade || undefined,
+        uf: novoCliente.uf || undefined,
+        cep: novoCliente.cep || undefined,
+      })
+      notifications.show({ message: 'Cliente cadastrado e selecionado.', color: 'green' })
+      setClienteId(criado.id)
+      setMostrarNovoCliente(false)
+    } catch (err: any) {
+      notifications.show({
+        message: err?.response?.data?.message || 'Falha ao cadastrar cliente.',
+        color: 'red',
+      })
+    }
+  }
 
   const [clienteId, setClienteId] = useState<string | null>(null)
   const [tipoEmbalagem, setTipoEmbalagem] = useState<string | null>(null)
@@ -141,6 +207,50 @@ export default function NovaSolicitacaoPage() {
               disabled={carregandoClientes}
               required
             />
+            <Button
+              variant="subtle"
+              size="compact-sm"
+              mt="xs"
+              onClick={() => setMostrarNovoCliente((v) => !v)}
+            >
+              {mostrarNovoCliente ? 'Cancelar cadastro' : 'Não achou? Cadastrar cliente novo'}
+            </Button>
+            <Collapse in={mostrarNovoCliente}>
+              <Divider my="sm" label="Novo cliente" labelPosition="left" />
+              <Stack gap="xs">
+                <Group align="flex-end" gap="xs">
+                  <TextInput
+                    label="CNPJ"
+                    placeholder="Somente números"
+                    value={novoCliente.cpfCnpj}
+                    onChange={(e) => setNovoCliente((c) => ({ ...c, cpfCnpj: e.currentTarget.value }))}
+                    style={{ flex: 1 }}
+                  />
+                  <Button variant="light" loading={consultarCnpj.isPending} onClick={buscarCnpj}>
+                    Buscar na Receita
+                  </Button>
+                </Group>
+                <TextInput label="Razão social" value={novoCliente.razaoSocial}
+                  onChange={(e) => setNovoCliente((c) => ({ ...c, razaoSocial: e.currentTarget.value }))} required />
+                <TextInput label="Nome fantasia" value={novoCliente.nomeFantasia}
+                  onChange={(e) => setNovoCliente((c) => ({ ...c, nomeFantasia: e.currentTarget.value }))} />
+                <Group grow>
+                  <TextInput label="Cidade" value={novoCliente.cidade}
+                    onChange={(e) => setNovoCliente((c) => ({ ...c, cidade: e.currentTarget.value }))} />
+                  <TextInput label="UF" maxLength={2} value={novoCliente.uf}
+                    onChange={(e) => setNovoCliente((c) => ({ ...c, uf: e.currentTarget.value.toUpperCase() }))} />
+                </Group>
+                <Group grow>
+                  <TextInput label="Telefone" value={novoCliente.telefone}
+                    onChange={(e) => setNovoCliente((c) => ({ ...c, telefone: e.currentTarget.value }))} />
+                  <TextInput label="E-mail" value={novoCliente.email}
+                    onChange={(e) => setNovoCliente((c) => ({ ...c, email: e.currentTarget.value }))} />
+                </Group>
+                <Button onClick={salvarNovoCliente} loading={criarCliente.isPending}>
+                  Salvar e selecionar cliente
+                </Button>
+              </Stack>
+            </Collapse>
           </Card>
 
           <Card>
