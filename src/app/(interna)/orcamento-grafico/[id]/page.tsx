@@ -5,14 +5,14 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   Title, Stack, Group, Button, Text, Loader, Center, Paper, SimpleGrid,
   Badge, Divider, Progress, Table, Modal, Textarea, Alert, ScrollArea,
-  ActionIcon, Tooltip, Collapse, Checkbox, TextInput, NumberInput,
+  ActionIcon, Tooltip, Collapse, Checkbox, TextInput, NumberInput, Menu, Select,
 } from '@mantine/core'
 import {
   IconArrowLeft, IconEdit, IconCopy, IconSend, IconCheck, IconX,
   IconChartPie, IconAlertCircle, IconFileText, IconPlus, IconTrash,
   IconChevronDown, IconChevronRight, IconStack2, IconFileInvoice,
   IconReportAnalytics, IconRepeat, IconSearch, IconShoppingCartPlus,
-  IconPhoto, IconGridDots,
+  IconPhoto, IconGridDots, IconFileTypePdf, IconMail,
 } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { getAuthToken } from '@/lib/authStorage'
@@ -269,6 +269,14 @@ export default function OrcamentoDetalhePage() {
   const [recusaModalOpen, setRecusaModalOpen] = useState(false)
   const [motivoRecusa, setMotivoRecusa] = useState('')
 
+  // Proposta PDF + templates (B1 task 8)
+  const [templates, setTemplates] = useState<Array<{ id: string; nome: string; isDefault: boolean }>>([])
+  const [templateId, setTemplateId] = useState<string | null>(null)
+  const [emailModalOpen, setEmailModalOpen] = useState(false)
+  const [emailDestino, setEmailDestino] = useState('')
+  const [emailMensagem, setEmailMensagem] = useState('')
+  const [enviandoEmail, setEnviandoEmail] = useState(false)
+
   // Modal de reaproveitar cálculo (repetição — paridade Calcgraf)
   const [reaproveitarOpen, setReaproveitarOpen] = useState(false)
   const [reapClienteNome, setReapClienteNome] = useState('')
@@ -442,6 +450,59 @@ export default function OrcamentoDetalhePage() {
       })
     } finally {
       setReaproveitando(false)
+    }
+  }
+
+  // Carrega os templates de proposta (para o seletor). Default pré-selecionado.
+  useEffect(() => {
+    api.get('/orcamento-grafico/templates-proposta')
+      .then(({ data }) => {
+        const lista = Array.isArray(data) ? data : []
+        setTemplates(lista)
+        const def = lista.find((t: { isDefault: boolean }) => t.isDefault)
+        if (def) setTemplateId(def.id)
+      })
+      .catch(() => setTemplates([]))
+  }, [])
+
+  // Baixa a proposta comercial (PDF) com o template escolhido.
+  const handleBaixarProposta = async () => {
+    setActionLoading(true)
+    try {
+      const { data } = await api.get(`/orcamento-grafico/${id}/proposta-pdf`, {
+        responseType: 'blob',
+        params: templateId ? { templateId } : {},
+      })
+      const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }))
+      window.open(url, '_blank')
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao gerar proposta', color: 'red' })
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  // Envia a proposta por e-mail (template escolhido).
+  const handleEnviarEmailProposta = async () => {
+    if (!emailDestino.trim()) {
+      notifications.show({ message: 'Informe o e-mail de destino.', color: 'red' })
+      return
+    }
+    setEnviandoEmail(true)
+    try {
+      const { data } = await api.post(`/orcamento-grafico/${id}/enviar-email`, {
+        destinatario: emailDestino.trim(),
+        mensagem: emailMensagem.trim() || undefined,
+        templateId: templateId || undefined,
+      })
+      notifications.show({ title: 'Proposta', message: data?.message || 'Proposta enviada.', color: 'green' })
+      setEmailModalOpen(false)
+      setEmailMensagem('')
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao enviar e-mail', color: 'red' })
+    } finally {
+      setEnviandoEmail(false)
     }
   }
 
@@ -726,6 +787,37 @@ export default function OrcamentoDetalhePage() {
           >
             Relatório
           </Button>
+          <Menu shadow="md" position="bottom-end">
+            <Menu.Target>
+              <Button variant="outline" leftSection={<IconFileTypePdf size={16} />} rightSection={<IconChevronDown size={14} />}>
+                Proposta
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              {templates.length > 0 && (
+                <>
+                  <Menu.Label>Template</Menu.Label>
+                  <div style={{ padding: '4px 12px' }}>
+                    <Select
+                      size="xs"
+                      data={templates.map((t) => ({ value: t.id, label: t.nome + (t.isDefault ? ' (padrão)' : '') }))}
+                      value={templateId}
+                      onChange={setTemplateId}
+                      allowDeselect={false}
+                      comboboxProps={{ withinPortal: true }}
+                    />
+                  </div>
+                  <Menu.Divider />
+                </>
+              )}
+              <Menu.Item leftSection={<IconFileTypePdf size={16} />} onClick={handleBaixarProposta}>
+                Baixar PDF
+              </Menu.Item>
+              <Menu.Item leftSection={<IconMail size={16} />} onClick={() => setEmailModalOpen(true)}>
+                Enviar por e-mail
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
           {orcamento.status === 'RASCUNHO' && (
             <Button
               leftSection={<IconSend size={16} />}
@@ -1368,6 +1460,48 @@ export default function OrcamentoDetalhePage() {
             </Button>
             <Button color="red" onClick={handleRecusar} loading={actionLoading}>
               Confirmar Recusa
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Modal de envio de proposta por e-mail (B1 task 8) */}
+      <Modal
+        opened={emailModalOpen}
+        onClose={() => setEmailModalOpen(false)}
+        title="Enviar proposta por e-mail"
+        centered
+      >
+        <Stack gap="md">
+          {templates.length > 0 && (
+            <Select
+              label="Template"
+              data={templates.map((t) => ({ value: t.id, label: t.nome + (t.isDefault ? ' (padrão)' : '') }))}
+              value={templateId}
+              onChange={setTemplateId}
+              allowDeselect={false}
+            />
+          )}
+          <TextInput
+            label="E-mail de destino"
+            placeholder="cliente@empresa.com"
+            type="email"
+            value={emailDestino}
+            onChange={(e) => setEmailDestino(e.currentTarget.value)}
+            required
+          />
+          <Textarea
+            label="Mensagem (opcional)"
+            placeholder="Mensagem que acompanha a proposta..."
+            value={emailMensagem}
+            onChange={(e) => setEmailMensagem(e.currentTarget.value)}
+            autosize
+            minRows={2}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setEmailModalOpen(false)}>Cancelar</Button>
+            <Button leftSection={<IconMail size={16} />} onClick={handleEnviarEmailProposta} loading={enviandoEmail}>
+              Enviar
             </Button>
           </Group>
         </Stack>

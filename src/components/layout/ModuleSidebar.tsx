@@ -478,6 +478,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       { icon: IconListDetails, label: 'Orçamentos', href: '/orcamento-grafico' },
       { icon: IconPlus, label: 'Novo Orçamento', href: '/orcamento-grafico/novo' },
       { icon: IconInbox, label: 'Orçamentos a Converter', href: '/orcamento-grafico/a-converter' },
+      { icon: IconListDetails, label: 'Pipeline (Status)', href: '/orcamento-grafico/pipeline' },
       { icon: IconPhoto, label: 'Amostras / Modelos', href: '/orcamento-grafico/amostras' },
       { icon: IconFileDescription, label: 'Solicitações (Representante)', href: '/portal-representante/solicitacoes-orcamento' },
       {
