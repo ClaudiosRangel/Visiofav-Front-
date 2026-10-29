@@ -10,7 +10,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Title, Stack, Group, Table, Badge, Text, Loader, Center, Button, Paper,
-  TextInput, Tooltip, Popover, SegmentedControl,
+  TextInput, Tooltip, Popover, SegmentedControl, Modal, NumberInput,
 } from '@mantine/core'
 import { IconSearch, IconShoppingCartPlus, IconExternalLink, IconRefresh, IconSettings } from '@tabler/icons-react'
 import { api } from '@/lib/api'
@@ -44,6 +44,9 @@ export default function OrcamentosAConverterPage() {
   const [convertendo, setConvertendo] = useState<string | null>(null)
   const [modoAmostra, setModoAmostra] = useState<ModoAmostra>('QUANDO_MARCADO')
   const [salvandoConfig, setSalvandoConfig] = useState(false)
+  // Conversão com desconto (B7 — gate de margem)
+  const [conversaoAlvo, setConversaoAlvo] = useState<ItemAConverter | null>(null)
+  const [descontoPercent, setDescontoPercent] = useState<number | ''>('')
 
   const carregarConfig = useCallback(async () => {
     try {
@@ -85,21 +88,36 @@ export default function OrcamentosAConverterPage() {
 
   useEffect(() => { carregar() }, [carregar])
 
-  async function converter(orcamentoId: string) {
+  async function converter(orcamentoId: string, desconto?: number) {
     setConvertendo(orcamentoId)
     try {
-      const { data } = await api.post(`/orcamento-grafico/${orcamentoId}/converter`)
+      const { data } = await api.post(
+        `/orcamento-grafico/${orcamentoId}/converter`,
+        desconto && desconto > 0 ? { descontoPercent: desconto } : {},
+      )
       notifications.show({
         title: 'Convertido em pedido',
         message: `Pedido ${data?.numeroPedido ?? ''} gerado com ${data?.itensCriados ?? 0} item(ns).`,
         color: 'green',
       })
+      setConversaoAlvo(null)
+      setDescontoPercent('')
       await carregar()
     } catch (err: any) {
       const code = err?.response?.data?.code
+      if (code === 'MARGEM_PENDENTE') {
+        notifications.show({
+          title: 'Aprovação necessária',
+          message: 'O desconto está acima da alçada. Uma solicitação de aprovação foi aberta para o responsável.',
+          color: 'orange',
+          autoClose: 8000,
+        })
+        setConversaoAlvo(null)
+        setDescontoPercent('')
+        return
+      }
       const msg =
         code === 'AMOSTRA_PENDENTE' ? 'Amostra exigida e ainda não aprovada.'
-        : code === 'MARGEM_PENDENTE' ? 'Desconto acima da alçada — aprovação necessária.'
         : err?.response?.data?.message || 'Falha ao converter'
       notifications.show({ title: 'Não foi possível converter', message: msg, color: 'red' })
     } finally {
@@ -206,7 +224,7 @@ export default function OrcamentosAConverterPage() {
                         size="compact-sm"
                         color="teal"
                         leftSection={<IconShoppingCartPlus size={15} />}
-                        onClick={() => converter(i.orcamentoId)}
+                        onClick={() => { setConversaoAlvo(i); setDescontoPercent('') }}
                         loading={convertendo === i.orcamentoId}
                         disabled={i.amostraPendente}
                       >
@@ -230,6 +248,41 @@ export default function OrcamentosAConverterPage() {
           </Table.Tbody>
         </Table>
       )}
+
+      {/* Modal de conversão com desconto (B7 — gate de margem) */}
+      <Modal
+        opened={!!conversaoAlvo}
+        onClose={() => { setConversaoAlvo(null); setDescontoPercent('') }}
+        title={`Converter orçamento ${conversaoAlvo?.numero ?? ''} em pedido`}
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Cliente: {conversaoAlvo?.cliente || '—'} · Valor: {brl(conversaoAlvo?.valor ?? 0)}
+          </Text>
+          <NumberInput
+            label="Desconto (%)"
+            description="Opcional. Acima da alçada, abre aprovação antes de converter."
+            placeholder="0"
+            min={0}
+            max={100}
+            decimalScale={2}
+            value={descontoPercent}
+            onChange={(v) => setDescontoPercent(v === '' ? '' : Number(v))}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => { setConversaoAlvo(null); setDescontoPercent('') }}>Cancelar</Button>
+            <Button
+              color="teal"
+              leftSection={<IconShoppingCartPlus size={16} />}
+              loading={convertendo === conversaoAlvo?.orcamentoId}
+              onClick={() => conversaoAlvo && converter(conversaoAlvo.orcamentoId, typeof descontoPercent === 'number' ? descontoPercent : undefined)}
+            >
+              Converter
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   )
 }
