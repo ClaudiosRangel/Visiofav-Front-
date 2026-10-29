@@ -14,6 +14,7 @@ import {
 } from '@mantine/core'
 import { IconSearch, IconRefresh, IconExternalLink } from '@tabler/icons-react'
 import { api } from '@/lib/api'
+import NotificacoesComercialBell from '../a-converter/NotificacoesComercialBell'
 
 type EstadoEstagio = 'CONCLUIDO' | 'ATUAL' | 'PENDENTE' | 'BLOQUEADO'
 interface Estagio { chave: string; titulo: string; estado: EstadoEstagio; detalhe?: string }
@@ -86,7 +87,10 @@ export default function PipelineComercialPage() {
           <Title order={3}>Pipeline Comercial</Title>
           <Text size="sm" c="dimmed">Status ponta a ponta: Orçamento → Amostra → Pedido → Produção → Faturamento.</Text>
         </div>
-        <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={carregar}>Atualizar</Button>
+        <Group gap="xs">
+          <NotificacoesComercialBell />
+          <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={carregar}>Atualizar</Button>
+        </Group>
       </Group>
 
       <Paper p="sm" withBorder>
