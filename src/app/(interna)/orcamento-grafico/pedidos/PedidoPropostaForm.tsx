@@ -118,6 +118,9 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
   const [tiposEmb, setTiposEmb] = useState<string[]>([])
   const [suportes, setSuportes] = useState<string[]>([])
 
+  // Ponto 3 — modal de imagem ampliada
+  const [imgAmpliada, setImgAmpliada] = useState<string | null>(null)
+
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => { setForm((f) => ({ ...f, [k]: v })); setDirty(true) }
 
   useEffect(() => {
@@ -583,7 +586,16 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
             style={{ flex: 1 }}
           />
           {produtoSel?.imagemUrl && (
-            <Image src={produtoSel.imagemUrl} alt={produtoSel.nome} w={90} h={90} fit="cover" radius="sm" />
+            <Image
+              src={produtoSel.imagemUrl}
+              alt={produtoSel.nome}
+              w={90}
+              h={90}
+              fit="cover"
+              radius="sm"
+              style={{ cursor: 'zoom-in' }}
+              onClick={() => setImgAmpliada(produtoSel.imagemUrl!)}
+            />
           )}
         </Group>
         {form.produtoId && produtoSel && (
@@ -725,7 +737,8 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
           <SimpleGrid cols={{ base: 2, sm: 5 }}>
             {anexos.map((a) => (
               <div key={a.id} style={{ position: 'relative' }}>
-                <Image src={urlAnexo(a.id)} alt={a.nome} radius="sm" h={120} fit="cover" />
+                <Image src={urlAnexo(a.id)} alt={a.nome} radius="sm" h={120} fit="cover"
+                  style={{ cursor: 'zoom-in' }} onClick={() => setImgAmpliada(urlAnexo(a.id))} />
                 <ActionIcon color="red" variant="filled" size="sm" style={{ position: 'absolute', top: 4, right: 4 }}
                   onClick={() => removerImagem(a.id)}>
                   <IconTrash size={14} />
@@ -771,6 +784,11 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
             <Button loading={salvandoCli} onClick={salvarClienteInline}>Cadastrar e vincular</Button>
           </Group>
         </Stack>
+      </Modal>
+
+      {/* Modal — imagem ampliada (ponto 3) */}
+      <Modal opened={!!imgAmpliada} onClose={() => setImgAmpliada(null)} size="xl" centered withCloseButton title="Imagem">
+        {imgAmpliada && <Image src={imgAmpliada} alt="Imagem ampliada" fit="contain" mah="75vh" />}
       </Modal>
     </Stack>
   )
