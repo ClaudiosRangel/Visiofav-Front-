@@ -90,7 +90,8 @@ const MODULOS_CONFIG = [
     label: 'Comercial',
     description: 'Pedidos e propostas, orçamento gráfico, aprovação e envio ao cliente.',
     icon: IconCalculator,
-    href: '/orcamento-grafico',
+    // Abre direto no Dashboard (visão geral) ao entrar no módulo Comercial.
+    href: '/orcamento-grafico/dashboard',
     color: '#0D9488',
   },
   {

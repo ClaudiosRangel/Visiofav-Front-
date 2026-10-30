@@ -475,14 +475,15 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
   'orcamento-grafico': {
     title: 'Comercial',
     entries: [
-      // ── 1º: PEDIDOS / PROPOSTAS (gestão central do funil, todas as origens) ──
+      // ── 1º: DASHBOARD (visão geral — item inicial do módulo) ──
+      { icon: IconChartBar, label: 'Dashboard', href: '/orcamento-grafico/dashboard' },
+      // ── 2º: PEDIDOS / PROPOSTAS (gestão central do funil, todas as origens) ──
       { icon: IconInbox, label: 'Pedidos / Propostas', href: '/orcamento-grafico/pedidos' },
       { icon: IconListDetails, label: 'Pipeline (Status)', href: '/orcamento-grafico/pipeline' },
       { icon: IconFileDescription, label: 'Solicitações (Representante)', href: '/portal-representante/solicitacoes-orcamento' },
       { icon: IconInbox, label: 'Orçamentos a Converter', href: '/orcamento-grafico/a-converter' },
       { icon: IconPhoto, label: 'Amostras / Modelos', href: '/orcamento-grafico/amostras' },
-      { icon: IconChartBar, label: 'Dashboard', href: '/orcamento-grafico/dashboard' },
-      // ── 2º: ORÇAMENTO / CÁLCULO ──
+      // ── 3º: ORÇAMENTO / CÁLCULO (Novo Orçamento vive só aqui dentro) ──
       {
         label: 'Orçamento', icon: IconCalculator, items: [
           { icon: IconPlus, label: 'Novo Orçamento', href: '/orcamento-grafico/novo' },
