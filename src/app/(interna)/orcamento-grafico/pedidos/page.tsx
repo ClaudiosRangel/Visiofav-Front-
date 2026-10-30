@@ -1,289 +1,199 @@
 'use client'
 
 /**
- * Pedidos / Propostas — gestão central do Comercial (revisão do usuário, ponto 3).
- *
- * É a ENTRADA unificada de TODAS as origens: solicitações de representantes
- * (portal) que viraram orçamento E lançamentos diretos de clientes (e-mail/
- * telefone/outros canais) feitos internamente. Todas convergem para o
- * `OrcamentoGrafico`, então esta tela consome a listagem paginada
- * `GET /orcamento-grafico` e enriquece com:
- *   - estágio no funil (derivado do status: lançamento → proposta → aprovação
- *     do cliente → conversão em pedido);
- *   - ações de gestão: abrir, ENVIAR PROPOSTA ao cliente (PDF/e-mail com o
- *     template e o LOGO da empresa) e encaminhar para conversão em pedido.
- *
- * Só vai para PCP/Faturamento depois de passar por todo o processo (orçar,
- * aprovar cliente, conferir cálculo) — a conversão em pedido é feita na tela
- * "Orçamentos a Converter" (que já tem o gate de margem / amostra).
+ * Pedidos / Propostas — gestão central do Comercial (RFQ).
+ * Spec comercial-pedido-proposta. Consome GET /orcamento-grafico/pedidos-proposta
+ * (entidade PedidoProposta, separada do orçamento). Lista TODAS as origens
+ * (representante/vendedor/interna) e tipos (repetição/mostruário/novo), com o
+ * estágio no funil + ações: abrir/editar, encaminhar ao orçamento, liberar à
+ * produção. "Novo pedido/proposta" abre o FORMULÁRIO RFQ (não o Novo Orçamento).
  */
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Title, Stack, Group, Table, Badge, Text, Loader, Center, Button, Paper,
-  TextInput, Select, Menu, Modal, Textarea, ScrollArea, Pagination, Tooltip,
+  TextInput, Select, Tooltip, Modal, Textarea, ScrollArea,
 } from '@mantine/core'
 import {
-  IconSearch, IconFilter, IconRefresh, IconExternalLink, IconFileText,
-  IconMail, IconDownload, IconShoppingCartPlus,
+  IconSearch, IconFilter, IconRefresh, IconPlus, IconExternalLink,
+  IconArrowRight, IconRocket,
 } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
 
-// ============================================================================
-// Tipos (shape de GET /orcamento-grafico)
-// ============================================================================
-
-interface Proposta {
+interface PedidoProposta {
   id: string
   numero: number
-  versao: number
+  origem: 'REPRESENTANTE' | 'VENDEDOR' | 'INTERNA'
+  tipoPedido: 'REPETICAO' | 'MOSTRUARIO' | 'NOVO'
   clienteNome?: string | null
-  clienteId?: string | null
-  vendedorId?: string | null
-  tipoEmbalagem?: { descricao: string } | null
-  quantidade: number
-  precoVenda?: number | string | null
-  status: string
-  etapaCalculo?: string | null // AGUARDANDO | EM_CALCULO | VALIDAR | VALIDADO | null
-  tipo?: string | null // NOVO | REPETICAO
+  produtoNome?: string | null
+  tipoEmbalagem?: string | null
+  quantidade?: number | null
+  estado: string
+  exigeAmostra: boolean
+  orcamentoGraficoId?: string | null
   criadoEm: string
 }
 
-interface PaginatedResponse {
-  data: Proposta[]
-  total: number
-  page: number
-  limit: number
-  totalPages: number
+const ESTADO_CONFIG: Record<string, { color: string; label: string }> = {
+  NOVO: { color: 'gray', label: 'Novo' },
+  EM_ANALISE: { color: 'blue', label: 'Em análise' },
+  ENVIADO_ORCAMENTO: { color: 'indigo', label: 'Enviado p/ orçamento' },
+  ORCADO: { color: 'cyan', label: 'Orçado' },
+  PROPOSTA_ENVIADA: { color: 'grape', label: 'Proposta enviada' },
+  ACEITO: { color: 'green', label: 'Aceito' },
+  PERDIDO: { color: 'red', label: 'Perdido' },
+  CANCELADO: { color: 'dark', label: 'Cancelado' },
 }
 
-interface TemplateProposta {
-  id: string
-  nome: string
-  isDefault: boolean
+const ORIGEM_CONFIG: Record<string, { color: string; label: string }> = {
+  REPRESENTANTE: { color: 'teal', label: 'Representante' },
+  VENDEDOR: { color: 'blue', label: 'Vendedor' },
+  INTERNA: { color: 'gray', label: 'Venda interna' },
 }
 
-// ============================================================================
-// Estágio no funil (derivado do status do orçamento)
-// ============================================================================
-
-const ESTAGIO_CONFIG: Record<string, { color: string; label: string; etapa: string }> = {
-  RASCUNHO: { color: 'gray', label: 'Rascunho', etapa: 'Em cálculo' },
-  ENVIADO: { color: 'blue', label: 'Enviado', etapa: 'Aguardando cliente' },
-  APROVADO: { color: 'green', label: 'Aprovado', etapa: 'Pronto p/ converter' },
-  CONVERTIDO: { color: 'teal', label: 'Convertido', etapa: 'Em produção/faturamento' },
-  RECUSADO: { color: 'red', label: 'Recusado', etapa: 'Encerrado' },
-  VENCIDO: { color: 'orange', label: 'Vencido', etapa: 'Reabrir/renovar' },
+const TIPO_LABEL: Record<string, string> = {
+  REPETICAO: 'Repetição', MOSTRUARIO: 'Mostruário', NOVO: 'Novo',
 }
 
-// Quando em RASCUNHO, a sub-etapa do cálculo diz onde o orçamento está no funil.
-const ETAPA_CALCULO_CONFIG: Record<string, { color: string; label: string }> = {
-  AGUARDANDO: { color: 'yellow', label: 'A orçar' },
-  EM_CALCULO: { color: 'indigo', label: 'Em cálculo' },
-  VALIDAR: { color: 'orange', label: 'Validar cálculo' },
-  VALIDADO: { color: 'green', label: 'Validado — enviar proposta' },
+function EstadoBadge({ estado }: { estado: string }) {
+  const c = ESTADO_CONFIG[estado] || { color: 'gray', label: estado }
+  return <Badge color={c.color}>{c.label}</Badge>
 }
 
-function EstagioBadge({ status, etapa }: { status: string; etapa?: string | null }) {
-  // Em RASCUNHO, prioriza a sub-etapa do cálculo (mais informativa p/ o funil).
-  if (status === 'RASCUNHO' && etapa && ETAPA_CALCULO_CONFIG[etapa]) {
-    const e = ETAPA_CALCULO_CONFIG[etapa]
-    return <Badge color={e.color} variant="light">{e.label}</Badge>
-  }
-  const cfg = ESTAGIO_CONFIG[status] || { color: 'gray', label: status, etapa: '' }
-  return (
-    <Group gap={6} wrap="nowrap">
-      <Badge color={cfg.color}>{cfg.label}</Badge>
-      {cfg.etapa && <Text size="xs" c="dimmed">{cfg.etapa}</Text>}
-    </Group>
-  )
+function formatDate(d?: string | null): string {
+  if (!d) return '—'
+  return new Date(d).toLocaleDateString('pt-BR')
 }
-
-// ============================================================================
-// Formatadores
-// ============================================================================
-
-function brl(val: number | string | null | undefined): string {
-  if (val == null) return '—'
-  const num = typeof val === 'string' ? parseFloat(val) : val
-  if (isNaN(num)) return '—'
-  return `R$ ${num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
-function formatDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleDateString('pt-BR')
-}
-
-// ============================================================================
-// Página
-// ============================================================================
 
 export default function PedidosPropostasPage() {
   const router = useRouter()
   useEffect(() => { document.title = 'Pedidos / Propostas' }, [])
 
-  const [data, setData] = useState<Proposta[]>([])
+  const [data, setData] = useState<PedidoProposta[]>([])
   const [loading, setLoading] = useState(true)
-  const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [total, setTotal] = useState(0)
-
   const [busca, setBusca] = useState('')
-  const [statusFiltro, setStatusFiltro] = useState<string | null>(null)
+  const [estadoFiltro, setEstadoFiltro] = useState<string | null>(null)
+  const [origemFiltro, setOrigemFiltro] = useState<string | null>(null)
+  const [tipoFiltro, setTipoFiltro] = useState<string | null>(null)
+  const [acaoLoading, setAcaoLoading] = useState<string | null>(null)
 
-  // Templates de proposta (para o envio)
-  const [templates, setTemplates] = useState<TemplateProposta[]>([])
-  const [templateId, setTemplateId] = useState<string | null>(null)
-
-  // Modal de envio de proposta por e-mail
-  const [envioAlvo, setEnvioAlvo] = useState<Proposta | null>(null)
-  const [emailDestino, setEmailDestino] = useState('')
-  const [emailMensagem, setEmailMensagem] = useState('')
-  const [enviandoEmail, setEnviandoEmail] = useState(false)
-  const [baixando, setBaixando] = useState<string | null>(null)
-
-  const LIMIT = 50
-
-  // Carrega templates uma vez (default pré-selecionado)
-  useEffect(() => {
-    api.get('/orcamento-grafico/templates-proposta')
-      .then(({ data }) => {
-        const lista: TemplateProposta[] = Array.isArray(data) ? data : []
-        setTemplates(lista)
-        const def = lista.find((t) => t.isDefault)
-        if (def) setTemplateId(def.id)
-      })
-      .catch(() => setTemplates([]))
-  }, [])
+  // Modal liberar (senha opcional de assinatura)
+  const [liberarAlvo, setLiberarAlvo] = useState<PedidoProposta | null>(null)
+  const [senhaLiberar, setSenhaLiberar] = useState('')
 
   const carregar = useCallback(async () => {
     setLoading(true)
     try {
-      const params: Record<string, any> = { page, limit: LIMIT }
+      const params: Record<string, string> = {}
       if (busca.trim()) params.busca = busca.trim()
-      if (statusFiltro) params.status = statusFiltro
-
-      const res = await api.get('/orcamento-grafico', { params })
-      const result: PaginatedResponse = res.data
-      setData(result.data || [])
-      setTotal(result.total || 0)
-      setTotalPages(result.totalPages || 1)
+      if (estadoFiltro) params.estado = estadoFiltro
+      if (origemFiltro) params.origem = origemFiltro
+      if (tipoFiltro) params.tipoPedido = tipoFiltro
+      const { data } = await api.get('/orcamento-grafico/pedidos-proposta', { params })
+      setData(Array.isArray(data) ? data : [])
     } catch (err: any) {
-      notifications.show({
-        title: 'Erro ao carregar',
-        message: err?.response?.data?.message || 'Falha ao buscar pedidos/propostas',
-        color: 'red',
-      })
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao carregar', color: 'red' })
+      setData([])
     } finally {
       setLoading(false)
     }
-  }, [page, busca, statusFiltro])
+  }, [busca, estadoFiltro, origemFiltro, tipoFiltro])
 
   useEffect(() => { carregar() }, [carregar])
-  useEffect(() => { setPage(1) }, [busca, statusFiltro])
 
-  // ── Baixar proposta (PDF com logo + template escolhido) ──
-  async function baixarProposta(prop: Proposta) {
-    setBaixando(prop.id)
+  async function encaminhar(p: PedidoProposta) {
+    setAcaoLoading(p.id)
     try {
-      const { data } = await api.get(`/orcamento-grafico/${prop.id}/proposta-pdf`, {
-        responseType: 'blob',
-        params: templateId ? { templateId } : {},
-      })
-      const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }))
-      window.open(url, '_blank')
-      setTimeout(() => URL.revokeObjectURL(url), 60000)
+      const { data } = await api.post(`/orcamento-grafico/pedidos-proposta/${p.id}/encaminhar`, {})
+      notifications.show({ title: 'Encaminhado', message: `Orçamento nº ${data?.numero ?? ''} criado.`, color: 'green' })
+      carregar()
     } catch (err: any) {
-      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao gerar proposta', color: 'red' })
+      const code = err?.response?.data?.code
+      const msg =
+        code === 'RFQ_NAO_APTO_ENCAMINHAR' ? 'O pedido precisa estar "Em análise" para encaminhar.'
+        : code === 'TIPO_EMBALAGEM_NAO_RESOLVIDO' ? 'Tipo de embalagem não reconhecido — ajuste o cadastro ou edite o pedido.'
+        : err?.response?.data?.message || 'Falha ao encaminhar'
+      notifications.show({ title: 'Não foi possível encaminhar', message: msg, color: 'red' })
     } finally {
-      setBaixando(null)
+      setAcaoLoading(null)
     }
   }
 
-  // ── Enviar proposta por e-mail ──
-  async function enviarEmail() {
-    if (!envioAlvo) return
-    if (!emailDestino.trim()) {
-      notifications.show({ message: 'Informe o e-mail de destino.', color: 'red' })
-      return
-    }
-    setEnviandoEmail(true)
+  async function liberar() {
+    if (!liberarAlvo) return
+    setAcaoLoading(liberarAlvo.id)
     try {
-      const { data } = await api.post(`/orcamento-grafico/${envioAlvo.id}/enviar-email`, {
-        destinatario: emailDestino.trim(),
-        mensagem: emailMensagem.trim() || undefined,
-        templateId: templateId || undefined,
+      const { data } = await api.post(`/orcamento-grafico/pedidos-proposta/${liberarAlvo.id}/liberar`, {
+        senha: senhaLiberar || undefined,
       })
-      notifications.show({ title: 'Proposta', message: data?.message || 'Proposta enviada ao cliente.', color: 'green' })
-      setEnvioAlvo(null)
-      setEmailDestino('')
-      setEmailMensagem('')
+      notifications.show({ title: 'Liberado para produção', message: `Pedido ${data?.numeroPedido ?? ''} gerado.`, color: 'green' })
+      setLiberarAlvo(null)
+      setSenhaLiberar('')
       carregar()
     } catch (err: any) {
-      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao enviar e-mail', color: 'red' })
+      const code = err?.response?.data?.code
+      if (code === 'FASES_PENDENTES') {
+        const fases = (err?.response?.data?.fasesPendentes || []).map((f: any) => `• ${f.motivo}`).join('\n')
+        notifications.show({ title: 'Fases pendentes', message: fases || 'Há etapas não concluídas.', color: 'orange', autoClose: 9000 })
+        return
+      }
+      const msg =
+        code === 'AMOSTRA_PENDENTE' ? 'Amostra exigida e ainda não aprovada.'
+        : code === 'SEM_PERMISSAO_LIBERACAO' ? 'Seu perfil não pode liberar à produção.'
+        : err?.response?.data?.message || 'Falha ao liberar'
+      notifications.show({ title: 'Não foi possível liberar', message: msg, color: 'red' })
     } finally {
-      setEnviandoEmail(false)
+      setAcaoLoading(null)
     }
   }
 
   return (
     <Stack gap="md">
-      {/* Header */}
       <Group justify="space-between">
         <div>
           <Title order={3}>Pedidos / Propostas</Title>
           <Text size="sm" c="dimmed">
-            Gestão central de todas as origens (representantes e clientes diretos). {total} registro{total !== 1 ? 's' : ''}.
+            Gestão central de todas as origens (representante, vendedor e venda interna). {data.length} registro{data.length !== 1 ? 's' : ''}.
           </Text>
         </div>
         <Group gap="xs">
           <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={carregar}>Atualizar</Button>
-          <Button leftSection={<IconFileText size={16} />} onClick={() => router.push('/orcamento-grafico/novo')}>
+          <Button leftSection={<IconPlus size={16} />} onClick={() => router.push('/orcamento-grafico/pedidos/novo')}>
             Novo pedido / proposta
           </Button>
         </Group>
       </Group>
 
-      {/* Filtros */}
       <Paper p="sm" withBorder>
         <Group gap="sm" align="flex-end" wrap="wrap">
           <TextInput
-            placeholder="Buscar por número ou cliente..."
+            placeholder="Buscar por cliente ou produto..."
             leftSection={<IconSearch size={16} />}
             value={busca}
             onChange={(e) => setBusca(e.currentTarget.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') carregar() }}
             style={{ flex: 1, minWidth: 220 }}
           />
           <Select
-            placeholder="Estágio / status"
-            leftSection={<IconFilter size={16} />}
-            data={[
-              { value: 'RASCUNHO', label: 'Em cálculo (Rascunho)' },
-              { value: 'ENVIADO', label: 'Aguardando cliente (Enviado)' },
-              { value: 'APROVADO', label: 'Aprovado' },
-              { value: 'RECUSADO', label: 'Recusado' },
-              { value: 'VENCIDO', label: 'Vencido' },
-            ]}
-            value={statusFiltro}
-            onChange={setStatusFiltro}
-            clearable
-            w={230}
+            placeholder="Estado" leftSection={<IconFilter size={16} />} clearable w={190}
+            data={Object.entries(ESTADO_CONFIG).map(([value, c]) => ({ value, label: c.label }))}
+            value={estadoFiltro} onChange={setEstadoFiltro}
           />
-          {templates.length > 0 && (
-            <Select
-              placeholder="Template da proposta"
-              data={templates.map((t) => ({ value: t.id, label: t.nome + (t.isDefault ? ' (padrão)' : '') }))}
-              value={templateId}
-              onChange={setTemplateId}
-              w={210}
-            />
-          )}
+          <Select
+            placeholder="Origem" clearable w={160}
+            data={Object.entries(ORIGEM_CONFIG).map(([value, c]) => ({ value, label: c.label }))}
+            value={origemFiltro} onChange={setOrigemFiltro}
+          />
+          <Select
+            placeholder="Tipo" clearable w={150}
+            data={Object.entries(TIPO_LABEL).map(([value, label]) => ({ value, label }))}
+            value={tipoFiltro} onChange={setTipoFiltro}
+          />
         </Group>
       </Paper>
 
-      {/* Tabela */}
       {loading ? (
         <Center py="xl"><Loader /></Center>
       ) : (
@@ -293,75 +203,61 @@ export default function PedidosPropostasPage() {
               <Table.Tr>
                 <Table.Th>Nº</Table.Th>
                 <Table.Th>Cliente</Table.Th>
+                <Table.Th>Produto</Table.Th>
+                <Table.Th>Origem</Table.Th>
                 <Table.Th>Tipo</Table.Th>
-                <Table.Th ta="right">Quantidade</Table.Th>
-                <Table.Th ta="right">Valor</Table.Th>
-                <Table.Th>Estágio</Table.Th>
+                <Table.Th>Estado</Table.Th>
+                <Table.Th>Amostra</Table.Th>
                 <Table.Th>Criado</Table.Th>
                 <Table.Th>Ações</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {data.map((prop) => (
-                <Table.Tr key={prop.id}>
-                  <Table.Td fw={600}>
-                    <Group gap={6} wrap="nowrap">
-                      {prop.numero}
-                      {prop.tipo === 'REPETICAO' && (
-                        <Badge size="xs" color="violet" variant="light">Repetição</Badge>
-                      )}
-                    </Group>
+              {data.map((p) => (
+                <Table.Tr key={p.id}>
+                  <Table.Td fw={600}>{p.numero}</Table.Td>
+                  <Table.Td>{p.clienteNome || '—'}</Table.Td>
+                  <Table.Td>{p.produtoNome || p.tipoEmbalagem || '—'}</Table.Td>
+                  <Table.Td>
+                    <Badge variant="light" color={ORIGEM_CONFIG[p.origem]?.color || 'gray'}>
+                      {ORIGEM_CONFIG[p.origem]?.label || p.origem}
+                    </Badge>
                   </Table.Td>
-                  <Table.Td>{prop.clienteNome || '—'}</Table.Td>
-                  <Table.Td>{prop.tipoEmbalagem?.descricao || '—'}</Table.Td>
-                  <Table.Td ta="right">{prop.quantidade?.toLocaleString('pt-BR') || '—'}</Table.Td>
-                  <Table.Td ta="right">{brl(prop.precoVenda)}</Table.Td>
-                  <Table.Td><EstagioBadge status={prop.status} etapa={prop.etapaCalculo} /></Table.Td>
-                  <Table.Td>{formatDate(prop.criadoEm)}</Table.Td>
+                  <Table.Td>{TIPO_LABEL[p.tipoPedido] || p.tipoPedido}</Table.Td>
+                  <Table.Td><EstadoBadge estado={p.estado} /></Table.Td>
+                  <Table.Td>
+                    {p.exigeAmostra ? <Badge variant="light" color="orange">Exige</Badge> : <Badge variant="light" color="gray">Não</Badge>}
+                  </Table.Td>
+                  <Table.Td>{formatDate(p.criadoEm)}</Table.Td>
                   <Table.Td>
                     <Group gap={6} wrap="nowrap">
-                      <Tooltip label="Abrir">
-                        <Button
-                          size="compact-sm"
-                          variant="subtle"
-                          leftSection={<IconExternalLink size={15} />}
-                          onClick={() => router.push(`/orcamento-grafico/${prop.id}`)}
-                        >
+                      <Tooltip label="Abrir / editar">
+                        <Button size="compact-sm" variant="subtle" leftSection={<IconExternalLink size={15} />}
+                          onClick={() => router.push(`/orcamento-grafico/pedidos/${p.id}`)}>
                           Abrir
                         </Button>
                       </Tooltip>
-                      <Menu shadow="md" position="bottom-end" withArrow>
-                        <Menu.Target>
-                          <Button size="compact-sm" variant="light" leftSection={<IconFileText size={15} />}>
-                            Proposta
+                      {p.estado === 'EM_ANALISE' && (
+                        <Tooltip label="Encaminhar ao orçamento">
+                          <Button size="compact-sm" color="indigo" leftSection={<IconArrowRight size={15} />}
+                            loading={acaoLoading === p.id} onClick={() => encaminhar(p)}>
+                            Encaminhar
                           </Button>
-                        </Menu.Target>
-                        <Menu.Dropdown>
-                          <Menu.Label>Enviar ao cliente</Menu.Label>
-                          <Menu.Item
-                            leftSection={<IconDownload size={15} />}
-                            onClick={() => baixarProposta(prop)}
-                            disabled={baixando === prop.id}
-                          >
-                            Baixar PDF (com logo)
-                          </Menu.Item>
-                          <Menu.Item
-                            leftSection={<IconMail size={15} />}
-                            onClick={() => { setEnvioAlvo(prop); setEmailDestino(''); setEmailMensagem('') }}
-                          >
-                            Enviar por e-mail
-                          </Menu.Item>
-                        </Menu.Dropdown>
-                      </Menu>
-                      {prop.status === 'APROVADO' && (
-                        <Tooltip label="Converter em pedido (gate de margem/amostra)">
-                          <Button
-                            size="compact-sm"
-                            color="teal"
-                            leftSection={<IconShoppingCartPlus size={15} />}
-                            onClick={() => router.push('/orcamento-grafico/a-converter')}
-                          >
-                            Converter
+                        </Tooltip>
+                      )}
+                      {p.estado === 'ACEITO' && (
+                        <Tooltip label="Liberar para produção/faturamento">
+                          <Button size="compact-sm" color="teal" leftSection={<IconRocket size={15} />}
+                            onClick={() => { setLiberarAlvo(p); setSenhaLiberar('') }}>
+                            Liberar
+                          </Button>
+                        </Tooltip>
+                      )}
+                      {p.orcamentoGraficoId && (
+                        <Tooltip label="Abrir orçamento vinculado">
+                          <Button size="compact-sm" variant="subtle" color="gray"
+                            onClick={() => router.push(`/orcamento-grafico/${p.orcamentoGraficoId}`)}>
+                            Orçamento
                           </Button>
                         </Tooltip>
                       )}
@@ -371,7 +267,7 @@ export default function PedidosPropostasPage() {
               ))}
               {data.length === 0 && (
                 <Table.Tr>
-                  <Table.Td colSpan={8}>
+                  <Table.Td colSpan={9}>
                     <Text ta="center" c="dimmed" py="md">Nenhum pedido/proposta encontrado</Text>
                   </Table.Td>
                 </Table.Tr>
@@ -381,50 +277,23 @@ export default function PedidosPropostasPage() {
         </ScrollArea>
       )}
 
-      {/* Paginação */}
-      {totalPages > 1 && (
-        <Group justify="center">
-          <Pagination total={totalPages} value={page} onChange={setPage} />
-        </Group>
-      )}
-
-      {/* Modal — enviar proposta por e-mail */}
-      <Modal
-        opened={!!envioAlvo}
-        onClose={() => setEnvioAlvo(null)}
-        title={`Enviar proposta ${envioAlvo?.numero ?? ''} ao cliente`}
-        centered
-      >
+      <Modal opened={!!liberarAlvo} onClose={() => { setLiberarAlvo(null); setSenhaLiberar('') }}
+        title={`Liberar pedido ${liberarAlvo?.numero ?? ''} para produção`} centered>
         <Stack gap="md">
           <Text size="sm" c="dimmed">
-            Cliente: {envioAlvo?.clienteNome || '—'} · Valor: {brl(envioAlvo?.precoVenda)}
+            Confere orçado + aceite do cliente + cálculo validado{liberarAlvo?.exigeAmostra ? ' + amostra aprovada' : ''}. Se a empresa exigir assinatura, informe sua senha.
           </Text>
-          {templates.length > 0 && (
-            <Select
-              label="Template da proposta"
-              data={templates.map((t) => ({ value: t.id, label: t.nome + (t.isDefault ? ' (padrão)' : '') }))}
-              value={templateId}
-              onChange={setTemplateId}
-            />
-          )}
           <TextInput
-            label="E-mail do destinatário"
-            placeholder="cliente@empresa.com"
-            value={emailDestino}
-            onChange={(e) => setEmailDestino(e.currentTarget.value)}
-            required
-          />
-          <Textarea
-            label="Mensagem (opcional)"
-            placeholder="Segue nossa proposta comercial..."
-            minRows={3}
-            value={emailMensagem}
-            onChange={(e) => setEmailMensagem(e.currentTarget.value)}
+            type="password"
+            label="Senha (se exigida)"
+            placeholder="••••••••"
+            value={senhaLiberar}
+            onChange={(e) => setSenhaLiberar(e.currentTarget.value)}
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setEnvioAlvo(null)}>Cancelar</Button>
-            <Button leftSection={<IconMail size={16} />} loading={enviandoEmail} onClick={enviarEmail}>
-              Enviar
+            <Button variant="default" onClick={() => { setLiberarAlvo(null); setSenhaLiberar('') }}>Cancelar</Button>
+            <Button color="teal" leftSection={<IconRocket size={16} />} loading={acaoLoading === liberarAlvo?.id} onClick={liberar}>
+              Liberar
             </Button>
           </Group>
         </Stack>

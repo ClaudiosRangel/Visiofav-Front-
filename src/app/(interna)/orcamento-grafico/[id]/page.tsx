@@ -278,6 +278,12 @@ export default function OrcamentoDetalhePage() {
   // Fechamento do orçamento (B9 — 4 abas)
   const [fechamentoOpen, setFechamentoOpen] = useState(false)
 
+  // Ver proposta de origem (RFQ) — spec comercial-pedido-proposta
+  const [propostaOpen, setPropostaOpen] = useState(false)
+  const [proposta, setProposta] = useState<any | null>(null)
+  const [propostaLoading, setPropostaLoading] = useState(false)
+  const [propostaBuscada, setPropostaBuscada] = useState(false)
+
   // Proposta PDF + templates (B1 task 8)
   const [templates, setTemplates] = useState<Array<{ id: string; nome: string; isDefault: boolean }>>([])
   const [templateId, setTemplateId] = useState<string | null>(null)
@@ -512,6 +518,22 @@ export default function OrcamentoDetalhePage() {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao enviar e-mail', color: 'red' })
     } finally {
       setEnviandoEmail(false)
+    }
+  }
+
+  // Abre o painel "Ver proposta": carrega a proposta de origem (RFQ) vinculada.
+  const abrirProposta = async () => {
+    setPropostaOpen(true)
+    if (propostaBuscada) return
+    setPropostaLoading(true)
+    try {
+      const { data } = await api.get(`/orcamento-grafico/pedidos-proposta/por-orcamento/${id}`)
+      setProposta(data?.proposta ?? null)
+    } catch {
+      setProposta(null)
+    } finally {
+      setPropostaBuscada(true)
+      setPropostaLoading(false)
     }
   }
 
@@ -795,6 +817,13 @@ export default function OrcamentoDetalhePage() {
             loading={actionLoading}
           >
             Relatório
+          </Button>
+          <Button
+            variant="outline"
+            leftSection={<IconPhoto size={16} />}
+            onClick={abrirProposta}
+          >
+            Ver proposta
           </Button>
           <Button
             variant="outline"
@@ -1540,6 +1569,75 @@ export default function OrcamentoDetalhePage() {
           podeEditar={['RASCUNHO', 'ENVIADO', 'APROVADO'].includes(orcamento.status)}
           onRecalculado={() => { setFechamentoOpen(false); carregar() }}
         />
+      </Modal>
+
+      {/* Modal — Ver proposta de origem (RFQ) — somente leitura + galeria */}
+      <Modal
+        opened={propostaOpen}
+        onClose={() => setPropostaOpen(false)}
+        title="Proposta de origem (setor Pedidos/Propostas)"
+        size="lg"
+        centered
+      >
+        {propostaLoading ? (
+          <Center py="md"><Loader /></Center>
+        ) : !proposta ? (
+          <Text c="dimmed" py="md">Este orçamento não tem um Pedido/Proposta de origem vinculado.</Text>
+        ) : (
+          <Stack gap="sm">
+            <Group gap="xs">
+              <Badge>Nº {proposta.numero}</Badge>
+              <Badge variant="light" color="teal">{proposta.origem}</Badge>
+              <Badge variant="light" color="grape">{proposta.tipoPedido}</Badge>
+              <Badge variant="light" color="blue">{proposta.estado}</Badge>
+            </Group>
+            <SimpleGrid cols={2} spacing="xs">
+              {[
+                ['Cliente', proposta.clienteNome], ['CNPJ', proposta.clienteCpfCnpj],
+                ['Mercado', proposta.mercado], ['UF / Cidade', [proposta.ufOrigem, proposta.cidade].filter(Boolean).join(' / ')],
+                ['Entrega', proposta.tipoEntrega], ['Fracionada (dias)', proposta.entregaFracionadaDias],
+                ['Prazo pagamento', proposta.prazoPagamento], ['Produto', proposta.produtoNome],
+                ['Tipo embalagem', proposta.tipoEmbalagem], ['Quantidade', proposta.quantidade],
+                ['Cartão', proposta.cartao], ['Gramatura', proposta.gramatura],
+                ['Medidas', proposta.medidasTexto], ['Variações de arte', proposta.variacoesArte],
+                ['Exportação', proposta.exportacao], ['Matriz', proposta.matriz],
+                ['Qtd. por volume', proposta.quantidadePorVolume], ['Validade', proposta.dataValidade],
+                ['FSC', proposta.cartaoFsc ? 'Sim' : 'Não'], ['Corte interno', proposta.corteInternoVerso ? 'Sim' : 'Não'],
+                ['Passtime', proposta.passtime ? 'Sim' : 'Não'], ['Acabamento manual', proposta.acabamentoManual ? 'Sim' : 'Não'],
+              ].map(([rotulo, valor]) => (
+                <div key={rotulo as string}>
+                  <Text size="xs" c="dimmed">{rotulo as string}</Text>
+                  <Text size="sm">{valor != null && valor !== '' ? String(valor) : '—'}</Text>
+                </div>
+              ))}
+            </SimpleGrid>
+            {proposta.acabamentos && (
+              <div><Text size="xs" c="dimmed">Acabamentos</Text><Text size="sm">{proposta.acabamentos}</Text></div>
+            )}
+            {proposta.discriminacao && (
+              <div><Text size="xs" c="dimmed">Discriminação</Text><Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{proposta.discriminacao}</Text></div>
+            )}
+            {proposta.observacoes && (
+              <div><Text size="xs" c="dimmed">Observações</Text><Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{proposta.observacoes}</Text></div>
+            )}
+            {Array.isArray(proposta.anexos) && proposta.anexos.length > 0 && (
+              <>
+                <Text size="sm" fw={600} mt="xs">Imagens</Text>
+                <SimpleGrid cols={{ base: 2, sm: 4 }}>
+                  {proposta.anexos.map((a: { id: string; nome: string }) => {
+                    const token = getAuthToken()
+                    const src = `${API_BASE}/orcamento-grafico/pedidos-proposta/${proposta.id}/anexos/${a.id}?token=${token ?? ''}`
+                    return (
+                      <a key={a.id} href={src} target="_blank" rel="noreferrer">
+                        <img src={src} alt={a.nome} style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 6 }} />
+                      </a>
+                    )
+                  })}
+                </SimpleGrid>
+              </>
+            )}
+          </Stack>
+        )}
       </Modal>
 
       {/* Modal de Reaproveitar cálculo (repetição — paridade Calcgraf) */}
