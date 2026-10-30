@@ -1611,8 +1611,18 @@ export default function OrcamentoDetalhePage() {
                 </div>
               ))}
             </SimpleGrid>
+            {Array.isArray(proposta.acabamentosSelecionados) && proposta.acabamentosSelecionados.filter((a: any) => a?.marcado).length > 0 && (
+              <div>
+                <Text size="xs" c="dimmed">Acabamentos marcados</Text>
+                <Stack gap={2}>
+                  {proposta.acabamentosSelecionados.filter((a: any) => a?.marcado).map((a: any, i: number) => (
+                    <Text key={i} size="sm">• {a.nome}{a.detalhe ? ` — ${a.detalhe}` : ''}</Text>
+                  ))}
+                </Stack>
+              </div>
+            )}
             {proposta.acabamentos && (
-              <div><Text size="xs" c="dimmed">Acabamentos</Text><Text size="sm">{proposta.acabamentos}</Text></div>
+              <div><Text size="xs" c="dimmed">Acabamentos (texto)</Text><Text size="sm">{proposta.acabamentos}</Text></div>
             )}
             {proposta.discriminacao && (
               <div><Text size="xs" c="dimmed">Discriminação</Text><Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{proposta.discriminacao}</Text></div>
