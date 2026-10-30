@@ -475,6 +475,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
   'orcamento-grafico': {
     title: 'Comercial',
     entries: [
+      { icon: IconChartBar, label: 'Dashboard', href: '/orcamento-grafico/dashboard' },
       { icon: IconListDetails, label: 'Orçamentos', href: '/orcamento-grafico' },
       { icon: IconPlus, label: 'Novo Orçamento', href: '/orcamento-grafico/novo' },
       { icon: IconInbox, label: 'Orçamentos a Converter', href: '/orcamento-grafico/a-converter' },
@@ -499,6 +500,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconCalendarEvent, label: 'Tabelas de Custo', href: '/orcamento-grafico/cadastros/tabelas-custo' },
           { icon: IconReceipt, label: 'Tributação', href: '/orcamento-grafico/cadastros/tributacao' },
           { icon: IconFileDescription, label: 'Templates de Proposta', href: '/orcamento-grafico/cadastros/templates-proposta' },
+          { icon: IconUpload, label: 'Importar Preços (CSV)', href: '/orcamento-grafico/importar' },
         ],
       },
     ],

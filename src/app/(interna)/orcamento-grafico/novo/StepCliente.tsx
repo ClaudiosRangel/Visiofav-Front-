@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Stack, Autocomplete, Text, Group, Badge, Loader } from '@mantine/core'
-import { IconUser, IconSearch } from '@tabler/icons-react'
+import { Stack, Autocomplete, Text, Group, Badge, Loader, Button, Collapse, Divider, TextInput, SimpleGrid } from '@mantine/core'
+import { IconUser, IconSearch, IconUserPlus } from '@tabler/icons-react'
+import { notifications } from '@mantine/notifications'
 import { api } from '@/lib/api'
 import { useDebouncedValue } from '@mantine/hooks'
 import type { WizardFormData } from './page'
@@ -87,6 +88,82 @@ export default function StepCliente({ formData, updateForm, mostrarRepeticaoProd
       .catch(() => setProdutos([]))
   }, [debouncedProduto])
 
+  // ─── Cadastro de cliente novo com consulta de CNPJ (fluxo interno) ──────────
+  const [mostrarNovo, setMostrarNovo] = useState(false)
+  const [buscandoCnpj, setBuscandoCnpj] = useState(false)
+  const [salvandoCliente, setSalvandoCliente] = useState(false)
+  const [novo, setNovo] = useState({
+    cpfCnpj: '', razaoSocial: '', nomeFantasia: '', telefone: '', email: '',
+    cidade: '', uf: '', logradouro: '', numero: '', bairro: '', cep: '',
+  })
+  const setN = (k: keyof typeof novo, v: string) => setNovo((s) => ({ ...s, [k]: v }))
+
+  async function buscarCnpjNovo() {
+    const dig = novo.cpfCnpj.replace(/\D/g, '')
+    if (dig.length !== 14) {
+      notifications.show({ message: 'Informe um CNPJ com 14 dígitos.', color: 'red' })
+      return
+    }
+    setBuscandoCnpj(true)
+    try {
+      const { data } = await api.get(`/orcamento-grafico/consulta-cnpj/${dig}`)
+      setNovo((s) => ({
+        ...s,
+        cpfCnpj: data.cpfCnpj || s.cpfCnpj,
+        razaoSocial: data.razaoSocial || '',
+        nomeFantasia: data.nomeFantasia || '',
+        telefone: data.telefone || '',
+        email: data.email || '',
+        cidade: data.cidade || '',
+        uf: data.uf || '',
+        logradouro: data.logradouro || '',
+        numero: data.numero || '',
+        bairro: data.bairro || '',
+        cep: data.cep || '',
+      }))
+      notifications.show({ message: 'Dados do CNPJ preenchidos. Confira e salve.', color: 'green' })
+    } catch (err: any) {
+      notifications.show({ message: err?.response?.data?.message || 'Não foi possível consultar o CNPJ.', color: 'orange' })
+    } finally {
+      setBuscandoCnpj(false)
+    }
+  }
+
+  async function salvarClienteNovo() {
+    if (!novo.razaoSocial.trim() || novo.cpfCnpj.replace(/\D/g, '').length < 11) {
+      notifications.show({ message: 'Informe ao menos CNPJ/CPF e razão social.', color: 'red' })
+      return
+    }
+    setSalvandoCliente(true)
+    try {
+      const { data } = await api.post('/clientes', {
+        razaoSocial: novo.razaoSocial,
+        nomeFantasia: novo.nomeFantasia || undefined,
+        cpfCnpj: novo.cpfCnpj,
+        telefone: novo.telefone || undefined,
+        email: novo.email || undefined,
+        logradouro: novo.logradouro || undefined,
+        numero: novo.numero || undefined,
+        bairro: novo.bairro || undefined,
+        cidade: novo.cidade || undefined,
+        uf: novo.uf || undefined,
+        cep: novo.cep || undefined,
+      })
+      const criado = data?.data ?? data
+      const nomeLabel = novo.nomeFantasia && novo.nomeFantasia.toLowerCase() !== novo.razaoSocial.toLowerCase()
+        ? `${novo.razaoSocial} (${novo.nomeFantasia})`
+        : novo.razaoSocial
+      updateForm({ clienteId: criado.id, clienteNome: nomeLabel })
+      setBusca(nomeLabel)
+      setMostrarNovo(false)
+      notifications.show({ message: 'Cliente cadastrado e selecionado.', color: 'green' })
+    } catch (err: any) {
+      notifications.show({ message: err?.response?.data?.message || 'Falha ao cadastrar cliente.', color: 'red' })
+    } finally {
+      setSalvandoCliente(false)
+    }
+  }
+
   const handleClienteSelect = useCallback((value: string) => {
     setBusca(value)
     const selected = clientes.find(c => c.label === value)
@@ -125,6 +202,42 @@ export default function StepCliente({ formData, updateForm, mostrarRepeticaoProd
         rightSection={loading ? <Loader size="xs" /> : undefined}
         limit={20}
       />
+
+      <Button
+        variant="subtle"
+        size="compact-sm"
+        leftSection={<IconUserPlus size={14} />}
+        onClick={() => setMostrarNovo((v) => !v)}
+        style={{ alignSelf: 'flex-start' }}
+      >
+        {mostrarNovo ? 'Cancelar cadastro' : 'Não achou? Cadastrar cliente novo'}
+      </Button>
+      <Collapse in={mostrarNovo}>
+        <Divider my="xs" label="Novo cliente" labelPosition="left" />
+        <Stack gap="xs">
+          <Group align="flex-end" gap="xs">
+            <TextInput
+              label="CNPJ"
+              placeholder="Somente números"
+              value={novo.cpfCnpj}
+              onChange={(e) => setN('cpfCnpj', e.currentTarget.value)}
+              style={{ flex: 1 }}
+            />
+            <Button variant="light" loading={buscandoCnpj} onClick={buscarCnpjNovo}>Buscar na Receita</Button>
+          </Group>
+          <TextInput label="Razão social" value={novo.razaoSocial} onChange={(e) => setN('razaoSocial', e.currentTarget.value)} required />
+          <TextInput label="Nome fantasia" value={novo.nomeFantasia} onChange={(e) => setN('nomeFantasia', e.currentTarget.value)} />
+          <SimpleGrid cols={2}>
+            <TextInput label="Cidade" value={novo.cidade} onChange={(e) => setN('cidade', e.currentTarget.value)} />
+            <TextInput label="UF" maxLength={2} value={novo.uf} onChange={(e) => setN('uf', e.currentTarget.value.toUpperCase())} />
+          </SimpleGrid>
+          <SimpleGrid cols={2}>
+            <TextInput label="Telefone" value={novo.telefone} onChange={(e) => setN('telefone', e.currentTarget.value)} />
+            <TextInput label="E-mail" value={novo.email} onChange={(e) => setN('email', e.currentTarget.value)} />
+          </SimpleGrid>
+          <Button onClick={salvarClienteNovo} loading={salvandoCliente}>Salvar e selecionar cliente</Button>
+        </Stack>
+      </Collapse>
 
       {formData.clienteId && (
         <Group gap="xs">
