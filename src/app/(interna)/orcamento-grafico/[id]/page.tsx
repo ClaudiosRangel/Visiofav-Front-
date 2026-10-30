@@ -1532,10 +1532,13 @@ export default function OrcamentoDetalhePage() {
         centered
       >
         <FechamentoOrcamento
+          orcamentoId={id}
           resultado={orcamento.resultadoCalculo}
           quantidade={orcamento.quantidade}
           precoVendaConsolidado={orcamento.valorTotalConsolidado != null ? Number(orcamento.valorTotalConsolidado) : null}
           custoProducaoConsolidado={orcamento.custoProducaoConsolidado != null ? Number(orcamento.custoProducaoConsolidado) : null}
+          podeEditar={['RASCUNHO', 'ENVIADO', 'APROVADO'].includes(orcamento.status)}
+          onRecalculado={() => { setFechamentoOpen(false); carregar() }}
         />
       </Modal>
 

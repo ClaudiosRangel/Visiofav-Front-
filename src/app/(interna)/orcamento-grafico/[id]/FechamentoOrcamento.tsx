@@ -11,8 +11,11 @@
  *  - Custos Diretos de Venda: ICMS / PIS-COFINS / Comissões / Juros (CEV)
  *  - Diversos: margem de lucro, custo total, totais
  */
-import { Tabs, Table, Text, Group, Stack, Badge, Paper } from '@mantine/core'
-import { IconCurrencyReal, IconReceipt2, IconReceiptTax, IconDotsCircleHorizontal } from '@tabler/icons-react'
+import { useState } from 'react'
+import { Tabs, Table, Text, Group, Stack, Badge, Paper, NumberInput, Button, SimpleGrid, Divider } from '@mantine/core'
+import { IconCurrencyReal, IconReceipt2, IconReceiptTax, IconDotsCircleHorizontal, IconDeviceFloppy } from '@tabler/icons-react'
+import { api } from '@/lib/api'
+import { notifications } from '@mantine/notifications'
 
 interface Cev { icms?: number; juros?: number; pisCofins?: number; comissoes?: number }
 interface MargemCfg { impostos?: number; comissao?: number; despAdm?: number; markup?: number }
@@ -36,11 +39,16 @@ interface Resultado {
 }
 
 interface Props {
+  orcamentoId: string
   resultado: Resultado | null | undefined
   quantidade: number
   // Fallbacks do cabeçalho (multi-item usa consolidado)
   precoVendaConsolidado?: number | null
   custoProducaoConsolidado?: number | null
+  // Permite editar o fechamento (margem/desconto). Default false (só leitura).
+  podeEditar?: boolean
+  // Chamado após salvar/recalcular (para a tela recarregar o orçamento).
+  onRecalculado?: () => void
 }
 
 function brl(n?: number | null) {
@@ -56,11 +64,43 @@ function num(n?: number | null) {
   return Number(n).toLocaleString('pt-BR')
 }
 
-export default function FechamentoOrcamento({ resultado, quantidade, precoVendaConsolidado, custoProducaoConsolidado }: Props) {
+export default function FechamentoOrcamento({ orcamentoId, resultado, quantidade, precoVendaConsolidado, custoProducaoConsolidado, podeEditar = false, onRecalculado }: Props) {
   const r = resultado || {}
   const precoVenda = r.precoVenda ?? precoVendaConsolidado ?? null
   const precoUnitario = r.precoUnitario ?? (precoVenda != null && quantidade > 0 ? precoVenda / quantidade : null)
   const custoProducao = r.custoProducao ?? custoProducaoConsolidado ?? null
+
+  // ── Edição do fechamento (Fase 2): margem/desconto → reaplica preço ──
+  const mBase = r.margem || {}
+  const [markup, setMarkup] = useState<number | ''>(mBase.markup ?? r.margemReal ?? 30)
+  const [comissao, setComissao] = useState<number | ''>(mBase.comissao ?? 5)
+  const [impostos, setImpostos] = useState<number | ''>(mBase.impostos ?? 15)
+  const [despAdm, setDespAdm] = useState<number | ''>(mBase.despAdm ?? 5)
+  const [desconto, setDesconto] = useState<number | ''>('')
+  const [salvando, setSalvando] = useState(false)
+
+  async function salvarFechamento() {
+    setSalvando(true)
+    try {
+      const { data } = await api.put(`/orcamento-grafico/${orcamentoId}/fechamento`, {
+        markup: typeof markup === 'number' ? markup : undefined,
+        comissao: typeof comissao === 'number' ? comissao : undefined,
+        impostos: typeof impostos === 'number' ? impostos : undefined,
+        despAdm: typeof despAdm === 'number' ? despAdm : undefined,
+        descontoPercent: typeof desconto === 'number' && desconto > 0 ? desconto : undefined,
+      })
+      notifications.show({
+        title: 'Fechamento recalculado',
+        message: `Novo valor: ${brl(data?.precoVenda)}`,
+        color: 'green',
+      })
+      onRecalculado?.()
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao recalcular', color: 'red' })
+    } finally {
+      setSalvando(false)
+    }
+  }
 
   // CEV detalhado: linha por componente (alíquota × base = valor). Base = preço.
   const base = precoVenda ?? 0
@@ -93,6 +133,27 @@ export default function FechamentoOrcamento({ resultado, quantidade, precoVendaC
             <Table.Tr><Table.Td>Contribuição Marginal (R$)</Table.Td><Table.Td ta="right">{brl(r.contribuicaoMarginalValor)}</Table.Td></Table.Tr>
           </Table.Tbody>
         </Table>
+
+        {podeEditar && (
+          <>
+            <Divider my="md" label="Editar e recalcular (só este orçamento)" labelPosition="left" />
+            <Text size="xs" c="dimmed" mb="xs">
+              A edição reaplica a fórmula de preço sobre o custo já calculado — não altera a engenharia (MD/CT/SE).
+            </Text>
+            <SimpleGrid cols={{ base: 2, sm: 3 }} spacing="xs">
+              <NumberInput label="Margem/Markup (%)" min={0} max={99} decimalScale={2} value={markup} onChange={(v) => setMarkup(v === '' ? '' : Number(v))} />
+              <NumberInput label="Comissão (%)" min={0} max={99} decimalScale={2} value={comissao} onChange={(v) => setComissao(v === '' ? '' : Number(v))} />
+              <NumberInput label="Impostos (%)" min={0} max={99} decimalScale={2} value={impostos} onChange={(v) => setImpostos(v === '' ? '' : Number(v))} />
+              <NumberInput label="Desp. Adm (%)" min={0} max={99} decimalScale={2} value={despAdm} onChange={(v) => setDespAdm(v === '' ? '' : Number(v))} />
+              <NumberInput label="Desconto (%)" min={0} max={99} decimalScale={2} value={desconto} onChange={(v) => setDesconto(v === '' ? '' : Number(v))} />
+            </SimpleGrid>
+            <Group justify="flex-end" mt="sm">
+              <Button leftSection={<IconDeviceFloppy size={16} />} onClick={salvarFechamento} loading={salvando}>
+                Salvar e recalcular
+              </Button>
+            </Group>
+          </>
+        )}
       </Tabs.Panel>
 
       {/* ── Taxas de Produção ── */}
@@ -173,14 +234,13 @@ export default function FechamentoOrcamento({ resultado, quantidade, precoVendaC
             <Table.Tr><Table.Td fw={600}>Valor de Venda</Table.Td><Table.Td ta="right" fw={700} c="green">{brl(precoVenda)}</Table.Td></Table.Tr>
           </Table.Tbody>
         </Table>
-        <Paper mt="sm" p="xs" withBorder bg="var(--mantine-color-default)">
-          <Group gap="xs">
-            <Badge variant="light" color="gray">Somente leitura</Badge>
+        {podeEditar && (
+          <Paper mt="sm" p="xs" withBorder bg="var(--mantine-color-default)">
             <Text size="xs" c="dimmed">
-              A edição das taxas com recálculo do preço (Fase 2) será liberada em seguida.
+              Para ajustar margem/comissões/impostos/desconto e recalcular o preço, use a aba <b>Preço de Venda</b>.
             </Text>
-          </Group>
-        </Paper>
+          </Paper>
+        )}
       </Tabs.Panel>
     </Tabs>
   )
