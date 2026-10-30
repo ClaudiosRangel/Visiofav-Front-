@@ -475,19 +475,22 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
   'orcamento-grafico': {
     title: 'Comercial',
     entries: [
-      { icon: IconChartBar, label: 'Dashboard', href: '/orcamento-grafico/dashboard' },
-      { icon: IconListDetails, label: 'Orçamentos', href: '/orcamento-grafico' },
-      { icon: IconPlus, label: 'Novo Orçamento', href: '/orcamento-grafico/novo' },
-      { icon: IconInbox, label: 'Orçamentos a Converter', href: '/orcamento-grafico/a-converter' },
+      // ── 1º: PEDIDOS / PROPOSTAS (gestão central do funil, todas as origens) ──
+      { icon: IconInbox, label: 'Pedidos / Propostas', href: '/orcamento-grafico/pedidos' },
       { icon: IconListDetails, label: 'Pipeline (Status)', href: '/orcamento-grafico/pipeline' },
-      { icon: IconPhoto, label: 'Amostras / Modelos', href: '/orcamento-grafico/amostras' },
       { icon: IconFileDescription, label: 'Solicitações (Representante)', href: '/portal-representante/solicitacoes-orcamento' },
-      { icon: IconLock, label: 'Permissões', href: '/orcamento-grafico/permissoes' },
+      { icon: IconInbox, label: 'Orçamentos a Converter', href: '/orcamento-grafico/a-converter' },
+      { icon: IconPhoto, label: 'Amostras / Modelos', href: '/orcamento-grafico/amostras' },
+      { icon: IconChartBar, label: 'Dashboard', href: '/orcamento-grafico/dashboard' },
+      // ── 2º: ORÇAMENTO / CÁLCULO ──
       {
-        label: 'Engenharia', icon: IconBook2, items: [
+        label: 'Orçamento', icon: IconCalculator, items: [
+          { icon: IconPlus, label: 'Novo Orçamento', href: '/orcamento-grafico/novo' },
+          { icon: IconListDetails, label: 'Orçamentos', href: '/orcamento-grafico' },
           { icon: IconBook2, label: 'Biblioteca de Cálculos', href: '/orcamento-grafico/biblioteca-calculos' },
         ],
       },
+      { icon: IconLock, label: 'Permissões', href: '/orcamento-grafico/permissoes' },
       {
         label: 'Cadastros', icon: IconDatabase, items: [
           { icon: IconPackage, label: 'Tipos de Embalagem', href: '/orcamento-grafico/cadastros/tipos-embalagem' },

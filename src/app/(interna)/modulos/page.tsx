@@ -87,8 +87,8 @@ const MODULOS_CONFIG = [
   },
   {
     modulo: 'ORCAMENTO_GRAFICO',
-    label: 'Orçamento Gráfico',
-    description: 'Orçamentos gráficos, custos de produção e precificação.',
+    label: 'Comercial',
+    description: 'Pedidos e propostas, orçamento gráfico, aprovação e envio ao cliente.',
     icon: IconCalculator,
     href: '/orcamento-grafico',
     color: '#0D9488',
