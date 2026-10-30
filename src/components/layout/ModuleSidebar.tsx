@@ -22,7 +22,7 @@ import {
   // PCP
   IconAssembly, IconListDetails, IconCalendarEvent, IconRoute, IconSitemap, IconTool, IconClock, IconPalette, IconLink, IconCategory, IconGauge,
   // Orçamento Gráfico / Comercial
-  IconPlus, IconScissors, IconInbox, IconPhoto,
+  IconScissors, IconInbox, IconPhoto,
   // Hierarquia Mercadológica Fase 2
   IconWand,
   // Configurador
@@ -480,13 +480,10 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       // ── 2º: PEDIDOS / PROPOSTAS (gestão central do funil, todas as origens) ──
       { icon: IconInbox, label: 'Pedidos / Propostas', href: '/orcamento-grafico/pedidos' },
       { icon: IconListDetails, label: 'Pipeline (Status)', href: '/orcamento-grafico/pipeline' },
-      { icon: IconFileDescription, label: 'Solicitações (Representante)', href: '/portal-representante/solicitacoes-orcamento' },
-      { icon: IconInbox, label: 'Orçamentos a Converter', href: '/orcamento-grafico/a-converter' },
       { icon: IconPhoto, label: 'Amostras / Modelos', href: '/orcamento-grafico/amostras' },
-      // ── 3º: ORÇAMENTO / CÁLCULO (Novo Orçamento vive só aqui dentro) ──
+      // ── 3º: ORÇAMENTO / CÁLCULO (o cálculo é iniciado via "Encaminhar" em Pedidos/Propostas) ──
       {
         label: 'Orçamento', icon: IconCalculator, items: [
-          { icon: IconPlus, label: 'Novo Orçamento', href: '/orcamento-grafico/novo' },
           { icon: IconListDetails, label: 'Orçamentos', href: '/orcamento-grafico' },
           { icon: IconBook2, label: 'Biblioteca de Cálculos', href: '/orcamento-grafico/biblioteca-calculos' },
         ],
