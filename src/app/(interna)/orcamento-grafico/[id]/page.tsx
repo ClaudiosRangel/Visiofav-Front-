@@ -25,6 +25,7 @@ import PlanosDoItem, { type PlanoCalculo } from './PlanosDoItem'
 import AmostrasModal from './AmostrasModal'
 import EncaixeArquivoModal from './EncaixeArquivoModal'
 import EditarCabecalhoModal from './EditarCabecalhoModal'
+import FechamentoOrcamento from './FechamentoOrcamento'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
 import {
@@ -75,6 +76,11 @@ interface ResultadoCalculo {
   cevValor?: number
   contribuicaoMarginalValor?: number
   contribuicaoMarginalPerc?: number
+  // Decomposição do CEV e da margem (Fechamento — B9 Fase 1)
+  cev?: { icms?: number; juros?: number; pisCofins?: number; comissoes?: number }
+  margem?: { impostos?: number; comissao?: number; despAdm?: number; markup?: number }
+  creditosFiscais?: number
+  encargoFinanceiroPerc?: number
 }
 
 // Item de orçamento (multi-item). Reflete o GET /:id → itens[].
@@ -268,6 +274,9 @@ export default function OrcamentoDetalhePage() {
   // Modal de recusa
   const [recusaModalOpen, setRecusaModalOpen] = useState(false)
   const [motivoRecusa, setMotivoRecusa] = useState('')
+
+  // Fechamento do orçamento (B9 — 4 abas)
+  const [fechamentoOpen, setFechamentoOpen] = useState(false)
 
   // Proposta PDF + templates (B1 task 8)
   const [templates, setTemplates] = useState<Array<{ id: string; nome: string; isDefault: boolean }>>([])
@@ -786,6 +795,13 @@ export default function OrcamentoDetalhePage() {
             loading={actionLoading}
           >
             Relatório
+          </Button>
+          <Button
+            variant="outline"
+            leftSection={<IconReportAnalytics size={16} />}
+            onClick={() => setFechamentoOpen(true)}
+          >
+            Fechamento
           </Button>
           <Menu shadow="md" position="bottom-end">
             <Menu.Target>
@@ -1505,6 +1521,22 @@ export default function OrcamentoDetalhePage() {
             </Button>
           </Group>
         </Stack>
+      </Modal>
+
+      {/* Modal de Fechamento do orçamento (B9 — 4 abas, Fase 1 leitura) */}
+      <Modal
+        opened={fechamentoOpen}
+        onClose={() => setFechamentoOpen(false)}
+        title={`Fechamento do Orçamento ${orcamento.numero}`}
+        size="lg"
+        centered
+      >
+        <FechamentoOrcamento
+          resultado={orcamento.resultadoCalculo}
+          quantidade={orcamento.quantidade}
+          precoVendaConsolidado={orcamento.valorTotalConsolidado != null ? Number(orcamento.valorTotalConsolidado) : null}
+          custoProducaoConsolidado={orcamento.custoProducaoConsolidado != null ? Number(orcamento.custoProducaoConsolidado) : null}
+        />
       </Modal>
 
       {/* Modal de Reaproveitar cálculo (repetição — paridade Calcgraf) */}
