@@ -482,6 +482,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       { icon: IconListDetails, label: 'Pipeline (Status)', href: '/orcamento-grafico/pipeline' },
       { icon: IconPhoto, label: 'Amostras / Modelos', href: '/orcamento-grafico/amostras' },
       { icon: IconFileDescription, label: 'Solicitações (Representante)', href: '/portal-representante/solicitacoes-orcamento' },
+      { icon: IconLock, label: 'Permissões', href: '/orcamento-grafico/permissoes' },
       {
         label: 'Engenharia', icon: IconBook2, items: [
           { icon: IconBook2, label: 'Biblioteca de Cálculos', href: '/orcamento-grafico/biblioteca-calculos' },
