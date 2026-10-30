@@ -17,6 +17,21 @@ import { api } from '@/lib/api'
 import { getAuthToken } from '@/lib/authStorage'
 import { notifications } from '@mantine/notifications'
 import { ativarGuardaNavegacao, desativarGuardaNavegacao } from '@/lib/navigationGuardStore'
+import {
+  SUG_MERCADO, SUG_TIPO_EMBALAGEM, SUG_CARTAO, SUG_GRAMATURA, SUG_ACABAMENTOS,
+  SUG_PRAZO, SUG_CORES,
+} from './sugestoes-rfq'
+
+/** Une as opções do cadastro com as sugestões da planilha, sem duplicar. */
+function unir(cadastro: string[], sugestoes: string[]): string[] {
+  const vistos = new Set<string>()
+  const out: string[] = []
+  for (const v of [...cadastro, ...sugestoes]) {
+    const k = v.trim().toLowerCase()
+    if (v.trim() && !vistos.has(k)) { vistos.add(k); out.push(v.trim()) }
+  }
+  return out
+}
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
 
@@ -528,7 +543,7 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
           </Group>
           <TextInput label="Razão social / Nome" value={form.clienteNome} onChange={(e) => set('clienteNome', e.currentTarget.value)} />
           <Switch label="Já é cliente" checked={form.jaCliente} onChange={(e) => set('jaCliente', e.currentTarget.checked)} />
-          <TextInput label="Mercado (obrigatório)" required value={form.mercado} onChange={(e) => set('mercado', e.currentTarget.value)} />
+          <Autocomplete label="Mercado (obrigatório)" data={SUG_MERCADO} value={form.mercado} onChange={(v) => set('mercado', v)} comboboxProps={{ withinPortal: true }} />
           <TextInput label="UF de origem" maxLength={2} value={form.ufOrigem} onChange={(e) => set('ufOrigem', e.currentTarget.value.toUpperCase())} />
           <TextInput label="Cidade" value={form.cidade} onChange={(e) => set('cidade', e.currentTarget.value)} />
         </SimpleGrid>
@@ -566,7 +581,7 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
               </ActionIcon>
             </Group>
           </div>
-          <TextInput label="Prazo (texto livre)" description="Use quando não estiver no cadastro" value={form.prazoPagamento} onChange={(e) => set('prazoPagamento', e.currentTarget.value)} />
+          <Autocomplete label="Prazo (texto livre)" description="Use quando não estiver no cadastro" data={SUG_PRAZO} value={form.prazoPagamento} onChange={(v) => set('prazoPagamento', v)} comboboxProps={{ withinPortal: true }} />
         </SimpleGrid>
       </Paper>
 
@@ -609,7 +624,7 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
           <Autocomplete
             label="Tipo de embalagem"
             placeholder="Cartucho / Caixa / Sacola..."
-            data={tiposEmb}
+            data={unir(tiposEmb, SUG_TIPO_EMBALAGEM)}
             value={form.tipoEmbalagem}
             onChange={(v) => set('tipoEmbalagem', v)}
             comboboxProps={{ withinPortal: true }}
@@ -624,14 +639,14 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
           <Autocomplete
             label="Cartão"
             placeholder="Duplex / Triplex / Kraft..."
-            data={suportes}
+            data={unir(suportes, SUG_CARTAO)}
             value={form.cartao}
             onChange={(v) => set('cartao', v)}
             comboboxProps={{ withinPortal: true }}
           />
-          <TextInput label="Gramatura" value={form.gramatura} onChange={(e) => set('gramatura', e.currentTarget.value)} />
+          <Autocomplete label="Gramatura" placeholder="300, 276, 190+230..." data={SUG_GRAMATURA} value={form.gramatura} onChange={(v) => set('gramatura', v)} comboboxProps={{ withinPortal: true }} />
           <TextInput label="Medidas (C x L x A mm)" value={form.medidasTexto} onChange={(e) => set('medidasTexto', e.currentTarget.value)} />
-          <TextInput label="Variações de arte" value={form.variacoesArte} onChange={(e) => set('variacoesArte', e.currentTarget.value)} />
+          <Autocomplete label="Variações de arte / cores" placeholder="4x0, 5x0, 2x0..." data={SUG_CORES} value={form.variacoesArte} onChange={(v) => set('variacoesArte', v)} comboboxProps={{ withinPortal: true }} />
           <Select label="Exportação" clearable data={[
             { value: 'COMUM', label: 'Comum' }, { value: 'EXPORTACAO', label: 'Exportação' },
           ]} value={form.exportacao || null} onChange={(v) => set('exportacao', (v as FormState['exportacao']) || '')} />
@@ -649,15 +664,23 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
         <div style={{ marginTop: 12 }}>
           <Text size="sm" fw={600} mb={4}>Acabamentos (marque e detalhe)</Text>
           <Stack gap={6}>
-            {acabamentosCad.map((a) => {
+            {/* Lista combinada: cadastro (AcabamentoGrafico) + sugestões da planilha. */}
+            {(() => {
+              const nomesCad = acabamentosCad.map((a) => ({ id: a.id, nome: a.nome }))
+              const nomesSug = SUG_ACABAMENTOS
+                .filter((n) => !acabamentosCad.some((a) => a.nome.trim().toLowerCase() === n.trim().toLowerCase()))
+                .map((n) => ({ id: `sug-${n}`, nome: n }))
+              return [...nomesCad, ...nomesSug]
+            })().map((a) => {
                 const est = estadoAcabamento(a.nome)
                 const marcado = !!est?.marcado
+                const idReal = a.id.startsWith('sug-') ? null : a.id
                 return (
                   <Group key={a.id} gap="xs" wrap="nowrap" align="center">
                     <Checkbox
                       label={a.nome}
                       checked={marcado}
-                      onChange={(e) => toggleAcabamento(a.nome, a.id, e.currentTarget.checked)}
+                      onChange={(e) => toggleAcabamento(a.nome, idReal, e.currentTarget.checked)}
                       style={{ minWidth: 220 }}
                     />
                     {marcado && (
@@ -673,9 +696,11 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
                 )
               })}
 
-              {/* Acabamentos LIVRES já adicionados (fora do cadastro) */}
+              {/* Acabamentos LIVRES já adicionados (fora do cadastro e das sugestões) */}
               {form.acabamentosSelecionados
-                .filter((a) => !a.acabamentoId && !acabamentosCad.some((c) => c.nome === a.nome))
+                .filter((a) => !a.acabamentoId
+                  && !acabamentosCad.some((c) => c.nome === a.nome)
+                  && !SUG_ACABAMENTOS.some((s) => s.trim().toLowerCase() === a.nome.trim().toLowerCase()))
                 .map((a) => (
                   <Group key={`livre-${a.nome}`} gap="xs" wrap="nowrap" align="center">
                     <Checkbox
