@@ -60,6 +60,7 @@ interface FormState {
   produtoId: string | null
   prazoPagamentoId: string | null
   acabamentosSelecionados: Array<{ acabamentoId?: string | null; nome: string; marcado: boolean; detalhe?: string | null }>
+  tiragensTexto: string
 }
 
 interface ClienteOpc { id: string; razaoSocial: string; nomeFantasia?: string | null; cpfCnpj: string; uf?: string | null; cidade?: string | null }
@@ -74,7 +75,7 @@ const VAZIO: FormState = {
   cartaoFsc: false, corteInternoVerso: false, passtime: false, acabamentos: '', matriz: '',
   acabamentoManual: false, quantidadePorVolume: '', variacoesArte: '', exportacao: '', dataValidade: '',
   discriminacao: '', observacoes: '', exigeAmostra: false,
-  clienteId: null, produtoId: null, prazoPagamentoId: null, acabamentosSelecionados: [],
+  clienteId: null, produtoId: null, prazoPagamentoId: null, acabamentosSelecionados: [], tiragensTexto: '',
 }
 
 export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) {
@@ -113,6 +114,10 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
   // Acabamento livre (quando não está no cadastro) — nome digitado
   const [acabLivre, setAcabLivre] = useState('')
 
+  // Comboboxes: tipos de embalagem e suportes (cartão) cadastrados
+  const [tiposEmb, setTiposEmb] = useState<string[]>([])
+  const [suportes, setSuportes] = useState<string[]>([])
+
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => { setForm((f) => ({ ...f, [k]: v })); setDirty(true) }
 
   useEffect(() => {
@@ -139,6 +144,8 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
       if (d[k] !== undefined && d[k] !== null) out[k] = d[k]
     }
     if (Array.isArray(d.acabamentosSelecionados)) out.acabamentosSelecionados = d.acabamentosSelecionados
+    // Tiragens: usa o texto se existir; senão deriva da quantidade numérica.
+    if (!out.tiragensTexto && d.quantidade != null) out.tiragensTexto = String(d.quantidade)
     return out as Partial<FormState>
   }
 
@@ -172,6 +179,19 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
     api.get('/orcamento-grafico/acabamentos', { params: { limit: 200 } })
       .then(({ data }) => setAcabamentosCad(Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : [])))
       .catch(() => setAcabamentosCad([]))
+    // Tipos de embalagem (combobox) e suportes/cartão (combobox).
+    api.get('/orcamento-grafico/tipos-embalagem', { params: { limit: 300 } })
+      .then(({ data }) => {
+        const lista = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : [])
+        setTiposEmb(lista.map((t: { descricao?: string; codigo?: string }) => t.descricao || t.codigo || '').filter(Boolean))
+      })
+      .catch(() => setTiposEmb([]))
+    api.get('/orcamento-grafico/suportes', { params: { limit: 500 } })
+      .then(({ data }) => {
+        const lista = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : [])
+        setSuportes(lista.map((s: { descricao?: string }) => s.descricao || '').filter(Boolean))
+      })
+      .catch(() => setSuportes([]))
   }, [])
 
   // Busca de cliente do cadastro (debounce simples).
@@ -355,7 +375,10 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
 
   function montarPayload() {
     const p: Record<string, unknown> = { ...form }
-    p.quantidade = form.quantidade === '' ? null : Number(form.quantidade)
+    // Tiragens múltiplas em texto; `quantidade` = 1ª tiragem (compat.).
+    const primeira = (form.tiragensTexto || '').split(',').map((s) => Number(s.replace(/\D/g, ''))).find((n) => Number.isFinite(n) && n > 0)
+    p.quantidade = primeira ?? (form.quantidade === '' ? null : Number(form.quantidade))
+    p.tiragensTexto = form.tiragensTexto.trim() || null
     p.tipoEntrega = form.tipoEntrega || null
     p.exportacao = form.exportacao || null
     return p
@@ -571,9 +594,29 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
         )}
         <SimpleGrid cols={{ base: 1, sm: 3 }}>
           <TextInput label="Nome do produto" value={form.produtoNome} onChange={(e) => set('produtoNome', e.currentTarget.value)} />
-          <TextInput label="Tipo de embalagem" placeholder="Cartucho / Caixa / Sacola..." value={form.tipoEmbalagem} onChange={(e) => set('tipoEmbalagem', e.currentTarget.value)} />
-          <NumberInput label="Quantidade (tiragem)" value={form.quantidade} onChange={(v) => set('quantidade', v === '' ? '' : Number(v))} min={0} />
-          <TextInput label="Cartão" value={form.cartao} onChange={(e) => set('cartao', e.currentTarget.value)} />
+          <Autocomplete
+            label="Tipo de embalagem"
+            placeholder="Cartucho / Caixa / Sacola..."
+            data={tiposEmb}
+            value={form.tipoEmbalagem}
+            onChange={(v) => set('tipoEmbalagem', v)}
+            comboboxProps={{ withinPortal: true }}
+          />
+          <TextInput
+            label="Quantidade (tiragens)"
+            description="Separe por vírgula: 1000, 5000, 8000"
+            placeholder="1000, 5000, 8000, 10000"
+            value={form.tiragensTexto}
+            onChange={(e) => set('tiragensTexto', e.currentTarget.value)}
+          />
+          <Autocomplete
+            label="Cartão"
+            placeholder="Duplex / Triplex / Kraft..."
+            data={suportes}
+            value={form.cartao}
+            onChange={(v) => set('cartao', v)}
+            comboboxProps={{ withinPortal: true }}
+          />
           <TextInput label="Gramatura" value={form.gramatura} onChange={(e) => set('gramatura', e.currentTarget.value)} />
           <TextInput label="Medidas (C x L x A mm)" value={form.medidasTexto} onChange={(e) => set('medidasTexto', e.currentTarget.value)} />
           <TextInput label="Variações de arte" value={form.variacoesArte} onChange={(e) => set('variacoesArte', e.currentTarget.value)} />
