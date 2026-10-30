@@ -10,12 +10,13 @@ import { useRouter } from 'next/navigation'
 import {
   Stack, Group, Title, Button, Paper, TextInput, Select, Textarea, Switch,
   NumberInput, SimpleGrid, Text, Image, ActionIcon, Loader, Divider, Badge,
-  Autocomplete, Checkbox,
+  Autocomplete, Checkbox, Modal,
 } from '@mantine/core'
-import { IconArrowLeft, IconSearch, IconUpload, IconTrash, IconDeviceFloppy } from '@tabler/icons-react'
+import { IconArrowLeft, IconSearch, IconUpload, IconTrash, IconDeviceFloppy, IconPlus } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { getAuthToken } from '@/lib/authStorage'
 import { notifications } from '@mantine/notifications'
+import { ativarGuardaNavegacao, desativarGuardaNavegacao } from '@/lib/navigationGuardStore'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
 
@@ -61,7 +62,7 @@ interface FormState {
   acabamentosSelecionados: Array<{ acabamentoId?: string | null; nome: string; marcado: boolean; detalhe?: string | null }>
 }
 
-interface ClienteOpc { id: string; razaoSocial: string; cpfCnpj: string; uf?: string | null; cidade?: string | null }
+interface ClienteOpc { id: string; razaoSocial: string; nomeFantasia?: string | null; cpfCnpj: string; uf?: string | null; cidade?: string | null }
 interface ProdutoOpc { id: string; nome: string; codigo: string; imagemUrl?: string | null; descricao?: string | null; gramatura?: number | string | null }
 interface PrazoOpc { id: string; descricao: string; dias: number; parcelas: number }
 interface AcabamentoOpc { id: string; nome: string }
@@ -95,8 +96,24 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
   const [produtoSel, setProdutoSel] = useState<ProdutoOpc | null>(null)
   const [prazos, setPrazos] = useState<PrazoOpc[]>([])
   const [acabamentosCad, setAcabamentosCad] = useState<AcabamentoOpc[]>([])
+  const [dirty, setDirty] = useState(false)
 
-  const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((f) => ({ ...f, [k]: v }))
+  // Ponto 2 — modal "novo prazo" inline (sem sair do cadastro)
+  const [prazoModal, setPrazoModal] = useState(false)
+  const [prazoDesc, setPrazoDesc] = useState('')
+  const [prazoDias, setPrazoDias] = useState<number | ''>(0)
+  const [prazoParc, setPrazoParc] = useState<number | ''>(1)
+  const [salvandoPrazo, setSalvandoPrazo] = useState(false)
+
+  // Ponto 4 — modal "novo cliente" inline
+  const [clienteModal, setClienteModal] = useState(false)
+  const [novoCli, setNovoCli] = useState({ razaoSocial: '', nomeFantasia: '', cpfCnpj: '', uf: '', cidade: '' })
+  const [salvandoCli, setSalvandoCli] = useState(false)
+
+  // Acabamento livre (quando não está no cadastro) — nome digitado
+  const [acabLivre, setAcabLivre] = useState('')
+
+  const set = <K extends keyof FormState>(k: K, v: FormState[K]) => { setForm((f) => ({ ...f, [k]: v })); setDirty(true) }
 
   useEffect(() => {
     if (!pedidoId) return
@@ -124,6 +141,28 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
     if (Array.isArray(d.acabamentosSelecionados)) out.acabamentosSelecionados = d.acabamentosSelecionados
     return out as Partial<FormState>
   }
+
+  // Ponto 3 — guarda de navegação: enquanto houver alterações não salvas,
+  // avisa ao sair da tela (menu lateral usa confirmarNavegacaoOuBloquear) e
+  // ao fechar/recarregar a aba (beforeunload).
+  useEffect(() => {
+    if (dirty) {
+      ativarGuardaNavegacao('Há alterações não salvas neste pedido/proposta. Deseja sair sem salvar?')
+    } else {
+      desativarGuardaNavegacao()
+    }
+    return () => desativarGuardaNavegacao()
+  }, [dirty])
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (!dirty) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [dirty])
 
   // Carrega prazos (Select) e acabamentos cadastrados (checklist) uma vez.
   useEffect(() => {
@@ -168,22 +207,44 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
       cidade: c.cidade || f.cidade,
       jaCliente: true,
     }))
+    setDirty(true)
     setClienteOpcoes([])
     setClienteBusca('')
   }
 
-  // Ao escolher um produto do cadastro, traz nome/foto/características.
-  function selecionarProduto(p: ProdutoOpc) {
+  // Ao escolher um produto do cadastro, traz nome/foto + busca características
+  // (cartão/gramatura/cores/medidas/formato) do CalculoGrafico migrado e preenche
+  // os campos VAZIOS (não sobrescreve o que o usuário já digitou).
+  async function selecionarProduto(p: ProdutoOpc) {
     setProdutoSel(p)
     setForm((f) => ({
       ...f,
       produtoId: p.id,
       produtoNome: p.nome || f.produtoNome,
-      gramatura: p.gramatura != null && String(p.gramatura) !== '0' ? String(p.gramatura) : f.gramatura,
       tipoPedido: 'REPETICAO', // produto do cadastro = repetição
     }))
+    setDirty(true)
     setProdutoOpcoes([])
     setProdutoBusca('')
+    try {
+      const { data } = await api.get(`/orcamento-grafico/pedidos-proposta/caracteristicas-produto/${p.id}`)
+      if (data?.produto?.imagemUrl) setProdutoSel((s) => (s ? { ...s, imagemUrl: data.produto.imagemUrl } : s))
+      const c = data?.caracteristicas
+      if (c) {
+        setForm((f) => ({
+          ...f,
+          cartao: f.cartao || c.cartao || f.cartao,
+          gramatura: f.gramatura || c.gramatura || f.gramatura,
+          medidasTexto: f.medidasTexto || c.medidasTexto || f.medidasTexto,
+          // cores da engenharia vão para "Variações de arte" (campo textual livre
+          // mais próximo) + acabamentos ricos não alteram o checklist aqui.
+          variacoesArte: f.variacoesArte || c.cores || f.variacoesArte,
+        }))
+        if (c.temCalculo) {
+          notifications.show({ title: 'Características', message: 'Dados do cálculo (Calcgraf) preenchidos nos campos vazios.', color: 'green' })
+        }
+      }
+    } catch { /* sem características — mantém o que já está */ }
   }
 
   // Alterna/edita um acabamento no checklist.
@@ -195,6 +256,7 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
       else lista.push({ acabamentoId, nome, marcado, detalhe: '' })
       return { ...f, acabamentosSelecionados: lista }
     })
+    setDirty(true)
   }
   function setDetalheAcabamento(nome: string, detalhe: string) {
     setForm((f) => {
@@ -203,9 +265,71 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
       if (idx >= 0) lista[idx] = { ...lista[idx], detalhe }
       return { ...f, acabamentosSelecionados: lista }
     })
+    setDirty(true)
   }
   function estadoAcabamento(nome: string) {
     return form.acabamentosSelecionados.find((a) => a.nome === nome)
+  }
+
+  // Adiciona um acabamento LIVRE (fora do cadastro) ao checklist, já marcado.
+  function adicionarAcabamentoLivre() {
+    const nome = acabLivre.trim()
+    if (!nome) return
+    if (form.acabamentosSelecionados.some((a) => a.nome === nome)) { setAcabLivre(''); return }
+    setForm((f) => ({ ...f, acabamentosSelecionados: [...f.acabamentosSelecionados, { acabamentoId: null, nome, marcado: true, detalhe: '' }] }))
+    setDirty(true)
+    setAcabLivre('')
+  }
+
+  // Ponto 2 — cria um prazo e já seleciona, sem fechar o cadastro do pedido.
+  async function salvarPrazoInline() {
+    if (!prazoDesc.trim()) { notifications.show({ message: 'Informe a descrição do prazo.', color: 'red' }); return }
+    setSalvandoPrazo(true)
+    try {
+      const { data } = await api.post('/orcamento-grafico/pedidos-proposta/prazos-pagamento', {
+        descricao: prazoDesc.trim(),
+        dias: prazoDias === '' ? 0 : Number(prazoDias),
+        parcelas: prazoParc === '' ? 1 : Number(prazoParc),
+      })
+      // Recarrega e seleciona o recém-criado.
+      const { data: lista } = await api.get('/orcamento-grafico/pedidos-proposta/prazos-pagamento')
+      setPrazos(Array.isArray(lista) ? lista : [])
+      setForm((f) => ({ ...f, prazoPagamentoId: data.id, prazoPagamento: data.descricao }))
+      setDirty(true)
+      setPrazoModal(false)
+      setPrazoDesc(''); setPrazoDias(0); setPrazoParc(1)
+      notifications.show({ title: 'Prazo criado', message: data.descricao, color: 'green' })
+    } catch (err: any) {
+      const msg = err?.response?.data?.code === 'DUPLICADO' ? 'Já existe um prazo com essa descrição.' : (err?.response?.data?.message || 'Falha ao criar prazo')
+      notifications.show({ title: 'Erro', message: msg, color: 'red' })
+    } finally {
+      setSalvandoPrazo(false)
+    }
+  }
+
+  // Ponto 4 — cadastra um cliente novo na tabela de clientes e vincula ao RFQ.
+  async function salvarClienteInline() {
+    if (!novoCli.razaoSocial.trim() || !novoCli.cpfCnpj.trim()) {
+      notifications.show({ message: 'Informe razão social e CPF/CNPJ.', color: 'red' }); return
+    }
+    setSalvandoCli(true)
+    try {
+      const { data } = await api.post('/clientes', {
+        razaoSocial: novoCli.razaoSocial.trim(),
+        nomeFantasia: novoCli.nomeFantasia.trim() || undefined,
+        cpfCnpj: novoCli.cpfCnpj.replace(/\D/g, ''),
+        uf: novoCli.uf.trim() || undefined,
+        cidade: novoCli.cidade.trim() || undefined,
+      })
+      selecionarCliente({ id: data.id, razaoSocial: data.razaoSocial, cpfCnpj: data.cpfCnpj, uf: data.uf, cidade: data.cidade })
+      setClienteModal(false)
+      setNovoCli({ razaoSocial: '', nomeFantasia: '', cpfCnpj: '', uf: '', cidade: '' })
+      notifications.show({ title: 'Cliente cadastrado', message: data.razaoSocial, color: 'green' })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao cadastrar cliente', color: 'red' })
+    } finally {
+      setSalvandoCli(false)
+    }
   }
 
   async function buscarCnpj() {
@@ -257,6 +381,8 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
         notifications.show({ title: 'Criado', message: `Pedido/Proposta nº ${data.numero} criado.`, color: 'green' })
         router.replace(`/orcamento-grafico/pedidos/${data.id}`)
       }
+      setDirty(false) // alterações persistidas — libera a navegação
+      desativarGuardaNavegacao()
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar.', color: 'red' })
     } finally {
@@ -310,7 +436,11 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
     <Stack gap="md">
       <Group justify="space-between">
         <Group>
-          <Button variant="subtle" leftSection={<IconArrowLeft size={16} />} onClick={() => router.push('/orcamento-grafico/pedidos')}>
+          <Button variant="subtle" leftSection={<IconArrowLeft size={16} />} onClick={() => {
+            if (dirty && !window.confirm('Há alterações não salvas. Deseja sair sem salvar?')) return
+            desativarGuardaNavegacao()
+            router.push('/orcamento-grafico/pedidos')
+          }}>
             Voltar
           </Button>
           <Title order={3}>{editando ? 'Editar Pedido / Proposta' : 'Novo Pedido / Proposta'}</Title>
@@ -339,17 +469,28 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
       {/* Cliente */}
       <Paper withBorder p="md">
         <Text fw={600} mb="sm">Cliente</Text>
-        <Autocomplete
-          label="Buscar no cadastro de clientes"
-          placeholder="Digite nome, CNPJ ou código..."
-          leftSection={<IconSearch size={16} />}
-          data={clienteOpcoes.map((c) => ({ value: c.id, label: `${c.razaoSocial}${c.cpfCnpj ? ` — ${c.cpfCnpj}` : ''}` }))}
-          value={clienteBusca}
-          onChange={setClienteBusca}
-          onOptionSubmit={(id) => { const c = clienteOpcoes.find((x) => x.id === id); if (c) selecionarCliente(c) }}
-          comboboxProps={{ withinPortal: true }}
-          mb="sm"
-        />
+        <Group align="flex-end" gap="xs" mb="sm">
+          <Autocomplete
+            label="Buscar no cadastro de clientes"
+            placeholder="Digite razão social, nome fantasia, CNPJ ou código..."
+            leftSection={<IconSearch size={16} />}
+            data={clienteOpcoes.map((c) => ({
+              value: c.id,
+              label: `${c.razaoSocial}${c.nomeFantasia ? ` (${c.nomeFantasia})` : ''}${c.cpfCnpj ? ` — ${c.cpfCnpj}` : ''}`,
+            }))}
+            value={clienteBusca}
+            onChange={setClienteBusca}
+            onOptionSubmit={(id) => { const c = clienteOpcoes.find((x) => x.id === id); if (c) selecionarCliente(c) }}
+            comboboxProps={{ withinPortal: true }}
+            style={{ flex: 1 }}
+          />
+          <Button variant="light" leftSection={<IconPlus size={16} />} onClick={() => {
+            setNovoCli({ razaoSocial: form.clienteNome || '', nomeFantasia: '', cpfCnpj: form.clienteCpfCnpj || '', uf: form.ufOrigem || '', cidade: form.cidade || '' })
+            setClienteModal(true)
+          }}>
+            Cadastrar novo
+          </Button>
+        </Group>
         {form.clienteId && (
           <Badge color="teal" variant="light" mb="sm">Cliente do cadastro vinculado</Badge>
         )}
@@ -377,20 +518,28 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
           {form.tipoEntrega === 'FRACIONADA' && (
             <TextInput label="A cada quantos dias?" value={form.entregaFracionadaDias} onChange={(e) => set('entregaFracionadaDias', e.currentTarget.value)} />
           )}
-          <Select
-            label="Prazo de pagamento (cadastro)"
-            placeholder={prazos.length ? 'Selecione...' : 'Nenhum prazo cadastrado'}
-            data={prazos.map((p) => ({ value: p.id, label: p.descricao }))}
-            value={form.prazoPagamentoId}
-            onChange={(v) => {
-              set('prazoPagamentoId', v)
-              const p = prazos.find((x) => x.id === v)
-              if (p) set('prazoPagamento', p.descricao) // espelha no texto livre p/ proposta/PDF
-            }}
-            clearable
-            searchable
-            comboboxProps={{ withinPortal: true }}
-          />
+          <div>
+            <Group gap={4} align="flex-end" wrap="nowrap">
+              <Select
+                label="Prazo de pagamento (cadastro)"
+                placeholder={prazos.length ? 'Selecione...' : 'Nenhum prazo cadastrado'}
+                data={prazos.map((p) => ({ value: p.id, label: p.descricao }))}
+                value={form.prazoPagamentoId}
+                onChange={(v) => {
+                  set('prazoPagamentoId', v)
+                  const p = prazos.find((x) => x.id === v)
+                  if (p) set('prazoPagamento', p.descricao) // espelha no texto livre p/ proposta/PDF
+                }}
+                clearable
+                searchable
+                comboboxProps={{ withinPortal: true }}
+                style={{ flex: 1 }}
+              />
+              <ActionIcon variant="light" size="lg" aria-label="Novo prazo" onClick={() => setPrazoModal(true)}>
+                <IconPlus size={18} />
+              </ActionIcon>
+            </Group>
+          </div>
           <TextInput label="Prazo (texto livre)" description="Use quando não estiver no cadastro" value={form.prazoPagamento} onChange={(e) => set('prazoPagamento', e.currentTarget.value)} />
         </SimpleGrid>
       </Paper>
@@ -441,12 +590,11 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
           <Switch label="Passtime (visor)" checked={form.passtime} onChange={(e) => set('passtime', e.currentTarget.checked)} />
           <Switch label="Acabamento manual" checked={form.acabamentoManual} onChange={(e) => set('acabamentoManual', e.currentTarget.checked)} />
         </Group>
-        {/* Checklist de acabamentos (cadastrados) + detalhe por item */}
-        {acabamentosCad.length > 0 && (
-          <div style={{ marginTop: 12 }}>
-            <Text size="sm" fw={600} mb={4}>Acabamentos (marque e detalhe)</Text>
-            <Stack gap={6}>
-              {acabamentosCad.map((a) => {
+        {/* Checklist de acabamentos (cadastrados + livres) + detalhe por item */}
+        <div style={{ marginTop: 12 }}>
+          <Text size="sm" fw={600} mb={4}>Acabamentos (marque e detalhe)</Text>
+          <Stack gap={6}>
+            {acabamentosCad.map((a) => {
                 const est = estadoAcabamento(a.nome)
                 const marcado = !!est?.marcado
                 return (
@@ -469,9 +617,47 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
                   </Group>
                 )
               })}
+
+              {/* Acabamentos LIVRES já adicionados (fora do cadastro) */}
+              {form.acabamentosSelecionados
+                .filter((a) => !a.acabamentoId && !acabamentosCad.some((c) => c.nome === a.nome))
+                .map((a) => (
+                  <Group key={`livre-${a.nome}`} gap="xs" wrap="nowrap" align="center">
+                    <Checkbox
+                      label={a.nome}
+                      checked={!!a.marcado}
+                      onChange={(e) => toggleAcabamento(a.nome, null, e.currentTarget.checked)}
+                      style={{ minWidth: 220 }}
+                    />
+                    <TextInput
+                      placeholder="Detalhe"
+                      size="xs"
+                      value={a.detalhe ?? ''}
+                      onChange={(e) => setDetalheAcabamento(a.nome, e.currentTarget.value)}
+                      style={{ flex: 1 }}
+                    />
+                  </Group>
+                ))}
+
+              {/* Adicionar acabamento livre */}
+              <Group gap="xs" wrap="nowrap">
+                <TextInput
+                  placeholder="Outro acabamento (não listado)..."
+                  size="xs"
+                  value={acabLivre}
+                  onChange={(e) => setAcabLivre(e.currentTarget.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); adicionarAcabamentoLivre() } }}
+                  style={{ flex: 1 }}
+                />
+                <Button size="compact-sm" variant="light" leftSection={<IconPlus size={14} />} onClick={adicionarAcabamentoLivre}>
+                  Adicionar
+                </Button>
+              </Group>
             </Stack>
+            {acabamentosCad.length === 0 && (
+              <Text size="xs" c="dimmed" mt={4}>Nenhum acabamento no cadastro — use o campo acima para adicionar.</Text>
+            )}
           </div>
-        )}
         <Textarea label="Acabamentos (texto livre / complemento)" mt="sm" minRows={2} value={form.acabamentos} onChange={(e) => set('acabamentos', e.currentTarget.value)} />
         <Textarea label="Discriminação (itens)" mt="sm" minRows={2} value={form.discriminacao} onChange={(e) => set('discriminacao', e.currentTarget.value)} />
         <Textarea label="Observações" mt="sm" minRows={2} value={form.observacoes} onChange={(e) => set('observacoes', e.currentTarget.value)} />
@@ -511,6 +697,38 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
       <Group justify="flex-end">
         <Button leftSection={<IconDeviceFloppy size={16} />} loading={salvando} onClick={salvar}>Salvar</Button>
       </Group>
+
+      {/* Modal — novo prazo (inline, sem sair do cadastro) */}
+      <Modal opened={prazoModal} onClose={() => setPrazoModal(false)} title="Novo prazo de pagamento" centered>
+        <Stack gap="md">
+          <TextInput label="Descrição" placeholder="Ex.: 28/35/42, 30 dias, À vista" required value={prazoDesc} onChange={(e) => setPrazoDesc(e.currentTarget.value)} />
+          <Group grow>
+            <NumberInput label="Prazo médio (dias)" min={0} value={prazoDias} onChange={(v) => setPrazoDias(v === '' ? '' : Number(v))} />
+            <NumberInput label="Parcelas" min={1} value={prazoParc} onChange={(v) => setPrazoParc(v === '' ? '' : Number(v))} />
+          </Group>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setPrazoModal(false)}>Cancelar</Button>
+            <Button loading={salvandoPrazo} onClick={salvarPrazoInline}>Salvar prazo</Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Modal — novo cliente (grava na tabela de clientes e vincula) */}
+      <Modal opened={clienteModal} onClose={() => setClienteModal(false)} title="Cadastrar novo cliente" centered>
+        <Stack gap="md">
+          <TextInput label="Razão social" required value={novoCli.razaoSocial} onChange={(e) => setNovoCli((c) => ({ ...c, razaoSocial: e.currentTarget.value }))} />
+          <TextInput label="Nome fantasia" value={novoCli.nomeFantasia} onChange={(e) => setNovoCli((c) => ({ ...c, nomeFantasia: e.currentTarget.value }))} />
+          <TextInput label="CPF/CNPJ" required value={novoCli.cpfCnpj} onChange={(e) => setNovoCli((c) => ({ ...c, cpfCnpj: e.currentTarget.value }))} />
+          <Group grow>
+            <TextInput label="UF" maxLength={2} value={novoCli.uf} onChange={(e) => setNovoCli((c) => ({ ...c, uf: e.currentTarget.value.toUpperCase() }))} />
+            <TextInput label="Cidade" value={novoCli.cidade} onChange={(e) => setNovoCli((c) => ({ ...c, cidade: e.currentTarget.value }))} />
+          </Group>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setClienteModal(false)}>Cancelar</Button>
+            <Button loading={salvandoCli} onClick={salvarClienteInline}>Cadastrar e vincular</Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   )
 }
