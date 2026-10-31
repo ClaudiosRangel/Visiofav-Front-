@@ -66,11 +66,18 @@ export default function EditorVisualPage() {
   const [seedModal, setSeedModal] = useState(false)
   let seq = useMemo(() => ({ n: 0 }), [])
 
-  const carregarLista = useCallback(async () => {
+  const carregarLista = useCallback(async (abrirDefault = false) => {
     setCarregandoLista(true)
     try {
       const { data } = await api.get('/orcamento-grafico/templates-visuais', { params: { tipo } })
-      setLista(Array.isArray(data) ? data : [])
+      const arr: TemplateResumo[] = Array.isArray(data) ? data : []
+      setLista(arr)
+      // Ao trocar de tipo, abre automaticamente o template padrão (já preenchido)
+      // para o usuário editar de imediato — se nenhum estiver aberto ainda.
+      if (abrirDefault && arr.length > 0) {
+        const alvo = arr.find((t) => t.isDefault) ?? arr[0]
+        await abrir(alvo.id)
+      }
     } catch {
       setLista([])
     } finally {
@@ -78,7 +85,8 @@ export default function EditorVisualPage() {
     }
   }, [tipo])
 
-  useEffect(() => { carregarLista() }, [carregarLista])
+  // Ao montar e ao trocar de tipo, recarrega a lista e abre o padrão preenchido.
+  useEffect(() => { carregarLista(true) }, [carregarLista])
 
   async function abrir(id: string) {
     try {
@@ -162,16 +170,30 @@ export default function EditorVisualPage() {
     }
   }
 
-  function previewPdf() {
+  async function previewPdf() {
     if (!atualId) { notifications.show({ message: 'Salve o template antes de pré-visualizar o PDF.', color: 'orange' }); return }
     const token = getAuthToken()
-    // preview-pdf é POST; abrimos via fetch e blob para manter o método.
-    fetch(`${API_BASE}/orcamento-grafico/templates-visuais/${atualId}/preview-pdf`, {
-      method: 'POST', headers: { Authorization: `Bearer ${token ?? ''}` },
-    })
-      .then((r) => r.blob())
-      .then((b) => window.open(URL.createObjectURL(b), '_blank'))
-      .catch(() => notifications.show({ message: 'Falha ao gerar preview.', color: 'red' }))
+    try {
+      // preview-pdf é POST; abrimos via fetch e blob para manter o método.
+      const r = await fetch(`${API_BASE}/orcamento-grafico/templates-visuais/${atualId}/preview-pdf`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token ?? ''}` },
+      })
+      const ct = r.headers.get('content-type') || ''
+      if (!r.ok || !ct.includes('pdf')) {
+        // Resposta de erro (JSON) — mostra a mensagem em vez de abrir aba branca.
+        let msg = `Falha ao gerar preview (HTTP ${r.status}).`
+        try { const j = await r.json(); if (j?.message) msg = j.message } catch { /* ignore */ }
+        notifications.show({ title: 'Preview', message: msg, color: 'red' })
+        return
+      }
+      const b = await r.blob()
+      const url = URL.createObjectURL(b)
+      const w = window.open(url, '_blank')
+      if (!w) notifications.show({ message: 'Permita pop-ups para abrir o PDF.', color: 'orange' })
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch {
+      notifications.show({ message: 'Falha ao gerar preview.', color: 'red' })
+    }
   }
 
   async function semear() {
@@ -197,10 +219,10 @@ export default function EditorVisualPage() {
         <Group gap="xs">
           <SegmentedControl
             value={tipo}
-            onChange={(v) => { setTipo(v as TipoTemplate); novo() }}
+            onChange={(v) => setTipo(v as TipoTemplate)}
             data={[{ value: 'PROPOSTA', label: 'Proposta' }, { value: 'ORCAMENTO', label: 'Orçamento' }]}
           />
-          <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={carregarLista}>Atualizar</Button>
+          <Button variant="light" leftSection={<IconRefresh size={16} />} onClick={() => carregarLista()}>Atualizar</Button>
           <Button variant="light" leftSection={<IconStar size={16} />} onClick={() => setSeedModal(true)}>Modelos Carton Wega</Button>
           <Button leftSection={<IconPlus size={16} />} onClick={novo}>Novo template</Button>
         </Group>
