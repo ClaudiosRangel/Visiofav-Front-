@@ -502,6 +502,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconCalendarEvent, label: 'Tabelas de Custo', href: '/orcamento-grafico/cadastros/tabelas-custo' },
           { icon: IconReceipt, label: 'Tributação', href: '/orcamento-grafico/cadastros/tributacao' },
           { icon: IconFileDescription, label: 'Templates de Proposta', href: '/orcamento-grafico/cadastros/templates-proposta' },
+          { icon: IconFileDescription, label: 'Editor de Templates', href: '/comercial/editor-visual' },
           { icon: IconCash, label: 'Prazos de Pagamento', href: '/orcamento-grafico/cadastros/prazos-pagamento' },
           { icon: IconUpload, label: 'Importar Preços (CSV)', href: '/orcamento-grafico/importar' },
         ],
