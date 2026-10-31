@@ -8,7 +8,7 @@ import {
 } from '@mantine/core'
 import {
   IconSearch, IconTimeline, IconRefresh, IconLock, IconLockOpen,
-  IconCalendar, IconZoomIn, IconZoomOut, IconPalette, IconAdjustments,
+  IconCalendar, IconZoomIn, IconZoomOut, IconPalette,
   IconFilterOff, IconFocus2, IconArrowsLeftRight, IconArrowsSort, IconInfoCircle,
 } from '@tabler/icons-react'
 import { Menu } from '@mantine/core'
@@ -535,64 +535,34 @@ export default function GanttProducaoPage() {
     }
   }
 
-  // ── Resolver conflitos em 1 clique (spec pcp-gantt-melhorias, Req 4.4) ──
-  // Para cada máquina (centro) que aparece nos conflitos, reaplica a fila
-  // sequencial: pega as etapas daquela raia ordenadas por início e chama
-  // `PATCH /pcp/etapas/reordenar` com os ids nessa ordem. O backend renumera a
-  // `posicaoFila` e o motor (no-overlap) sequencia um job após o outro,
-  // eliminando a sobreposição. Depois `carregar()` recalcula a cascata.
+  // ── Reaplicar agenda (NÃO-DESTRUTIVO) ──────────────────────────────────────
+  // IMPORTANTE (decisão do cliente): este botão NUNCA altera a ordem da fila
+  // (`posicaoFila`) montada pelos administradores/supervisores. Ele apenas
+  // recarrega a timeline do backend. O motor de agenda já aplica a regra de
+  // NÃO-SOBREPOSIÇÃO por máquina (no-overlap), empurrando VISUALMENTE as barras
+  // para o primeiro instante livre SEM mexer na ordem gravada. Assim a
+  // sobreposição some do desenho preservando 100% a programação manual.
+  //
+  // (Comportamento antigo — removido: chamava PATCH /pcp/etapas/reordenar e
+  // renumerava a posicaoFila pela ordem temporal do Gantt, sobrescrevendo a
+  // programação do supervisor. Isso bagunçava a fila e gerava centenas de logs
+  // "Fila reordenada manualmente". Ver análise de 31/10/2026.)
   const [resolvendoConflitos, setResolvendoConflitos] = useState(false)
 
-  /**
-   * Monta, a partir dos `conflitos` + das `raias` já montadas, o conjunto de
-   * centros conflitantes e, para cada um, a lista de etapaIds ordenada por
-   * `inicioMs`. Reordena cada centro no backend e recarrega.
-   */
   async function resolverConflitos() {
-    if (conflitos.length === 0 || resolvendoConflitos) return
+    if (resolvendoConflitos) return
     setResolvendoConflitos(true)
     try {
-      // Centros em conflito (o conflito expõe o centro pela DESCRIÇÃO).
-      const descricoesEmConflito = new Set<string>(
-        conflitos.map((c: any) => c.centroProducao).filter(Boolean),
-      )
-      // Casar a descrição do conflito com as raias já montadas (que têm o id de
-      // centro em cada barra). Monta centroProducaoId → etapaIds ordenados.
-      const reordenacoes: Array<{ centroProducaoId: string; etapaIds: string[] }> = []
-      for (const raia of raias) {
-        if (!descricoesEmConflito.has(raia.centroProducao)) continue
-        // Id do centro: vem das barras (todas as barras da raia são do mesmo
-        // centro). Pula com segurança se nenhuma barra tiver o id (raro).
-        const centroProducaoId = raia.barras.find((b) => b.centroProducaoId)?.centroProducaoId
-        if (!centroProducaoId) continue
-        const etapaIds = [...raia.barras]
-          .sort((a, b) => a.inicioMs - b.inicioMs)
-          .map((b) => b.etapaId)
-        if (etapaIds.length > 0) reordenacoes.push({ centroProducaoId, etapaIds })
-      }
-
-      if (reordenacoes.length === 0) {
-        notifications.show({
-          title: 'Nada a resolver',
-          message: 'Não foi possível identificar as máquinas em conflito.',
-          color: 'yellow',
-        })
-        return
-      }
-
-      for (const r of reordenacoes) {
-        await api.patch('/pcp/etapas/reordenar', r)
-      }
       await carregar()
       notifications.show({
-        title: 'Conflitos resolvidos',
-        message: `${reordenacoes.length} máquina${reordenacoes.length > 1 ? 's' : ''} resequenciada${reordenacoes.length > 1 ? 's' : ''}.`,
+        title: 'Agenda reaplicada',
+        message: 'As barras foram reposicionadas no tempo sem alterar a ordem da fila.',
         color: 'green',
       })
     } catch (e: any) {
       notifications.show({
-        title: 'Falha ao resolver conflitos',
-        message: e?.response?.data?.message || 'Não foi possível reaplicar a fila das máquinas.',
+        title: 'Falha ao reaplicar a agenda',
+        message: e?.response?.data?.message || 'Não foi possível atualizar a timeline.',
         color: 'red',
       })
     } finally {
@@ -1319,17 +1289,18 @@ export default function GanttProducaoPage() {
           <Group gap="xs" mb={4} justify="space-between">
             <Group gap="xs">
               <Text size="xs" fw={700} c="red.7">⚠️ {conflitos.length} conflito{conflitos.length > 1 ? 's' : ''} detectado{conflitos.length > 1 ? 's' : ''}</Text>
-              <Text size="xs" c="dimmed">(sobreposição de OPs na mesma máquina)</Text>
+              <Text size="xs" c="dimmed">(OPs que vão disputar a mesma máquina — a ordem da fila é preservada)</Text>
             </Group>
             <Button
               size="xs"
-              variant="filled"
-              color="red"
-              leftSection={<IconAdjustments size={14} />}
+              variant="light"
+              color="blue"
+              leftSection={<IconRefresh size={14} />}
               loading={resolvendoConflitos}
               onClick={resolverConflitos}
+              title="Apenas reposiciona as barras no tempo. Não altera a ordem da fila montada na Programação."
             >
-              Resolver conflitos
+              Reaplicar agenda
             </Button>
           </Group>
           <Group gap="xs" wrap="wrap">
