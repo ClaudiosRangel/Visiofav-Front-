@@ -12,7 +12,7 @@ import {
   NumberInput, SimpleGrid, Text, Image, ActionIcon, Loader, Divider, Badge,
   Autocomplete, Checkbox, Modal,
 } from '@mantine/core'
-import { IconArrowLeft, IconSearch, IconUpload, IconTrash, IconDeviceFloppy, IconPlus } from '@tabler/icons-react'
+import { IconArrowLeft, IconSearch, IconUpload, IconTrash, IconDeviceFloppy, IconPlus, IconPrinter } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { getAuthToken } from '@/lib/authStorage'
 import { notifications } from '@mantine/notifications'
@@ -471,6 +471,16 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
     return `${API_BASE}/orcamento-grafico/pedidos-proposta/${idAtual}/anexos/${anexoId}?token=${token ?? ''}`
   }
 
+  // Imprime o RFQ (PDF com todos os campos) em nova aba.
+  function imprimirPdf() {
+    if (!idAtual) return
+    const token = getAuthToken()
+    window.open(
+      `${API_BASE}/orcamento-grafico/pedidos-proposta/${idAtual}/pdf?token=${token ?? ''}`,
+      '_blank', 'noopener,noreferrer',
+    )
+  }
+
   if (loading) return <Center><Loader /></Center>
 
   return (
@@ -486,7 +496,12 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
           </Button>
           <Title order={3}>{editando ? 'Editar Pedido / Proposta' : 'Novo Pedido / Proposta'}</Title>
         </Group>
-        <Button leftSection={<IconDeviceFloppy size={16} />} loading={salvando} onClick={salvar}>Salvar</Button>
+        <Group gap="xs">
+          {idAtual && (
+            <Button variant="light" leftSection={<IconPrinter size={16} />} onClick={imprimirPdf}>Imprimir</Button>
+          )}
+          <Button leftSection={<IconDeviceFloppy size={16} />} loading={salvando} onClick={salvar}>Salvar</Button>
+        </Group>
       </Group>
 
       {/* Origem / tipo */}

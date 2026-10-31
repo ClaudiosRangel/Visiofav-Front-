@@ -16,10 +16,15 @@ import {
 } from '@mantine/core'
 import {
   IconSearch, IconFilter, IconRefresh, IconPlus, IconExternalLink,
-  IconArrowRight, IconRocket,
+  IconArrowRight, IconRocket, IconPrinter, IconPlayerPlay, IconCalculator,
+  IconX, IconThumbDown, IconDotsVertical,
 } from '@tabler/icons-react'
+import { Menu } from '@mantine/core'
 import { api } from '@/lib/api'
+import { getAuthToken } from '@/lib/authStorage'
 import { notifications } from '@mantine/notifications'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
 
 interface PedidoProposta {
   id: string
@@ -83,6 +88,10 @@ export default function PedidosPropostasPage() {
   const [liberarAlvo, setLiberarAlvo] = useState<PedidoProposta | null>(null)
   const [senhaLiberar, setSenhaLiberar] = useState('')
 
+  // Modal de motivo (cancelar / marcar como perdido)
+  const [motivoAlvo, setMotivoAlvo] = useState<{ p: PedidoProposta; estado: 'CANCELADO' | 'PERDIDO' } | null>(null)
+  const [motivo, setMotivo] = useState('')
+
   const carregar = useCallback(async () => {
     setLoading(true)
     try {
@@ -102,6 +111,37 @@ export default function PedidosPropostasPage() {
   }, [busca, estadoFiltro, origemFiltro, tipoFiltro])
 
   useEffect(() => { carregar() }, [carregar])
+
+  // Imprime o RFQ (PDF) em nova aba, com token na query (abre sem header).
+  function imprimir(p: PedidoProposta) {
+    const token = getAuthToken()
+    const url = `${API_BASE}/orcamento-grafico/pedidos-proposta/${p.id}/pdf?token=${token ?? ''}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  // Transição genérica de estado (ex.: NOVO→EM_ANALISE "iniciar análise").
+  async function transicionar(p: PedidoProposta, estado: string, motivoTxt?: string) {
+    setAcaoLoading(p.id)
+    try {
+      await api.patch(`/orcamento-grafico/pedidos-proposta/${p.id}/estado`, { estado, motivo: motivoTxt })
+      notifications.show({ title: 'Status atualizado', message: `Nº ${p.numero}: ${ESTADO_CONFIG[estado]?.label ?? estado}.`, color: 'green' })
+      carregar()
+    } catch (err: any) {
+      const code = err?.response?.data?.code
+      const msg = code === 'MOTIVO_OBRIGATORIO' ? 'Informe um motivo com no mínimo 5 caracteres.'
+        : err?.response?.data?.message || 'Falha ao atualizar o status.'
+      notifications.show({ title: 'Erro', message: msg, color: 'red' })
+    } finally {
+      setAcaoLoading(null)
+    }
+  }
+
+  async function confirmarMotivo() {
+    if (!motivoAlvo) return
+    await transicionar(motivoAlvo.p, motivoAlvo.estado, motivo)
+    setMotivoAlvo(null)
+    setMotivo('')
+  }
 
   async function encaminhar(p: PedidoProposta) {
     setAcaoLoading(p.id)
@@ -231,17 +271,28 @@ export default function PedidosPropostasPage() {
                   <Table.Td>{formatDate(p.criadoEm)}</Table.Td>
                   <Table.Td>
                     <Group gap={6} wrap="nowrap">
-                      <Tooltip label="Abrir / editar">
-                        <Button size="compact-sm" variant="subtle" leftSection={<IconExternalLink size={15} />}
-                          onClick={() => router.push(`/orcamento-grafico/pedidos/${p.id}`)}>
-                          Abrir
-                        </Button>
-                      </Tooltip>
+                      {/* Ação principal do workflow conforme o estado atual */}
+                      {p.estado === 'NOVO' && (
+                        <Tooltip label="Iniciar análise do pedido">
+                          <Button size="compact-sm" color="blue" leftSection={<IconPlayerPlay size={15} />}
+                            loading={acaoLoading === p.id} onClick={() => transicionar(p, 'EM_ANALISE')}>
+                            Iniciar análise
+                          </Button>
+                        </Tooltip>
+                      )}
                       {p.estado === 'EM_ANALISE' && (
-                        <Tooltip label="Encaminhar ao orçamento">
+                        <Tooltip label="Enviar para o orçamento (gera o cálculo)">
                           <Button size="compact-sm" color="indigo" leftSection={<IconArrowRight size={15} />}
                             loading={acaoLoading === p.id} onClick={() => encaminhar(p)}>
-                            Encaminhar
+                            Enviar p/ orçamento
+                          </Button>
+                        </Tooltip>
+                      )}
+                      {(p.estado === 'ENVIADO_ORCAMENTO' || p.estado === 'ORCADO') && p.orcamentoGraficoId && (
+                        <Tooltip label="Abrir o orçamento para conferir o cálculo">
+                          <Button size="compact-sm" color="cyan" leftSection={<IconCalculator size={15} />}
+                            onClick={() => router.push(`/orcamento-grafico/${p.orcamentoGraficoId}`)}>
+                            Conferir cálculo
                           </Button>
                         </Tooltip>
                       )}
@@ -253,14 +304,67 @@ export default function PedidosPropostasPage() {
                           </Button>
                         </Tooltip>
                       )}
-                      {p.orcamentoGraficoId && (
-                        <Tooltip label="Abrir orçamento vinculado">
-                          <Button size="compact-sm" variant="subtle" color="gray"
-                            onClick={() => router.push(`/orcamento-grafico/${p.orcamentoGraficoId}`)}>
-                            Orçamento
+
+                      {/* Menu de ações secundárias — sempre presente */}
+                      <Menu shadow="md" width={210} position="bottom-end" withinPortal>
+                        <Menu.Target>
+                          <Button size="compact-sm" variant="light" color="gray" rightSection={<IconDotsVertical size={14} />}>
+                            Ações
                           </Button>
-                        </Tooltip>
-                      )}
+                        </Menu.Target>
+                        <Menu.Dropdown>
+                          <Menu.Item leftSection={<IconExternalLink size={15} />}
+                            onClick={() => router.push(`/orcamento-grafico/pedidos/${p.id}`)}>
+                            Abrir / editar
+                          </Menu.Item>
+                          <Menu.Item leftSection={<IconPrinter size={15} />} onClick={() => imprimir(p)}>
+                            Imprimir (PDF)
+                          </Menu.Item>
+                          {p.orcamentoGraficoId && (
+                            <Menu.Item leftSection={<IconCalculator size={15} />}
+                              onClick={() => router.push(`/orcamento-grafico/${p.orcamentoGraficoId}`)}>
+                              Abrir orçamento vinculado
+                            </Menu.Item>
+                          )}
+                          {/* Atalho de workflow quando a ação principal não é a do estado */}
+                          {p.estado === 'NOVO' && (
+                            <Menu.Item leftSection={<IconPlayerPlay size={15} />}
+                              onClick={() => transicionar(p, 'EM_ANALISE')}>
+                              Iniciar análise
+                            </Menu.Item>
+                          )}
+                          {p.estado === 'EM_ANALISE' && (
+                            <Menu.Item leftSection={<IconArrowRight size={15} />} onClick={() => encaminhar(p)}>
+                              Enviar p/ orçamento
+                            </Menu.Item>
+                          )}
+                          {(p.estado === 'ENVIADO_ORCAMENTO' || p.estado === 'ORCADO') && (
+                            <Menu.Item leftSection={<IconArrowRight size={15} />}
+                              onClick={() => transicionar(p, 'PROPOSTA_ENVIADA')}>
+                              Marcar proposta enviada
+                            </Menu.Item>
+                          )}
+                          {p.estado === 'PROPOSTA_ENVIADA' && (
+                            <Menu.Item color="green" leftSection={<IconRocket size={15} />}
+                              onClick={() => transicionar(p, 'ACEITO')}>
+                              Registrar aceite do cliente
+                            </Menu.Item>
+                          )}
+                          {!['ACEITO', 'PERDIDO', 'CANCELADO'].includes(p.estado) && (
+                            <>
+                              <Menu.Divider />
+                              <Menu.Item color="orange" leftSection={<IconThumbDown size={15} />}
+                                onClick={() => { setMotivoAlvo({ p, estado: 'PERDIDO' }); setMotivo('') }}>
+                                Marcar como perdido
+                              </Menu.Item>
+                              <Menu.Item color="red" leftSection={<IconX size={15} />}
+                                onClick={() => { setMotivoAlvo({ p, estado: 'CANCELADO' }); setMotivo('') }}>
+                                Cancelar pedido
+                              </Menu.Item>
+                            </>
+                          )}
+                        </Menu.Dropdown>
+                      </Menu>
                     </Group>
                   </Table.Td>
                 </Table.Tr>
@@ -294,6 +398,30 @@ export default function PedidosPropostasPage() {
             <Button variant="default" onClick={() => { setLiberarAlvo(null); setSenhaLiberar('') }}>Cancelar</Button>
             <Button color="teal" leftSection={<IconRocket size={16} />} loading={acaoLoading === liberarAlvo?.id} onClick={liberar}>
               Liberar
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Modal de motivo (cancelar / perdido) */}
+      <Modal opened={!!motivoAlvo} onClose={() => { setMotivoAlvo(null); setMotivo('') }}
+        title={motivoAlvo?.estado === 'CANCELADO' ? `Cancelar pedido ${motivoAlvo?.p.numero ?? ''}` : `Marcar pedido ${motivoAlvo?.p.numero ?? ''} como perdido`}
+        centered>
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">Informe o motivo (mínimo 5 caracteres). Fica registrado no histórico.</Text>
+          <Textarea
+            placeholder="Ex.: cliente desistiu / preço acima do concorrente / prazo inviável"
+            minRows={3}
+            value={motivo}
+            onChange={(e) => setMotivo(e.currentTarget.value)}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => { setMotivoAlvo(null); setMotivo('') }}>Voltar</Button>
+            <Button color={motivoAlvo?.estado === 'CANCELADO' ? 'red' : 'orange'}
+              loading={acaoLoading === motivoAlvo?.p.id}
+              disabled={motivo.trim().length < 5}
+              onClick={confirmarMotivo}>
+              {motivoAlvo?.estado === 'CANCELADO' ? 'Cancelar pedido' : 'Marcar como perdido'}
             </Button>
           </Group>
         </Stack>
