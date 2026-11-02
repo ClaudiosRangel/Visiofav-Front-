@@ -164,6 +164,8 @@ interface OrcamentoDetalhe {
   // Imagem da faca do produto (dataURL/base64), transferida do RFQ ou enviada
   // direto no orçamento. Exibida no card Produto/Especificação.
   imagemFaca?: string | null
+  // Foto do produto cadastrado (URL), resolvida pelo backend no GET /:id.
+  imagemProdutoUrl?: string | null
   criadoEm: string
   atualizadoEm: string
   // Multi-item (spec multi-item-gcad)
@@ -1907,6 +1909,7 @@ export default function OrcamentoDetalhePage() {
         item={itemEmEdicao}
         observacoesOrcamento={orcamento?.observacoes ?? null}
         imagemFacaOrcamento={orcamento?.imagemFaca ?? null}
+        imagemProdutoOrcamento={orcamento?.imagemProdutoUrl ?? null}
         onSaved={carregar}
       />
 

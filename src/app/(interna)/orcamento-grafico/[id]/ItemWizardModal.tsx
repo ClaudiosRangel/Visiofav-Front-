@@ -183,6 +183,8 @@ interface Props {
   observacoesOrcamento?: string | null
   /** Imagem da faca do orçamento (dataURL) — exibida em Dados Técnicos e na Revisão. */
   imagemFacaOrcamento?: string | null
+  /** Foto do produto cadastrado (URL) — exibida ao lado da faca. */
+  imagemProdutoOrcamento?: string | null
   /** Chamado após salvar com sucesso (para a página recarregar o GET /:id). */
   onSaved: () => void
 }
@@ -193,6 +195,7 @@ function itemParaForm(
   orcamentoId?: string,
   observacoesOrcamento?: string | null,
   imagemFacaOrcamento?: string | null,
+  imagemProdutoOrcamento?: string | null,
 ): WizardFormData {
   const coresMapeadas: CorItem[] = (item.cores || []).map((c: any) => ({
     nome: c.nome,
@@ -272,10 +275,12 @@ function itemParaForm(
     _faixasTiragemIniciais: extrairTiragensDasObservacoes(observacoesOrcamento) || null,
     // Imagem da faca do orçamento (visualização em Dados Técnicos e Revisão).
     _imagemFaca: imagemFacaOrcamento ?? null,
+    // Foto do produto cadastrado (ao lado da faca).
+    _imagemProdutoUrl: imagemProdutoOrcamento ?? null,
   }
 }
 
-export default function ItemWizardModal({ opened, onClose, orcamentoId, item, observacoesOrcamento, imagemFacaOrcamento, onSaved }: Props) {
+export default function ItemWizardModal({ opened, onClose, orcamentoId, item, observacoesOrcamento, imagemFacaOrcamento, imagemProdutoOrcamento, onSaved }: Props) {
   const isEditing = !!item
   const [active, setActive] = useState(0)
   const [formData, setFormData] = useState<WizardFormData>(INITIAL_ITEM)
@@ -287,14 +292,15 @@ export default function ItemWizardModal({ opened, onClose, orcamentoId, item, ob
     setActive(0)
     setFormData(
       item
-        ? itemParaForm(item, orcamentoId, observacoesOrcamento, imagemFacaOrcamento)
+        ? itemParaForm(item, orcamentoId, observacoesOrcamento, imagemFacaOrcamento, imagemProdutoOrcamento)
         : {
             ...INITIAL_ITEM,
             _faixasTiragemIniciais: extrairTiragensDasObservacoes(observacoesOrcamento) || null,
             _imagemFaca: imagemFacaOrcamento ?? null,
+            _imagemProdutoUrl: imagemProdutoOrcamento ?? null,
           },
     )
-  }, [opened, item, orcamentoId, observacoesOrcamento, imagemFacaOrcamento])
+  }, [opened, item, orcamentoId, observacoesOrcamento, imagemFacaOrcamento, imagemProdutoOrcamento])
 
   const updateForm = useCallback((partial: Partial<WizardFormData>) => {
     setFormData(prev => ({ ...prev, ...partial }))

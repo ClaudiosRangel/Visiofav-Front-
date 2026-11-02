@@ -410,6 +410,8 @@ export default function NovoOrcamentoGraficoPage() {
           _faixasTiragemIniciais: extrairTiragensDasObservacoes(data.observacoes),
           // Imagem da faca do orçamento (exibida em Dados Técnicos e na Revisão).
           _imagemFaca: data.imagemFaca ?? null,
+          // Foto do produto cadastrado (resolvida pelo backend) — ao lado da faca.
+          _imagemProdutoUrl: data.imagemProdutoUrl ?? null,
         }
 
         setFormData(formCarregado)
