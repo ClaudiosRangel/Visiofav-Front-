@@ -168,8 +168,10 @@ export default function StepRevisao({ formData, updateForm }: Props) {
   const [erro, setErro] = useState<string | null>(null)
   // P1 — faixas de tiragem DIGITADAS pelo operador (texto cru do input). Vazio
   // ⇒ usa as faixas AUTOMÁTICAS (não-regressão). O parse puro vive em
-  // `parse-faixas-tiragem.ts`.
-  const [faixasTexto, setFaixasTexto] = useState('')
+  // `parse-faixas-tiragem.ts`. Inicializa com as tiragens vindas da proposta/RFQ
+  // (`_faixasTiragemIniciais`), quando houver, para a grade já nascer com as
+  // faixas informadas pelo vendedor (ex.: "1000,2000").
+  const [faixasTexto, setFaixasTexto] = useState(formData._faixasTiragemIniciais || '')
   // Conferência foto × recálculo (spec orcamento-repeticao-engenharia-completa).
   const [conferencia, setConferencia] = useState<Conferencia | null>(null)
   // Máquinas de impressão (paridade Calcgraf: o acerto-por-cor é por máquina).
@@ -188,6 +190,15 @@ export default function StepRevisao({ formData, updateForm }: Props) {
       })
       .catch(() => setMaquinas([]))
   }, [])
+
+  // Pré-preenche as faixas de tiragem com as da proposta/RFQ quando o valor
+  // inicial chega depois da montagem (carregamento assíncrono do orçamento em
+  // edição). Só aplica enquanto o campo ainda está vazio — nunca sobrescreve o
+  // que o operador digitou.
+  const faixasIniciais = formData._faixasTiragemIniciais || ''
+  useEffect(() => {
+    if (faixasIniciais) setFaixasTexto((atual) => (atual ? atual : faixasIniciais))
+  }, [faixasIniciais])
 
   // Conferência foto × recálculo: só quando o item veio de um cálculo da
   // biblioteca (edição de repetição). Compara o valor original do Calcgraf com o

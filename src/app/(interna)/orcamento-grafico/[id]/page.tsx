@@ -1905,6 +1905,7 @@ export default function OrcamentoDetalhePage() {
         onClose={() => setItemModalOpen(false)}
         orcamentoId={id}
         item={itemEmEdicao}
+        observacoesOrcamento={orcamento?.observacoes ?? null}
         onSaved={carregar}
       />
 

@@ -163,6 +163,10 @@ export interface WizardFormData {
   // (P15). Ausentes na criação do zero.
   _itemSalvoOrcamentoId?: string | null
   _itemSalvoId?: string | null
+  // Tiragens informadas na proposta/RFQ (texto "1000,2000"), para pré-preencher
+  // o campo "Tiragens (separadas por vírgula)" da Revisão e já montar a grade de
+  // comparação. Extraído das observações do orçamento. Ausente = campo vazio.
+  _faixasTiragemIniciais?: string | null
 }
 
 const INITIAL_FORM: WizardFormData = {
@@ -234,6 +238,20 @@ const INITIAL_FORM: WizardFormData = {
   formatoCorteLarguraMm: null,
   formatoCorteAlturaMm: null,
   ajusteCorteMicroMm: null,
+}
+
+/**
+ * Extrai as tiragens da tag "Tiragens: 1000,2000" das observações do orçamento
+ * (gravada no encaminhamento do RFQ). Retorna o texto cru para o campo de faixas
+ * da Revisão (ex.: "1000,2000"); string vazia quando não houver.
+ */
+export function extrairTiragensDasObservacoes(obs: string | null | undefined): string {
+  if (!obs) return ''
+  for (const linha of obs.split('\n')) {
+    const m = linha.match(/Tiragens?\s*:?\s*(.+)/i)
+    if (m && m[1]?.trim()) return m[1].trim()
+  }
+  return ''
 }
 
 // Fluxo: 'Dados Técnicos' entra logo após 'Cores' (índice 5), antes dos
@@ -382,6 +400,9 @@ export default function NovoOrcamentoGraficoPage() {
           formatoCorteLarguraMm: data.formatoCorteLarguraMm != null ? Number(data.formatoCorteLarguraMm) : null,
           formatoCorteAlturaMm: data.formatoCorteAlturaMm != null ? Number(data.formatoCorteAlturaMm) : null,
           ajusteCorteMicroMm: data.ajusteCorteMicroMm != null ? Number(data.ajusteCorteMicroMm) : null,
+          // Tiragens da proposta/RFQ (tag "Tiragens: 1000,2000" nas observações)
+          // para pré-preencher a grade de comparação da Revisão.
+          _faixasTiragemIniciais: extrairTiragensDasObservacoes(data.observacoes),
         }
 
         setFormData(formCarregado)

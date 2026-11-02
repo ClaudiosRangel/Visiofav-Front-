@@ -24,6 +24,7 @@ import { notifications } from '@mantine/notifications'
 import { api } from '@/lib/api'
 
 import type { WizardFormData, CorItem, AcabamentoItem } from '../novo/page'
+import { extrairTiragensDasObservacoes } from '../novo/page'
 import StepTipo from '../novo/StepTipo'
 import StepMedidas from '../novo/StepMedidas'
 import StepPapel from '../novo/StepPapel'
@@ -177,12 +178,15 @@ interface Props {
   orcamentoId: string
   /** Item a editar; se ausente, o modal cria um item novo. */
   item?: ItemParaEditar | null
+  /** Observações do orçamento (p/ extrair as tiragens da proposta e pré-preencher
+   *  a grade de comparação da Revisão). */
+  observacoesOrcamento?: string | null
   /** Chamado após salvar com sucesso (para a página recarregar o GET /:id). */
   onSaved: () => void
 }
 
 /** Mapeia um item carregado da API de volta para o WizardFormData. */
-function itemParaForm(item: ItemParaEditar, orcamentoId?: string): WizardFormData {
+function itemParaForm(item: ItemParaEditar, orcamentoId?: string, observacoesOrcamento?: string | null): WizardFormData {
   const coresMapeadas: CorItem[] = (item.cores || []).map((c: any) => ({
     nome: c.nome,
     tipo: c.tipo,
@@ -257,10 +261,12 @@ function itemParaForm(item: ItemParaEditar, orcamentoId?: string): WizardFormDat
     // Item salvo em edição (QUALQUER origem) — usado pelo P15 (encaixe real).
     _itemSalvoOrcamentoId: orcamentoId ?? null,
     _itemSalvoId: item.id ?? null,
+    // Tiragens da proposta/RFQ (observações do orçamento) p/ a grade de comparação.
+    _faixasTiragemIniciais: extrairTiragensDasObservacoes(observacoesOrcamento) || null,
   }
 }
 
-export default function ItemWizardModal({ opened, onClose, orcamentoId, item, onSaved }: Props) {
+export default function ItemWizardModal({ opened, onClose, orcamentoId, item, observacoesOrcamento, onSaved }: Props) {
   const isEditing = !!item
   const [active, setActive] = useState(0)
   const [formData, setFormData] = useState<WizardFormData>(INITIAL_ITEM)
@@ -270,8 +276,12 @@ export default function ItemWizardModal({ opened, onClose, orcamentoId, item, on
   useEffect(() => {
     if (!opened) return
     setActive(0)
-    setFormData(item ? itemParaForm(item, orcamentoId) : INITIAL_ITEM)
-  }, [opened, item, orcamentoId])
+    setFormData(
+      item
+        ? itemParaForm(item, orcamentoId, observacoesOrcamento)
+        : { ...INITIAL_ITEM, _faixasTiragemIniciais: extrairTiragensDasObservacoes(observacoesOrcamento) || null },
+    )
+  }, [opened, item, orcamentoId, observacoesOrcamento])
 
   const updateForm = useCallback((partial: Partial<WizardFormData>) => {
     setFormData(prev => ({ ...prev, ...partial }))
