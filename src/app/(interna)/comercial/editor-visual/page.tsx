@@ -6,12 +6,13 @@
  * via /api/orcamento-grafico/templates-visuais. Spec comercial-editor-visual-templates.
  */
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Stack, Group, Title, Button, Paper, Select, Text, Loader, Center, TextInput,
   SegmentedControl, Badge, Grid, ScrollArea, ActionIcon, Tooltip, Modal,
 } from '@mantine/core'
 import {
-  IconDeviceFloppy, IconPlus, IconCopy, IconStar, IconTrash, IconEye, IconRefresh,
+  IconDeviceFloppy, IconPlus, IconCopy, IconStar, IconTrash, IconEye, IconRefresh, IconArrowLeft,
 } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { getAuthToken } from '@/lib/authStorage'
@@ -36,7 +37,11 @@ const CTX_EXEMPLO: ContextoGeracao = {
   orcamento: {
     numero: 1234, versao: 1, quantidade: 5000, precoVenda: 12500, precoUnitario: 2.5,
     validadeAte: new Date(Date.now() + 10 * 864e5).toISOString(), criadoEm: new Date().toISOString(),
-    descricao: 'Cartucho de exemplo', vendedorNome: 'Vendedor Exemplo',
+    descricao: 'Cartucho Sabonete — exemplo', vendedorNome: 'Vendedor Exemplo',
+    tipoEmbalagem: 'Cartucho', formatoFinal: '57 x 32 x 82 mm',
+    especificacoes: 'Cartão Triplex 250 g/m², 4x0 cores',
+    acabamentosTexto: 'Verniz Base Água Total Frente, Laminação Fosca',
+    condicaoPagamento: '28/35/42', imposto: 'ICMS + IPI', programacaoEntrega: 'a combinar',
   },
   itens: [
     { descricao: 'Item A', quantidade: 5000, precoUnitario: 2.5, precoTotal: 12500 },
@@ -53,6 +58,7 @@ function layoutVazio(): LayoutDocumento {
 }
 
 export default function EditorVisualPage() {
+  const router = useRouter()
   useEffect(() => { document.title = 'Editor de Templates' }, [])
 
   const [tipo, setTipo] = useState<TipoTemplate>('PROPOSTA')
@@ -204,6 +210,19 @@ export default function EditorVisualPage() {
     }
   }
 
+  async function restaurarModelo() {
+    if (!atualId) return
+    if (!window.confirm('Isto substitui o layout atual deste template pelo modelo padrão da Carton Wega. Continuar?')) return
+    try {
+      const { data } = await api.patch(`/orcamento-grafico/templates-visuais/${atualId}/restaurar-wega`)
+      setLayout(normalizarLayout(data.layoutJson))
+      setSelId(null)
+      notifications.show({ title: 'Modelo restaurado', message: 'Layout padrão aplicado. Lembre de salvar.', color: 'green' })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao restaurar modelo.', color: 'red' })
+    }
+  }
+
   async function semear() {
     try {
       await api.post('/orcamento-grafico/templates-visuais/seed-wega')
@@ -220,10 +239,16 @@ export default function EditorVisualPage() {
   return (
     <Stack gap="md">
       <Group justify="space-between">
-        <div>
-          <Title order={3}>Editor de Templates</Title>
-          <Text size="sm" c="dimmed">Monte o layout arrastando os elementos. O preview reflete o PDF final.</Text>
-        </div>
+        <Group gap="sm">
+          <Button variant="subtle" color="gray" leftSection={<IconArrowLeft size={16} />}
+            onClick={() => router.push('/orcamento-grafico')}>
+            Voltar
+          </Button>
+          <div>
+            <Title order={3}>Editor de Templates</Title>
+            <Text size="sm" c="dimmed">Monte o layout arrastando os elementos. O preview reflete o PDF final.</Text>
+          </div>
+        </Group>
         <Group gap="xs">
           <SegmentedControl
             value={tipo}
@@ -267,6 +292,9 @@ export default function EditorVisualPage() {
         <Grid.Col span={{ base: 12, md: 6 }}>
           <Group mb="xs" gap="xs">
             <TextInput placeholder="Nome do template" value={nome} onChange={(e) => setNome(e.currentTarget.value)} style={{ flex: 1 }} />
+            {atualId && (
+              <Button variant="default" leftSection={<IconStar size={16} />} onClick={restaurarModelo}>Restaurar modelo</Button>
+            )}
             <Button leftSection={<IconDeviceFloppy size={16} />} loading={salvando} onClick={salvar}>Salvar</Button>
             <Button variant="light" leftSection={<IconEye size={16} />} onClick={previewPdf}>Preview PDF</Button>
           </Group>

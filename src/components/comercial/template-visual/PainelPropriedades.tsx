@@ -17,9 +17,16 @@ export const BINDINGS_DISPONIVEIS: Array<{ value: string; label: string }> = [
   { value: '{{empresa.cnpj}}', label: 'Empresa — CNPJ' },
   { value: '{{orcamento.numero}}', label: 'Orçamento — Número' },
   { value: '{{orcamento.descricao}}', label: 'Orçamento — Descrição' },
+  { value: '{{orcamento.tipoEmbalagem}}', label: 'Orçamento — Produto (tipo embalagem)' },
+  { value: '{{orcamento.formatoFinal}}', label: 'Orçamento — Formato final' },
+  { value: '{{orcamento.especificacoes}}', label: 'Orçamento — Especificações' },
+  { value: '{{orcamento.acabamentosTexto}}', label: 'Orçamento — Acabamentos' },
   { value: '{{orcamento.precoVenda}}', label: 'Orçamento — Preço de venda (R$)' },
   { value: '{{orcamento.validadeAte}}', label: 'Orçamento — Validade (data)' },
   { value: '{{orcamento.criadoEm}}', label: 'Orçamento — Data de emissão' },
+  { value: '{{orcamento.condicaoPagamento}}', label: 'Orçamento — Condição de pagamento' },
+  { value: '{{orcamento.imposto}}', label: 'Orçamento — Imposto' },
+  { value: '{{orcamento.programacaoEntrega}}', label: 'Orçamento — Programação de entrega' },
   { value: '{{orcamento.vendedorNome}}', label: 'Orçamento — Vendedor' },
 ]
 
