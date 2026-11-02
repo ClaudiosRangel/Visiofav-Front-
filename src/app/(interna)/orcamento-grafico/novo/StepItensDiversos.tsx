@@ -121,16 +121,18 @@ export default function StepItensDiversos({ formData, updateForm }: Props) {
                   <Table.Td>
                     <NumberInput
                       value={item.quantidade}
-                      onChange={(v) => updateDiverso(i, 'quantidade', typeof v === 'number' ? v : 0)}
+                      onChange={(v) => updateDiverso(i, 'quantidade', typeof v === 'number' && v > 0 ? v : 1)}
                       min={0.001}
                       decimalScale={3}
                       size="xs"
+                      disabled={item.fixo}
+                      description={item.fixo ? 'ignorada (fixo)' : undefined}
                     />
                   </Table.Td>
                   <Table.Td>
                     <NumberInput
                       value={item.valor}
-                      onChange={(v) => updateDiverso(i, 'valor', typeof v === 'number' ? v : 0)}
+                      onChange={(v) => updateDiverso(i, 'valor', typeof v === 'number' && v > 0 ? v : 0.01)}
                       prefix="R$ "
                       min={0.01}
                       decimalScale={2}
@@ -202,7 +204,7 @@ export default function StepItensDiversos({ formData, updateForm }: Props) {
                   <Table.Td>
                     <NumberInput
                       value={item.quantidade}
-                      onChange={(v) => updateFornecido(i, 'quantidade', typeof v === 'number' ? v : 0)}
+                      onChange={(v) => updateFornecido(i, 'quantidade', typeof v === 'number' && v > 0 ? v : 1)}
                       min={0.001}
                       decimalScale={3}
                       size="xs"

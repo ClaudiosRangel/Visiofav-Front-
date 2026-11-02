@@ -365,9 +365,30 @@ export default function ItemWizardModal({ opened, onClose, orcamentoId, item, ob
         tinta: formData.tintaModo === 'CONSUMO_DIRETO'
           ? { modo: 'CONSUMO_DIRETO' as const, consumoKg: formData.tintaConsumoKg ?? 0, precoKg: formData.tintaPrecoKg ?? 0 }
           : { modo: 'COBERTURA' as const },
-        itensDiversos: formData.itensDiversos?.length ? formData.itensDiversos : undefined,
-        itensFornecidos: formData.itensFornecidos?.length ? formData.itensFornecidos : undefined,
-        camposLivres: formData.camposLivres?.length ? formData.camposLivres : undefined,
+        // Itens complementares: normaliza quantidade/valor para os mínimos do
+        // backend. Item "fixo" não escala com a tiragem → quantidade é irrelevante
+        // (forçamos 1); itens sem descrição são descartados.
+        itensDiversos: (() => {
+          const itens = (formData.itensDiversos ?? [])
+            .filter((i) => i.descricao?.trim())
+            .map((i) => ({
+              descricao: i.descricao.trim(),
+              quantidade: i.fixo ? 1 : (i.quantidade && i.quantidade >= 0.001 ? i.quantidade : 1),
+              valor: i.valor && i.valor >= 0.01 ? i.valor : 0.01,
+              fixo: !!i.fixo,
+            }))
+          return itens.length ? itens : undefined
+        })(),
+        itensFornecidos: (() => {
+          const itens = (formData.itensFornecidos ?? [])
+            .filter((i) => i.descricao?.trim())
+            .map((i) => ({ descricao: i.descricao.trim(), quantidade: i.quantidade && i.quantidade >= 0.001 ? i.quantidade : 1 }))
+          return itens.length ? itens : undefined
+        })(),
+        camposLivres: (() => {
+          const campos = (formData.camposLivres ?? []).filter((c) => c.rotulo?.trim())
+          return campos.length ? campos : undefined
+        })(),
         // Task 4 — Dados Técnicos (paridade / geometria / acondicionamento)
         ...montarPayloadDadosTecnicos(formData),
       }
