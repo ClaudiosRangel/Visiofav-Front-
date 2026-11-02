@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState, useCallback, Fragment } from 'react'
+import { useEffect, useState, useCallback, useRef, Fragment } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Title, Stack, Group, Button, Text, Loader, Center, Paper, SimpleGrid,
   Badge, Divider, Progress, Table, Modal, Textarea, Alert, ScrollArea,
   ActionIcon, Tooltip, Collapse, Checkbox, TextInput, NumberInput, Menu, Select,
+  Image,
 } from '@mantine/core'
 import {
   IconArrowLeft, IconEdit, IconCopy, IconSend, IconCheck, IconX,
@@ -160,6 +161,9 @@ interface OrcamentoDetalhe {
   variacoes?: Array<{ quantidade: number; precoUnitario: number; precoTotal: number }> | null
   observacoes?: string | null
   produtoNome?: string | null
+  // Imagem da faca do produto (dataURL/base64), transferida do RFQ ou enviada
+  // direto no orçamento. Exibida no card Produto/Especificação.
+  imagemFaca?: string | null
   criadoEm: string
   atualizadoEm: string
   // Multi-item (spec multi-item-gcad)
@@ -290,11 +294,18 @@ function formatarMedidas(medidas: Record<string, number> | null | undefined): st
 function ProdutoEspecificacao({
   orcamento,
   itens,
+  podeEditar,
+  onImagemFaca,
+  onAmpliar,
 }: {
   orcamento: OrcamentoDetalhe
   itens: ItemOrcamento[]
+  podeEditar: boolean
+  onImagemFaca: (dataUrl: string | null) => void
+  onAmpliar: (src: string) => void
 }) {
   const item0 = itens[0]
+  const facaRef = useRef<HTMLInputElement>(null)
   const produto =
     orcamento.produtoNome ||
     extrairTagObs(orcamento.observacoes, 'Produto') ||
@@ -308,6 +319,22 @@ function ProdutoEspecificacao({
   const gramatura = orcamento.gramatura ?? (item0?.gramatura != null ? Number(item0.gramatura) : null)
   const numCores = orcamento.numCores || item0?.numCores || 0
   const cores = (orcamento.cores ?? item0?.cores ?? []) as CorDetalhe[]
+  const faca = orcamento.imagemFaca || null
+
+  function lerFaca(file: File) {
+    if (!file.type.startsWith('image/')) {
+      notifications.show({ message: 'Selecione um arquivo de imagem.', color: 'red' })
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      notifications.show({ message: 'Imagem da faca acima de 5MB.', color: 'red' })
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => onImagemFaca(String(reader.result || ''))
+    reader.onerror = () => notifications.show({ message: 'Falha ao ler a imagem.', color: 'red' })
+    reader.readAsDataURL(file)
+  }
 
   return (
     <Paper p="md" withBorder>
@@ -330,6 +357,39 @@ function ProdutoEspecificacao({
           ))}
           {cores.length > 4 && <Text size="xs" c="dimmed">+{cores.length - 4}</Text>}
         </Group>
+
+        {/* Imagem da faca — informação técnica do produto. Vem do RFQ ou é
+            enviada direto aqui (quando o orçamento está em RASCUNHO). */}
+        <Divider my={6} label="Imagem da faca" labelPosition="left" />
+        {faca ? (
+          <Image
+            src={faca}
+            alt="Imagem da faca"
+            radius="sm"
+            h={140}
+            fit="contain"
+            style={{ cursor: 'zoom-in', border: '1px solid var(--mantine-color-default-border)' }}
+            onClick={() => onAmpliar(faca)}
+          />
+        ) : (
+          <Text size="xs" c="dimmed">Sem imagem da faca.</Text>
+        )}
+        {podeEditar && (
+          <Group gap="xs" mt={4}>
+            <Button size="xs" variant="light" leftSection={<IconPhoto size={14} />}
+              onClick={() => facaRef.current?.click()}>
+              {faca ? 'Trocar' : 'Enviar faca'}
+            </Button>
+            {faca && (
+              <Button size="xs" variant="light" color="red" leftSection={<IconTrash size={14} />}
+                onClick={() => onImagemFaca(null)}>
+                Remover
+              </Button>
+            )}
+            <input ref={facaRef} type="file" accept="image/*" style={{ display: 'none' }}
+              onChange={(e) => { const f = e.currentTarget.files?.[0]; if (f) lerFaca(f); e.currentTarget.value = '' }} />
+          </Group>
+        )}
       </Stack>
     </Paper>
   )
@@ -414,6 +474,8 @@ export default function OrcamentoDetalhePage() {
   const [amostrasOpen, setAmostrasOpen] = useState(false)
   // Upload/visualização do arquivo de encaixe (gerado por app externo)
   const [encaixeItem, setEncaixeItem] = useState<{ id: string; descricao?: string | null } | null>(null)
+  // Imagem ampliada (faca/foto) em modal
+  const [imgAmpliada, setImgAmpliada] = useState<string | null>(null)
 
   useEffect(() => { document.title = 'Detalhe do Orçamento' }, [])
 
@@ -696,6 +758,22 @@ export default function OrcamentoDetalhePage() {
       notifications.show({ title: 'Não foi possível converter', message: msg, color: 'red' })
     } finally {
       setActionLoading(false)
+    }
+  }
+
+  // Define/limpa a imagem da faca do produto (PATCH /:id/imagem-faca).
+  const handleImagemFaca = async (dataUrl: string | null) => {
+    try {
+      await api.patch(`/orcamento-grafico/${id}/imagem-faca`, { imagemFaca: dataUrl })
+      notifications.show({
+        title: 'Imagem da faca',
+        message: dataUrl ? 'Imagem atualizada.' : 'Imagem removida.',
+        color: dataUrl ? 'green' : 'orange',
+      })
+      // Atualização otimista local (evita refetch do orçamento inteiro).
+      setOrcamento((o) => (o ? { ...o, imagemFaca: dataUrl } : o))
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar a imagem da faca.', color: 'red' })
     }
   }
 
@@ -1039,7 +1117,13 @@ export default function OrcamentoDetalhePage() {
           </Stack>
         </Paper>
 
-        <ProdutoEspecificacao orcamento={orcamento} itens={itens} />
+        <ProdutoEspecificacao
+          orcamento={orcamento}
+          itens={itens}
+          podeEditar={orcamento.status === 'RASCUNHO'}
+          onImagemFaca={handleImagemFaca}
+          onAmpliar={(src) => setImgAmpliada(src)}
+        />
 
         <Paper p="md" withBorder>
           <Text fw={600} size="sm" mb="xs">Totais Consolidados</Text>
@@ -1877,6 +1961,11 @@ export default function OrcamentoDetalhePage() {
         {itemRelatorio && (
           <RelatorioItem orcamentoId={id} itemId={itemRelatorio.id} />
         )}
+      </Modal>
+
+      {/* Imagem ampliada (faca / foto do produto) */}
+      <Modal opened={!!imgAmpliada} onClose={() => setImgAmpliada(null)} size="xl" centered title="Imagem">
+        {imgAmpliada && <Image src={imgAmpliada} alt="Imagem ampliada" fit="contain" mah="75vh" />}
       </Modal>
     </Stack>
   )

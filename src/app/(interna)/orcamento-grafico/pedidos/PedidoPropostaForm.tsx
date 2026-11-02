@@ -76,6 +76,8 @@ interface FormState {
   prazoPagamentoId: string | null
   acabamentosSelecionados: Array<{ acabamentoId?: string | null; nome: string; marcado: boolean; detalhe?: string | null }>
   tiragensTexto: string
+  // Imagem da faca (dataURL/base64). '' = sem imagem.
+  imagemFaca: string
 }
 
 interface ClienteOpc { id: string; razaoSocial: string; nomeFantasia?: string | null; cpfCnpj: string; uf?: string | null; cidade?: string | null }
@@ -91,6 +93,7 @@ const VAZIO: FormState = {
   acabamentoManual: false, quantidadePorVolume: '', variacoesArte: '', exportacao: '', dataValidade: '',
   discriminacao: '', observacoes: '', exigeAmostra: false,
   clienteId: null, produtoId: null, prazoPagamentoId: null, acabamentosSelecionados: [], tiragensTexto: '',
+  imagemFaca: '',
 }
 
 export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) {
@@ -103,6 +106,9 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
   const [anexos, setAnexos] = useState<AnexoMeta[]>([])
   const [idAtual, setIdAtual] = useState<string | undefined>(pedidoId)
   const fileRef = useRef<HTMLInputElement>(null)
+  // Imagem da faca: input dedicado (lida como dataURL e guardada em form.imagemFaca,
+  // salva junto com o RFQ — funciona mesmo antes de o pedido existir).
+  const facaRef = useRef<HTMLInputElement>(null)
 
   // Revisão 3 — busca cliente/produto, prazos e checklist de acabamentos.
   const [clienteOpcoes, setClienteOpcoes] = useState<ClienteOpc[]>([])
@@ -399,6 +405,8 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
     p.tiragensTexto = form.tiragensTexto.trim() || null
     p.tipoEntrega = form.tipoEntrega || null
     p.exportacao = form.exportacao || null
+    // Imagem da faca: '' → null (não gravar string vazia).
+    p.imagemFaca = form.imagemFaca ? form.imagemFaca : null
     return p
   }
 
@@ -454,6 +462,25 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
         : err?.response?.data?.message || 'Falha ao enviar imagem.'
       notifications.show({ title: 'Imagem', message: msg, color: 'red' })
     }
+  }
+
+  // Lê a imagem da faca como dataURL (base64) e guarda em form.imagemFaca.
+  // Limite ~5MB (fica confortável sob o teto do backend de ~8MB em base64).
+  function selecionarImagemFaca(file: File) {
+    if (!file.type.startsWith('image/')) {
+      notifications.show({ message: 'Selecione um arquivo de imagem.', color: 'red' })
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      notifications.show({ message: 'Imagem da faca acima de 5MB.', color: 'red' })
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      set('imagemFaca', String(reader.result || ''))
+    }
+    reader.onerror = () => notifications.show({ message: 'Falha ao ler a imagem.', color: 'red' })
+    reader.readAsDataURL(file)
   }
 
   async function removerImagem(anexoId: string) {
@@ -756,6 +783,37 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
         <Textarea label="Acabamentos (texto livre / complemento)" mt="sm" minRows={2} value={form.acabamentos} onChange={(e) => set('acabamentos', e.currentTarget.value)} />
         <Textarea label="Discriminação (itens)" mt="sm" minRows={2} value={form.discriminacao} onChange={(e) => set('discriminacao', e.currentTarget.value)} />
         <Textarea label="Observações" mt="sm" minRows={2} value={form.observacoes} onChange={(e) => set('observacoes', e.currentTarget.value)} />
+      </Paper>
+
+      {/* Imagem da FACA do produto — informação técnica. Quando a proposta tem a
+          faca/corte, o calculista a vê no orçamento junto com a foto do produto.
+          Guardada como dataURL no form.imagemFaca e salva com o RFQ. */}
+      <Paper withBorder p="md">
+        <Group justify="space-between" mb="sm">
+          <Text fw={600}>Imagem da faca</Text>
+          <Group gap="xs">
+            <Button variant="light" leftSection={<IconUpload size={16} />}
+              onClick={() => facaRef.current?.click()}>
+              {form.imagemFaca ? 'Trocar imagem' : 'Selecionar imagem'}
+            </Button>
+            {form.imagemFaca && (
+              <Button variant="light" color="red" leftSection={<IconTrash size={16} />}
+                onClick={() => set('imagemFaca', '')}>
+                Remover
+              </Button>
+            )}
+          </Group>
+          <input ref={facaRef} type="file" accept="image/*" style={{ display: 'none' }}
+            onChange={(e) => { const f = e.currentTarget.files?.[0]; if (f) selecionarImagemFaca(f); e.currentTarget.value = '' }} />
+        </Group>
+        {form.imagemFaca ? (
+          <Image src={form.imagemFaca} alt="Imagem da faca" radius="sm" h={160} fit="contain"
+            style={{ cursor: 'zoom-in' }} onClick={() => setImgAmpliada(form.imagemFaca)} />
+        ) : (
+          <Text size="xs" c="dimmed">
+            Opcional. Anexe o desenho da faca/corte do produto — ele aparecerá no orçamento gerado.
+          </Text>
+        )}
       </Paper>
 
       {/* Imagens */}
