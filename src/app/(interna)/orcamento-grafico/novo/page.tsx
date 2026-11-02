@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
-  Title, Stack, Stepper, Group, Button, Paper, Container, LoadingOverlay,
+  Title, Stack, Stepper, Group, Button, Paper, Container, LoadingOverlay, Divider,
 } from '@mantine/core'
 import { IconArrowLeft, IconArrowRight, IconDeviceFloppy, IconSend } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
@@ -239,7 +239,9 @@ const INITIAL_FORM: WizardFormData = {
 // Fluxo: 'Dados Técnicos' entra logo após 'Cores' (índice 5), antes dos
 // acabamentos — reúne geometria/montagem/formatos que descrevem a peça depois
 // de definidos papel e cores. 'Revisão' continua sendo o último step (índice 8).
-const STEP_LABELS = ['Cliente', 'Tipo', 'Medidas', 'Papel', 'Cores', 'Dados Técnicos', 'Acabamentos', 'Diversos', 'Revisão']
+// Steps do wizard. "Produto" funde Tipo + Medidas + Papel numa única tela
+// (antes eram 3 steps). Revisão segue como último.
+const STEP_LABELS = ['Cliente', 'Produto', 'Cores', 'Dados Técnicos', 'Acabamentos', 'Diversos', 'Revisão']
 
 export default function NovoOrcamentoGraficoPage() {
   const router = useRouter()
@@ -410,18 +412,19 @@ export default function NovoOrcamentoGraficoPage() {
   const canAdvance = (): boolean => {
     switch (active) {
       case 0: return !!(formData.clienteId || formData.clienteNome.trim())
-      case 1: return !!formData.tipoEmbalagemId
-      case 2: {
-        if (!formData.tipoEmbalagem?.parametros) return true
-        const params = formData.tipoEmbalagem.parametros as any[]
-        return params.filter((p: any) => p.obrigatorio).every((p: any) => formData.medidas[p.nome] > 0)
+      case 1: {
+        // Produto = Tipo + Medidas + Papel (fundidos). Exige os três.
+        if (!formData.tipoEmbalagemId) return false
+        const params = (formData.tipoEmbalagem?.parametros as any[]) || []
+        const medidasOk = params.filter((p: any) => p.obrigatorio).every((p: any) => formData.medidas[p.nome] > 0)
+        const papelOk = isEditing || (!!formData.suporteId && !!formData.papelId && formData.gramatura > 0 && formData.precoKg > 0)
+        return medidasOk && papelOk
       }
-      case 3: return isEditing || (!!formData.suporteId && !!formData.papelId && formData.gramatura > 0 && formData.precoKg > 0)
-      case 4: return formData.cores.length > 0
-      case 5: return true // Dados Técnicos é opcional
-      case 6: return true // Acabamentos
-      case 7: return true // Diversos é opcional
-      case 8: return formData.quantidade > 0
+      case 2: return formData.cores.length > 0
+      case 3: return true // Dados Técnicos é opcional
+      case 4: return true // Acabamentos
+      case 5: return true // Diversos é opcional
+      case 6: return formData.quantidade > 0
       default: return true
     }
   }
@@ -517,14 +520,21 @@ export default function NovoOrcamentoGraficoPage() {
           </Stepper>
 
           {active === 0 && <StepCliente formData={formData} updateForm={updateForm} mostrarRepeticaoProduto={false} />}
-          {active === 1 && <StepTipo formData={formData} updateForm={updateForm} />}
-          {active === 2 && <StepMedidas formData={formData} updateForm={updateForm} />}
-          {active === 3 && <StepPapel formData={formData} updateForm={updateForm} />}
-          {active === 4 && <StepCores formData={formData} updateForm={updateForm} />}
-          {active === 5 && <StepDadosTecnicos formData={formData} updateForm={updateForm} />}
-          {active === 6 && <StepAcabamentos formData={formData} updateForm={updateForm} />}
-          {active === 7 && <StepItensDiversos formData={formData} updateForm={updateForm} />}
-          {active === 8 && <StepRevisao formData={formData} updateForm={updateForm} />}
+          {active === 1 && (
+            // Step "Produto" — Tipo + Medidas + Papel numa única tela.
+            <Stack gap="xl">
+              <StepTipo formData={formData} updateForm={updateForm} />
+              <Divider label="Medidas" labelPosition="center" />
+              <StepMedidas formData={formData} updateForm={updateForm} />
+              <Divider label="Papel / Cartão" labelPosition="center" />
+              <StepPapel formData={formData} updateForm={updateForm} />
+            </Stack>
+          )}
+          {active === 2 && <StepCores formData={formData} updateForm={updateForm} />}
+          {active === 3 && <StepDadosTecnicos formData={formData} updateForm={updateForm} />}
+          {active === 4 && <StepAcabamentos formData={formData} updateForm={updateForm} />}
+          {active === 5 && <StepItensDiversos formData={formData} updateForm={updateForm} />}
+          {active === 6 && <StepRevisao formData={formData} updateForm={updateForm} />}
         </Paper>
 
         {/* Navigation */}
