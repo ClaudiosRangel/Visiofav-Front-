@@ -1906,6 +1906,7 @@ export default function OrcamentoDetalhePage() {
         orcamentoId={id}
         item={itemEmEdicao}
         observacoesOrcamento={orcamento?.observacoes ?? null}
+        imagemFacaOrcamento={orcamento?.imagemFaca ?? null}
         onSaved={carregar}
       />
 

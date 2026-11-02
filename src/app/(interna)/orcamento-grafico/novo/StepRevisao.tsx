@@ -13,6 +13,7 @@ import type { WizardFormData } from './page'
 import EncaixeVisual, { type EncaixeLayout } from './EncaixeVisual'
 import { gerarPlanificacao, type GabaritoId } from './planificacao-gabaritos'
 import { parseFaixasTiragem } from './parse-faixas-tiragem'
+import ImagensProdutoFaca from './ImagensProdutoFaca'
 
 // Base da API (mesmo padrão do EncaixeArquivoModal), usada para montar a URL do
 // arquivo de encaixe real servido pelo backend (aceita token via query).
@@ -754,6 +755,14 @@ export default function StepRevisao({ formData, updateForm }: Props) {
               )}
             </SimpleGrid>
           )}
+
+          {/* Imagem da faca + foto do produto (quando houver), junto do encaixe/
+              imposição — pedido do usuário: ver a faca e o produto lado a lado. */}
+          <ImagensProdutoFaca
+            imagemFaca={formData._imagemFaca}
+            imagemProduto={formData._imagemProdutoUrl}
+            titulo="Faca e produto"
+          />
 
           {/* Breakdown visual */}
           {resultado.breakdown && (

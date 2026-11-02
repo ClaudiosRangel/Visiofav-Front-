@@ -167,6 +167,11 @@ export interface WizardFormData {
   // o campo "Tiragens (separadas por vírgula)" da Revisão e já montar a grade de
   // comparação. Extraído das observações do orçamento. Ausente = campo vazio.
   _faixasTiragemIniciais?: string | null
+  // Imagem da FACA do produto (dataURL/base64) vinda do orçamento, e foto do
+  // produto (URL) — exibidas em Dados Técnicos e na Revisão (encaixe/imposição),
+  // uma ao lado da outra. Só visualização; não afetam o cálculo.
+  _imagemFaca?: string | null
+  _imagemProdutoUrl?: string | null
 }
 
 const INITIAL_FORM: WizardFormData = {
@@ -403,6 +408,8 @@ export default function NovoOrcamentoGraficoPage() {
           // Tiragens da proposta/RFQ (tag "Tiragens: 1000,2000" nas observações)
           // para pré-preencher a grade de comparação da Revisão.
           _faixasTiragemIniciais: extrairTiragensDasObservacoes(data.observacoes),
+          // Imagem da faca do orçamento (exibida em Dados Técnicos e na Revisão).
+          _imagemFaca: data.imagemFaca ?? null,
         }
 
         setFormData(formCarregado)

@@ -181,12 +181,19 @@ interface Props {
   /** Observações do orçamento (p/ extrair as tiragens da proposta e pré-preencher
    *  a grade de comparação da Revisão). */
   observacoesOrcamento?: string | null
+  /** Imagem da faca do orçamento (dataURL) — exibida em Dados Técnicos e na Revisão. */
+  imagemFacaOrcamento?: string | null
   /** Chamado após salvar com sucesso (para a página recarregar o GET /:id). */
   onSaved: () => void
 }
 
 /** Mapeia um item carregado da API de volta para o WizardFormData. */
-function itemParaForm(item: ItemParaEditar, orcamentoId?: string, observacoesOrcamento?: string | null): WizardFormData {
+function itemParaForm(
+  item: ItemParaEditar,
+  orcamentoId?: string,
+  observacoesOrcamento?: string | null,
+  imagemFacaOrcamento?: string | null,
+): WizardFormData {
   const coresMapeadas: CorItem[] = (item.cores || []).map((c: any) => ({
     nome: c.nome,
     tipo: c.tipo,
@@ -263,10 +270,12 @@ function itemParaForm(item: ItemParaEditar, orcamentoId?: string, observacoesOrc
     _itemSalvoId: item.id ?? null,
     // Tiragens da proposta/RFQ (observações do orçamento) p/ a grade de comparação.
     _faixasTiragemIniciais: extrairTiragensDasObservacoes(observacoesOrcamento) || null,
+    // Imagem da faca do orçamento (visualização em Dados Técnicos e Revisão).
+    _imagemFaca: imagemFacaOrcamento ?? null,
   }
 }
 
-export default function ItemWizardModal({ opened, onClose, orcamentoId, item, observacoesOrcamento, onSaved }: Props) {
+export default function ItemWizardModal({ opened, onClose, orcamentoId, item, observacoesOrcamento, imagemFacaOrcamento, onSaved }: Props) {
   const isEditing = !!item
   const [active, setActive] = useState(0)
   const [formData, setFormData] = useState<WizardFormData>(INITIAL_ITEM)
@@ -278,10 +287,14 @@ export default function ItemWizardModal({ opened, onClose, orcamentoId, item, ob
     setActive(0)
     setFormData(
       item
-        ? itemParaForm(item, orcamentoId, observacoesOrcamento)
-        : { ...INITIAL_ITEM, _faixasTiragemIniciais: extrairTiragensDasObservacoes(observacoesOrcamento) || null },
+        ? itemParaForm(item, orcamentoId, observacoesOrcamento, imagemFacaOrcamento)
+        : {
+            ...INITIAL_ITEM,
+            _faixasTiragemIniciais: extrairTiragensDasObservacoes(observacoesOrcamento) || null,
+            _imagemFaca: imagemFacaOrcamento ?? null,
+          },
     )
-  }, [opened, item, orcamentoId, observacoesOrcamento])
+  }, [opened, item, orcamentoId, observacoesOrcamento, imagemFacaOrcamento])
 
   const updateForm = useCallback((partial: Partial<WizardFormData>) => {
     setFormData(prev => ({ ...prev, ...partial }))

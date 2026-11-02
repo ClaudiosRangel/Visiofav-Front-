@@ -23,6 +23,7 @@ import {
 } from '@mantine/core'
 import { IconPlus, IconTrash, IconSettings2 } from '@tabler/icons-react'
 import type { WizardFormData } from './page'
+import ImagensProdutoFaca from './ImagensProdutoFaca'
 
 interface Props {
   formData: WizardFormData
@@ -64,6 +65,12 @@ export default function StepDadosTecnicos({ formData, updateForm }: Props) {
           </Text>
         </div>
       </Group>
+
+      {/* Imagem da faca + foto do produto (quando houver), lado a lado. */}
+      <ImagensProdutoFaca
+        imagemFaca={formData._imagemFaca}
+        imagemProduto={formData._imagemProdutoUrl}
+      />
 
       {/* ================= Bloco 1 — Dados do Produto (paridade) ================= */}
       <Paper p="md" withBorder>
