@@ -258,6 +258,84 @@ function BreakdownBar({ breakdown }: { breakdown: { papel: number; tinta: number
 }
 
 // ============================================================================
+// Bloco "Produto / Especificação" (melhoria da tela de detalhe — pedido do
+// usuário). Consolida num card as informações técnicas do produto que antes só
+// apareciam ao expandir o item: produto, tipo de embalagem, medidas, cartão/
+// gramatura, nº de cores. Busca primeiro no cabeçalho do orçamento; quando o
+// cabeçalho não tem o dado (orçamentos antigos / vindos do RFQ com engenharia só
+// no item), cai no 1º item. Extrai "Produto" das observações quando o cabeçalho
+// não traz produtoNome (as observações do encaminhamento gravam "Produto: ...").
+// ============================================================================
+
+function extrairTagObs(obs: string | null | undefined, tag: string): string | null {
+  if (!obs) return null
+  const re = new RegExp(`${tag}\\s*:?\\s*(.+)`, 'i')
+  for (const linha of obs.split('\n')) {
+    const m = linha.match(re)
+    if (m && m[1]?.trim()) return m[1].trim()
+  }
+  return null
+}
+
+function formatarMedidas(medidas: Record<string, number> | null | undefined): string {
+  if (!medidas) return '—'
+  // Prioriza comprimento/largura/altura; cai em P/L/A. Mostra só os > 0.
+  const C = medidas.comprimento ?? medidas.P ?? medidas.C
+  const L = medidas.largura ?? medidas.L
+  const A = medidas.altura ?? medidas.A
+  const partes = [C, L, A].filter((n) => typeof n === 'number' && n > 0).map((n) => `${n}`)
+  return partes.length ? `${partes.join(' × ')} mm` : '—'
+}
+
+function ProdutoEspecificacao({
+  orcamento,
+  itens,
+}: {
+  orcamento: OrcamentoDetalhe
+  itens: ItemOrcamento[]
+}) {
+  const item0 = itens[0]
+  const produto =
+    orcamento.produtoNome ||
+    extrairTagObs(orcamento.observacoes, 'Produto') ||
+    item0?.descricao ||
+    null
+  const tipoEmb = orcamento.tipoEmbalagem
+    ? `${orcamento.tipoEmbalagem.codigo} — ${orcamento.tipoEmbalagem.descricao}`
+    : null
+  const medidas = formatarMedidas(orcamento.medidas ?? item0?.medidas ?? null)
+  const cartao = orcamento.papelDescricao || item0?.papelDescricao || null
+  const gramatura = orcamento.gramatura ?? (item0?.gramatura != null ? Number(item0.gramatura) : null)
+  const numCores = orcamento.numCores || item0?.numCores || 0
+  const cores = (orcamento.cores ?? item0?.cores ?? []) as CorDetalhe[]
+
+  return (
+    <Paper p="md" withBorder>
+      <Text fw={600} size="sm" mb="xs">Produto / Especificação</Text>
+      <Stack gap={4}>
+        <Text size="sm"><strong>Produto:</strong> {produto || '—'}</Text>
+        {tipoEmb && <Text size="sm"><strong>Tipo:</strong> {tipoEmb}</Text>}
+        <Text size="sm"><strong>Medidas:</strong> {medidas}</Text>
+        <Text size="sm">
+          <strong>Cartão:</strong> {cartao || '—'}
+          {gramatura ? ` · ${gramatura} g/m²` : ''}
+        </Text>
+        <Group gap={6} align="center">
+          <Text size="sm"><strong>Cores:</strong></Text>
+          {numCores > 0 ? <Badge size="sm" variant="light">{numCores}</Badge> : <Text size="sm">—</Text>}
+          {cores.slice(0, 4).map((c, i) => (
+            <Badge key={i} size="xs" variant="outline" color={c.tipo === 'CMYK' ? 'blue' : 'grape'}>
+              {c.nome}
+            </Badge>
+          ))}
+          {cores.length > 4 && <Text size="xs" c="dimmed">+{cores.length - 4}</Text>}
+        </Group>
+      </Stack>
+    </Paper>
+  )
+}
+
+// ============================================================================
 // Página de Detalhe do Orçamento — cabeçalho + Itens do Orçamento (multi-item)
 // ============================================================================
 
@@ -933,8 +1011,12 @@ export default function OrcamentoDetalhePage() {
         </Alert>
       )}
 
-      {/* Cabeçalho comercial */}
-      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+      {/* Cabeçalho comercial — 3 blocos: Dados Comerciais, Produto/Especificação,
+          Totais. O bloco de Produto consolida as informações técnicas que antes
+          só apareciam ao expandir o item (pedido do usuário: "melhore essa tela").
+          Os dados vêm do cabeçalho do orçamento (preenchidos ao encaminhar o RFQ);
+          quando ausentes, caem no 1º item. */}
+      <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
         <Paper p="md" withBorder>
           <Text fw={600} size="sm" mb="xs">Dados Comerciais</Text>
           <Stack gap={4}>
@@ -956,6 +1038,8 @@ export default function OrcamentoDetalhePage() {
             )}
           </Stack>
         </Paper>
+
+        <ProdutoEspecificacao orcamento={orcamento} itens={itens} />
 
         <Paper p="md" withBorder>
           <Text fw={600} size="sm" mb="xs">Totais Consolidados</Text>
