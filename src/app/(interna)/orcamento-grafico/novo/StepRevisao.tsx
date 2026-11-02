@@ -819,6 +819,29 @@ export default function StepRevisao({ formData, updateForm }: Props) {
                 ))}
               </Paper>
             )}
+            {/* Itens Diversos (passo "Diversos") — entram no Material Direto.
+                Exibidos a partir do que o operador informou, para deixar claro
+                ONDE o custo desses itens aparece (dentro do MD). */}
+            {(formData.itensDiversos?.filter((i) => i.descricao?.trim()).length ?? 0) > 0 && (
+              <Paper p="md" withBorder>
+                <Text fw={500} size="sm" mb="xs">Itens Diversos (no Material Direto)</Text>
+                <Text size="sm" c="dimmed">
+                  Custo: {formatCurrency(
+                    (formData.itensDiversos ?? [])
+                      .filter((i) => i.descricao?.trim())
+                      .reduce((s, i) => s + (i.fixo ? i.valor : i.valor * i.quantidade), 0),
+                  )}
+                </Text>
+                {(formData.itensDiversos ?? [])
+                  .filter((i) => i.descricao?.trim())
+                  .map((i, idx) => (
+                    <Text key={idx} size="xs" c="dimmed">
+                      {i.descricao}: {formatCurrency(i.fixo ? i.valor : i.valor * i.quantidade)}
+                      {i.fixo ? ' (fixo)' : ` (${i.quantidade} × ${formatCurrency(i.valor)})`}
+                    </Text>
+                  ))}
+              </Paper>
+            )}
           </SimpleGrid>
 
           {/* Grade Tiragem × Margem (P1 — Req 2/3).
