@@ -7,8 +7,12 @@
  * Renderiza o preview (DOM absoluto, escala pt→px) e sobrepõe o Moveable ao
  * elemento selecionado para arrastar (atualiza x/y) e redimensionar (atualiza
  * largura/altura), com clamp à área útil da página.
+ *
+ * IMPORTANTE (correção React #185): NÃO usar setState dentro de ref callback.
+ * O alvo do Moveable é resolvido por querySelector sobre `data-el-id`, sem
+ * estado — evita o loop infinito de render.
  */
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useLayoutEffect } from 'react'
 import Moveable from 'react-moveable'
 import type { ContextoGeracao } from '@/lib/comercial/template-visual/binding-resolver'
 import type { Elemento, LayoutDocumento } from '@/lib/comercial/template-visual/layout-tipos'
@@ -22,7 +26,6 @@ interface Props {
   selecionadoId: string | null
   onSelecionar: (id: string | null) => void
   onAlterarElemento: (el: Elemento) => void
-  /** Largura desejada do canvas em px (escala derivada daí). */
   larguraPx?: number
 }
 
@@ -30,18 +33,16 @@ export default function CanvasA4({
   layout, contexto, logoSrc, selecionadoId, onSelecionar, onAlterarElemento, larguraPx = 595,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [targets, setTargets] = useState<Record<string, HTMLElement | null>>({})
+  const [alvo, setAlvo] = useState<HTMLElement | null>(null)
   const escala = escalaDoCanvas(larguraPx)
-
   const el = layout.elementos.find((e) => e.id === selecionadoId) ?? null
 
-  // Registra os nós DOM de cada elemento (para o Moveable mirar o selecionado).
-  const registrarRef = useCallback((id: string, node: HTMLElement | null) => {
-    setTargets((prev) => (prev[id] === node ? prev : { ...prev, [id]: node }))
-  }, [])
-
-  const [, force] = useState(0)
-  useEffect(() => { force((n) => n + 1) }, [selecionadoId, larguraPx]) // reposiciona o Moveable
+  // Resolve o nó DOM do elemento selecionado SEM setState em render (via efeito).
+  useLayoutEffect(() => {
+    if (!selecionadoId || !containerRef.current) { setAlvo(null); return }
+    const node = containerRef.current.querySelector<HTMLElement>(`[data-el-id="${selecionadoId}"]`)
+    setAlvo(node ?? null)
+  }, [selecionadoId, larguraPx, layout])
 
   return (
     <div
@@ -52,18 +53,18 @@ export default function CanvasA4({
       {/* Preview base */}
       <RenderizadorPreview layout={layout} contexto={contexto} escala={escala} logoSrc={logoSrc} />
 
-      {/* Camada de alvos clicáveis sobre cada elemento (para seleção + Moveable) */}
+      {/* Camada de alvos clicáveis sobre cada elemento (seleção + Moveable) */}
       <div style={{ position: 'absolute', inset: 0 }}>
         {layout.elementos.map((e) => (
           <div
             key={e.id}
-            ref={(node) => registrarRef(e.id, node)}
+            data-el-id={e.id}
             onMouseDown={(ev) => { ev.stopPropagation(); onSelecionar(e.id) }}
             style={{
               position: 'absolute',
               left: ptParaPx(e.xPt, escala),
               top: ptParaPx(e.yPt, escala),
-              width: ptParaPx(e.larguraPt, escala),
+              width: ptParaPx(Math.max(e.larguraPt, 8), escala),
               height: ptParaPx(Math.max(e.alturaPt, 8), escala),
               cursor: 'move',
               outline: e.id === selecionadoId ? '1px solid #4C6EF5' : '1px solid transparent',
@@ -72,9 +73,9 @@ export default function CanvasA4({
         ))}
       </div>
 
-      {el && targets[el.id] && (
+      {el && alvo && (
         <Moveable
-          target={targets[el.id]!}
+          target={alvo}
           container={containerRef.current}
           draggable
           resizable
@@ -86,11 +87,10 @@ export default function CanvasA4({
           }}
           onDragEnd={({ lastEvent }) => {
             if (!lastEvent) return
-            const novo = clampElemento(
+            onAlterarElemento(clampElemento(
               { ...el, xPt: pxParaPt(lastEvent.left, escala), yPt: pxParaPt(lastEvent.top, escala) },
               layout.pagina,
-            )
-            onAlterarElemento(novo)
+            ))
           }}
           onResize={({ target, width, height, drag }) => {
             target.style.width = `${width}px`
@@ -100,7 +100,7 @@ export default function CanvasA4({
           }}
           onResizeEnd={({ lastEvent }) => {
             if (!lastEvent) return
-            const novo = clampElemento(
+            onAlterarElemento(clampElemento(
               {
                 ...el,
                 larguraPt: pxParaPt(lastEvent.width, escala),
@@ -109,8 +109,7 @@ export default function CanvasA4({
                 yPt: pxParaPt(lastEvent.drag.top, escala),
               },
               layout.pagina,
-            )
-            onAlterarElemento(novo)
+            ))
           }}
           snappable
           snapThreshold={5}

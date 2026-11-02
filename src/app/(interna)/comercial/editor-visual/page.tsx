@@ -5,7 +5,7 @@
  * Canvas (arrastar/redimensionar) + Painel de Propriedades + Preview, com CRUD
  * via /api/orcamento-grafico/templates-visuais. Spec comercial-editor-visual-templates.
  */
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   Stack, Group, Title, Button, Paper, Select, Text, Loader, Center, TextInput,
   SegmentedControl, Badge, Grid, ScrollArea, ActionIcon, Tooltip, Modal,
@@ -21,7 +21,7 @@ import PainelPropriedades from '@/components/comercial/template-visual/PainelPro
 import CanvasA4 from '@/components/comercial/template-visual/CanvasA4'
 import {
   type Elemento, type LayoutDocumento, type TipoElemento, type TipoTemplate,
-  elementoInicial, paginaA4Padrao,
+  elementoInicial, paginaA4Padrao, normalizarLayout,
 } from '@/lib/comercial/template-visual/layout-tipos'
 import type { ContextoGeracao } from '@/lib/comercial/template-visual/binding-resolver'
 
@@ -64,41 +64,49 @@ export default function EditorVisualPage() {
   const [selId, setSelId] = useState<string | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [seedModal, setSeedModal] = useState(false)
-  let seq = useMemo(() => ({ n: 0 }), [])
+  const seqRef = useRef(0)
 
-  const carregarLista = useCallback(async (abrirDefault = false) => {
+  // Abre um template (normaliza o layout para nunca quebrar o canvas/preview).
+  const abrir = useCallback(async (id: string) => {
+    try {
+      const { data } = await api.get(`/orcamento-grafico/templates-visuais/${id}`)
+      setAtualId(data.id)
+      setNome(data.nome ?? '')
+      setLayout(normalizarLayout(data.layoutJson))
+      setSelId(null)
+    } catch {
+      notifications.show({ title: 'Erro', message: 'Falha ao abrir o template.', color: 'red' })
+    }
+  }, [])
+
+  const carregarLista = useCallback(async (): Promise<TemplateResumo[]> => {
     setCarregandoLista(true)
     try {
       const { data } = await api.get('/orcamento-grafico/templates-visuais', { params: { tipo } })
       const arr: TemplateResumo[] = Array.isArray(data) ? data : []
       setLista(arr)
-      // Ao trocar de tipo, abre automaticamente o template padrão (já preenchido)
-      // para o usuário editar de imediato — se nenhum estiver aberto ainda.
-      if (abrirDefault && arr.length > 0) {
-        const alvo = arr.find((t) => t.isDefault) ?? arr[0]
-        await abrir(alvo.id)
-      }
+      return arr
     } catch {
       setLista([])
+      return []
     } finally {
       setCarregandoLista(false)
     }
   }, [tipo])
 
-  // Ao montar e ao trocar de tipo, recarrega a lista e abre o padrão preenchido.
-  useEffect(() => { carregarLista(true) }, [carregarLista])
-
-  async function abrir(id: string) {
-    try {
-      const { data } = await api.get(`/orcamento-grafico/templates-visuais/${id}`)
-      setAtualId(data.id)
-      setNome(data.nome)
-      setLayout(data.layoutJson)
-      setSelId(null)
-    } catch {
-      notifications.show({ title: 'Erro', message: 'Falha ao abrir o template.', color: 'red' })
-    }
-  }
+  // Ao montar e ao trocar de tipo: carrega a lista e abre o padrão preenchido.
+  // Efeito ISOLADO (sem loop): só reage à mudança de `tipo`.
+  useEffect(() => {
+    let vivo = true
+    ;(async () => {
+      const arr = await carregarLista()
+      if (!vivo || arr.length === 0) return
+      const alvo = arr.find((t) => t.isDefault) ?? arr[0]
+      await abrir(alvo.id)
+    })()
+    return () => { vivo = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipo])
 
   function novo() {
     setAtualId(null)
@@ -108,8 +116,8 @@ export default function EditorVisualPage() {
   }
 
   function adicionar(t: TipoElemento) {
-    seq.n += 1
-    const el = elementoInicial(t, `el-${Date.now()}-${seq.n}`)
+    seqRef.current += 1
+    const el = elementoInicial(t, `el-${Date.now()}-${seqRef.current}`)
     setLayout((l) => ({ ...l, elementos: [...l.elementos, el] }))
     setSelId(el.id)
   }

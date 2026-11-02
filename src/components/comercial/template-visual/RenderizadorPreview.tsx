@@ -115,7 +115,9 @@ function ElementoView({ el, contexto, escala, logoSrc }: { el: Elemento } & Omit
 }
 
 export default function RenderizadorPreview({ layout, contexto, escala, logoSrc }: Props) {
-  const p = layout.pagina
+  // Guarda defensiva: layout/página sempre válidos (evita crash se vier parcial).
+  const p = layout?.pagina ?? { larguraPt: 595, alturaPt: 842, margemTopoPt: 40, margemBaixoPt: 40, margemEsquerdaPt: 40, margemDireitaPt: 40 }
+  const elementos = Array.isArray(layout?.elementos) ? layout.elementos : []
   return (
     <div
       style={{
@@ -138,7 +140,7 @@ export default function RenderizadorPreview({ layout, contexto, escala, logoSrc 
           pointerEvents: 'none',
         }}
       />
-      {layout.elementos.map((el) => (
+      {elementos.map((el) => (
         <ElementoView key={el.id} el={el} contexto={contexto} escala={escala} logoSrc={logoSrc} />
       ))}
     </div>

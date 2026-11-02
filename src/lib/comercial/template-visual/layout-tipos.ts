@@ -72,6 +72,48 @@ export function paginaA4Padrao(): Pagina {
   }
 }
 
+/**
+ * Normaliza um Layout_JSON possivelmente parcial/inválido vindo do backend,
+ * SEM lançar — garante `pagina` completa e `elementos` como array de elementos
+ * válidos. Evita que o canvas/preview acessem campos undefined (causa de loop
+ * de render/crash).
+ */
+export function normalizarLayout(raw: unknown): LayoutDocumento {
+  const obj = (raw ?? {}) as Record<string, unknown>
+  const padrao = paginaA4Padrao()
+  const pr = (obj.pagina ?? {}) as Record<string, unknown>
+  const num = (v: unknown, def: number) => (typeof v === 'number' && Number.isFinite(v) ? v : def)
+  const pagina: Pagina = {
+    larguraPt: num(pr.larguraPt, padrao.larguraPt),
+    alturaPt: num(pr.alturaPt, padrao.alturaPt),
+    margemTopoPt: num(pr.margemTopoPt, padrao.margemTopoPt),
+    margemBaixoPt: num(pr.margemBaixoPt, padrao.margemBaixoPt),
+    margemEsquerdaPt: num(pr.margemEsquerdaPt, padrao.margemEsquerdaPt),
+    margemDireitaPt: num(pr.margemDireitaPt, padrao.margemDireitaPt),
+  }
+  const elsRaw = Array.isArray(obj.elementos) ? obj.elementos : []
+  const elementos: Elemento[] = elsRaw
+    .map((e, i) => {
+      const o = (e ?? {}) as Record<string, unknown>
+      if (!TIPOS_ELEMENTO.includes(o.tipo as TipoElemento)) return null
+      return {
+        id: typeof o.id === 'string' && o.id ? o.id : `el-${i}`,
+        tipo: o.tipo as TipoElemento,
+        xPt: num(o.xPt, 0),
+        yPt: num(o.yPt, 0),
+        larguraPt: num(o.larguraPt, 100),
+        alturaPt: num(o.alturaPt, 20),
+        estilo: (o.estilo as EstiloTexto | undefined) ?? undefined,
+        textoEstatico: typeof o.textoEstatico === 'string' ? o.textoEstatico : undefined,
+        binding: typeof o.binding === 'string' ? o.binding : undefined,
+        tabela: (o.tabela as Elemento['tabela']) ?? undefined,
+        rotuloAssinatura: typeof o.rotuloAssinatura === 'string' ? o.rotuloAssinatura : undefined,
+      } as Elemento
+    })
+    .filter((e): e is Elemento => e !== null)
+  return { versao: 1, pagina, elementos }
+}
+
 export function estiloPadrao(over: Partial<EstiloTexto> = {}): EstiloTexto {
   return {
     fonte: over.fonte ?? 'Helvetica',
