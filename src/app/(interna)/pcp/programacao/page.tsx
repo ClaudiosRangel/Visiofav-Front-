@@ -2847,9 +2847,10 @@ export default function ProgramacaoPage() {
                               {etapa.etapaAnteriorConcluida === true && <IconCheck size={20} color="#00d26a" strokeWidth={3} />}
                               {etapa.etapaAnteriorConcluida === false && <span style={{ color: '#adb5bd', fontSize: 10 }}>—</span>}
                             </Table.Td>
-                            <Table.Td style={{ minWidth: 200 }}>
-                              <Group gap={4} wrap="nowrap">
-                                <Text size="sm" fw={700} style={{ lineHeight: 1.2 }}>
+                            <Table.Td style={{ minWidth: 260 }}>
+                              {/* Nome COMPLETO (quebra em várias linhas) em vez de cortar. */}
+                              <Group gap={4} wrap="wrap">
+                                <Text size="sm" fw={700} style={{ lineHeight: 1.2, overflowWrap: 'anywhere', width: '100%' }}>
                                   {etapa.opNumero} — {etapa.produtoNome || '—'}
                                 </Text>
                                 {etapa.isAvulsa && <Badge color="pink" size="xs">AVULSA</Badge>}
@@ -3135,9 +3136,11 @@ export default function ProgramacaoPage() {
                               </Menu>
                             </Table.Td>
                             )}
-                            <Table.Td style={{ minWidth: 200, ...(etapa.preImpressaoStatus === 'FINALIZADO' ? { background: '#2f9e44', borderRadius: 2 } : etapa.preImpressaoStatus === 'PROBLEMA' ? { background: '#e03131', borderRadius: 2 } : etapa.preImpressaoStatus === 'METADE' ? { background: '#228be6', borderRadius: 2 } : {}) }}>
-                              <Group gap={4} wrap="nowrap">
-                                <Text size="sm" fw={700} style={{ lineHeight: 1.2 }} c={etapa.preImpressaoStatus ? 'white' : undefined}>
+                            <Table.Td style={{ minWidth: 260, ...(etapa.preImpressaoStatus === 'FINALIZADO' ? { background: '#2f9e44', borderRadius: 2 } : etapa.preImpressaoStatus === 'PROBLEMA' ? { background: '#e03131', borderRadius: 2 } : etapa.preImpressaoStatus === 'METADE' ? { background: '#228be6', borderRadius: 2 } : {}) }}>
+                              {/* wrap="wrap" + nome em bloco próprio: mostra o nome COMPLETO
+                                  (quebra em várias linhas) em vez de cortar numa linha só. */}
+                              <Group gap={4} wrap="wrap">
+                                <Text size="sm" fw={700} style={{ lineHeight: 1.2, overflowWrap: 'anywhere', width: '100%' }} c={etapa.preImpressaoStatus ? 'white' : undefined}>
                                   {etapa.opNumero} — {etapa.produtoNome || etapa.observacoes?.match(/\[Produto\]\s*(.+)/)?.[1] || '—'}
                                 </Text>
                                 {etapa.isAvulsa && <Badge color="pink" size="xs">AVULSA</Badge>}
