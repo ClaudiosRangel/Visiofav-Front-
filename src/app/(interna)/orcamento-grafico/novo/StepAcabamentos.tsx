@@ -92,19 +92,47 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
     selecionados.filter((s) => !s.acabamentoId && s.nome).map((s) => [norm(s.nome!), s]),
   )
 
-  // Hidrata o `acabamentoId` nos selecionados que vieram só por nome, assim que
-  // o cadastro carrega — para o toggle/patch funcionarem e o payload sair correto.
+  // Hidrata os acabamentos selecionados a partir do cadastro assim que ele
+  // carrega. Faz DUAS coisas:
+  //  1. Preenche o `acabamentoId` nos que vieram só por nome (ex.: cálculo puxado
+  //     da biblioteca) — para o toggle/patch funcionarem e o payload sair correto.
+  //  2. Completa `naturezaCusto` e os VALORES (custo/produção/tempos/preços) com
+  //     os defaults do cadastro quando estão ausentes no item salvo — era por isso
+  //     que, ao puxar o cálculo, o acabamento aparecia marcado mas VAZIO (só
+  //     preenchia ao desmarcar/marcar, que recria o item com os defaults).
   useEffect(() => {
-    if (cadastro.length === 0 || selByNome.size === 0) return
+    if (cadastro.length === 0 || selecionados.length === 0) return
+    const num = (v: unknown): number | undefined => (v == null || v === '' ? undefined : Number(v))
     let mudou = false
     const hidratados = selecionados.map((s) => {
-      if (s.acabamentoId || !s.nome) return s
-      const ac = cadastro.find((c) => norm(c.nome) === norm(s.nome!))
-      if (ac) {
-        mudou = true
-        return { ...s, acabamentoId: ac.id }
+      // Casa pelo id OU pelo nome (itens migrados podem não ter acabamentoId).
+      const ac = cadastro.find((c) => c.id === s.acabamentoId) ||
+        (s.nome ? cadastro.find((c) => norm(c.nome) === norm(s.nome!)) : undefined)
+      if (!ac) return s
+
+      const natureza = s.naturezaCusto ?? ac.naturezaCusto
+      const prox: AcabamentoRicoSelecionado = { ...s, acabamentoId: ac.id, nome: s.nome ?? ac.nome, naturezaCusto: natureza }
+
+      // Completa SÓ os campos ainda indefinidos (não sobrescreve o que o cálculo
+      // já trouxe nem o que o usuário já ajustou).
+      if (natureza === 'HORA_MAQUINA') {
+        if (prox.custoHora == null) prox.custoHora = num(ac.custoHora)
+        if (prox.producaoHora == null) prox.producaoHora = num(ac.producaoHora)
+        if (prox.quantAcertos == null) prox.quantAcertos = num(ac.quantAcertos)
+        if (prox.tempoPorAcertoMin == null) prox.tempoPorAcertoMin = num(ac.tempoPorAcertoMin)
+        if (prox.tempoPrimeiroAcertoMin == null) prox.tempoPrimeiroAcertoMin = num(ac.tempoPrimeiroAcertoMin)
+        if (prox.unidadeBase == null) prox.unidadeBase = (ac.unidadeBase as 'FOLHA' | 'PRODUTO') ?? 'FOLHA'
+      } else if (natureza === 'MATERIAL_KG') {
+        if (prox.precoKg == null) prox.precoKg = num(ac.precoUnitario)
+      } else if (natureza === 'MATERIAL_UN') {
+        if (prox.precoUn == null) prox.precoUn = num(ac.precoUnitario)
+      } else if (natureza === 'CUSTO_FIXO') {
+        if (prox.valorFixo == null) prox.valorFixo = num(ac.precoUnitario)
       }
-      return s
+
+      // Detecta se algo mudou (id, natureza ou algum valor completado).
+      if (JSON.stringify(prox) !== JSON.stringify(s)) mudou = true
+      return prox
     })
     if (mudou) updateForm({ acabamentosRicos: hidratados })
   }, [cadastro]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -166,10 +194,15 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
     }
   }
 
-  const patch = (id: string, campo: keyof AcabamentoRicoSelecionado, valor: any) => {
+  // Atualiza o acabamento casando por `acabamentoId` OU por NOME — itens vindos
+  // de cálculo puxado podem não ter `acabamentoId` (gravados por nome), e antes
+  // o patch só casava por id, então digitar nos campos não surtia efeito.
+  const patch = (ac: AcabamentoCadastro, campo: keyof AcabamentoRicoSelecionado, valor: any) => {
     updateForm({
       acabamentosRicos: selecionados.map((s) =>
-        s.acabamentoId === id ? { ...s, [campo]: valor } : s,
+        s.acabamentoId === ac.id || (!s.acabamentoId && norm(s.nome ?? '') === norm(ac.nome))
+          ? { ...s, acabamentoId: ac.id, [campo]: valor }
+          : s,
       ),
     })
   }
@@ -230,35 +263,35 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
                       {sel.naturezaCusto === 'MATERIAL_KG' && (
                         <>
                           <NumberInput label="Consumo (kg)" value={sel.variavelKg ?? ''} min={0} decimalScale={3} size="xs"
-                            onChange={(v) => patch(ac.id, 'variavelKg', typeof v === 'number' ? v : undefined)} />
+                            onChange={(v) => patch(ac, 'variavelKg', typeof v === 'number' ? v : undefined)} />
                           <NumberInput label="Preço/kg (R$)" value={sel.precoKg ?? ''} min={0} decimalScale={4} size="xs"
-                            onChange={(v) => patch(ac.id, 'precoKg', typeof v === 'number' ? v : undefined)} />
+                            onChange={(v) => patch(ac, 'precoKg', typeof v === 'number' ? v : undefined)} />
                         </>
                       )}
                       {sel.naturezaCusto === 'MATERIAL_UN' && (
                         <>
                           <NumberInput label="Consumo (un)" value={sel.variavelUn ?? ''} min={0} decimalScale={2} size="xs"
-                            onChange={(v) => patch(ac.id, 'variavelUn', typeof v === 'number' ? v : undefined)} />
+                            onChange={(v) => patch(ac, 'variavelUn', typeof v === 'number' ? v : undefined)} />
                           <NumberInput label="Preço/un (R$)" value={sel.precoUn ?? ''} min={0} decimalScale={4} size="xs"
-                            onChange={(v) => patch(ac.id, 'precoUn', typeof v === 'number' ? v : undefined)} />
+                            onChange={(v) => patch(ac, 'precoUn', typeof v === 'number' ? v : undefined)} />
                         </>
                       )}
                       {sel.naturezaCusto === 'CUSTO_FIXO' && (
                         <NumberInput label="Valor fixo (R$)" value={sel.valorFixo ?? ''} min={0} decimalScale={2} size="xs"
-                          onChange={(v) => patch(ac.id, 'valorFixo', typeof v === 'number' ? v : undefined)} />
+                          onChange={(v) => patch(ac, 'valorFixo', typeof v === 'number' ? v : undefined)} />
                       )}
                       {sel.naturezaCusto === 'HORA_MAQUINA' && (
                         <>
                           <NumberInput label="Custo/hora" prefix="R$ " value={sel.custoHora ?? ''} min={0} decimalScale={2} size="xs"
-                            onChange={(v) => patch(ac.id, 'custoHora', typeof v === 'number' ? v : undefined)} />
+                            onChange={(v) => patch(ac, 'custoHora', typeof v === 'number' ? v : undefined)} />
                           <NumberInput label="Produção (un/h)" description="Do cadastro" value={sel.producaoHora ?? ''} min={0} decimalScale={2} size="xs"
-                            onChange={(v) => patch(ac.id, 'producaoHora', typeof v === 'number' ? v : undefined)} />
+                            onChange={(v) => patch(ac, 'producaoHora', typeof v === 'number' ? v : undefined)} />
                           <NumberInput label="Qtd. acertos" value={sel.quantAcertos ?? ''} min={0} size="xs"
-                            onChange={(v) => patch(ac.id, 'quantAcertos', typeof v === 'number' ? v : undefined)} />
+                            onChange={(v) => patch(ac, 'quantAcertos', typeof v === 'number' ? v : undefined)} />
                           <NumberInput label="Tempo/acerto (min)" value={sel.tempoPorAcertoMin ?? ''} min={0} decimalScale={2} size="xs"
-                            onChange={(v) => patch(ac.id, 'tempoPorAcertoMin', typeof v === 'number' ? v : undefined)} />
+                            onChange={(v) => patch(ac, 'tempoPorAcertoMin', typeof v === 'number' ? v : undefined)} />
                           <NumberInput label="1º acerto (min)" value={sel.tempoPrimeiroAcertoMin ?? ''} min={0} decimalScale={2} size="xs"
-                            onChange={(v) => patch(ac.id, 'tempoPrimeiroAcertoMin', typeof v === 'number' ? v : undefined)} />
+                            onChange={(v) => patch(ac, 'tempoPrimeiroAcertoMin', typeof v === 'number' ? v : undefined)} />
                           {(restricoesPorAcab[ac.id]?.length ?? 0) > 0 && (
                             <Select
                               label="Restrição (sub-opção)"
@@ -268,7 +301,7 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
                               clearable
                               data={(restricoesPorAcab[ac.id] || []).map((r) => ({ value: r.id, label: r.nome }))}
                               value={sel.restricaoAcabamentoId ?? null}
-                              onChange={(v) => patch(ac.id, 'restricaoAcabamentoId', v || undefined)}
+                              onChange={(v) => patch(ac, 'restricaoAcabamentoId', v || undefined)}
                             />
                           )}
                         </>
@@ -299,7 +332,7 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
                             clearable
                             data={(ac.restricoes || []).map((r) => ({ value: r.nome, label: r.nome }))}
                             value={sel.restricaoNome ?? null}
-                            onChange={(v) => patch(ac.id, 'restricaoNome', v || undefined)}
+                            onChange={(v) => patch(ac, 'restricaoNome', v || undefined)}
                           />
                         )}
                         {(ac.materiais?.length ?? 0) > 0 && (
@@ -311,7 +344,7 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
                             clearable
                             data={(ac.materiais || []).map((m) => ({ value: m, label: m }))}
                             value={sel.materialNome ?? null}
-                            onChange={(v) => patch(ac.id, 'materialNome', v || undefined)}
+                            onChange={(v) => patch(ac, 'materialNome', v || undefined)}
                           />
                         )}
                         <NumberInput
@@ -321,7 +354,7 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
                           min={0}
                           decimalScale={2}
                           value={sel.medidaMm ?? ''}
-                          onChange={(v) => patch(ac.id, 'medidaMm', typeof v === 'number' ? v : undefined)}
+                          onChange={(v) => patch(ac, 'medidaMm', typeof v === 'number' ? v : undefined)}
                         />
                       </SimpleGrid>
                     </Paper>
