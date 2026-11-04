@@ -1,7 +1,7 @@
 // Service Worker — Portal do Representante Externo
 // Cache do app shell no install, serve do cache quando offline (cache-first para shell, network-first para API)
 
-const CACHE_NAME = 'portal-rep-shell-v2'
+const CACHE_NAME = 'portal-rep-shell-v3'
 
 const APP_SHELL_URLS = [
   '/portal-rep/dashboard',
@@ -11,15 +11,20 @@ const APP_SHELL_URLS = [
   '/icons/portal-rep-512.png',
 ]
 
-// Install: faz cache do app shell
+// Install: faz cache do app shell.
+// Cacheia recurso a recurso e IGNORA os que falharem (um 404 em um ícone não
+// pode derrubar o cache inteiro — `cache.addAll` é atômico e falharia tudo).
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(APP_SHELL_URLS).catch((err) => {
-        // Não bloqueia install se algum recurso falhar (ícones placeholder podem não existir ainda)
-        console.warn('[portal-rep-sw] Falha ao cachear alguns recursos do shell:', err)
-      })
-    })
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.all(
+        APP_SHELL_URLS.map((u) =>
+          cache.add(u).catch((err) => {
+            console.warn('[portal-rep-sw] Falha ao cachear recurso do shell:', u, err)
+          })
+        )
+      )
+    )
   )
   // Ativa imediatamente sem esperar outras tabs fecharem
   self.skipWaiting()
@@ -67,19 +72,24 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Requisições de navegação (páginas do portal): network-first com fallback para shell
+  // Requisições de navegação (páginas do portal): network-first com fallback para shell.
+  // IMPORTANTE: a cadeia do fallback NUNCA pode rejeitar — uma promise rejeitada
+  // em respondWith vira "FetchEvent resulted in a network error" e deixa a tela
+  // em branco. Por isso o fallback é totalmente blindado e sempre resolve numa
+  // Response válida.
   if (request.mode === 'navigate' && url.pathname.startsWith('/portal-rep')) {
+    const respostaOffline = () =>
+      new Response(
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Vizor Rep - Offline</title></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#fff;color:#333"><div style="text-align:center"><h2>Sem conexão</h2><p>Verifique sua internet e tente novamente.</p></div></body></html>',
+        { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+      )
     event.respondWith(
-      fetch(request).catch(() => {
-        return caches.match('/portal-rep/dashboard').then((cached) => {
-          if (cached) return cached
-          // Fallback final: resposta offline simples
-          return new Response(
-            '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Vizor Rep - Offline</title></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#fff;color:#333"><div style="text-align:center"><h2>Sem conexão</h2><p>Verifique sua internet e tente novamente.</p></div></body></html>',
-            { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
-          )
-        })
-      })
+      fetch(request).catch(() =>
+        caches
+          .match('/portal-rep/dashboard')
+          .then((cached) => cached || respostaOffline())
+          .catch(() => respostaOffline())
+      )
     )
     return
   }

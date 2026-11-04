@@ -456,6 +456,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconRoute, label: 'Roteiros', href: '/pcp/cadastros/roteiros' },
           { icon: IconPalette, label: 'Atributos Gráficos', href: '/pcp/cadastros/atributos-graficos' },
           { icon: IconPackage, label: 'Produtos (PCP)', href: '/pcp/cadastros/produtos' },
+          { icon: IconSearch, label: 'Central do Produto', href: '/comercial/central-produto' },
         ],
       },
       { icon: IconSettings, label: 'Configuração PCP', href: '/pcp/configuracao' },
@@ -481,6 +482,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       { icon: IconInbox, label: 'Pedidos / Propostas', href: '/orcamento-grafico/pedidos' },
       { icon: IconListDetails, label: 'Pipeline (Status)', href: '/orcamento-grafico/pipeline' },
       { icon: IconPhoto, label: 'Amostras / Modelos', href: '/orcamento-grafico/amostras' },
+      { icon: IconSearch, label: 'Central do Produto', href: '/comercial/central-produto' },
       // ── 3º: ORÇAMENTO / CÁLCULO (o cálculo é iniciado via "Encaminhar" em Pedidos/Propostas) ──
       {
         label: 'Orçamento', icon: IconCalculator, items: [
@@ -567,6 +569,9 @@ export function detectModule(pathname: string): string | null {
   if (pathname.startsWith('/portal-representante/solicitacoes-orcamento')) return 'orcamento-grafico'
   if (pathname.startsWith('/portal-representante')) return 'portal-representante'
   if (pathname.startsWith('/orcamento-grafico')) return 'orcamento-grafico'
+  // Central do Produto/Acabado e Editor de Templates vivem sob /comercial e
+  // pertencem ao módulo Comercial (também acessíveis pelo menu do PCP).
+  if (pathname.startsWith('/comercial')) return 'orcamento-grafico'
   if (pathname.startsWith('/compras')) return 'compras'
   if (pathname.startsWith('/vendas')) return 'vendas'
   if (pathname.startsWith('/financeiro')) return 'financeiro'
