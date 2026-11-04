@@ -142,15 +142,24 @@ export default function NovaSolicitacaoPage() {
     label: c.razaoSocial + (c.nomeFantasia ? ` (${c.nomeFantasia})` : ''),
   }))
 
-  const tipoEmbalagemOptions = (tiposEmbalagem ?? []).map((t) => ({
-    value: t.descricao,
-    label: t.descricao,
-  }))
+  // O Mantine 7 lança erro ("Duplicate options are not supported") quando duas
+  // opções têm o mesmo `value`. O cadastro pode ter descrições repetidas (ex.:
+  // dois "Impressos"), e aqui o value é a própria descrição — então deduplica,
+  // mantendo a primeira ocorrência, sem mudar o que é enviado ao backend.
+  const opcoesUnicas = (itens: Array<{ descricao: string }> | undefined) => {
+    const vistos = new Set<string>()
+    const out: Array<{ value: string; label: string }> = []
+    for (const i of itens ?? []) {
+      const d = (i.descricao ?? '').trim()
+      if (!d || vistos.has(d)) continue
+      vistos.add(d)
+      out.push({ value: d, label: d })
+    }
+    return out
+  }
 
-  const acabamentosOptions = (acabamentosDisponiveis ?? []).map((a) => ({
-    value: a.descricao,
-    label: a.descricao,
-  }))
+  const tipoEmbalagemOptions = opcoesUnicas(tiposEmbalagem)
+  const acabamentosOptions = opcoesUnicas(acabamentosDisponiveis)
 
   const formValido =
     !!clienteId &&
