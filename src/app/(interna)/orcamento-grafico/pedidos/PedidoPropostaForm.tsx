@@ -78,6 +78,37 @@ interface FormState {
   tiragensTexto: string
   // Imagem da faca (dataURL/base64). '' = sem imagem.
   imagemFaca: string
+  // Respostas_Pedido (status fiel — spec comercial-pedido-status-fiel).
+  situacaoCliente: 'NOVO' | 'EXISTENTE' | ''
+  situacaoFaca: 'NOVA' | 'EXISTENTE' | 'NAO_INFORMADA' | ''
+  numeroMatriz: string
+  situacaoArte: 'CRIAR' | 'CLIENTE_ENVIA' | 'EXISTENTE_SEM_ALTERACAO' | 'EXISTENTE_COM_ALTERACAO' | 'NAO_INFORMADA' | ''
+  exigeProva: boolean
+  referenciaOrigemTipo: 'CALCULO' | 'PROPOSTA' | 'OP' | 'PEDIDO' | ''
+  referenciaOrigemNumero: string
+}
+
+/**
+ * Deriva o Tipo_Pedido no front (espelho de status-fiel.motor.ts no back).
+ * Só para exibir em tempo real; a fonte da verdade é o back.
+ */
+function derivarTipoFront(faca: string, arte: string): { tipo: 'REPETICAO' | 'ALTERACAO' | 'PRODUTO_NOVO'; aConfirmar: boolean } {
+  const f = faca || 'NAO_INFORMADA'
+  const a = arte || 'NAO_INFORMADA'
+  if (f === 'NOVA' || a === 'CRIAR') return { tipo: 'PRODUTO_NOVO', aConfirmar: false }
+  if (a === 'EXISTENTE_COM_ALTERACAO' || a === 'CLIENTE_ENVIA') return { tipo: 'ALTERACAO', aConfirmar: false }
+  if (f === 'EXISTENTE' && a === 'EXISTENTE_SEM_ALTERACAO') return { tipo: 'REPETICAO', aConfirmar: false }
+  return { tipo: 'PRODUTO_NOVO', aConfirmar: true }
+}
+
+const TIPO_DERIVADO_LABEL: Record<string, string> = {
+  REPETICAO: 'Repetição', ALTERACAO: 'Alteração', PRODUTO_NOVO: 'Produto novo',
+}
+/** Tipo derivado (novo) → tipoPedido legado para compat. do payload. */
+function tipoLegadoDe(tipo: 'REPETICAO' | 'ALTERACAO' | 'PRODUTO_NOVO', exigeProva: boolean): 'REPETICAO' | 'MOSTRUARIO' | 'NOVO' {
+  if (exigeProva) return 'MOSTRUARIO'
+  if (tipo === 'REPETICAO') return 'REPETICAO'
+  return 'NOVO'
 }
 
 interface ClienteOpc { id: string; razaoSocial: string; nomeFantasia?: string | null; cpfCnpj: string; uf?: string | null; cidade?: string | null }
@@ -94,6 +125,8 @@ const VAZIO: FormState = {
   discriminacao: '', observacoes: '', exigeAmostra: false,
   clienteId: null, produtoId: null, prazoPagamentoId: null, acabamentosSelecionados: [], tiragensTexto: '',
   imagemFaca: '',
+  situacaoCliente: '', situacaoFaca: '', numeroMatriz: '', situacaoArte: '', exigeProva: false,
+  referenciaOrigemTipo: '', referenciaOrigemNumero: '',
 }
 
 export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) {
@@ -407,6 +440,17 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
     p.exportacao = form.exportacao || null
     // Imagem da faca: '' → null (não gravar string vazia).
     p.imagemFaca = form.imagemFaca ? form.imagemFaca : null
+    // Tipo legado derivado das respostas (compat. do payload de criação).
+    const d = derivarTipoFront(form.situacaoFaca, form.situacaoArte)
+    p.tipoPedido = tipoLegadoDe(d.tipo, form.exigeProva)
+    // Respostas_Pedido (status fiel) — só envia o que foi preenchido.
+    p.situacaoCliente = form.situacaoCliente || (form.jaCliente ? 'EXISTENTE' : 'NOVO')
+    p.situacaoFaca = form.situacaoFaca || undefined
+    p.numeroMatriz = form.situacaoFaca === 'EXISTENTE' ? (form.numeroMatriz || null) : null
+    p.situacaoArte = form.situacaoArte || undefined
+    p.exigeProva = !!form.exigeProva
+    p.referenciaOrigemTipo = form.referenciaOrigemTipo || null
+    p.referenciaOrigemNumero = form.referenciaOrigemNumero.trim() || null
     return p
   }
 
@@ -540,12 +584,79 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
             { value: 'VENDEDOR', label: 'Vendedor' },
             { value: 'INTERNA', label: 'Venda interna' },
           ]} value={form.origem} onChange={(v) => set('origem', (v as FormState['origem']) || 'INTERNA')} />
-          <Select label="Tipo de pedido" data={[
-            { value: 'NOVO', label: 'Novo' },
-            { value: 'REPETICAO', label: 'Repetição' },
-            { value: 'MOSTRUARIO', label: 'Mostruário' },
-          ]} value={form.tipoPedido} onChange={(v) => set('tipoPedido', (v as FormState['tipoPedido']) || 'NOVO')} />
-          <Switch label="Exige amostra" checked={form.exigeAmostra} onChange={(e) => set('exigeAmostra', e.currentTarget.checked)} mt="lg" />
+          <div>
+            <Text size="sm" fw={500} mb={4}>Tipo de pedido (derivado)</Text>
+            {(() => {
+              const d = derivarTipoFront(form.situacaoFaca, form.situacaoArte)
+              return (
+                <Group gap={6}>
+                  <Badge size="lg" color={d.tipo === 'REPETICAO' ? 'cyan' : d.tipo === 'ALTERACAO' ? 'grape' : 'blue'}>
+                    {TIPO_DERIVADO_LABEL[d.tipo]}
+                  </Badge>
+                  {d.aConfirmar && <Badge variant="light" color="yellow">a confirmar</Badge>}
+                </Group>
+              )
+            })()}
+            <Text size="xs" c="dimmed" mt={4}>Calculado pelas respostas abaixo.</Text>
+          </div>
+          <Switch label="Exige prova (mostruário)" checked={form.exigeProva}
+            onChange={(e) => { set('exigeProva', e.currentTarget.checked); set('exigeAmostra', e.currentTarget.checked) }} mt="lg" />
+        </SimpleGrid>
+      </Paper>
+
+      {/* Classificação — fatos do pedido (Respostas_Pedido) */}
+      <Paper withBorder p="md">
+        <Text fw={600} mb={4}>Classificação do pedido</Text>
+        <Text size="xs" c="dimmed" mb="sm">
+          Responda os fatos; o sistema deriva o tipo (Repetição / Alteração / Produto novo).
+        </Text>
+        <SimpleGrid cols={{ base: 1, sm: 3 }}>
+          <Select label="Situação do cliente" clearable
+            data={[{ value: 'NOVO', label: 'Cliente novo' }, { value: 'EXISTENTE', label: 'Já é cliente' }]}
+            value={form.situacaoCliente || null}
+            onChange={(v) => { set('situacaoCliente', (v as FormState['situacaoCliente']) || ''); set('jaCliente', v === 'EXISTENTE') }}
+            comboboxProps={{ withinPortal: true }}
+          />
+          <Select label="Situação da faca" clearable
+            data={[
+              { value: 'NOVA', label: 'Faca nova' },
+              { value: 'EXISTENTE', label: 'Faca existente (da casa)' },
+              { value: 'NAO_INFORMADA', label: 'Não informada' },
+            ]}
+            value={form.situacaoFaca || null}
+            onChange={(v) => set('situacaoFaca', (v as FormState['situacaoFaca']) || '')}
+            comboboxProps={{ withinPortal: true }}
+          />
+          <TextInput label="Nº da matriz (se existente)" placeholder="Ex.: 2529B"
+            value={form.numeroMatriz}
+            disabled={form.situacaoFaca !== 'EXISTENTE'}
+            onChange={(e) => set('numeroMatriz', e.currentTarget.value)}
+          />
+          <Select label="Situação da arte" clearable
+            data={[
+              { value: 'CRIAR', label: 'Criar arte' },
+              { value: 'CLIENTE_ENVIA', label: 'Cliente envia a arte' },
+              { value: 'EXISTENTE_SEM_ALTERACAO', label: 'Existente, sem alteração' },
+              { value: 'EXISTENTE_COM_ALTERACAO', label: 'Existente, com alteração' },
+              { value: 'NAO_INFORMADA', label: 'Não informada' },
+            ]}
+            value={form.situacaoArte || null}
+            onChange={(v) => set('situacaoArte', (v as FormState['situacaoArte']) || '')}
+            comboboxProps={{ withinPortal: true }}
+          />
+          <Select label="Referência de origem (tipo)" clearable
+            data={[
+              { value: 'CALCULO', label: 'Cálculo' }, { value: 'PROPOSTA', label: 'Proposta' },
+              { value: 'OP', label: 'OP' }, { value: 'PEDIDO', label: 'Pedido' },
+            ]}
+            value={form.referenciaOrigemTipo || null}
+            onChange={(v) => set('referenciaOrigemTipo', (v as FormState['referenciaOrigemTipo']) || '')}
+            comboboxProps={{ withinPortal: true }}
+          />
+          <TextInput label="Referência de origem (número)" placeholder="Ex.: 12992"
+            value={form.referenciaOrigemNumero}
+            onChange={(e) => set('referenciaOrigemNumero', e.currentTarget.value)}
+          />
         </SimpleGrid>
       </Paper>
 
