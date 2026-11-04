@@ -39,6 +39,48 @@ interface PedidoProposta {
   exigeAmostra: boolean
   orcamentoGraficoId?: string | null
   criadoEm: string
+  // Status fiel (aditivo — pode não vir em respostas antigas)
+  statusMacro?: string | null
+  setorResponsavel?: string | null
+  responsavelDesde?: string | null
+  rodada?: number | null
+  tipoPedidoDerivado?: string | null
+  classificacaoAConfirmar?: boolean | null
+}
+
+const STATUS_MACRO_CONFIG: Record<string, { color: string; label: string }> = {
+  RECEBIDO: { color: 'gray', label: 'Recebido' },
+  EM_PRE_IMPRESSAO: { color: 'blue', label: 'Em pré-impressão' },
+  EM_ORCAMENTO: { color: 'cyan', label: 'Em orçamento' },
+  EM_APROVACAO: { color: 'grape', label: 'Em aprovação' },
+  APROVADO: { color: 'teal', label: 'Aprovado' },
+  EM_PRODUCAO: { color: 'indigo', label: 'Em produção' },
+  FATURADO: { color: 'green', label: 'Faturado' },
+  PERDIDO: { color: 'red', label: 'Perdido' },
+  CANCELADO: { color: 'dark', label: 'Cancelado' },
+}
+
+const SETOR_LABEL: Record<string, string> = {
+  PRE_IMPRESSAO: 'Pré-impressão',
+  ORCAMENTO: 'Orçamento',
+  COMERCIAL: 'Comercial',
+  REPRESENTANTE: 'Representante',
+  CLIENTE: 'Cliente',
+}
+
+const TIPO_DERIVADO_LABEL: Record<string, string> = {
+  REPETICAO: 'Repetição', ALTERACAO: 'Alteração', PRODUTO_NOVO: 'Produto novo',
+}
+
+/** Formata o tempo parado (min → min/h/dias legível). */
+function formatTempoParado(responsavelDesde?: string | null, statusMacro?: string | null): string {
+  if (!responsavelDesde) return '—'
+  if (statusMacro && ['FATURADO', 'PERDIDO', 'CANCELADO'].includes(statusMacro)) return '—'
+  const min = Math.floor((Date.now() - new Date(responsavelDesde).getTime()) / 60000)
+  if (min < 60) return `${min} min`
+  const horas = Math.floor(min / 60)
+  if (horas < 24) return `${horas} h`
+  return `${Math.floor(horas / 24)} d`
 }
 
 const ESTADO_CONFIG: Record<string, { color: string; label: string }> = {
@@ -82,6 +124,9 @@ export default function PedidosPropostasPage() {
   const [estadoFiltro, setEstadoFiltro] = useState<string | null>(null)
   const [origemFiltro, setOrigemFiltro] = useState<string | null>(null)
   const [tipoFiltro, setTipoFiltro] = useState<string | null>(null)
+  const [statusMacroFiltro, setStatusMacroFiltro] = useState<string | null>(null)
+  const [setorFiltro, setSetorFiltro] = useState<string | null>(null)
+  const [ordTempoParado, setOrdTempoParado] = useState(false)
   const [acaoLoading, setAcaoLoading] = useState<string | null>(null)
 
   // Modal liberar (senha opcional de assinatura)
@@ -100,6 +145,9 @@ export default function PedidosPropostasPage() {
       if (estadoFiltro) params.estado = estadoFiltro
       if (origemFiltro) params.origem = origemFiltro
       if (tipoFiltro) params.tipoPedido = tipoFiltro
+      if (statusMacroFiltro) params.statusMacro = statusMacroFiltro
+      if (setorFiltro) params.setorResponsavel = setorFiltro
+      if (ordTempoParado) params.ordenarPorTempoParado = 'true'
       const { data } = await api.get('/orcamento-grafico/pedidos-proposta', { params })
       setData(Array.isArray(data) ? data : [])
     } catch (err: any) {
@@ -108,9 +156,17 @@ export default function PedidosPropostasPage() {
     } finally {
       setLoading(false)
     }
-  }, [busca, estadoFiltro, origemFiltro, tipoFiltro])
+  }, [busca, estadoFiltro, origemFiltro, tipoFiltro, statusMacroFiltro, setorFiltro, ordTempoParado])
 
   useEffect(() => { carregar() }, [carregar])
+
+  // Contagem por Status_Macro (agrupamento do funil — Req 15.9). Derivada da
+  // lista já carregada (sem query extra); clicar filtra por aquele status.
+  const contagemPorStatus = data.reduce<Record<string, number>>((acc, p) => {
+    if (p.statusMacro) acc[p.statusMacro] = (acc[p.statusMacro] ?? 0) + 1
+    return acc
+  }, {})
+  const temStatusFiel = Object.keys(contagemPorStatus).length > 0
 
   // Imprime o RFQ (PDF) em nova aba, com token na query (abre sem header).
   function imprimir(p: PedidoProposta) {
@@ -231,8 +287,47 @@ export default function PedidosPropostasPage() {
             data={Object.entries(TIPO_LABEL).map(([value, label]) => ({ value, label }))}
             value={tipoFiltro} onChange={setTipoFiltro}
           />
+          <Select
+            placeholder="Status macro" clearable w={180} aria-label="Filtrar por status macro"
+            data={Object.entries(STATUS_MACRO_CONFIG).map(([value, c]) => ({ value, label: c.label }))}
+            value={statusMacroFiltro} onChange={setStatusMacroFiltro}
+          />
+          <Select
+            placeholder="Setor responsável" clearable w={180} aria-label="Filtrar por setor responsável"
+            data={Object.entries(SETOR_LABEL).map(([value, label]) => ({ value, label }))}
+            value={setorFiltro} onChange={setSetorFiltro}
+          />
+          <Button
+            variant={ordTempoParado ? 'filled' : 'light'} color="grape"
+            onClick={() => setOrdTempoParado((v) => !v)}
+            aria-pressed={ordTempoParado}
+          >
+            {ordTempoParado ? 'Ordenado por tempo parado' : 'Ordenar por tempo parado'}
+          </Button>
         </Group>
       </Paper>
+
+      {temStatusFiel && (
+        <Group gap="xs" wrap="wrap" aria-label="Funil por status macro">
+          {Object.entries(STATUS_MACRO_CONFIG).map(([value, c]) => {
+            const n = contagemPorStatus[value] ?? 0
+            if (n === 0 && statusMacroFiltro !== value) return null
+            const ativo = statusMacroFiltro === value
+            return (
+              <Button
+                key={value}
+                size="compact-sm"
+                variant={ativo ? 'filled' : 'light'}
+                color={c.color}
+                onClick={() => setStatusMacroFiltro(ativo ? null : value)}
+                aria-pressed={ativo}
+              >
+                {c.label}: {n}
+              </Button>
+            )
+          })}
+        </Group>
+      )}
 
       {loading ? (
         <Center py="xl"><Loader /></Center>
@@ -247,6 +342,9 @@ export default function PedidosPropostasPage() {
                 <Table.Th>Origem</Table.Th>
                 <Table.Th>Tipo</Table.Th>
                 <Table.Th>Estado</Table.Th>
+                <Table.Th>Status macro</Table.Th>
+                <Table.Th>Setor / tempo</Table.Th>
+                <Table.Th>Rodada</Table.Th>
                 <Table.Th>Amostra</Table.Th>
                 <Table.Th>Criado</Table.Th>
                 <Table.Th>Ações</Table.Th>
@@ -265,6 +363,29 @@ export default function PedidosPropostasPage() {
                   </Table.Td>
                   <Table.Td>{TIPO_LABEL[p.tipoPedido] || p.tipoPedido}</Table.Td>
                   <Table.Td><EstadoBadge estado={p.estado} /></Table.Td>
+                  <Table.Td>
+                    {p.statusMacro ? (
+                      <Group gap={4} wrap="nowrap">
+                        <Badge color={STATUS_MACRO_CONFIG[p.statusMacro]?.color || 'gray'}>
+                          {STATUS_MACRO_CONFIG[p.statusMacro]?.label || p.statusMacro}
+                        </Badge>
+                        {p.classificacaoAConfirmar && (
+                          <Tooltip label="Classificação a confirmar pelo comercial">
+                            <Badge variant="light" color="yellow">revisar</Badge>
+                          </Tooltip>
+                        )}
+                      </Group>
+                    ) : '—'}
+                  </Table.Td>
+                  <Table.Td>
+                    {p.setorResponsavel ? (
+                      <Stack gap={0}>
+                        <Text size="sm">{SETOR_LABEL[p.setorResponsavel] || p.setorResponsavel}</Text>
+                        <Text size="xs" c="dimmed">{formatTempoParado(p.responsavelDesde, p.statusMacro)}</Text>
+                      </Stack>
+                    ) : '—'}
+                  </Table.Td>
+                  <Table.Td>{p.rodada && p.rodada > 1 ? <Badge variant="light" color="orange">{p.rodada}ª</Badge> : (p.rodada ?? '—')}</Table.Td>
                   <Table.Td>
                     {p.exigeAmostra ? <Badge variant="light" color="orange">Exige</Badge> : <Badge variant="light" color="gray">Não</Badge>}
                   </Table.Td>
@@ -371,7 +492,7 @@ export default function PedidosPropostasPage() {
               ))}
               {data.length === 0 && (
                 <Table.Tr>
-                  <Table.Td colSpan={9}>
+                  <Table.Td colSpan={12}>
                     <Text ta="center" c="dimmed" py="md">Nenhum pedido/proposta encontrado</Text>
                   </Table.Td>
                 </Table.Tr>
