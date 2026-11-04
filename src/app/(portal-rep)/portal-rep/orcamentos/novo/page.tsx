@@ -18,7 +18,7 @@ import { notifications } from '@mantine/notifications'
 import { usePortalRepClientes, useConsultarCnpj, useCriarCliente } from '@/data/hooks/portal-rep-app/usePortalRepClientes'
 import { useCriarSolicitacao } from '@/data/hooks/portal-rep-app/usePortalRepOrcamentos'
 import { portalRepApi } from '@/data/hooks/portal-rep-app/portal-rep-api'
-import { Collapse, TextInput, Divider, SegmentedControl, Switch, SimpleGrid } from '@mantine/core'
+import { Collapse, TextInput, Divider, SegmentedControl, Switch, SimpleGrid, Text } from '@mantine/core'
 
 // Hooks para buscar catálogo
 function useTiposEmbalagem() {
