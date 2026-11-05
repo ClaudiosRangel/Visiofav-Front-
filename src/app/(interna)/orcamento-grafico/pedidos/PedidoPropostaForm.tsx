@@ -948,7 +948,7 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
             style={{ cursor: 'zoom-in' }} onClick={() => setImgAmpliada(form.imagemFaca)} />
         ) : (
           <Text size="xs" c="dimmed">
-            Opcional. Anexe o desenho da faca/corte do produto — ele aparecerá no orçamento gerado.
+            Opcional. Normalmente a Pré-Impressão anexa a faca (menu Pré-Impressão). Se você já tiver o desenho, pode anexar aqui como sugestão.
           </Text>
         )}
       </Paper>

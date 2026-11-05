@@ -9,9 +9,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   Title, Stack, Group, Paper, Text, Badge, Button, Loader, Center, Progress,
-  Modal, Textarea, Tooltip,
+  Modal, Textarea, Tooltip, TextInput, Image, FileButton,
 } from '@mantine/core'
-import { IconRefresh, IconLayoutColumns, IconPlayerPlay, IconCheck, IconArrowBackUp } from '@tabler/icons-react'
+import {
+  IconRefresh, IconLayoutColumns, IconPlayerPlay, IconCheck, IconArrowBackUp,
+  IconUpload, IconPhotoOff,
+} from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
 
@@ -69,6 +72,42 @@ export default function PreImpressaoPage() {
   const [acao, setAcao] = useState(false)
   const [obsAlvo, setObsAlvo] = useState<{ etapa: string; status: string } | null>(null)
   const [obs, setObs] = useState('')
+  // Faca do pedido (imagem + nº da matriz) — preenchida aqui pela Pré-Impressão
+  const [faca, setFaca] = useState<{ imagemFaca: string | null; numeroMatriz: string | null; produtoId: string | null }>(
+    { imagemFaca: null, numeroMatriz: null, produtoId: null },
+  )
+  const [matrizTxt, setMatrizTxt] = useState('')
+  const [salvandoFaca, setSalvandoFaca] = useState(false)
+  const [imgAmpliada, setImgAmpliada] = useState(false)
+
+  async function salvarFaca(dados: { imagemFaca?: string | null; numeroMatriz?: string | null }) {
+    if (!aberto) return
+    setSalvandoFaca(true)
+    try {
+      const { data } = await api.put(`/orcamento-grafico/pedidos-proposta/${aberto.pedidoId}/faca`, dados)
+      setFaca({ imagemFaca: data.imagemFaca, numeroMatriz: data.numeroMatriz, produtoId: data.produtoId })
+      setMatrizTxt(data.numeroMatriz ?? '')
+      notifications.show({
+        message: data.fichaAtualizada ? 'Faca salva (e atualizada na Ficha Master do produto).' : 'Faca salva.',
+        color: 'green',
+      })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar a faca', color: 'red' })
+    } finally {
+      setSalvandoFaca(false)
+    }
+  }
+
+  function escolherImagem(file: File | null) {
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      notifications.show({ message: 'A imagem deve ter no máximo 5MB.', color: 'red' })
+      return
+    }
+    const r = new FileReader()
+    r.onload = () => salvarFaca({ imagemFaca: r.result as string })
+    r.readAsDataURL(file)
+  }
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -93,6 +132,11 @@ export default function PreImpressaoPage() {
       setEtapas(data.etapas ?? [])
       setCaminho(data.caminho ?? '')
       setConcluido(!!data.concluido)
+      try {
+        const f = await api.get(`/orcamento-grafico/pedidos-proposta/${p.pedidoId}/faca`)
+        setFaca(f.data)
+        setMatrizTxt(f.data.numeroMatriz ?? '')
+      } catch { /* faca é complementar — não bloqueia o board */ }
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao abrir board', color: 'red' })
     } finally {
@@ -200,8 +244,56 @@ export default function PreImpressaoPage() {
                 )
               })}
             </Group>
+
+            {/* Faca do produto — responsabilidade da Pré-Impressão */}
+            <Paper p="sm" withBorder>
+              <Text fw={600} size="sm" mb={2}>Faca de corte</Text>
+              <Text size="xs" c="dimmed" mb="sm">
+                Anexe a imagem da faca e informe o nº da matriz. {faca.produtoId
+                  ? 'Ao salvar, também atualiza a Ficha Master do produto (vale para os próximos pedidos).'
+                  : 'Pedido sem produto cadastrado: fica salvo só neste pedido e nos orçamentos dele.'}
+              </Text>
+              <Group align="flex-end" gap="md" wrap="nowrap">
+                {faca.imagemFaca ? (
+                  <Image src={faca.imagemFaca} alt="Faca" h={90} w={90} fit="contain" radius="sm"
+                    style={{ cursor: 'zoom-in', border: '1px solid var(--mantine-color-default-border)' }}
+                    onClick={() => setImgAmpliada(true)} />
+                ) : (
+                  <Center h={90} w={90} style={{ border: '1px dashed var(--mantine-color-default-border)', borderRadius: 8 }}>
+                    <IconPhotoOff size={24} opacity={0.5} />
+                  </Center>
+                )}
+                <Stack gap={6}>
+                  <Group gap={6}>
+                    <FileButton accept="image/*" onChange={escolherImagem}>
+                      {(props) => (
+                        <Button {...props} size="xs" variant="light" leftSection={<IconUpload size={14} />} loading={salvandoFaca}>
+                          {faca.imagemFaca ? 'Trocar imagem' : 'Anexar imagem'}
+                        </Button>
+                      )}
+                    </FileButton>
+                    {faca.imagemFaca && (
+                      <Button size="xs" variant="subtle" color="red" onClick={() => salvarFaca({ imagemFaca: null })}>Remover</Button>
+                    )}
+                  </Group>
+                </Stack>
+                <Group gap={6} align="flex-end" style={{ flex: 1 }}>
+                  <TextInput label="Nº da matriz" placeholder="ex.: 2529B" style={{ flex: 1 }}
+                    value={matrizTxt} onChange={(e) => setMatrizTxt(e.currentTarget.value)} />
+                  <Button size="xs" loading={salvandoFaca}
+                    disabled={(matrizTxt.trim() || null) === (faca.numeroMatriz || null)}
+                    onClick={() => salvarFaca({ numeroMatriz: matrizTxt.trim() || null })}>
+                    Salvar matriz
+                  </Button>
+                </Group>
+              </Group>
+            </Paper>
           </Stack>
         )}
+      </Modal>
+
+      <Modal opened={imgAmpliada} onClose={() => setImgAmpliada(false)} size="xl">
+        {faca.imagemFaca && <Image src={faca.imagemFaca} alt="Faca" fit="contain" />}
       </Modal>
 
       {/* Observação ao concluir */}
