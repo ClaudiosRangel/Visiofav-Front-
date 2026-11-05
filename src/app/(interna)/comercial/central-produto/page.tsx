@@ -12,9 +12,10 @@ import {
   Title, Stack, Group, Text, Loader, Center, Paper, Badge, TextInput,
   Button, Image, Table, Divider, Alert, Card, SimpleGrid,
 } from '@mantine/core'
-import { IconSearch, IconEdit, IconPhotoOff, IconInfoCircle } from '@tabler/icons-react'
+import { IconSearch, IconEdit, IconPhotoOff, IconInfoCircle, IconLayoutList, IconFileDescription } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { EditarCadastroModal } from './EditarCadastroModal'
+import { FichaMasterModal } from './FichaMaster'
 
 // ── Tipos (espelham o backend) ──
 interface GrupoResultado {
@@ -76,6 +77,10 @@ export interface DetalheProduto {
   }>
 }
 
+interface ProdutoLista {
+  id: string; codigo: string; nome: string; status: boolean; temFicha: boolean
+}
+
 function brl(n: number | null) {
   if (n == null) return '—'
   return Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -95,6 +100,11 @@ export default function CentralProdutoPage() {
   const [podeEditar, setPodeEditar] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [modalAberto, setModalAberto] = useState(false)
+  // Ficha Master v2
+  const [fichaMasterId, setFichaMasterId] = useState<string | null>(null)
+  // Modo "Todos os produtos" (carga inicial / localização)
+  const [lista, setLista] = useState<{ itens: ProdutoLista[]; total: number; page: number; pageSize: number } | null>(null)
+  const [loadingLista, setLoadingLista] = useState(false)
 
   useEffect(() => {
     api.get('/comercial/central-produto/permissao')
@@ -143,6 +153,27 @@ export default function CentralProdutoPage() {
     }
   }, [termo, carregarDetalhe])
 
+  const carregarLista = useCallback(async (page = 1) => {
+    setLoadingLista(true)
+    setErro(null)
+    setBusca(null)
+    setDetalhe(null)
+    try {
+      const { data } = await api.get('/comercial/central-produto/produtos', {
+        params: { status: 'TODOS', page, pageSize: 20, texto: termo.trim() || undefined },
+      })
+      setLista(data)
+    } catch {
+      setErro('Não foi possível carregar a lista de produtos.')
+    } finally {
+      setLoadingLista(false)
+    }
+  }, [termo])
+
+  const abrirFichaMaster = useCallback(async (produtoId: string) => {
+    setFichaMasterId(produtoId)
+  }, [])
+
   return (
     <Stack gap="md" p="md">
       <Title order={2}>Central do Produto / Acabado</Title>
@@ -161,9 +192,49 @@ export default function CentralProdutoPage() {
           onKeyDown={(e) => { if (e.key === 'Enter') pesquisar() }}
         />
         <Button onClick={pesquisar} loading={loadingBusca}>Pesquisar</Button>
+        <Button variant="light" leftSection={<IconLayoutList size={16} />} onClick={() => carregarLista(1)} loading={loadingLista}>
+          Todos os produtos
+        </Button>
       </Group>
 
       {erro && <Alert color="red" icon={<IconInfoCircle size={16} />}>{erro}</Alert>}
+
+      {/* Modo "Todos os produtos" (carga inicial / localização) */}
+      {lista && (
+        <Paper withBorder p="md">
+          <Group justify="space-between" mb="xs">
+            <Text fw={600}>Produtos ({lista.total})</Text>
+            <Group gap={4}>
+              <Button size="xs" variant="subtle" disabled={lista.page <= 1}
+                onClick={() => carregarLista(lista.page - 1)}>Anterior</Button>
+              <Text size="sm">Página {lista.page}</Text>
+              <Button size="xs" variant="subtle" disabled={lista.page * lista.pageSize >= lista.total}
+                onClick={() => carregarLista(lista.page + 1)}>Próxima</Button>
+            </Group>
+          </Group>
+          <Table striped highlightOnHover>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Código</Table.Th><Table.Th>Nome</Table.Th>
+                <Table.Th>Status</Table.Th><Table.Th>Ficha</Table.Th><Table.Th /></Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {lista.itens.map((p) => (
+                <Table.Tr key={p.id}>
+                  <Table.Td>{p.codigo}</Table.Td>
+                  <Table.Td>{p.nome}</Table.Td>
+                  <Table.Td><Badge color={p.status ? 'green' : 'gray'} variant="light">{p.status ? 'Ativo' : 'Inativo'}</Badge></Table.Td>
+                  <Table.Td>{p.temFicha ? <Badge color="teal" variant="light">sim</Badge> : <Text size="xs" c="dimmed">—</Text>}</Table.Td>
+                  <Table.Td>
+                    <Button size="xs" variant="light" leftSection={<IconFileDescription size={14} />}
+                      onClick={() => abrirFichaMaster(p.id)}>Ficha Master</Button>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Paper>
+      )}
 
       {busca?.limiteAplicado && (
         <Alert color="yellow" icon={<IconInfoCircle size={16} />}>
@@ -217,6 +288,7 @@ export default function CentralProdutoPage() {
           detalhe={detalhe}
           podeEditar={podeEditar}
           onEditar={() => setModalAberto(true)}
+          onFichaMaster={detalhe.identificacao.produtoId ? () => abrirFichaMaster(detalhe.identificacao.produtoId!) : undefined}
         />
       )}
 
@@ -229,13 +301,23 @@ export default function CentralProdutoPage() {
           onSalvo={(novo) => { setDetalhe(novo); setModalAberto(false) }}
         />
       )}
+
+      {fichaMasterId && (
+        <FichaMasterModal
+          opened={!!fichaMasterId}
+          onClose={() => setFichaMasterId(null)}
+          produtoId={fichaMasterId}
+          podeEditar={podeEditar}
+          onProdutoAlterado={() => { if (lista) carregarLista(lista.page) }}
+        />
+      )}
     </Stack>
   )
 }
 
 function DetalheView({
-  detalhe, podeEditar, onEditar,
-}: { detalhe: DetalheProduto; podeEditar: boolean; onEditar: () => void }) {
+  detalhe, podeEditar, onEditar, onFichaMaster,
+}: { detalhe: DetalheProduto; podeEditar: boolean; onEditar: () => void; onFichaMaster?: () => void }) {
   const id = detalhe.identificacao
   const ficha = detalhe.fichaTecnica
   return (
@@ -268,11 +350,18 @@ function DetalheView({
               {id.clienteNome && <Text size="sm" mt={6} c="dimmed">Cliente: {id.clienteNome}</Text>}
             </div>
           </Group>
-          {podeEditar && id.produtoId && (
-            <Button leftSection={<IconEdit size={16} />} variant="light" onClick={onEditar}>
-              Editar cadastro
-            </Button>
-          )}
+          <Group gap="xs">
+            {id.produtoId && onFichaMaster && (
+              <Button leftSection={<IconFileDescription size={16} />} variant="light" color="teal" onClick={onFichaMaster}>
+                Ficha Master
+              </Button>
+            )}
+            {podeEditar && id.produtoId && (
+              <Button leftSection={<IconEdit size={16} />} variant="light" onClick={onEditar}>
+                Editar cadastro
+              </Button>
+            )}
+          </Group>
         </Group>
       </Paper>
 
