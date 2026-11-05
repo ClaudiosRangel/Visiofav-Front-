@@ -153,15 +153,18 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
   const [acabamentosCad, setAcabamentosCad] = useState<AcabamentoOpc[]>([])
   const [dirty, setDirty] = useState(false)
   const [vendedores, setVendedores] = useState<Array<{ value: string; label: string }>>([])
+  const [representantes, setRepresentantes] = useState<Array<{ value: string; label: string }>>([])
 
-  // Vendedores ativos (campo obrigatório quando a origem é "Vendedor")
+
+  // Representantes (Portal Representante) e vendedores ativos — obrigatórios
+  // conforme a origem do pedido. Rota do Comercial (não exige ADMIN/Vendas).
   useEffect(() => {
-    api.get('/vendedores', { params: { status: 'true', limit: 100 } })
+    api.get('/orcamento-grafico/pedidos-proposta/opcoes-origem')
       .then(({ data }) => {
-        const lista = Array.isArray(data?.data) ? data.data : []
-        setVendedores(lista.map((v: { id: string; nome: string }) => ({ value: v.id, label: v.nome })))
+        setRepresentantes((data?.representantes ?? []).map((r: { id: string; nome: string }) => ({ value: r.id, label: r.nome })))
+        setVendedores((data?.vendedores ?? []).map((v: { id: string; nome: string }) => ({ value: v.id, label: v.nome })))
       })
-      .catch(() => setVendedores([]))
+      .catch(() => { setRepresentantes([]); setVendedores([]) })
   }, [])
 
   // Ponto 2 — modal "novo prazo" inline (sem sair do cadastro)
@@ -470,6 +473,10 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
       notifications.show({ message: 'O campo Mercado é obrigatório.', color: 'red' })
       return
     }
+    if (form.origem === 'REPRESENTANTE' && !form.representanteId) {
+      notifications.show({ message: 'Selecione o representante (campo "Representante" em Origem e tipo).', color: 'red' })
+      return
+    }
     if (form.origem === 'VENDEDOR' && !form.vendedorId) {
       notifications.show({ message: 'Selecione o vendedor (campo "Vendedor" em Origem e tipo).', color: 'red' })
       return
@@ -602,7 +609,15 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
             const o = (v as FormState['origem']) || 'INTERNA'
             set('origem', o)
             if (o !== 'VENDEDOR') set('vendedorId', null)
+            if (o !== 'REPRESENTANTE') set('representanteId', null)
           }} />
+          {form.origem === 'REPRESENTANTE' && (
+            <Select label="Representante" required searchable clearable
+              placeholder={representantes.length ? 'Selecione o representante' : 'Nenhum representante ativo'}
+              nothingFoundMessage="Nenhum representante encontrado"
+              data={representantes} value={form.representanteId ?? null}
+              onChange={(v) => set('representanteId', v)} />
+          )}
           {form.origem === 'VENDEDOR' && (
             <Select label="Vendedor" required searchable clearable
               placeholder={vendedores.length ? 'Selecione o vendedor' : 'Nenhum vendedor cadastrado'}
