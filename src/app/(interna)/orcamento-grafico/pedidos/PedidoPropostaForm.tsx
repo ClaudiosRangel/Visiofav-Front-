@@ -152,6 +152,17 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
   const [prazos, setPrazos] = useState<PrazoOpc[]>([])
   const [acabamentosCad, setAcabamentosCad] = useState<AcabamentoOpc[]>([])
   const [dirty, setDirty] = useState(false)
+  const [vendedores, setVendedores] = useState<Array<{ value: string; label: string }>>([])
+
+  // Vendedores ativos (campo obrigatório quando a origem é "Vendedor")
+  useEffect(() => {
+    api.get('/vendedores', { params: { status: 'true', limit: 100 } })
+      .then(({ data }) => {
+        const lista = Array.isArray(data?.data) ? data.data : []
+        setVendedores(lista.map((v: { id: string; nome: string }) => ({ value: v.id, label: v.nome })))
+      })
+      .catch(() => setVendedores([]))
+  }, [])
 
   // Ponto 2 — modal "novo prazo" inline (sem sair do cadastro)
   const [prazoModal, setPrazoModal] = useState(false)
@@ -459,6 +470,10 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
       notifications.show({ message: 'O campo Mercado é obrigatório.', color: 'red' })
       return
     }
+    if (form.origem === 'VENDEDOR' && !form.vendedorId) {
+      notifications.show({ message: 'Selecione o vendedor (campo "Vendedor" em Origem e tipo).', color: 'red' })
+      return
+    }
     if (form.tipoEntrega === 'FRACIONADA' && !form.entregaFracionadaDias.trim()) {
       notifications.show({ message: 'Informe o intervalo de dias da entrega fracionada.', color: 'red' })
       return
@@ -583,7 +598,18 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
             { value: 'REPRESENTANTE', label: 'Representante' },
             { value: 'VENDEDOR', label: 'Vendedor' },
             { value: 'INTERNA', label: 'Venda interna' },
-          ]} value={form.origem} onChange={(v) => set('origem', (v as FormState['origem']) || 'INTERNA')} />
+          ]} value={form.origem} onChange={(v) => {
+            const o = (v as FormState['origem']) || 'INTERNA'
+            set('origem', o)
+            if (o !== 'VENDEDOR') set('vendedorId', null)
+          }} />
+          {form.origem === 'VENDEDOR' && (
+            <Select label="Vendedor" required searchable clearable
+              placeholder={vendedores.length ? 'Selecione o vendedor' : 'Nenhum vendedor cadastrado'}
+              nothingFoundMessage="Nenhum vendedor encontrado"
+              data={vendedores} value={form.vendedorId ?? null}
+              onChange={(v) => set('vendedorId', v)} />
+          )}
           <div>
             <Text size="sm" fw={500} mb={4}>Tipo de pedido (derivado)</Text>
             {(() => {
