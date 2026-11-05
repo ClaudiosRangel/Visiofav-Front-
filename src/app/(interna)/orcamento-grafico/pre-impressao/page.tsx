@@ -16,7 +16,12 @@ import {
   IconUpload, IconPhotoOff,
 } from '@tabler/icons-react'
 import { api } from '@/lib/api'
+import { getAuthToken } from '@/lib/authStorage'
 import { notifications } from '@mantine/notifications'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
+
+interface AnexoMeta { id: string; nome: string; tipo: string }
 
 interface ResumoPedido {
   pedidoId: string
@@ -79,6 +84,49 @@ export default function PreImpressaoPage() {
   const [matrizTxt, setMatrizTxt] = useState('')
   const [salvandoFaca, setSalvandoFaca] = useState(false)
   const [imgAmpliada, setImgAmpliada] = useState(false)
+  // Imagens da arte (anexos do pedido) — são as que o cliente vê no link de aprovação
+  const [artes, setArtes] = useState<AnexoMeta[]>([])
+  const [artePreview, setArtePreview] = useState<string | null>(null)
+  const [enviandoArte, setEnviandoArte] = useState(false)
+
+  function urlArte(pedidoId: string, anexoId: string) {
+    return `${API_BASE}/orcamento-grafico/pedidos-proposta/${pedidoId}/anexos/${anexoId}?token=${getAuthToken() ?? ''}`
+  }
+
+  async function enviarArte(file: File | null) {
+    if (!file || !aberto) return
+    if (artes.length >= 5) {
+      notifications.show({ message: 'Limite de 5 imagens atingido.', color: 'orange' })
+      return
+    }
+    setEnviandoArte(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      await api.post(`/orcamento-grafico/pedidos-proposta/${aberto.pedidoId}/anexos`, fd)
+      const { data } = await api.get(`/orcamento-grafico/pedidos-proposta/${aberto.pedidoId}/anexos`)
+      setArtes(Array.isArray(data) ? data : [])
+    } catch (err: any) {
+      const code = err?.response?.data?.code
+      const msg = code === 'LIMITE_ANEXOS' ? 'Limite de 5 imagens.'
+        : code === 'MIME_INVALIDO' ? 'Apenas imagens são aceitas.'
+        : code === 'ARQUIVO_GRANDE' ? 'Imagem acima de 10MB.'
+        : err?.response?.data?.message || 'Falha ao enviar imagem.'
+      notifications.show({ title: 'Arte', message: msg, color: 'red' })
+    } finally {
+      setEnviandoArte(false)
+    }
+  }
+
+  async function removerArte(anexoId: string) {
+    if (!aberto) return
+    try {
+      await api.delete(`/orcamento-grafico/pedidos-proposta/${aberto.pedidoId}/anexos/${anexoId}`)
+      setArtes((a) => a.filter((x) => x.id !== anexoId))
+    } catch {
+      notifications.show({ title: 'Arte', message: 'Falha ao remover.', color: 'red' })
+    }
+  }
 
   async function salvarFaca(dados: { imagemFaca?: string | null; numeroMatriz?: string | null }) {
     if (!aberto) return
@@ -137,6 +185,10 @@ export default function PreImpressaoPage() {
         setFaca(f.data)
         setMatrizTxt(f.data.numeroMatriz ?? '')
       } catch { /* faca é complementar — não bloqueia o board */ }
+      try {
+        const a = await api.get(`/orcamento-grafico/pedidos-proposta/${p.pedidoId}/anexos`)
+        setArtes(Array.isArray(a.data) ? a.data : [])
+      } catch { setArtes([]) }
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao abrir board', color: 'red' })
     } finally {
@@ -245,6 +297,36 @@ export default function PreImpressaoPage() {
               })}
             </Group>
 
+            {/* Arte / mockup para aprovação do cliente (aparece no link público) */}
+            <Paper p="sm" withBorder>
+              <Group justify="space-between" mb={2}>
+                <Text fw={600} size="sm">Imagens da arte (aprovação do cliente)</Text>
+                <Badge variant="light" color="gray">{artes.length}/5</Badge>
+              </Group>
+              <Text size="xs" c="dimmed" mb="sm">
+                Estas são as imagens que o cliente vê no link de aprovação de arte. Anexe aqui o mockup/arte antes de enviar o link.
+              </Text>
+              <Group gap="sm" align="flex-end">
+                {aberto && artes.map((a) => (
+                  <div key={a.id} style={{ position: 'relative' }}>
+                    <Image src={urlArte(aberto.pedidoId, a.id)} alt={a.nome} h={90} w={90} fit="cover" radius="sm"
+                      style={{ cursor: 'zoom-in', border: '1px solid var(--mantine-color-default-border)' }}
+                      onClick={() => setArtePreview(urlArte(aberto.pedidoId, a.id))} />
+                    <Button size="compact-xs" variant="subtle" color="red" onClick={() => removerArte(a.id)}>Remover</Button>
+                  </div>
+                ))}
+                {artes.length < 5 && (
+                  <FileButton accept="image/*" onChange={enviarArte}>
+                    {(props) => (
+                      <Button {...props} size="xs" variant="light" leftSection={<IconUpload size={14} />} loading={enviandoArte}>
+                        Anexar imagem
+                      </Button>
+                    )}
+                  </FileButton>
+                )}
+              </Group>
+            </Paper>
+
             {/* Faca do produto — responsabilidade da Pré-Impressão */}
             <Paper p="sm" withBorder>
               <Text fw={600} size="sm" mb={2}>Faca de corte</Text>
@@ -290,6 +372,10 @@ export default function PreImpressaoPage() {
             </Paper>
           </Stack>
         )}
+      </Modal>
+
+      <Modal opened={!!artePreview} onClose={() => setArtePreview(null)} size="xl">
+        {artePreview && <Image src={artePreview} alt="Arte" fit="contain" />}
       </Modal>
 
       <Modal opened={imgAmpliada} onClose={() => setImgAmpliada(false)} size="xl">
