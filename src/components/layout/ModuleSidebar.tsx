@@ -481,6 +481,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       // ── 2º: PEDIDOS / PROPOSTAS (gestão central do funil, todas as origens) ──
       { icon: IconInbox, label: 'Pedidos / Propostas', href: '/orcamento-grafico/pedidos' },
       { icon: IconListDetails, label: 'Pipeline (Status)', href: '/orcamento-grafico/pipeline' },
+      { icon: IconListDetails, label: 'Pré-Impressão', href: '/orcamento-grafico/pre-impressao' },
       { icon: IconPhoto, label: 'Amostras / Modelos', href: '/orcamento-grafico/amostras' },
       { icon: IconSearch, label: 'Central do Produto', href: '/comercial/central-produto' },
       // ── 3º: ORÇAMENTO / CÁLCULO (o cálculo é iniciado via "Encaminhar" em Pedidos/Propostas) ──
