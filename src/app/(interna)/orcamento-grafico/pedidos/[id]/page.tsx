@@ -11,8 +11,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Title, Stack, Group, Paper, Text, Badge, Button, Loader, Center, Timeline,
-  Select, Textarea, Modal, Divider, Tooltip, Alert, CopyButton, Anchor,
+  Select, Textarea, Modal, Divider, Tooltip, Alert, CopyButton, Anchor, Tabs,
 } from '@mantine/core'
+import PedidoPropostaForm from '../PedidoPropostaForm'
 import {
   IconArrowBack, IconArrowRight, IconArrowBackUp, IconHistory, IconEdit,
   IconCircleCheck, IconAlertTriangle, IconLink, IconCopy, IconCheck, IconRefresh,
@@ -94,6 +95,11 @@ export default function DetalhePedidoStatusPage() {
   const params = useParams()
   const id = params?.id as string
 
+  // Aba inicial: ?aba=dados abre direto a edição dos campos do pedido.
+  const [aba, setAba] = useState<string>('andamento')
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('aba') === 'dados') setAba('dados')
+  }, [])
   const [situacao, setSituacao] = useState<Situacao | null>(null)
   const [transicoes, setTransicoes] = useState<TransicoesResp | null>(null)
   const [eventos, setEventos] = useState<Evento[]>([])
@@ -204,6 +210,18 @@ export default function DetalhePedidoStatusPage() {
         )}
       </Group>
 
+      <Tabs value={aba} onChange={(v) => setAba(v || 'andamento')} keepMounted={false}>
+        <Tabs.List>
+          <Tabs.Tab value="andamento">Andamento</Tabs.Tab>
+          <Tabs.Tab value="dados" leftSection={<IconEdit size={14} />}>Dados do pedido (editar)</Tabs.Tab>
+        </Tabs.List>
+
+        <Tabs.Panel value="dados" pt="md">
+          <PedidoPropostaForm pedidoId={id} />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="andamento" pt="md">
+      <Stack gap="md">
       {!temStatusFiel && (
         <Alert color="gray" icon={<IconAlertTriangle size={16} />}>
           Este pedido ainda não tem o status detalhado disponível.
@@ -369,6 +387,9 @@ export default function DetalhePedidoStatusPage() {
           </Timeline>
         )}
       </Paper>
+      </Stack>
+        </Tabs.Panel>
+      </Tabs>
 
       <Modal opened={modalDevolver} onClose={() => setModalDevolver(false)} title="Devolver para setor" centered>
         <Stack gap="md">

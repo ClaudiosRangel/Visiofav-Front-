@@ -436,7 +436,11 @@ export default function PedidosPropostasPage() {
                         <Menu.Dropdown>
                           <Menu.Item leftSection={<IconExternalLink size={15} />}
                             onClick={() => router.push(`/orcamento-grafico/pedidos/${p.id}`)}>
-                            Abrir / editar
+                            Abrir (andamento)
+                          </Menu.Item>
+                          <Menu.Item leftSection={<IconExternalLink size={15} />}
+                            onClick={() => router.push(`/orcamento-grafico/pedidos/${p.id}?aba=dados`)}>
+                            Editar dados do pedido
                           </Menu.Item>
                           <Menu.Item leftSection={<IconPrinter size={15} />} onClick={() => imprimir(p)}>
                             Imprimir (PDF)

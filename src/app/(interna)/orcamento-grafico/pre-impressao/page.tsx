@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   Title, Stack, Group, Paper, Text, Badge, Button, Loader, Center, Progress,
-  Modal, Textarea, Tooltip, TextInput, Image, FileButton,
+  Modal, Textarea, Tooltip, TextInput, Image, FileButton, NumberInput, Select, SimpleGrid,
 } from '@mantine/core'
 import {
   IconRefresh, IconLayoutColumns, IconPlayerPlay, IconCheck, IconArrowBackUp,
@@ -22,6 +22,22 @@ import { notifications } from '@mantine/notifications'
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
 
 interface AnexoMeta { id: string; nome: string; tipo: string }
+
+interface FichaForm {
+  cartao: string; gramatura: string; numCores: number | ''
+  coresDescricao: string; acabamentos: string; observacoes: string
+  numeroMatriz: string; imagemFaca: string | null
+  dimensoes: Array<{ tipo: string; larguraMm: number | ''; alturaMm: number | ''; profundidadeMm: number | '' }>
+}
+const FICHA_VAZIA: FichaForm = {
+  cartao: '', gramatura: '', numCores: '', coresDescricao: '', acabamentos: '', observacoes: '',
+  numeroMatriz: '', imagemFaca: null, dimensoes: [],
+}
+const TIPOS_DIM = [
+  { value: 'PRODUTO_FINAL', label: 'Produto final' },
+  { value: 'PLANIFICADO', label: 'Planificado' },
+  { value: 'FOLHA', label: 'Folha' },
+]
 
 interface ResumoPedido {
   pedidoId: string
@@ -77,13 +93,45 @@ export default function PreImpressaoPage() {
   const [acao, setAcao] = useState(false)
   const [obsAlvo, setObsAlvo] = useState<{ etapa: string; status: string } | null>(null)
   const [obs, setObs] = useState('')
-  // Faca do pedido (imagem + nº da matriz) — preenchida aqui pela Pré-Impressão
-  const [faca, setFaca] = useState<{ imagemFaca: string | null; numeroMatriz: string | null; produtoId: string | null }>(
-    { imagemFaca: null, numeroMatriz: null, produtoId: null },
+  // Ficha Master em RASCUNHO (preenchida aqui; só vai ao cadastro do produto
+  // depois que o cliente aprova a arte).
+  const [fm, setFm] = useState<FichaForm>(FICHA_VAZIA)
+  const [fmInfo, setFmInfo] = useState<{ produtoId: string | null; aprovada: boolean; publicadaEm: string | null }>(
+    { produtoId: null, aprovada: false, publicadaEm: null },
   )
-  const [matrizTxt, setMatrizTxt] = useState('')
   const [salvandoFaca, setSalvandoFaca] = useState(false)
+  const [publicando, setPublicando] = useState(false)
   const [imgAmpliada, setImgAmpliada] = useState(false)
+
+  function aplicarFicha(d: any) {
+    const r = d?.rascunho ?? {}
+    setFm({
+      cartao: r.cartao ?? '', gramatura: r.gramatura ?? '', numCores: r.numCores ?? '',
+      coresDescricao: r.coresDescricao ?? '', acabamentos: r.acabamentos ?? '',
+      observacoes: r.observacoes ?? '', numeroMatriz: d?.numeroMatriz ?? '',
+      imagemFaca: d?.imagemFaca ?? null,
+      dimensoes: (r.dimensoes ?? []).map((x: any) => ({
+        tipo: x.tipo, larguraMm: x.larguraMm ?? '', alturaMm: x.alturaMm ?? '', profundidadeMm: x.profundidadeMm ?? '',
+      })),
+    })
+    setFmInfo({ produtoId: d?.produtoId ?? null, aprovada: !!d?.artePorClienteAprovada, publicadaEm: d?.publicadaEm ?? null })
+  }
+
+  function payloadFicha(f: FichaForm) {
+    const n = (v: number | '') => (v === '' ? null : v)
+    return {
+      rascunho: {
+        cartao: f.cartao || null, gramatura: f.gramatura || null, numCores: n(f.numCores),
+        coresDescricao: f.coresDescricao || null, acabamentos: f.acabamentos || null,
+        observacoes: f.observacoes || null,
+        dimensoes: f.dimensoes.map((d) => ({
+          tipo: d.tipo, larguraMm: n(d.larguraMm), alturaMm: n(d.alturaMm), profundidadeMm: n(d.profundidadeMm),
+        })),
+      },
+      imagemFaca: f.imagemFaca,
+      numeroMatriz: f.numeroMatriz.trim() || null,
+    }
+  }
   // Imagens da arte (anexos do pedido) — são as que o cliente vê no link de aprovação
   const [artes, setArtes] = useState<AnexoMeta[]>([])
   const [artePreview, setArtePreview] = useState<string | null>(null)
@@ -128,21 +176,34 @@ export default function PreImpressaoPage() {
     }
   }
 
-  async function salvarFaca(dados: { imagemFaca?: string | null; numeroMatriz?: string | null }) {
+  async function salvarFaca(dados: FichaForm) {
     if (!aberto) return
     setSalvandoFaca(true)
     try {
-      const { data } = await api.put(`/orcamento-grafico/pedidos-proposta/${aberto.pedidoId}/faca`, dados)
-      setFaca({ imagemFaca: data.imagemFaca, numeroMatriz: data.numeroMatriz, produtoId: data.produtoId })
-      setMatrizTxt(data.numeroMatriz ?? '')
-      notifications.show({
-        message: data.fichaAtualizada ? 'Faca salva (e atualizada na Ficha Master do produto).' : 'Faca salva.',
-        color: 'green',
-      })
+      const { data } = await api.put(
+        `/orcamento-grafico/pedidos-proposta/${aberto.pedidoId}/ficha-rascunho`, payloadFicha(dados),
+      )
+      aplicarFicha(data)
+      notifications.show({ message: 'Ficha Master (rascunho) salva neste pedido.', color: 'green' })
     } catch (err: any) {
-      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar a faca', color: 'red' })
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar a ficha', color: 'red' })
     } finally {
       setSalvandoFaca(false)
+    }
+  }
+
+  async function publicarFicha() {
+    if (!aberto) return
+    setPublicando(true)
+    try {
+      await api.post(`/orcamento-grafico/pedidos-proposta/${aberto.pedidoId}/ficha-rascunho/publicar`)
+      const { data } = await api.get(`/orcamento-grafico/pedidos-proposta/${aberto.pedidoId}/ficha-rascunho`)
+      aplicarFicha(data)
+      notifications.show({ message: 'Ficha publicada na Ficha Master do produto.', color: 'green' })
+    } catch (err: any) {
+      notifications.show({ title: 'Não foi possível publicar', message: err?.response?.data?.message || 'Falha', color: 'orange' })
+    } finally {
+      setPublicando(false)
     }
   }
 
@@ -153,7 +214,7 @@ export default function PreImpressaoPage() {
       return
     }
     const r = new FileReader()
-    r.onload = () => salvarFaca({ imagemFaca: r.result as string })
+    r.onload = () => setFm((f) => ({ ...f, imagemFaca: r.result as string }))
     r.readAsDataURL(file)
   }
 
@@ -181,10 +242,9 @@ export default function PreImpressaoPage() {
       setCaminho(data.caminho ?? '')
       setConcluido(!!data.concluido)
       try {
-        const f = await api.get(`/orcamento-grafico/pedidos-proposta/${p.pedidoId}/faca`)
-        setFaca(f.data)
-        setMatrizTxt(f.data.numeroMatriz ?? '')
-      } catch { /* faca é complementar — não bloqueia o board */ }
+        const f = await api.get(`/orcamento-grafico/pedidos-proposta/${p.pedidoId}/ficha-rascunho`)
+        aplicarFicha(f.data)
+      } catch { /* ficha é complementar — não bloqueia o board */ }
       try {
         const a = await api.get(`/orcamento-grafico/pedidos-proposta/${p.pedidoId}/anexos`)
         setArtes(Array.isArray(a.data) ? a.data : [])
@@ -329,15 +389,34 @@ export default function PreImpressaoPage() {
 
             {/* Faca do produto — responsabilidade da Pré-Impressão */}
             <Paper p="sm" withBorder>
-              <Text fw={600} size="sm" mb={2}>Faca de corte</Text>
+              <Group justify="space-between" mb={2}>
+                <Text fw={600} size="sm">Ficha Master do produto (rascunho)</Text>
+                {fmInfo.publicadaEm ? (
+                  <Badge color="teal" variant="light">Publicada na Ficha Master</Badge>
+                ) : (
+                  <Badge color="yellow" variant="light">Rascunho — fora do cadastro do produto</Badge>
+                )}
+              </Group>
               <Text size="xs" c="dimmed" mb="sm">
-                Anexe a imagem da faca e informe o nº da matriz. {faca.produtoId
-                  ? 'Ao salvar, também atualiza a Ficha Master do produto (vale para os próximos pedidos).'
-                  : 'Pedido sem produto cadastrado: fica salvo só neste pedido e nos orçamentos dele.'}
+                Preencha a ficha técnica aqui. Ela fica só neste pedido e só vai para o cadastro do produto depois que o cliente aprovar a arte.
+                {!fmInfo.produtoId && ' Este pedido ainda não tem produto cadastrado vinculado; vincule um produto no pedido para a publicação acontecer.'}
               </Text>
+
+              <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xs">
+                <TextInput label="Cartão" value={fm.cartao} onChange={(e) => setFm({ ...fm, cartao: e.currentTarget.value })} />
+                <TextInput label="Gramatura" value={fm.gramatura} onChange={(e) => setFm({ ...fm, gramatura: e.currentTarget.value })} />
+                <NumberInput label="Nº de cores" min={0} max={20} value={fm.numCores}
+                  onChange={(v) => setFm({ ...fm, numCores: typeof v === 'number' ? v : '' })} />
+              </SimpleGrid>
+              <TextInput mt="xs" label="Cores (descrição)" value={fm.coresDescricao}
+                onChange={(e) => setFm({ ...fm, coresDescricao: e.currentTarget.value })} />
+              <Textarea mt="xs" label="Acabamentos" autosize minRows={2} value={fm.acabamentos}
+                onChange={(e) => setFm({ ...fm, acabamentos: e.currentTarget.value })} />
+
+              <Text size="sm" fw={500} mt="sm" mb={4}>Faca / matriz</Text>
               <Group align="flex-end" gap="md" wrap="nowrap">
-                {faca.imagemFaca ? (
-                  <Image src={faca.imagemFaca} alt="Faca" h={90} w={90} fit="contain" radius="sm"
+                {fm.imagemFaca ? (
+                  <Image src={fm.imagemFaca} alt="Faca" h={90} w={90} fit="contain" radius="sm"
                     style={{ cursor: 'zoom-in', border: '1px solid var(--mantine-color-default-border)' }}
                     onClick={() => setImgAmpliada(true)} />
                 ) : (
@@ -345,28 +424,62 @@ export default function PreImpressaoPage() {
                     <IconPhotoOff size={24} opacity={0.5} />
                   </Center>
                 )}
-                <Stack gap={6}>
-                  <Group gap={6}>
-                    <FileButton accept="image/*" onChange={escolherImagem}>
-                      {(props) => (
-                        <Button {...props} size="xs" variant="light" leftSection={<IconUpload size={14} />} loading={salvandoFaca}>
-                          {faca.imagemFaca ? 'Trocar imagem' : 'Anexar imagem'}
-                        </Button>
-                      )}
-                    </FileButton>
-                    {faca.imagemFaca && (
-                      <Button size="xs" variant="subtle" color="red" onClick={() => salvarFaca({ imagemFaca: null })}>Remover</Button>
+                <Group gap={6}>
+                  <FileButton accept="image/*" onChange={escolherImagem}>
+                    {(props) => (
+                      <Button {...props} size="xs" variant="light" leftSection={<IconUpload size={14} />}>
+                        {fm.imagemFaca ? 'Trocar imagem' : 'Anexar imagem'}
+                      </Button>
                     )}
+                  </FileButton>
+                  {fm.imagemFaca && (
+                    <Button size="xs" variant="subtle" color="red" onClick={() => setFm({ ...fm, imagemFaca: null })}>Remover</Button>
+                  )}
+                </Group>
+                <TextInput label="Nº da matriz" placeholder="ex.: 2529B" style={{ flex: 1 }}
+                  value={fm.numeroMatriz} onChange={(e) => setFm({ ...fm, numeroMatriz: e.currentTarget.value })} />
+              </Group>
+
+              <Text size="sm" fw={500} mt="sm" mb={4}>Dimensões (mm)</Text>
+              <Stack gap={6}>
+                {fm.dimensoes.map((d, i) => (
+                  <Group key={i} gap="xs" wrap="nowrap" align="flex-end">
+                    <Select w={150} size="xs" data={TIPOS_DIM} value={d.tipo} allowDeselect={false}
+                      onChange={(v) => setFm({ ...fm, dimensoes: fm.dimensoes.map((x, j) => j === i ? { ...x, tipo: v || 'PRODUTO_FINAL' } : x) })} />
+                    <NumberInput w={90} size="xs" placeholder="Larg." min={0} value={d.larguraMm}
+                      onChange={(v) => setFm({ ...fm, dimensoes: fm.dimensoes.map((x, j) => j === i ? { ...x, larguraMm: typeof v === 'number' ? v : '' } : x) })} />
+                    <NumberInput w={90} size="xs" placeholder="Alt." min={0} value={d.alturaMm}
+                      onChange={(v) => setFm({ ...fm, dimensoes: fm.dimensoes.map((x, j) => j === i ? { ...x, alturaMm: typeof v === 'number' ? v : '' } : x) })} />
+                    <NumberInput w={90} size="xs" placeholder="Prof." min={0} value={d.profundidadeMm}
+                      onChange={(v) => setFm({ ...fm, dimensoes: fm.dimensoes.map((x, j) => j === i ? { ...x, profundidadeMm: typeof v === 'number' ? v : '' } : x) })} />
+                    <Button size="compact-xs" variant="subtle" color="red"
+                      onClick={() => setFm({ ...fm, dimensoes: fm.dimensoes.filter((_, j) => j !== i) })}>Remover</Button>
                   </Group>
-                </Stack>
-                <Group gap={6} align="flex-end" style={{ flex: 1 }}>
-                  <TextInput label="Nº da matriz" placeholder="ex.: 2529B" style={{ flex: 1 }}
-                    value={matrizTxt} onChange={(e) => setMatrizTxt(e.currentTarget.value)} />
-                  <Button size="xs" loading={salvandoFaca}
-                    disabled={(matrizTxt.trim() || null) === (faca.numeroMatriz || null)}
-                    onClick={() => salvarFaca({ numeroMatriz: matrizTxt.trim() || null })}>
-                    Salvar matriz
-                  </Button>
+                ))}
+                {fm.dimensoes.length < 10 && (
+                  <div>
+                    <Button size="compact-xs" variant="light"
+                      onClick={() => setFm({ ...fm, dimensoes: [...fm.dimensoes, { tipo: 'PRODUTO_FINAL', larguraMm: '', alturaMm: '', profundidadeMm: '' }] })}>
+                      + Adicionar dimensão
+                    </Button>
+                  </div>
+                )}
+              </Stack>
+
+              <Textarea mt="sm" label="Observações técnicas" autosize minRows={2} value={fm.observacoes}
+                onChange={(e) => setFm({ ...fm, observacoes: e.currentTarget.value })} />
+
+              <Group justify="space-between" mt="md">
+                <Text size="xs" c="dimmed">
+                  {fmInfo.aprovada ? 'Arte aprovada pelo cliente.' : 'Aguardando aprovação da arte pelo cliente.'}
+                </Text>
+                <Group gap="xs">
+                  {fmInfo.aprovada && !fmInfo.publicadaEm && fmInfo.produtoId && (
+                    <Button size="xs" color="teal" variant="light" loading={publicando} onClick={publicarFicha}>
+                      Publicar na Ficha Master
+                    </Button>
+                  )}
+                  <Button size="xs" loading={salvandoFaca} onClick={() => salvarFaca(fm)}>Salvar rascunho</Button>
                 </Group>
               </Group>
             </Paper>
@@ -379,7 +492,7 @@ export default function PreImpressaoPage() {
       </Modal>
 
       <Modal opened={imgAmpliada} onClose={() => setImgAmpliada(false)} size="xl">
-        {faca.imagemFaca && <Image src={faca.imagemFaca} alt="Faca" fit="contain" />}
+        {fm.imagemFaca && <Image src={fm.imagemFaca} alt="Faca" fit="contain" />}
       </Modal>
 
       {/* Observação ao concluir */}
