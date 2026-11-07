@@ -102,6 +102,40 @@ export default function PreImpressaoPage() {
   const [salvandoFaca, setSalvandoFaca] = useState(false)
   const [publicando, setPublicando] = useState(false)
   const [imgAmpliada, setImgAmpliada] = useState(false)
+  // Pré-cálculo (auxiliar da pré-impressão; não substitui o envio ao orçamento)
+  const [preCalc, setPreCalc] = useState<{ status: string; solicitadoEm: string | null; observacao: string | null }>(
+    { status: 'NENHUM', solicitadoEm: null, observacao: null },
+  )
+  const [preCalcObs, setPreCalcObs] = useState('')
+  const [preCalcBusy, setPreCalcBusy] = useState(false)
+
+  async function solicitarPreCalculo() {
+    if (!aberto) return
+    setPreCalcBusy(true)
+    try {
+      const { data } = await api.post(`/orcamento-grafico/pedidos-proposta/${aberto.pedidoId}/pre-calculo/solicitar`, { observacao: preCalcObs.trim() || undefined })
+      setPreCalc(data)
+      notifications.show({ message: 'Pré-cálculo solicitado ao Orçamento.', color: 'green' })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao solicitar pré-cálculo', color: 'red' })
+    } finally {
+      setPreCalcBusy(false)
+    }
+  }
+
+  async function concluirPreCalculo() {
+    if (!aberto) return
+    setPreCalcBusy(true)
+    try {
+      const { data } = await api.post(`/orcamento-grafico/pedidos-proposta/${aberto.pedidoId}/pre-calculo/concluir`, { observacao: preCalcObs.trim() || undefined })
+      setPreCalc(data)
+      notifications.show({ message: 'Pré-cálculo marcado como concluído.', color: 'green' })
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao concluir pré-cálculo', color: 'red' })
+    } finally {
+      setPreCalcBusy(false)
+    }
+  }
 
   function aplicarFicha(d: any) {
     const r = d?.rascunho ?? {}
@@ -233,6 +267,17 @@ export default function PreImpressaoPage() {
 
   useEffect(() => { carregar() }, [carregar])
 
+  // Abre direto o board quando a URL traz ?pedido=<id> (clique no status macro).
+  useEffect(() => {
+    if (loading || aberto) return
+    const alvo = new URLSearchParams(window.location.search).get('pedido')
+    if (!alvo) return
+    const p = lista.find((x) => x.pedidoId === alvo)
+    if (p) abrirBoard(p)
+    // se não está na lista (ex.: saiu da pré-impressão), ignora silenciosamente
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, lista])
+
   const abrirBoard = useCallback(async (p: ResumoPedido) => {
     setAberto(p)
     setLoadingBoard(true)
@@ -249,6 +294,10 @@ export default function PreImpressaoPage() {
         const a = await api.get(`/orcamento-grafico/pedidos-proposta/${p.pedidoId}/anexos`)
         setArtes(Array.isArray(a.data) ? a.data : [])
       } catch { setArtes([]) }
+      try {
+        const pc = await api.get(`/orcamento-grafico/pedidos-proposta/${p.pedidoId}/pre-calculo`)
+        setPreCalc(pc.data); setPreCalcObs(pc.data?.observacao ?? '')
+      } catch { setPreCalc({ status: 'NENHUM', solicitadoEm: null, observacao: null }) }
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao abrir board', color: 'red' })
     } finally {
@@ -383,6 +432,35 @@ export default function PreImpressaoPage() {
                       </Button>
                     )}
                   </FileButton>
+                )}
+              </Group>
+            </Paper>
+
+            {/* Pré-cálculo (auxiliar — não substitui o envio ao orçamento) */}
+            <Paper p="sm" withBorder>
+              <Group justify="space-between" mb={2}>
+                <Text fw={600} size="sm">Pré-cálculo</Text>
+                {preCalc.status === 'SOLICITADO' ? (
+                  <Badge color="orange" variant="light">Solicitado</Badge>
+                ) : preCalc.status === 'CONCLUIDO' ? (
+                  <Badge color="teal" variant="light">Concluído</Badge>
+                ) : (
+                  <Badge color="gray" variant="light">Não solicitado</Badge>
+                )}
+              </Group>
+              <Text size="xs" c="dimmed" mb="sm">
+                Estimativa opcional durante a pré-impressão. NÃO substitui o cálculo oficial — o pedido sempre vai ao Orçamento depois.
+              </Text>
+              <Textarea placeholder="Observação (opcional): o que estimar" autosize minRows={2}
+                value={preCalcObs} onChange={(e) => setPreCalcObs(e.currentTarget.value)} />
+              <Group justify="flex-end" mt="xs" gap="xs">
+                <Button size="xs" variant="light" loading={preCalcBusy} onClick={solicitarPreCalculo}>
+                  {preCalc.status === 'NENHUM' ? 'Solicitar pré-cálculo' : 'Reenviar solicitação'}
+                </Button>
+                {preCalc.status === 'SOLICITADO' && (
+                  <Button size="xs" color="teal" variant="light" loading={preCalcBusy} onClick={concluirPreCalculo}>
+                    Marcar concluído
+                  </Button>
                 )}
               </Group>
             </Paper>

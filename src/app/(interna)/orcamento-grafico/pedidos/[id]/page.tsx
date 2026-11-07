@@ -307,6 +307,22 @@ export default function DetalhePedidoStatusPage() {
         </Paper>
       )}
 
+      {/* Pós-aprovação da arte: se há cálculo/orçamento, direciona para validar/conferir */}
+      {pedido?.aprovacaoArteEm && pedido?.orcamentoGraficoId && (
+        <Alert color="cyan" icon={<IconCircleCheck size={16} />}
+          title="Arte aprovada — conferir/validar o cálculo">
+          <Group justify="space-between" wrap="nowrap">
+            <Text size="sm">
+              A arte foi aprovada pelo cliente e existe um orçamento vinculado. Prossiga para conferir e validar o cálculo.
+            </Text>
+            <Button size="compact-sm" color="cyan"
+              onClick={() => router.push(`/orcamento-grafico/${pedido.orcamentoGraficoId}`)}>
+              Conferir / validar cálculo
+            </Button>
+          </Group>
+        </Alert>
+      )}
+
       {/* Aprovação de arte do cliente (link que expira) */}
       <Paper p="md" withBorder>
         <Group justify="space-between" mb="sm">

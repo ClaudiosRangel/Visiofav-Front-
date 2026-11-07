@@ -114,11 +114,56 @@ function formatDate(d?: string | null): string {
   return new Date(d).toLocaleDateString('pt-BR')
 }
 
+interface EtapaResumo { etapa: string; label: string; status: string; relevante: boolean; atual: boolean }
+interface ResumoPreImpressao { pedidoId: string; etapasResumo: EtapaResumo[]; concluidas: number; totalRelevantes: number; preCalculoStatus: string | null }
+
+/** Badge do status macro. Em "Em pré-impressão" mostra o tooltip das etapas
+ * (concluídas / atual / faltam) e é clicável para abrir a Pré-Impressão. */
+function StatusMacroBadge({
+  statusMacro, resumo, onAbrirPreImpressao,
+}: { statusMacro: string; resumo?: ResumoPreImpressao; onAbrirPreImpressao: () => void }) {
+  const cfg = STATUS_MACRO_CONFIG[statusMacro] || { color: 'gray', label: statusMacro }
+  const ehPreImp = statusMacro === 'EM_PRE_IMPRESSAO'
+  const badge = (
+    <Badge
+      color={cfg.color}
+      style={ehPreImp ? { cursor: 'pointer' } : undefined}
+      onClick={ehPreImp ? onAbrirPreImpressao : undefined}
+    >
+      {cfg.label}
+      {ehPreImp && resumo ? ` ${resumo.concluidas}/${resumo.totalRelevantes}` : ''}
+    </Badge>
+  )
+  if (!ehPreImp || !resumo) return badge
+  const icone = (s: string) => (s === 'CONCLUIDA' ? '✓' : s === 'EM_ANDAMENTO' ? '▸' : '○')
+  return (
+    <Tooltip
+      multiline w={240}
+      label={
+        <Stack gap={2}>
+          <Text size="xs" fw={600}>Pré-impressão — clique para abrir</Text>
+          {resumo.etapasResumo.filter((e) => e.relevante).map((e) => (
+            <Text key={e.etapa} size="xs" c={e.atual ? 'yellow.4' : undefined}>
+              {icone(e.status)} {e.label}{e.atual ? ' (atual)' : ''}
+            </Text>
+          ))}
+          {resumo.preCalculoStatus === 'SOLICITADO' && <Text size="xs" c="orange.4">• Pré-cálculo solicitado</Text>}
+          {resumo.preCalculoStatus === 'CONCLUIDO' && <Text size="xs" c="teal.4">• Pré-cálculo concluído</Text>}
+        </Stack>
+      }
+    >
+      {badge}
+    </Tooltip>
+  )
+}
+
 export default function PedidosPropostasPage() {
   const router = useRouter()
   useEffect(() => { document.title = 'Pedidos / Propostas' }, [])
 
   const [data, setData] = useState<PedidoProposta[]>([])
+  // Resumo das etapas de pré-impressão por pedido (tooltip no status macro).
+  const [preImp, setPreImp] = useState<Record<string, ResumoPreImpressao>>({})
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
   const [estadoFiltro, setEstadoFiltro] = useState<string | null>(null)
@@ -150,6 +195,13 @@ export default function PedidosPropostasPage() {
       if (ordTempoParado) params.ordenarPorTempoParado = 'true'
       const { data } = await api.get('/orcamento-grafico/pedidos-proposta', { params })
       setData(Array.isArray(data) ? data : [])
+      // Resumo de pré-impressão (uma request só; cruza por pedidoId no tooltip).
+      try {
+        const { data: pre } = await api.get('/orcamento-grafico/pre-impressao/pedidos')
+        const mapa: Record<string, ResumoPreImpressao> = {}
+        for (const r of Array.isArray(pre) ? pre : []) mapa[r.pedidoId] = r
+        setPreImp(mapa)
+      } catch { setPreImp({}) }
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao carregar', color: 'red' })
       setData([])
@@ -366,9 +418,11 @@ export default function PedidosPropostasPage() {
                   <Table.Td>
                     {p.statusMacro ? (
                       <Group gap={4} wrap="nowrap">
-                        <Badge color={STATUS_MACRO_CONFIG[p.statusMacro]?.color || 'gray'}>
-                          {STATUS_MACRO_CONFIG[p.statusMacro]?.label || p.statusMacro}
-                        </Badge>
+                        <StatusMacroBadge
+                          statusMacro={p.statusMacro}
+                          resumo={preImp[p.id]}
+                          onAbrirPreImpressao={() => router.push(`/orcamento-grafico/pre-impressao?pedido=${p.id}`)}
+                        />
                         {p.classificacaoAConfirmar && (
                           <Tooltip label="Classificação a confirmar pelo comercial">
                             <Badge variant="light" color="yellow">revisar</Badge>
