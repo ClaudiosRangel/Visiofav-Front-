@@ -37,7 +37,7 @@ interface Dimensao {
 }
 interface FichaMasterData {
   produtoId: string; codigo: string; nome: string; descricao: string | null
-  status: boolean; clienteNome: string | null
+  status: boolean; situacaoCadastro?: string; clienteNome: string | null
   ficha: FichaGrafica | null
   matrizDerivada: string | null; matrizExibida: string | null
   artes: ArteResumo[]; arteAprovadaId: string | null
@@ -110,6 +110,9 @@ export function FichaMasterModal({
                 <Badge color={data.status ? 'green' : 'gray'} variant="light">
                   {data.status ? 'Ativo' : 'Inativo'}
                 </Badge>
+                {data.situacaoCadastro === 'PROVISORIO' && (
+                  <Badge color="orange" variant="light">Provisório (aguarda aprovação da arte)</Badge>
+                )}
                 {data.clienteNome && <Badge variant="outline">{data.clienteNome}</Badge>}
                 {data.estruturaAtiva && (
                   <Badge color="teal" variant="light">Estrutura v{data.estruturaAtiva.versao}</Badge>

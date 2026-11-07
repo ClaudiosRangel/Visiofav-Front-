@@ -78,7 +78,7 @@ export interface DetalheProduto {
 }
 
 interface ProdutoLista {
-  id: string; codigo: string; nome: string; status: boolean; temFicha: boolean
+  id: string; codigo: string; nome: string; status: boolean; temFicha: boolean; situacaoCadastro?: string
 }
 
 function brl(n: number | null) {
@@ -216,7 +216,7 @@ export default function CentralProdutoPage() {
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Código</Table.Th><Table.Th>Nome</Table.Th>
-                <Table.Th>Status</Table.Th><Table.Th>Ficha</Table.Th><Table.Th /></Table.Tr>
+                <Table.Th>Status</Table.Th><Table.Th>Cadastro</Table.Th><Table.Th>Ficha</Table.Th><Table.Th /></Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {lista.itens.map((p) => (
@@ -224,6 +224,11 @@ export default function CentralProdutoPage() {
                   <Table.Td>{p.codigo}</Table.Td>
                   <Table.Td>{p.nome}</Table.Td>
                   <Table.Td><Badge color={p.status ? 'green' : 'gray'} variant="light">{p.status ? 'Ativo' : 'Inativo'}</Badge></Table.Td>
+                  <Table.Td>
+                    {p.situacaoCadastro === 'PROVISORIO'
+                      ? <Badge color="orange" variant="light">Provisório</Badge>
+                      : <Badge color="blue" variant="light">Definitivo</Badge>}
+                  </Table.Td>
                   <Table.Td>{p.temFicha ? <Badge color="teal" variant="light">sim</Badge> : <Text size="xs" c="dimmed">—</Text>}</Table.Td>
                   <Table.Td>
                     <Button size="xs" variant="light" leftSection={<IconFileDescription size={14} />}

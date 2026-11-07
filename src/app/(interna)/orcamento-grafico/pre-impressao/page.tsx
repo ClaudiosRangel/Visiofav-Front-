@@ -96,8 +96,8 @@ export default function PreImpressaoPage() {
   // Ficha Master em RASCUNHO (preenchida aqui; só vai ao cadastro do produto
   // depois que o cliente aprova a arte).
   const [fm, setFm] = useState<FichaForm>(FICHA_VAZIA)
-  const [fmInfo, setFmInfo] = useState<{ produtoId: string | null; aprovada: boolean; publicadaEm: string | null }>(
-    { produtoId: null, aprovada: false, publicadaEm: null },
+  const [fmInfo, setFmInfo] = useState<{ produtoId: string | null; aprovada: boolean; publicadaEm: string | null; provisorio: boolean }>(
+    { produtoId: null, aprovada: false, publicadaEm: null, provisorio: false },
   )
   const [salvandoFaca, setSalvandoFaca] = useState(false)
   const [publicando, setPublicando] = useState(false)
@@ -114,7 +114,7 @@ export default function PreImpressaoPage() {
         tipo: x.tipo, larguraMm: x.larguraMm ?? '', alturaMm: x.alturaMm ?? '', profundidadeMm: x.profundidadeMm ?? '',
       })),
     })
-    setFmInfo({ produtoId: d?.produtoId ?? null, aprovada: !!d?.artePorClienteAprovada, publicadaEm: d?.publicadaEm ?? null })
+    setFmInfo({ produtoId: d?.produtoId ?? null, aprovada: !!d?.artePorClienteAprovada, publicadaEm: d?.publicadaEm ?? null, provisorio: !!d?.produtoProvisorio })
   }
 
   function payloadFicha(f: FichaForm) {
@@ -392,14 +392,15 @@ export default function PreImpressaoPage() {
               <Group justify="space-between" mb={2}>
                 <Text fw={600} size="sm">Ficha Master do produto (rascunho)</Text>
                 {fmInfo.publicadaEm ? (
-                  <Badge color="teal" variant="light">Publicada na Ficha Master</Badge>
+                  <Badge color="teal" variant="light">Produto definitivo</Badge>
+                ) : fmInfo.provisorio ? (
+                  <Badge color="orange" variant="light">Produto provisório (aguarda aprovação)</Badge>
                 ) : (
-                  <Badge color="yellow" variant="light">Rascunho — fora do cadastro do produto</Badge>
+                  <Badge color="yellow" variant="light">Rascunho</Badge>
                 )}
               </Group>
               <Text size="xs" c="dimmed" mb="sm">
-                Preencha a ficha técnica aqui. Ela fica só neste pedido e só vai para o cadastro do produto depois que o cliente aprovar a arte.
-                {!fmInfo.produtoId && ' Este pedido ainda não tem produto cadastrado vinculado; vincule um produto no pedido para a publicação acontecer.'}
+                Preencha a ficha técnica aqui. Ao salvar, o produto é criado como PROVISÓRIO e fica registrado (histórico preservado), mas inativo e fora do uso normal. Quando o cliente aprovar a arte, ele vira DEFINITIVO e entra no cadastro.
               </Text>
 
               <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xs">
@@ -476,7 +477,7 @@ export default function PreImpressaoPage() {
                 <Group gap="xs">
                   {fmInfo.aprovada && !fmInfo.publicadaEm && fmInfo.produtoId && (
                     <Button size="xs" color="teal" variant="light" loading={publicando} onClick={publicarFicha}>
-                      Publicar na Ficha Master
+                      Tornar produto definitivo
                     </Button>
                   )}
                   <Button size="xs" loading={salvandoFaca} onClick={() => salvarFaca(fm)}>Salvar rascunho</Button>
