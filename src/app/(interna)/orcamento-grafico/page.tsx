@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation'
 import {
   Title, Stack, Table, Group, Button, Badge, Text, Loader, Center,
   TextInput, Select, Paper, ScrollArea, Pagination, Tooltip, Modal, PasswordInput,
-  Textarea,
+  Textarea, Switch,
 } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
 import {
   IconPlus, IconSearch, IconFilter, IconListSearch, IconPlayerPlay, IconExternalLink,
   IconFileText, IconSignature, IconX, IconChecks, IconRefresh, IconPrinter,
+  IconCalculator, IconCircleCheck,
 } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
@@ -41,6 +42,16 @@ interface PaginatedResponse {
   page: number
   limit: number
   totalPages: number
+}
+
+interface PreCalculoFila {
+  pedidoId: string
+  numero: number
+  clienteNome?: string | null
+  produtoNome?: string | null
+  status: 'SOLICITADO' | 'CONCLUIDO'
+  solicitadoEm?: string | null
+  observacao?: string | null
 }
 
 // ============================================================================
@@ -129,6 +140,12 @@ export default function OrcamentosGraficoPage() {
   // Puxar Cálculo da Biblioteca (modo criação — sem orcamentoId)
   const [buscaCalcOpen, setBuscaCalcOpen] = useState(false)
 
+  // ── Fila de pré-cálculos (solicitações vindas da Pré-Impressão) ──
+  const [filaPreCalc, setFilaPreCalc] = useState<PreCalculoFila[]>([])
+  const [incluirConcluidos, setIncluirConcluidos] = useState(false)
+  const [concluirPreCalcAlvo, setConcluirPreCalcAlvo] = useState<PreCalculoFila | null>(null)
+  const [obsPreCalc, setObsPreCalc] = useState('')
+
   const LIMIT = 50
 
   const carregar = useCallback(async () => {
@@ -174,13 +191,49 @@ export default function OrcamentosGraficoPage() {
     }
   }, [])
 
+  // Carrega a fila de pré-cálculos solicitados pela Pré-Impressão.
+  const carregarFilaPreCalc = useCallback(async () => {
+    try {
+      const res = await api.get('/orcamento-grafico/pedidos-proposta/pre-calculo/fila', {
+        params: incluirConcluidos ? { incluirConcluidos: 'true' } : {},
+      })
+      setFilaPreCalc(res.data || [])
+    } catch {
+      setFilaPreCalc([])
+    }
+  }, [incluirConcluidos])
+
   useEffect(() => { carregar() }, [carregar])
   useEffect(() => { carregarGrids() }, [carregarGrids])
+  useEffect(() => { carregarFilaPreCalc() }, [carregarFilaPreCalc])
   useEffect(() => { setPage(1) }, [busca, statusFiltro, dataInicio, dataFim])
 
   function recarregarTudo() {
     carregar()
     carregarGrids()
+    carregarFilaPreCalc()
+  }
+
+  async function concluirPreCalc() {
+    if (!concluirPreCalcAlvo) return
+    setAcaoLoading(concluirPreCalcAlvo.pedidoId)
+    try {
+      await api.post(`/orcamento-grafico/pedidos-proposta/${concluirPreCalcAlvo.pedidoId}/pre-calculo/concluir`, {
+        observacao: obsPreCalc.trim() || undefined,
+      })
+      notifications.show({
+        title: 'Pré-cálculo concluído',
+        message: `Pedido ${concluirPreCalcAlvo.numero} respondido à pré-impressão.`,
+        color: 'green',
+      })
+      setConcluirPreCalcAlvo(null)
+      setObsPreCalc('')
+      carregarFilaPreCalc()
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao concluir', color: 'red' })
+    } finally {
+      setAcaoLoading(null)
+    }
   }
 
   // ── Ações do funil ──
@@ -295,6 +348,85 @@ export default function OrcamentosGraficoPage() {
           </Button>
         </Group>
       </Group>
+
+      {/* ── Pré-cálculos solicitados (da Pré-Impressão) ── */}
+      <Paper withBorder p="md">
+        <Group justify="space-between" mb="xs">
+          <Group gap="xs">
+            <IconCalculator size={18} />
+            <Text fw={700}>Pré-cálculos solicitados</Text>
+            <Badge color="grape" variant="light">
+              {filaPreCalc.filter((f) => f.status === 'SOLICITADO').length}
+            </Badge>
+          </Group>
+          <Group gap="sm">
+            <Switch
+              size="sm"
+              label="Mostrar concluídos"
+              checked={incluirConcluidos}
+              onChange={(e) => setIncluirConcluidos(e.currentTarget.checked)}
+            />
+            <Text size="xs" c="dimmed">Solicitações auxiliares da pré-impressão (não substituem o orçamento oficial).</Text>
+          </Group>
+        </Group>
+        {filaPreCalc.length === 0 ? (
+          <Text c="dimmed" size="sm" py="sm">Nenhum pré-cálculo solicitado.</Text>
+        ) : (
+          <ScrollArea>
+            <Table striped highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Nº</Table.Th>
+                  <Table.Th>Cliente</Table.Th>
+                  <Table.Th>Produto</Table.Th>
+                  <Table.Th>Solicitado em</Table.Th>
+                  <Table.Th>Observação</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                  <Table.Th>Ações</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {filaPreCalc.map((f) => (
+                  <Table.Tr key={f.pedidoId}>
+                    <Table.Td fw={600}>{f.numero}</Table.Td>
+                    <Table.Td>{f.clienteNome || '—'}</Table.Td>
+                    <Table.Td>{f.produtoNome || '—'}</Table.Td>
+                    <Table.Td>{formatDate(f.solicitadoEm)}</Table.Td>
+                    <Table.Td>
+                      <Text size="sm" c="dimmed" lineClamp={2}>{f.observacao || '—'}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      {f.status === 'SOLICITADO'
+                        ? <Badge color="grape" variant="light">Solicitado</Badge>
+                        : <Badge color="green" variant="light">Concluído</Badge>}
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={6} wrap="nowrap">
+                        {f.status === 'SOLICITADO' && (
+                          <Button
+                            size="compact-sm"
+                            color="green"
+                            leftSection={<IconCircleCheck size={15} />}
+                            onClick={() => { setConcluirPreCalcAlvo(f); setObsPreCalc('') }}
+                          >
+                            Marcar concluído
+                          </Button>
+                        )}
+                        <Tooltip label="Abrir pré-impressão da proposta">
+                          <Button size="compact-sm" variant="subtle" leftSection={<IconExternalLink size={15} />}
+                            onClick={() => router.push(`/orcamento-grafico/pre-impressao?pedido=${f.pedidoId}`)}>
+                            Abrir
+                          </Button>
+                        </Tooltip>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea>
+        )}
+      </Paper>
 
       {/* ── GRID 1 — A orçar (entrada liberada pelo setor Propostas) ── */}
       <Paper withBorder p="md">
@@ -597,6 +729,41 @@ export default function OrcamentosGraficoPage() {
             <Button color="red" leftSection={<IconX size={16} />} loading={acaoLoading === cancelarAlvo?.id}
               disabled={motivoCancelar.trim().length < 3} onClick={cancelar}>
               Cancelar orçamento
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      {/* Modal — concluir pré-cálculo */}
+      <Modal
+        opened={!!concluirPreCalcAlvo}
+        onClose={() => { setConcluirPreCalcAlvo(null); setObsPreCalc('') }}
+        title={`Concluir pré-cálculo do pedido ${concluirPreCalcAlvo?.numero ?? ''}`}
+        centered
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            Registre a resposta do pré-cálculo. O status volta à pré-impressão da proposta. Isso é
+            auxiliar e não substitui o orçamento oficial.
+          </Text>
+          {concluirPreCalcAlvo?.observacao && (
+            <Paper withBorder p="xs" bg="var(--mantine-color-default)">
+              <Text size="xs" c="dimmed">Observação da solicitação:</Text>
+              <Text size="sm">{concluirPreCalcAlvo.observacao}</Text>
+            </Paper>
+          )}
+          <Textarea
+            label="Observação da resposta (opcional)"
+            placeholder="Ex.: estimativa de custo, premissas usadas..."
+            minRows={3}
+            value={obsPreCalc}
+            onChange={(e) => setObsPreCalc(e.currentTarget.value)}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => { setConcluirPreCalcAlvo(null); setObsPreCalc('') }}>Voltar</Button>
+            <Button color="green" leftSection={<IconCircleCheck size={16} />}
+              loading={acaoLoading === concluirPreCalcAlvo?.pedidoId} onClick={concluirPreCalc}>
+              Marcar concluído
             </Button>
           </Group>
         </Stack>
