@@ -10,6 +10,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
 import { rotuloPlano } from '@/lib/plano-rotulo'
+import { chaveDesagrupar, aplicarToggle } from './desagrupar-planos'
 import { SortableCentroItem } from '@/components/pcp/SortableCentroItem'
 import VisaoDetalhadaProgramacao from '@/components/pcp/VisaoDetalhadaProgramacao'
 import { useCentrosOrdenacao } from '@/hooks/useCentrosOrdenacao'
@@ -180,6 +181,15 @@ export default function ProgramacaoPage() {
       if (novo.has(chave)) novo.delete(chave); else novo.add(chave)
       return novo
     })
+  }
+  // OPs de planos DESAGRUPADAS (chave `${centroId}:${opId}`). Quando uma OP está
+  // aqui, suas etapas de plano (CAIXA/TAMPA) deixam de ser bloco pai/filho e
+  // viram linhas independentes e arrastáveis — para sequenciar os planos
+  // separadamente (ex.: todas as caixas antes das tampas na Mazola). Vazio =
+  // comportamento padrão (agrupado). Spec pcp-desagrupar-planos-fila.
+  const [planosDesagrupados, setPlanosDesagrupados] = useState<Set<string>>(new Set())
+  function toggleDesagrupado(centroId: string, opId: string) {
+    setPlanosDesagrupados((prev) => aplicarToggle(prev, chaveDesagrupar(centroId, opId)))
   }
   // Layout da tela: "grid" (tabelas por centro, padrão atual) ou "detalhado"
   // (lista mestre + painel de detalhe único, evita repetir a mesma OP em
@@ -1008,7 +1018,11 @@ export default function ProgramacaoPage() {
       }
     }
     for (const it of itens) {
-      const temPai = it.tipoFila !== 'rc' && it.plano?.nome && it.opId && (planosPorOp.get(it.opId)?.size || 0) >= 1
+      // OP desagrupada (menu de contexto) → NÃO vira pai/filho: as etapas de
+      // plano passam direto, como linhas independentes e arrastáveis, para o
+      // usuário sequenciar os planos separadamente (Spec pcp-desagrupar-planos-fila).
+      const desagrupada = !!(centroId && it.opId && planosDesagrupados.has(`${centroId}:${it.opId}`))
+      const temPai = !desagrupada && it.tipoFila !== 'rc' && it.plano?.nome && it.opId && (planosPorOp.get(it.opId)?.size || 0) >= 1
       if (temPai && !paisInseridos.has(it.opId)) {
         paisInseridos.add(it.opId)
         // Filhos desta OP nesta fila (etapas com plano da mesma OP).
@@ -4244,6 +4258,31 @@ export default function ProgramacaoPage() {
           onClick={() => setContextMenu(null)}
         >
           <Stack gap={0}>
+            {/* Desagrupar / Reagrupar planos (CAIXA/TAMPA) — só para etapas com
+                plano. Desagrupar: as etapas viram linhas independentes e
+                arrastáveis (sequenciar planos separadamente). Reagrupar: volta
+                ao bloco pai/filho. Spec pcp-desagrupar-planos-fila. */}
+            {contextMenu.etapa.plano?.nome && contextMenu.etapa.opId && contextMenu.centro?.centro?.id && (() => {
+              const centroIdCtx = contextMenu.centro.centro.id as string
+              const opIdCtx = contextMenu.etapa.opId as string
+              const estaDesagrupada = planosDesagrupados.has(`${centroIdCtx}:${opIdCtx}`)
+              return (
+                <>
+                  <UnstyledButton
+                    px="sm" py={6}
+                    style={{ borderRadius: 4, fontSize: 13 }}
+                    className="mantine-Menu-item"
+                    onClick={() => {
+                      toggleDesagrupado(centroIdCtx, opIdCtx)
+                      setContextMenu(null)
+                    }}
+                  >
+                    {estaDesagrupada ? 'Reagrupar planos' : 'Desagrupar planos'}
+                  </UnstyledButton>
+                  <Divider my={2} />
+                </>
+              )
+            })()}
             <UnstyledButton
               px="sm" py={6}
               style={{ borderRadius: 4, fontSize: 13 }}
