@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import {
   Stack, Text, Checkbox, Paper, NumberInput, SimpleGrid, Group, Collapse, Badge,
-  Loader, Center, TextInput, Alert, Select,
+  Loader, Center, TextInput, Alert, Select, ActionIcon, Tooltip, Box,
 } from '@mantine/core'
 import { IconSettings, IconAlertCircle } from '@tabler/icons-react'
 import { api } from '@/lib/api'
@@ -51,6 +51,11 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
   const [busca, setBusca] = useState('')
   // Restrições (sub-opções) carregadas sob demanda, por acabamento HORA_MAQUINA.
   const [restricoesPorAcab, setRestricoesPorAcab] = useState<Record<string, Restricao[]>>({})
+  // Layout em LINHA (densidade estilo planilha — pedido do usuário): os extras
+  // (restrição/material/medida) ficam atrás da engrenagem, abertos por linha.
+  const [extrasAbertos, setExtrasAbertos] = useState<Record<string, boolean>>({})
+  const toggleExtras = (acabId: string) =>
+    setExtrasAbertos((prev) => ({ ...prev, [acabId]: !prev[acabId] }))
 
   useEffect(() => {
     // limit máx do backend é 100 (Zod). 200 fazia o Zod rejeitar (400) e a lista
@@ -235,132 +240,193 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
         />
       )}
 
-      <Stack gap="sm">
+      {/* Cabeçalho de colunas (densidade tipo planilha) — só na largura md+. */}
+      {filtrados.length > 0 && (
+        <Group gap="xs" px="xs" wrap="nowrap" visibleFrom="md" c="dimmed" style={{ fontSize: 11, fontWeight: 700 }}>
+          <Box style={{ flex: 1, minWidth: 220 }}>Acabamento / Processo</Box>
+          <Box w={110} ta="right">Custo/h</Box>
+          <Box w={110} ta="right">Produção (un/h)</Box>
+          <Box w={90} ta="right">Qtd. acertos</Box>
+          <Box w={110} ta="right">Tempo/acerto</Box>
+          <Box w={100} ta="right">1º acerto</Box>
+          <Box w={32} />
+        </Group>
+      )}
+
+      <Stack gap={4}>
         {filtrados.map((ac) => {
           const sel = selById.get(ac.id) ?? selByNome.get(norm(ac.nome))
           const ativo = !!sel
           const nb = naturezaBadge[ac.naturezaCusto]
+          const temExtras =
+            (restricoesPorAcab[ac.id]?.length ?? 0) > 0 ||
+            (ac.restricoes?.length ?? 0) > 0 ||
+            (ac.materiais?.length ?? 0) > 0 ||
+            ac.exigeRestricao
+          const extrasAberto = !!extrasAbertos[ac.id]
+          // Campos numéricos sempre visíveis; desabilitados quando não selecionado
+          // (cinza), habilitam ao marcar — pedido do usuário (sempre aberto).
+          const dis = !ativo
+          // Props comuns dos inputs numéricos da LINHA (compactos, sem label).
+          const campo = (
+            key: 'custoHora' | 'producaoHora' | 'quantAcertos' | 'tempoPorAcertoMin' | 'tempoPrimeiroAcertoMin',
+            width: number,
+            opts?: { prefix?: string; decimalScale?: number },
+          ) => (
+            <NumberInput
+              w={width}
+              size="xs"
+              min={0}
+              hideControls
+              disabled={dis}
+              prefix={opts?.prefix}
+              decimalScale={opts?.decimalScale}
+              value={sel?.[key] ?? ''}
+              onChange={(v) => patch(ac, key, typeof v === 'number' ? v : undefined)}
+              styles={{ input: { textAlign: 'right' } }}
+            />
+          )
+
           return (
-            <Paper key={ac.id} p="md" withBorder>
-              <Stack gap="sm">
-                <Group justify="space-between">
+            <Paper key={ac.id} px="xs" py={6} withBorder bg={ativo ? 'var(--mantine-color-default-hover)' : undefined}>
+              {/* LINHA principal — tudo numa linha só (pedido do usuário). */}
+              <Group gap="xs" wrap="nowrap" align="center">
+                <Box style={{ flex: 1, minWidth: 220 }}>
                   <Checkbox
+                    checked={ativo}
+                    onChange={() => toggle(ac)}
                     label={
-                      <Group gap="xs">
-                        <Text fw={500}>{ac.nome}</Text>
+                      <Group gap={6} wrap="nowrap">
+                        <Text size="sm" fw={500} lineClamp={1}>{ac.nome}</Text>
                         <Badge size="xs" variant="light" color={nb?.color}>{nb?.label}</Badge>
                       </Group>
                     }
-                    checked={ativo}
-                    onChange={() => toggle(ac)}
                   />
-                  {ativo && <IconSettings size={16} color="gray" />}
-                </Group>
+                </Box>
 
-                <Collapse in={ativo}>
-                  {sel && (
-                    <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm" mt="xs">
-                      {sel.naturezaCusto === 'MATERIAL_KG' && (
-                        <>
-                          <NumberInput label="Consumo (kg)" value={sel.variavelKg ?? ''} min={0} decimalScale={3} size="xs"
-                            onChange={(v) => patch(ac, 'variavelKg', typeof v === 'number' ? v : undefined)} />
-                          <NumberInput label="Preço/kg (R$)" value={sel.precoKg ?? ''} min={0} decimalScale={4} size="xs"
-                            onChange={(v) => patch(ac, 'precoKg', typeof v === 'number' ? v : undefined)} />
-                        </>
-                      )}
-                      {sel.naturezaCusto === 'MATERIAL_UN' && (
-                        <>
-                          <NumberInput label="Consumo (un)" value={sel.variavelUn ?? ''} min={0} decimalScale={2} size="xs"
-                            onChange={(v) => patch(ac, 'variavelUn', typeof v === 'number' ? v : undefined)} />
-                          <NumberInput label="Preço/un (R$)" value={sel.precoUn ?? ''} min={0} decimalScale={4} size="xs"
-                            onChange={(v) => patch(ac, 'precoUn', typeof v === 'number' ? v : undefined)} />
-                        </>
-                      )}
-                      {sel.naturezaCusto === 'CUSTO_FIXO' && (
-                        <NumberInput label="Valor fixo (R$)" value={sel.valorFixo ?? ''} min={0} decimalScale={2} size="xs"
-                          onChange={(v) => patch(ac, 'valorFixo', typeof v === 'number' ? v : undefined)} />
-                      )}
-                      {sel.naturezaCusto === 'HORA_MAQUINA' && (
-                        <>
-                          <NumberInput label="Custo/hora" prefix="R$ " value={sel.custoHora ?? ''} min={0} decimalScale={2} size="xs"
-                            onChange={(v) => patch(ac, 'custoHora', typeof v === 'number' ? v : undefined)} />
-                          <NumberInput label="Produção (un/h)" description="Do cadastro" value={sel.producaoHora ?? ''} min={0} decimalScale={2} size="xs"
-                            onChange={(v) => patch(ac, 'producaoHora', typeof v === 'number' ? v : undefined)} />
-                          <NumberInput label="Qtd. acertos" value={sel.quantAcertos ?? ''} min={0} size="xs"
-                            onChange={(v) => patch(ac, 'quantAcertos', typeof v === 'number' ? v : undefined)} />
-                          <NumberInput label="Tempo/acerto (min)" value={sel.tempoPorAcertoMin ?? ''} min={0} decimalScale={2} size="xs"
-                            onChange={(v) => patch(ac, 'tempoPorAcertoMin', typeof v === 'number' ? v : undefined)} />
-                          <NumberInput label="1º acerto (min)" value={sel.tempoPrimeiroAcertoMin ?? ''} min={0} decimalScale={2} size="xs"
-                            onChange={(v) => patch(ac, 'tempoPrimeiroAcertoMin', typeof v === 'number' ? v : undefined)} />
-                          {(restricoesPorAcab[ac.id]?.length ?? 0) > 0 && (
-                            <Select
-                              label="Restrição (sub-opção)"
-                              description="Ajusta o acerto/operação deste acabamento"
-                              placeholder="Selecione..."
-                              size="xs"
-                              clearable
-                              data={(restricoesPorAcab[ac.id] || []).map((r) => ({ value: r.id, label: r.nome }))}
-                              value={sel.restricaoAcabamentoId ?? null}
-                              onChange={(v) => patch(ac, 'restricaoAcabamentoId', v || undefined)}
-                            />
-                          )}
-                        </>
-                      )}
-                    </SimpleGrid>
-                  )}
+                {/* HORA_MÁQUINA: os 5 campos clássicos na linha. */}
+                {ac.naturezaCusto === 'HORA_MAQUINA' && (
+                  <>
+                    {campo('custoHora', 110, { prefix: 'R$ ', decimalScale: 2 })}
+                    {campo('producaoHora', 110, { decimalScale: 2 })}
+                    {campo('quantAcertos', 90)}
+                    {campo('tempoPorAcertoMin', 110, { decimalScale: 2 })}
+                    {campo('tempoPrimeiroAcertoMin', 100, { decimalScale: 2 })}
+                  </>
+                )}
 
-                  {sel && ac.exigeRestricao && !sel.restricaoAcabamentoId && (
-                    <Alert icon={<IconAlertCircle size={16} />} color="red" mt="xs" p="xs">
-                      <Text size="xs" fw={500}>Restrição obrigatória não escolhida</Text>
-                      <Text size="xs">Este acabamento exige a escolha de uma sub-opção (restrição).</Text>
-                    </Alert>
-                  )}
+                {/* MATERIAL/kg: Consumo + Preço ocupam 2 das colunas numéricas. */}
+                {ac.naturezaCusto === 'MATERIAL_KG' && (
+                  <>
+                    <NumberInput w={110} size="xs" min={0} decimalScale={3} hideControls disabled={dis}
+                      placeholder="Consumo kg" value={sel?.variavelKg ?? ''} styles={{ input: { textAlign: 'right' } }}
+                      onChange={(v) => patch(ac, 'variavelKg', typeof v === 'number' ? v : undefined)} />
+                    <NumberInput w={110} size="xs" min={0} decimalScale={4} hideControls disabled={dis} prefix="R$ "
+                      placeholder="Preço/kg" value={sel?.precoKg ?? ''} styles={{ input: { textAlign: 'right' } }}
+                      onChange={(v) => patch(ac, 'precoKg', typeof v === 'number' ? v : undefined)} />
+                    <Box w={90} /><Box w={110} /><Box w={100} />
+                  </>
+                )}
+                {ac.naturezaCusto === 'MATERIAL_UN' && (
+                  <>
+                    <NumberInput w={110} size="xs" min={0} decimalScale={2} hideControls disabled={dis}
+                      placeholder="Consumo un" value={sel?.variavelUn ?? ''} styles={{ input: { textAlign: 'right' } }}
+                      onChange={(v) => patch(ac, 'variavelUn', typeof v === 'number' ? v : undefined)} />
+                    <NumberInput w={110} size="xs" min={0} decimalScale={4} hideControls disabled={dis} prefix="R$ "
+                      placeholder="Preço/un" value={sel?.precoUn ?? ''} styles={{ input: { textAlign: 'right' } }}
+                      onChange={(v) => patch(ac, 'precoUn', typeof v === 'number' ? v : undefined)} />
+                    <Box w={90} /><Box w={110} /><Box w={100} />
+                  </>
+                )}
+                {ac.naturezaCusto === 'CUSTO_FIXO' && (
+                  <>
+                    <NumberInput w={110} size="xs" min={0} decimalScale={2} hideControls disabled={dis} prefix="R$ "
+                      placeholder="Valor fixo" value={sel?.valorFixo ?? ''} styles={{ input: { textAlign: 'right' } }}
+                      onChange={(v) => patch(ac, 'valorFixo', typeof v === 'number' ? v : undefined)} />
+                    <Box w={110} /><Box w={90} /><Box w={110} /><Box w={100} />
+                  </>
+                )}
 
-                  {/* P16 — Restrição/Material/Medida INFORMATIVOS (texto, sem
-                      efeito no cálculo). Só aparece quando a atividade tem
-                      restrições e/ou materiais cadastrados. */}
-                  {sel && ((ac.restricoes?.length ?? 0) > 0 || (ac.materiais?.length ?? 0) > 0) && (
-                    <Paper p="xs" withBorder mt="xs" bg="var(--mantine-color-default-hover)">
-                      <Text size="xs" fw={500} mb={4}>Descrição do acabamento (informativo)</Text>
-                      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
-                        {(ac.restricoes?.length ?? 0) > 0 && (
-                          <Select
-                            label="Restrição"
-                            description="Sub-opção (só descrição)"
-                            placeholder="Selecione..."
-                            size="xs"
-                            clearable
-                            data={(ac.restricoes || []).map((r) => ({ value: r.nome, label: r.nome }))}
-                            value={sel.restricaoNome ?? null}
-                            onChange={(v) => patch(ac, 'restricaoNome', v || undefined)}
-                          />
-                        )}
-                        {(ac.materiais?.length ?? 0) > 0 && (
-                          <Select
-                            label="Material"
-                            description="Material (só descrição)"
-                            placeholder="Selecione..."
-                            size="xs"
-                            clearable
-                            data={(ac.materiais || []).map((m) => ({ value: m, label: m }))}
-                            value={sel.materialNome ?? null}
-                            onChange={(v) => patch(ac, 'materialNome', v || undefined)}
-                          />
-                        )}
-                        <NumberInput
-                          label="Medida em mm"
-                          placeholder="Opcional"
+                {/* Engrenagem — abre os extras (restrição/material/medida). Só
+                    aparece quando a atividade tem extras; senão, espaço vazio
+                    para manter o alinhamento das colunas. */}
+                <Box w={32} ta="center">
+                  {temExtras ? (
+                    <Tooltip label="Restrição / material / medida" withinPortal>
+                      <ActionIcon variant="subtle" color="gray" onClick={() => toggleExtras(ac.id)} aria-label="Mais opções">
+                        <IconSettings size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                  ) : null}
+                </Box>
+              </Group>
+
+              {/* EXTRAS (restrição efetiva + descritivos informativos). Só quando
+                  a engrenagem é aberta. Mantém TODO o comportamento anterior. */}
+              {temExtras && (
+                <Collapse in={extrasAberto}>
+                  <Box mt={8} pt={8} style={{ borderTop: '1px solid var(--mantine-color-default-border)' }}>
+                    <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+                      {/* Restrição EFETIVA (ajusta o cálculo) — só HORA_MÁQUINA. */}
+                      {ac.naturezaCusto === 'HORA_MAQUINA' && (restricoesPorAcab[ac.id]?.length ?? 0) > 0 && (
+                        <Select
+                          label="Restrição (sub-opção)"
+                          description="Ajusta o acerto/operação"
+                          placeholder="Selecione..."
                           size="xs"
-                          min={0}
-                          decimalScale={2}
-                          value={sel.medidaMm ?? ''}
-                          onChange={(v) => patch(ac, 'medidaMm', typeof v === 'number' ? v : undefined)}
+                          clearable
+                          disabled={dis}
+                          data={(restricoesPorAcab[ac.id] || []).map((r) => ({ value: r.id, label: r.nome }))}
+                          value={sel?.restricaoAcabamentoId ?? null}
+                          onChange={(v) => patch(ac, 'restricaoAcabamentoId', v || undefined)}
                         />
-                      </SimpleGrid>
-                    </Paper>
-                  )}
+                      )}
+                      {/* Restrição/Material INFORMATIVOS (só descrição). */}
+                      {(ac.restricoes?.length ?? 0) > 0 && (
+                        <Select
+                          label="Restrição (descrição)"
+                          placeholder="Selecione..."
+                          size="xs"
+                          clearable
+                          disabled={dis}
+                          data={(ac.restricoes || []).map((r) => ({ value: r.nome, label: r.nome }))}
+                          value={sel?.restricaoNome ?? null}
+                          onChange={(v) => patch(ac, 'restricaoNome', v || undefined)}
+                        />
+                      )}
+                      {(ac.materiais?.length ?? 0) > 0 && (
+                        <Select
+                          label="Material (descrição)"
+                          placeholder="Selecione..."
+                          size="xs"
+                          clearable
+                          disabled={dis}
+                          data={(ac.materiais || []).map((m) => ({ value: m, label: m }))}
+                          value={sel?.materialNome ?? null}
+                          onChange={(v) => patch(ac, 'materialNome', v || undefined)}
+                        />
+                      )}
+                      <NumberInput
+                        label="Medida (mm)"
+                        placeholder="Opcional"
+                        size="xs"
+                        min={0}
+                        decimalScale={2}
+                        disabled={dis}
+                        value={sel?.medidaMm ?? ''}
+                        onChange={(v) => patch(ac, 'medidaMm', typeof v === 'number' ? v : undefined)}
+                      />
+                    </SimpleGrid>
+
+                    {sel && ac.exigeRestricao && !sel.restricaoAcabamentoId && (
+                      <Alert icon={<IconAlertCircle size={16} />} color="red" mt="xs" p="xs">
+                        <Text size="xs" fw={500}>Restrição obrigatória não escolhida</Text>
+                        <Text size="xs">Este acabamento exige a escolha de uma sub-opção (restrição).</Text>
+                      </Alert>
+                    )}
+                  </Box>
                 </Collapse>
-              </Stack>
+              )}
             </Paper>
           )
         })}
