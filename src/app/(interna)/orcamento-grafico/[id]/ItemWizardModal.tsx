@@ -21,9 +21,8 @@ import {
 } from '@mantine/core'
 import { IconArrowLeft, IconArrowRight, IconDeviceFloppy } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
-import { api } from '@/lib/api'
 
-import type { WizardFormData, CorItem, AcabamentoItem } from '../novo/page'
+import type { WizardFormData } from '../novo/page'
 import { extrairTiragensDasObservacoes } from '../novo/page'
 import StepTipo from '../novo/StepTipo'
 import StepMedidas from '../novo/StepMedidas'
@@ -33,144 +32,21 @@ import StepAcabamentos from '../novo/StepAcabamentos'
 import StepItensDiversos from '../novo/StepItensDiversos'
 import StepDadosTecnicos from '../novo/StepDadosTecnicos'
 import StepRevisao from '../novo/StepRevisao'
-import { montarPayloadDadosTecnicos } from '../novo/dadosTecnicosPayload'
+// Lógica compartilhada (extraída sem alterar comportamento) — a MESMA usada
+// pelo EditorItem (experiência Calcgraf), para não duplicar salvar/hidratar.
+import {
+  INITIAL_ITEM,
+  type ItemParaEditar,
+  itemParaForm,
+  salvarItem,
+} from './itemFormShared'
 
-// ============================================================================
-// Estado inicial do item (espelha o INITIAL_FORM do wizard, sem campos de
-// cliente, que são do cabeçalho).
-// ============================================================================
-
-const INITIAL_ITEM: WizardFormData = {
-  clienteId: null,
-  clienteNome: '',
-  vendedorId: null,
-  produtoId: null,
-  produtoNome: '',
-  tipoEmbalagemId: null,
-  tipoEmbalagem: null,
-  medidas: {},
-  suporteId: null,
-  suporteNome: '',
-  papelId: null,
-  papelDescricao: '',
-  gramatura: 0,
-  precoKg: 0,
-  cores: [
-    { nome: 'Ciano', tipo: 'CMYK', coberturaPercent: 30, precoKg: 45, rendimentoM2Kg: 15000 },
-    { nome: 'Magenta', tipo: 'CMYK', coberturaPercent: 30, precoKg: 45, rendimentoM2Kg: 15000 },
-    { nome: 'Amarelo', tipo: 'CMYK', coberturaPercent: 30, precoKg: 40, rendimentoM2Kg: 15000 },
-    { nome: 'Preto', tipo: 'CMYK', coberturaPercent: 40, precoKg: 35, rendimentoM2Kg: 18000 },
-  ],
-  acabamentos: [
-    { tipo: 'CORTE_VINCO', label: 'Corte e Vinco', ativo: true, custoHora: 180, velocidade: 4000, custoMaterialM2: 0 },
-    { tipo: 'COLAGEM', label: 'Colagem', ativo: true, custoHora: 150, velocidade: 8000, custoMaterialM2: 0 },
-    { tipo: 'VERNIZ_UV', label: 'Verniz UV', ativo: false, custoHora: 200, velocidade: 5000, custoMaterialM2: 0.12 },
-    { tipo: 'LAMINACAO_BOPP', label: 'Laminação BOPP', ativo: false, custoHora: 220, velocidade: 3000, custoMaterialM2: 0.18 },
-    { tipo: 'HOT_STAMPING', label: 'Hot Stamping', ativo: false, custoHora: 250, velocidade: 2000, custoMaterialM2: 0.25 },
-  ],
-  acabamentosRicos: [],
-  quantidade: 10000,
-  tabelaMargemId: null,
-  maquinaId: null,
-  aproveitamentoManual: null,
-  modeloFacaId: null,
-  matrizQuantidade: null,
-  matrizPrecoUnitario: null,
-  tintaModo: 'COBERTURA',
-  tintaConsumoKg: null,
-  tintaPrecoKg: null,
-  itensDiversos: [],
-  itensFornecidos: [],
-  camposLivres: [],
-  // Task 4 — Dados Técnicos (paridade / geometria / acondicionamento)
-  siglaAcabado: '',
-  tributacao: '',
-  processoImpressao: '',
-  coberturaTintaTexto: '',
-  fabricante: '',
-  microondulado: false,
-  fornecido: false,
-  qtdModelos: null,
-  arte: '',
-  observacao: '',
-  observacaoAreasOp: '',
-  conteudoVolume: null,
-  acondicionamento: [],
-  comprimentoMm: null,
-  larguraMm: null,
-  alturaMm: null,
-  abaColaMm: null,
-  abaFechamentoMm: null,
-  fibra: false,
-  montagemLinhas: null,
-  montagemColunas: null,
-  formatoSupLarguraMm: null,
-  formatoSupAlturaMm: null,
-  formatoCorteLarguraMm: null,
-  formatoCorteAlturaMm: null,
-  ajusteCorteMicroMm: null,
-}
+// Re-exporta o tipo para compatibilidade com quem importa de ItemWizardModal.
+export type { ItemParaEditar }
 
 // Steps alinhados ao wizard /novo: "Produto" funde Tipo + Medidas + Papel numa
 // única tela (antes eram 3 steps). 'Revisão' continua o último.
 const STEP_LABELS = ['Produto', 'Cores', 'Dados Técnicos', 'Acabamentos', 'Diversos', 'Revisão']
-
-export interface ItemParaEditar {
-  id: string
-  tipoEmbalagemId: string
-  tipoEmbalagem?: any | null
-  medidas?: Record<string, number> | null
-  papelId?: string | null
-  papelDescricao?: string | null
-  suporteId?: string | null
-  gramatura?: number | string | null
-  numCores?: number
-  cores?: any[] | null
-  acabamentosRicos?: any[] | null
-  maquinaId?: string | null
-  aproveitamentoManual?: number | null
-  modeloFacaId?: string | null
-  // Fase 4 — matriz / tinta / itens complementares
-  matrizQuantidade?: number | string | null
-  matrizPrecoUnitario?: number | string | null
-  tintaModo?: 'COBERTURA' | 'CONSUMO_DIRETO' | null
-  tintaConsumoKg?: number | string | null
-  itensDiversos?: Array<{ descricao: string; quantidade: number; valor: number; fixo: boolean }> | null
-  itensFornecidos?: Array<{ descricao: string; quantidade: number }> | null
-  camposLivres?: Array<{ rotulo: string; conteudo: string }> | null
-  // Task 4 — Dados Técnicos (paridade / geometria / acondicionamento)
-  siglaAcabado?: string | null
-  tributacao?: string | null
-  processoImpressao?: string | null
-  coberturaTintaTexto?: string | null
-  fabricante?: string | null
-  microondulado?: boolean | null
-  fornecido?: boolean | null
-  qtdModelos?: number | string | null
-  arte?: string | null
-  observacao?: string | null
-  observacaoAreasOp?: string | null
-  conteudoVolume?: number | string | null
-  acondicionamento?: Array<{ descricao: string }> | null
-  comprimentoMm?: number | string | null
-  larguraMm?: number | string | null
-  alturaMm?: number | string | null
-  abaColaMm?: number | string | null
-  abaFechamentoMm?: number | string | null
-  fibra?: boolean | null
-  montagemLinhas?: number | string | null
-  montagemColunas?: number | string | null
-  formatoSupLarguraMm?: number | string | null
-  formatoSupAlturaMm?: number | string | null
-  formatoCorteLarguraMm?: number | string | null
-  formatoCorteAlturaMm?: number | string | null
-  ajusteCorteMicroMm?: number | string | null
-  quantidade: number
-  resultadoCalculo?: { papel?: { precoKg?: number } } | null
-  // Origem (repetição): cálculo da biblioteca de onde o item foi copiado.
-  // Habilita a Conferência foto × recálculo no StepRevisao.
-  calculoGraficoOrigemId?: string | null
-}
 
 interface Props {
   opened: boolean
@@ -187,97 +63,6 @@ interface Props {
   imagemProdutoOrcamento?: string | null
   /** Chamado após salvar com sucesso (para a página recarregar o GET /:id). */
   onSaved: () => void
-}
-
-/** Mapeia um item carregado da API de volta para o WizardFormData. */
-function itemParaForm(
-  item: ItemParaEditar,
-  orcamentoId?: string,
-  observacoesOrcamento?: string | null,
-  imagemFacaOrcamento?: string | null,
-  imagemProdutoOrcamento?: string | null,
-): WizardFormData {
-  const coresMapeadas: CorItem[] = (item.cores || []).map((c: any) => ({
-    nome: c.nome,
-    tipo: c.tipo,
-    coberturaPercent: c.coberturaPercent,
-    precoKg: c.precoKg ?? 45,
-    rendimentoM2Kg: c.rendimentoM2Kg ?? 15000,
-  }))
-
-  let precoKgCarregado = 0
-  if (item.resultadoCalculo?.papel?.precoKg) {
-    precoKgCarregado = Number(item.resultadoCalculo.papel.precoKg)
-  }
-  if (precoKgCarregado <= 0) precoKgCarregado = 4.5
-
-  return {
-    ...INITIAL_ITEM,
-    tipoEmbalagemId: item.tipoEmbalagemId ?? null,
-    tipoEmbalagem: item.tipoEmbalagem ?? null,
-    medidas: item.medidas ?? {},
-    suporteId: item.suporteId ?? null,
-    papelId: item.papelId ?? null,
-    papelDescricao: item.papelDescricao ?? '',
-    gramatura: item.gramatura ? Number(item.gramatura) : 0,
-    precoKg: precoKgCarregado,
-    cores: coresMapeadas.length > 0 ? coresMapeadas : INITIAL_ITEM.cores,
-    acabamentosRicos: (item.acabamentosRicos as any) ?? [],
-    quantidade: item.quantidade ?? 10000,
-    maquinaId: item.maquinaId ?? null,
-    aproveitamentoManual: item.aproveitamentoManual ?? null,
-    modeloFacaId: item.modeloFacaId ?? null,
-    // Fase 4 — matriz / tinta / itens complementares
-    matrizQuantidade: item.matrizQuantidade != null ? Number(item.matrizQuantidade) : null,
-    matrizPrecoUnitario: item.matrizPrecoUnitario != null ? Number(item.matrizPrecoUnitario) : null,
-    tintaModo: item.tintaModo ?? 'COBERTURA',
-    tintaConsumoKg: item.tintaConsumoKg != null ? Number(item.tintaConsumoKg) : null,
-    tintaPrecoKg: null, // não vem da API
-    itensDiversos: (item.itensDiversos as any) ?? [],
-    itensFornecidos: (item.itensFornecidos as any) ?? [],
-    camposLivres: (item.camposLivres as any) ?? [],
-    // Task 4 — Dados Técnicos (paridade / geometria / acondicionamento)
-    siglaAcabado: item.siglaAcabado ?? '',
-    tributacao: item.tributacao ?? '',
-    processoImpressao: item.processoImpressao ?? '',
-    coberturaTintaTexto: item.coberturaTintaTexto ?? '',
-    fabricante: item.fabricante ?? '',
-    microondulado: item.microondulado ?? false,
-    fornecido: item.fornecido ?? false,
-    qtdModelos: item.qtdModelos != null ? Number(item.qtdModelos) : null,
-    arte: item.arte ?? '',
-    observacao: item.observacao ?? '',
-    observacaoAreasOp: item.observacaoAreasOp ?? '',
-    conteudoVolume: item.conteudoVolume != null ? Number(item.conteudoVolume) : null,
-    acondicionamento: Array.isArray(item.acondicionamento)
-      ? item.acondicionamento.map((a: any) => ({ descricao: a?.descricao ?? '' }))
-      : [],
-    comprimentoMm: item.comprimentoMm != null ? Number(item.comprimentoMm) : null,
-    larguraMm: item.larguraMm != null ? Number(item.larguraMm) : null,
-    alturaMm: item.alturaMm != null ? Number(item.alturaMm) : null,
-    abaColaMm: item.abaColaMm != null ? Number(item.abaColaMm) : null,
-    abaFechamentoMm: item.abaFechamentoMm != null ? Number(item.abaFechamentoMm) : null,
-    fibra: item.fibra ?? false,
-    montagemLinhas: item.montagemLinhas != null ? Number(item.montagemLinhas) : null,
-    montagemColunas: item.montagemColunas != null ? Number(item.montagemColunas) : null,
-    formatoSupLarguraMm: item.formatoSupLarguraMm != null ? Number(item.formatoSupLarguraMm) : null,
-    formatoSupAlturaMm: item.formatoSupAlturaMm != null ? Number(item.formatoSupAlturaMm) : null,
-    formatoCorteLarguraMm: item.formatoCorteLarguraMm != null ? Number(item.formatoCorteLarguraMm) : null,
-    formatoCorteAlturaMm: item.formatoCorteAlturaMm != null ? Number(item.formatoCorteAlturaMm) : null,
-    ajusteCorteMicroMm: item.ajusteCorteMicroMm != null ? Number(item.ajusteCorteMicroMm) : null,
-    // Contexto da Conferência foto × recálculo (só quando o item veio de cálculo).
-    _conferenciaOrcamentoId: item.calculoGraficoOrigemId && orcamentoId ? orcamentoId : null,
-    _conferenciaItemId: item.calculoGraficoOrigemId ? item.id : null,
-    // Item salvo em edição (QUALQUER origem) — usado pelo P15 (encaixe real).
-    _itemSalvoOrcamentoId: orcamentoId ?? null,
-    _itemSalvoId: item.id ?? null,
-    // Tiragens da proposta/RFQ (observações do orçamento) p/ a grade de comparação.
-    _faixasTiragemIniciais: extrairTiragensDasObservacoes(observacoesOrcamento) || null,
-    // Imagem da faca do orçamento (visualização em Dados Técnicos e Revisão).
-    _imagemFaca: imagemFacaOrcamento ?? null,
-    // Foto do produto cadastrado (ao lado da faca).
-    _imagemProdutoUrl: imagemProdutoOrcamento ?? null,
-  }
 }
 
 export default function ItemWizardModal({ opened, onClose, orcamentoId, item, observacoesOrcamento, imagemFacaOrcamento, imagemProdutoOrcamento, onSaved }: Props) {
@@ -332,74 +117,13 @@ export default function ItemWizardModal({ opened, onClose, orcamentoId, item, ob
   const salvar = async () => {
     setSaving(true)
     try {
-      const acabamentosAtivos = formData.acabamentos
-        .filter((a: AcabamentoItem) => a.ativo)
-        .map((a: AcabamentoItem) => ({ tipo: a.tipo, custoHora: a.custoHora, velocidade: a.velocidade, custoMaterialM2: a.custoMaterialM2 }))
-
-      const payload = {
-        tipoEmbalagemId: formData.tipoEmbalagemId,
-        medidas: formData.medidas,
-        suporteId: formData.suporteId || undefined,
-        papelId: formData.papelId || undefined,
-        papelDescricao: formData.papelDescricao || undefined,
-        gramatura: formData.gramatura,
-        precoKg: formData.precoKg,
-        cores: formData.cores.map(c => ({
-          nome: c.nome,
-          tipo: c.tipo,
-          coberturaPercent: c.coberturaPercent,
-          precoKg: c.precoKg,
-          rendimentoM2Kg: c.rendimentoM2Kg,
-        })),
-        acabamentos: acabamentosAtivos,
-        acabamentosRicos: formData.acabamentosRicos?.length ? formData.acabamentosRicos : undefined,
-        quantidade: formData.quantidade,
-        tabelaMargemId: formData.tabelaMargemId || undefined,
-        maquinaId: formData.maquinaId || undefined,
-        aproveitamentoManual: formData.aproveitamentoManual || undefined,
-        modeloFacaId: formData.modeloFacaId || undefined,
-        // Fase 4 — matriz / tinta / itens complementares
-        matriz: (formData.matrizQuantidade ?? 0) > 0
-          ? { quantidade: formData.matrizQuantidade as number, precoUnitario: formData.matrizPrecoUnitario ?? 0 }
-          : undefined,
-        tinta: formData.tintaModo === 'CONSUMO_DIRETO'
-          ? { modo: 'CONSUMO_DIRETO' as const, consumoKg: formData.tintaConsumoKg ?? 0, precoKg: formData.tintaPrecoKg ?? 0 }
-          : { modo: 'COBERTURA' as const },
-        // Itens complementares: normaliza quantidade/valor para os mínimos do
-        // backend. Item "fixo" não escala com a tiragem → quantidade é irrelevante
-        // (forçamos 1); itens sem descrição são descartados.
-        itensDiversos: (() => {
-          const itens = (formData.itensDiversos ?? [])
-            .filter((i) => i.descricao?.trim())
-            .map((i) => ({
-              descricao: i.descricao.trim(),
-              quantidade: i.fixo ? 1 : (i.quantidade && i.quantidade >= 0.001 ? i.quantidade : 1),
-              valor: i.valor && i.valor >= 0.01 ? i.valor : 0.01,
-              fixo: !!i.fixo,
-            }))
-          return itens.length ? itens : undefined
-        })(),
-        itensFornecidos: (() => {
-          const itens = (formData.itensFornecidos ?? [])
-            .filter((i) => i.descricao?.trim())
-            .map((i) => ({ descricao: i.descricao.trim(), quantidade: i.quantidade && i.quantidade >= 0.001 ? i.quantidade : 1 }))
-          return itens.length ? itens : undefined
-        })(),
-        camposLivres: (() => {
-          const campos = (formData.camposLivres ?? []).filter((c) => c.rotulo?.trim())
-          return campos.length ? campos : undefined
-        })(),
-        // Task 4 — Dados Técnicos (paridade / geometria / acondicionamento)
-        ...montarPayloadDadosTecnicos(formData),
-      }
-
-      if (isEditing) {
-        await api.put(`/orcamento-grafico/${orcamentoId}/itens/${item!.id}`, payload)
-        notifications.show({ title: 'Item atualizado', message: 'Item recalculado e salvo.', color: 'green' })
-      } else {
-        await api.post(`/orcamento-grafico/${orcamentoId}/itens`, payload)
-        notifications.show({ title: 'Item adicionado', message: 'Novo item calculado e salvo.', color: 'green' })
-      }
+      // Reaproveita a lógica compartilhada (mesmo payload/chamada do EditorItem).
+      await salvarItem(orcamentoId, formData, isEditing ? item!.id : null)
+      notifications.show(
+        isEditing
+          ? { title: 'Item atualizado', message: 'Item recalculado e salvo.', color: 'green' }
+          : { title: 'Item adicionado', message: 'Novo item calculado e salvo.', color: 'green' },
+      )
 
       onSaved()
       onClose()

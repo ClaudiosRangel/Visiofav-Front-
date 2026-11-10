@@ -13,13 +13,15 @@ import {
   IconChartPie, IconAlertCircle, IconFileText, IconPlus, IconTrash,
   IconChevronDown, IconChevronRight, IconStack2, IconFileInvoice,
   IconReportAnalytics, IconRepeat, IconSearch, IconShoppingCartPlus,
-  IconPhoto, IconGridDots, IconFileTypePdf, IconMail,
+  IconPhoto, IconGridDots, IconFileTypePdf, IconMail, IconLayoutList,
 } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { getAuthToken } from '@/lib/authStorage'
 import { notifications } from '@mantine/notifications'
 import { StatusBadge } from '../page'
 import ItemWizardModal, { type ItemParaEditar } from './ItemWizardModal'
+import EditorItem from './EditorItem'
+import type { ItemParaEditar as ItemParaEditorPagina } from './itemFormShared'
 import BuscaCalculoModal from './BuscaCalculoModal'
 import RelatorioItem from './RelatorioItem'
 import PlanosDoItem, { type PlanoCalculo } from './PlanosDoItem'
@@ -439,9 +441,15 @@ export default function OrcamentoDetalhePage() {
   const [reapObs, setReapObs] = useState('')
   const [reaproveitando, setReaproveitando] = useState(false)
 
-  // Editor de item (modal reusando os steps)
+  // Editor de item (modal reusando os steps — wizard linear, fallback)
   const [itemModalOpen, setItemModalOpen] = useState(false)
   const [itemEmEdicao, setItemEmEdicao] = useState<ItemParaEditar | null>(null)
+
+  // Editor de item em PÁGINA ÚNICA com âncoras (experiência Calcgraf — Tarefa 7.2).
+  // Aberto num modal full-screen a partir do grid de itens; o `ItemWizardModal`
+  // continua disponível como fallback.
+  const [editorPaginaOpen, setEditorPaginaOpen] = useState(false)
+  const [itemEditorPagina, setItemEditorPagina] = useState<ItemParaEditorPagina | null>(null)
 
   // Modal enxuto "Editar Cabeçalho" (Ponto 10 / Req 7) — cliente + vendedor
   const [editarCabecalhoOpen, setEditarCabecalhoOpen] = useState(false)
@@ -826,6 +834,38 @@ export default function OrcamentoDetalhePage() {
       calculoGraficoOrigemId: item.calculoGraficoOrigemId ?? null,
     })
     setItemModalOpen(true)
+  }
+
+  /**
+   * Abre o Editor de Item em PÁGINA ÚNICA (experiência Calcgraf) para o item.
+   * Passa o shape completo esperado por `EditorItem`/`itemFormShared` (inclui os
+   * campos técnicos, planos e resultadoCalculo).
+   */
+  const abrirEditorPagina = (item: ItemOrcamento) => {
+    setItemEditorPagina({
+      id: item.id,
+      tipoEmbalagemId: item.tipoEmbalagemId,
+      tipoEmbalagem: orcamento?.tipoEmbalagem ?? null,
+      medidas: item.medidas ?? null,
+      papelId: item.papelId ?? null,
+      papelDescricao: item.papelDescricao ?? null,
+      suporteId: item.suporteId ?? null,
+      gramatura: item.gramatura ?? null,
+      numCores: item.numCores,
+      cores: item.cores ?? null,
+      acabamentosRicos: item.acabamentosRicos ?? null,
+      maquinaId: item.maquinaId ?? null,
+      matrizQuantidade: item.matrizQuantidade ?? null,
+      matrizPrecoUnitario: item.matrizPrecoUnitario ?? null,
+      itensDiversos: (item.itensDiversos as any) ?? null,
+      itensFornecidos: (item.itensFornecidos as any) ?? null,
+      camposLivres: (item.camposLivres as any) ?? null,
+      quantidade: item.quantidade,
+      resultadoCalculo: item.resultadoCalculo ?? null,
+      calculoGraficoOrigemId: item.calculoGraficoOrigemId ?? null,
+      planos: Array.isArray(item.planos) ? item.planos : null,
+    })
+    setEditorPaginaOpen(true)
   }
 
   const confirmarRemocaoItem = async () => {
@@ -1270,7 +1310,17 @@ export default function OrcamentoDetalhePage() {
                               <IconGridDots size={16} />
                             </ActionIcon>
                           </Tooltip>
-                          <Tooltip label={podeEditarItens ? 'Editar item' : 'Edição só em rascunho'}>
+                          <Tooltip label={podeEditarItens ? 'Abrir editor (página única)' : 'Edição só em rascunho'}>
+                            <ActionIcon
+                              variant="subtle"
+                              color="indigo"
+                              onClick={() => abrirEditorPagina(item)}
+                              disabled={!podeEditarItens}
+                            >
+                              <IconLayoutList size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                          <Tooltip label={podeEditarItens ? 'Editar item (wizard)' : 'Edição só em rascunho'}>
                             <ActionIcon
                               variant="subtle"
                               color="blue"
@@ -1912,6 +1962,31 @@ export default function OrcamentoDetalhePage() {
         imagemProdutoOrcamento={orcamento?.imagemProdutoUrl ?? null}
         onSaved={carregar}
       />
+
+      {/* Editor de item em PÁGINA ÚNICA com âncoras (experiência Calcgraf) —
+          aberto full-screen a partir do grid. Fecha ao salvar/cancelar. */}
+      <Modal
+        opened={editorPaginaOpen}
+        onClose={() => setEditorPaginaOpen(false)}
+        fullScreen
+        title="Editor de Item — Experiência Calcgraf"
+        styles={{ body: { paddingBottom: 0 } }}
+      >
+        {itemEditorPagina && (
+          <EditorItem
+            orcamentoId={id}
+            item={itemEditorPagina}
+            observacoesOrcamento={orcamento?.observacoes ?? null}
+            imagemFacaOrcamento={orcamento?.imagemFaca ?? null}
+            imagemProdutoOrcamento={orcamento?.imagemProdutoUrl ?? null}
+            onSaved={() => {
+              setEditorPaginaOpen(false)
+              carregar()
+            }}
+            onCancel={() => setEditorPaginaOpen(false)}
+          />
+        )}
+      </Modal>
 
       {/* Busca de cálculo da biblioteca → cria item a partir do cálculo (Task 12.1) */}
       <BuscaCalculoModal
