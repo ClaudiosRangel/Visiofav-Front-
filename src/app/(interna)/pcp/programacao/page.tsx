@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Title, Stack, Table, Group, Badge, Text, Loader, Center, Collapse, UnstyledButton, Card, ScrollArea, Button, Modal, NumberInput, Select, Textarea, Progress, ActionIcon, Tabs, TextInput, SegmentedControl, Autocomplete, Box, FileButton, Image, Checkbox, Menu } from '@mantine/core'
+import { Title, Stack, Table, Group, Badge, Text, Loader, Center, Collapse, UnstyledButton, Card, ScrollArea, Button, Modal, NumberInput, Select, Textarea, Progress, ActionIcon, Tabs, TextInput, SegmentedControl, Autocomplete, Box, FileButton, Image, Checkbox, Menu, Divider } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
 import { IconChevronDown, IconChevronRight, IconPlayerPlay, IconPlayerPause, IconCheck, IconClipboardCheck, IconAlertTriangle, IconCut, IconGripVertical, IconSearch, IconFileText, IconPlus, IconArrowRight, IconX, IconPrinter, IconRefresh, IconCamera, IconSettings, IconPalette, IconCircleHalf2, IconAlertCircle } from '@tabler/icons-react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
