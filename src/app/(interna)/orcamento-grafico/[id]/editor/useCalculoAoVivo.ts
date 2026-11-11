@@ -70,8 +70,19 @@ export function useCalculoAoVivo(formData: WizardFormData, opcoes: Opcoes) {
   const reqIdRef = useRef(0)
 
   useEffect(() => {
-    // Pré-condição mínima para valer a pena recalcular.
-    if (!formData.tipoEmbalagemId || !(formData.quantidade > 0)) {
+    // Pré-condições para recalcular ao vivo. Exigimos JÁ os campos essenciais
+    // (tipo, quantidade, gramatura, preço/kg) — assim o recálculo só dispara
+    // quando o payload é válido, evitando o erro "Complete os dados" com os
+    // campos de fato preenchidos. Quando a pré-condição NÃO é atendida, LIMPAMOS
+    // os erros (não deixamos um erro transitório preso na tela).
+    const prontos =
+      !!formData.tipoEmbalagemId &&
+      formData.quantidade > 0 &&
+      formData.gramatura > 0 &&
+      formData.precoKg > 0
+    if (!prontos) {
+      setLoading(false)
+      setErros({ geral: null, porCampo: {} })
       return
     }
 

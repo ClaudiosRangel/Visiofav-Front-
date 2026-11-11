@@ -187,18 +187,6 @@ export default function StepDadosTecnicos({ formData, updateForm, mostrarCampo }
 
   return (
     <Stack gap="lg">
-      <Group gap="xs">
-        <IconSettings2 size={18} />
-        <div>
-          <Text fw={600} size="lg">Dados Técnicos</Text>
-          <Text size="sm" c="dimmed">
-            Processos de impressão, avisos de preenchimento, configuração da faca
-            e acondicionamento. Campos opcionais — a geometria e a montagem afetam
-            o cálculo de consumo.
-          </Text>
-        </div>
-      </Group>
-
       {/* ============ Painéis superiores: lado a lado em telas médias+ ============ */}
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
         {/* ============== Painel — Processos de Impressão ============== */}
@@ -373,35 +361,9 @@ export default function StepDadosTecnicos({ formData, updateForm, mostrarCampo }
         </Group>
         <Text size="xs" c="dimmed" mb="sm">
           A montagem (linhas × colunas) define as peças por folha e os formatos
-          de suporte/corte afetam o consumo de material no cálculo.
+          de suporte/corte afetam o consumo de material no cálculo. A imagem da
+          faca é exibida no painel lateral de Preview.
         </Text>
-
-        {/* Visualização da faca (apenas exibição — sem upload aqui). */}
-        <Box mb="md">
-          {formData._imagemFaca ? (
-            <Image
-              src={formData._imagemFaca}
-              alt="Imagem da faca"
-              radius="md"
-              fit="contain"
-              mah={220}
-              style={{ border: '1px solid var(--mantine-color-default-border)' }}
-            />
-          ) : (
-            <Box
-              style={{
-                border: '1px dashed var(--mantine-color-default-border)',
-                borderRadius: 'var(--mantine-radius-md)',
-                padding: 'var(--mantine-spacing-xl)',
-                textAlign: 'center',
-                color: 'var(--mantine-color-dimmed)',
-              }}
-            >
-              <IconScissors size={24} style={{ opacity: 0.5 }} />
-              <Text size="sm" c="dimmed" mt={4}>Sem imagem da faca</Text>
-            </Box>
-          )}
-        </Box>
 
         <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="sm">
           <NumberInput

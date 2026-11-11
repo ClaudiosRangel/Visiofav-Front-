@@ -62,17 +62,18 @@ function Celula({
   return (
     <Paper
       withBorder
-      px="sm"
-      py={6}
+      px="md"
+      py="sm"
+      radius="md"
       style={{ borderColor, borderWidth: destaque ? 2 : 1, minWidth: 0 }}
     >
-      <Group gap={6} justify="space-between" wrap="nowrap">
-        <Text size={10} c="dimmed" tt="uppercase" fw={700} lineClamp={1}>
+      <Group gap={6} justify="space-between" wrap="nowrap" mb={4}>
+        <Text size="xs" c="dimmed" tt="uppercase" fw={700} lineClamp={1}>
           {titulo}
         </Text>
-        {loading && <Loader size={10} />}
+        {loading && <Loader size={12} />}
       </Group>
-      <Text size="lg" fw={700} c={corValor} lineClamp={1}>
+      <Text fz={22} lh={1.1} fw={700} c={corValor} lineClamp={1}>
         {valor}
       </Text>
     </Paper>

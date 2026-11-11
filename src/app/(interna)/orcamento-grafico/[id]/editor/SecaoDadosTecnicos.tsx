@@ -71,54 +71,9 @@ const ROTULO_CAMPO_TECNICO: Record<string, string> = {
 const CAMPOS_TECNICOS = Object.keys(ROTULO_CAMPO_TECNICO)
 
 export default function SecaoDadosTecnicos({ formData, updateForm, mostrarCampo }: Props) {
-  // Campos técnicos cujo estado derivado é "vazio" (COPIAVEL sem valor) ou
-  // "manual-vazio" (MANUAL sem valor) — ou seja, precisam ser completados.
-  const camposVazios = CAMPOS_TECNICOS.filter((campo) => {
-    const origem = origemCampoDoCampo(campo, (formData as Record<string, unknown>)[campo])
-    return origem === 'vazio' || origem === 'manual-vazio'
-  })
-
-  return (
-    <Stack gap="md">
-      {/* Resumo de origem dos campos técnicos (Req 4.4 / 1.6) */}
-      {camposVazios.length > 0 ? (
-        <Alert
-          variant="light"
-          color="yellow"
-          icon={<IconInfoCircle size={18} />}
-          title="Campos vazios após puxar"
-        >
-          <Text size="sm" mb="xs">
-            Estes campos técnicos ficaram sem valor e precisam ser completados
-            manualmente:
-          </Text>
-          <Group gap="md">
-            {camposVazios.map((campo) => (
-              <Group key={campo} gap={6} wrap="nowrap">
-                <BadgeOrigemCampo
-                  campo={campo}
-                  valor={(formData as Record<string, unknown>)[campo]}
-                />
-                <Text span size="sm">
-                  {ROTULO_CAMPO_TECNICO[campo]}
-                  {CLASSE_CAMPO_TECNICO[campo] === 'COPIAVEL' ? ' (copiável)' : ''}
-                </Text>
-              </Group>
-            ))}
-          </Group>
-        </Alert>
-      ) : (
-        <Alert variant="light" color="green" icon={<IconInfoCircle size={18} />}>
-          Todos os campos técnicos preenchidos.
-        </Alert>
-      )}
-
-      {/* Sub-form reaproveitado (rótulos Calcgraf + validação Zod existentes).
-          `mostrarCampo` oculta os campos condicionais não pertencentes à Linha
-          de Produto do orçamento (sem apagar valores — R2.6). */}
-      <Paper withBorder p="md">
-        <StepDadosTecnicos formData={formData} updateForm={updateForm} mostrarCampo={mostrarCampo} />
-      </Paper>
-    </Stack>
-  )
+  // O resumo de "campos vazios" agora vive DENTRO do StepDadosTecnicos, no
+  // painel "Avisos de Preenchimento" (evita o aviso duplicado que existia aqui).
+  // Esta seção apenas delega ao sub-form reaproveitado; `mostrarCampo` oculta os
+  // campos condicionais fora da Linha de Produto (sem apagar valores — R2.6).
+  return <StepDadosTecnicos formData={formData} updateForm={updateForm} mostrarCampo={mostrarCampo} />
 }
