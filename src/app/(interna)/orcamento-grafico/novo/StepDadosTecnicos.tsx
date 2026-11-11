@@ -3,25 +3,37 @@
 /**
  * StepDadosTecnicos — Task 4 (spec orcamento-grafico-op-relatorio-paridade).
  *
- * Captura os "Dados Técnicos" da peça, divididos em três blocos:
- *  - Dados do Produto (paridade): campos informativos do Calcgraf (sigla
- *    acabado, tributação, processo de impressão, cobertura de tinta,
- *    fabricante, microondulado, fornecido, qtd. modelos, ARTE, observações).
+ * Captura os "Dados Técnicos" da peça. O layout foi redesenhado para 3 painéis
+ * lado a lado (mockup aprovado), SEM alterar nenhum campo, binding
+ * (`formData`/`updateForm`) ou efeito de cálculo — é puro reposicionamento
+ * visual + cosmético:
+ *  - Processos de Impressão: campos de paridade do Calcgraf relacionados a
+ *    impressão/arte (processo, cobertura, sigla acabado, tributação,
+ *    fabricante, qtd. modelos, ARTE, microondulado + material, fornecido).
  *    Só são persistidos/exibidos — NÃO afetam o custo (Req 1 e 3).
- *  - Geometria e Formatos: dimensões, abas, fibra, montagem (linhas × colunas),
- *    formatos de suporte/corte e ajuste de corte micro. Montagem e formatos
- *    afetam o cálculo de folhas/consumo no backend (Req 2).
- *  - Acondicionamento: lista editável de atividades de embalagem (máx. 20) +
- *    conteúdo por volume (Req 3).
+ *  - Avisos de Preenchimento: lista amigável dos campos técnicos essenciais
+ *    que estão vazios (ou texto verde quando tudo preenchido). Não dispara
+ *    cálculo.
+ *  - Configuração da Faca: geometria/formatos (dimensões, abas, fibra,
+ *    montagem linhas × colunas, formatos de suporte/corte, ajuste de corte
+ *    micro) + visualização da imagem da faca. Montagem e formatos afetam o
+ *    cálculo de folhas/consumo no backend (Req 2).
+ *
+ * Abaixo dos painéis, em largura cheia, o Acondicionamento: lista editável de
+ * atividades de embalagem (máx. 20) + conteúdo por volume (Req 3).
  *
  * Todos os campos são opcionais. Ligados a `formData`/`updateForm`.
  */
 
 import {
-  Stack, Text, Group, Paper, Divider, SimpleGrid, TextInput, Textarea,
+  Stack, Text, Group, Paper, SimpleGrid, TextInput, Textarea,
   NumberInput, Switch, Button, ActionIcon, Table, Autocomplete, Select,
+  ThemeIcon, Image, Box, List,
 } from '@mantine/core'
-import { IconPlus, IconTrash, IconSettings2 } from '@tabler/icons-react'
+import {
+  IconPlus, IconTrash, IconSettings2, IconPrinter, IconAlertTriangle,
+  IconScissors, IconCircleCheck,
+} from '@tabler/icons-react'
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
 import type { WizardFormData } from './page'
@@ -42,6 +54,21 @@ interface Props {
 const MAX_ACONDICIONAMENTO = 20
 
 type ItemAcond = { descricao: string }
+
+/**
+ * Rótulos amigáveis dos campos técnicos essenciais avaliados no painel de
+ * "Avisos de Preenchimento". Mesma ideia do resumo de vazios já usado no
+ * editor (SecaoDadosTecnicos) — aqui simplificado, apenas texto.
+ */
+const CAMPOS_ESSENCIAIS: Array<{ campo: keyof WizardFormData; rotulo: string }> = [
+  { campo: 'processoImpressao', rotulo: 'Processo de Impressão' },
+  { campo: 'coberturaTintaTexto', rotulo: 'Cobertura de Tinta' },
+  { campo: 'siglaAcabado', rotulo: 'Sigla Acabado' },
+  { campo: 'tributacao', rotulo: 'Tributação' },
+  { campo: 'fabricante', rotulo: 'Fabricante' },
+  { campo: 'arte', rotulo: 'Arte' },
+  { campo: 'observacao', rotulo: 'Observação' },
+]
 
 export default function StepDadosTecnicos({ formData, updateForm, mostrarCampo }: Props) {
   const acondicionamento: ItemAcond[] = formData.acondicionamento ?? []
@@ -151,6 +178,13 @@ export default function StepDadosTecnicos({ formData, updateForm, mostrarCampo }
   const removeAcond = (i: number) =>
     updateForm({ acondicionamento: acondicionamento.filter((_, idx) => idx !== i) })
 
+  // ---- Avisos de preenchimento (apenas leitura/apresentação) ----
+  // Campo vazio = string vazia/espaços ou ausente. NÃO dispara cálculo.
+  const camposVazios = CAMPOS_ESSENCIAIS.filter(({ campo }) => {
+    const v = formData[campo]
+    return typeof v !== 'string' || v.trim().length === 0
+  })
+
   return (
     <Stack gap="lg">
       <Group gap="xs">
@@ -158,142 +192,260 @@ export default function StepDadosTecnicos({ formData, updateForm, mostrarCampo }
         <div>
           <Text fw={600} size="lg">Dados Técnicos</Text>
           <Text size="sm" c="dimmed">
-            Dados do produto, geometria/formatos e acondicionamento. Campos
-            opcionais — a geometria e a montagem afetam o cálculo de consumo.
+            Processos de impressão, avisos de preenchimento, configuração da faca
+            e acondicionamento. Campos opcionais — a geometria e a montagem afetam
+            o cálculo de consumo.
           </Text>
         </div>
       </Group>
 
-      {/* ================= Bloco 1 — Dados do Produto (paridade) ================= */}
-      <Paper p="md" withBorder>
-        <Text fw={600} mb="xs">Dados do Produto</Text>
-        <Text size="xs" c="dimmed" mb="sm">
-          Informações do pré-cálculo — repassadas ao relatório e à OP, sem
-          efeito sobre o custo.
-        </Text>
+      {/* ============ Painéis superiores: lado a lado em telas médias+ ============ */}
+      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
+        {/* ============== Painel — Processos de Impressão ============== */}
+        <Paper p="md" withBorder>
+          <Group gap="xs" mb="xs">
+            <ThemeIcon variant="light" color="blue" size="md" radius="md">
+              <IconPrinter size={18} />
+            </ThemeIcon>
+            <Text fw={600}>Processos de Impressão</Text>
+          </Group>
+          <Text size="xs" c="dimmed" mb="sm">
+            Informações do pré-cálculo — repassadas ao relatório e à OP, sem
+            efeito sobre o custo.
+          </Text>
 
-        <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="sm">
-          <Autocomplete
-            label="Sigla acabado"
-            placeholder="Ex.: CTC"
-            maxLength={60}
-            data={acabados}
-            value={formData.siglaAcabado ?? ''}
-            onChange={(value) => updateForm({ siglaAcabado: value })}
-          />
-          <TextInput
-            label="Tributação"
-            placeholder="Ex.: ICMS + IPI"
-            maxLength={60}
-            value={formData.tributacao ?? ''}
-            onChange={(e) => updateForm({ tributacao: e.currentTarget.value })}
-          />
-          {mostrar('processoImpressao') && (
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+            {mostrar('processoImpressao') && (
+              <Autocomplete
+                label="Processo de impressão"
+                placeholder="Ex.: Offset Plana"
+                maxLength={60}
+                data={processos}
+                value={formData.processoImpressao ?? ''}
+                onChange={(value) => updateForm({ processoImpressao: value })}
+              />
+            )}
+            {mostrar('coberturaTinta') && (
+              <Autocomplete
+                label="Cobertura de tinta"
+                placeholder="Ex.: Definição Manual"
+                maxLength={60}
+                data={coberturas}
+                value={formData.coberturaTintaTexto ?? ''}
+                onChange={(value) => updateForm({ coberturaTintaTexto: value })}
+              />
+            )}
             <Autocomplete
-              label="Processo de impressão"
-              placeholder="Ex.: Offset Plana"
+              label="Sigla acabado"
+              placeholder="Ex.: CTC"
               maxLength={60}
-              data={processos}
-              value={formData.processoImpressao ?? ''}
-              onChange={(value) => updateForm({ processoImpressao: value })}
+              data={acabados}
+              value={formData.siglaAcabado ?? ''}
+              onChange={(value) => updateForm({ siglaAcabado: value })}
             />
-          )}
-          {mostrar('coberturaTinta') && (
-            <Autocomplete
-              label="Cobertura de tinta"
-              placeholder="Ex.: Definição Manual"
+            <TextInput
+              label="Tributação"
+              placeholder="Ex.: ICMS + IPI"
               maxLength={60}
-              data={coberturas}
-              value={formData.coberturaTintaTexto ?? ''}
-              onChange={(value) => updateForm({ coberturaTintaTexto: value })}
+              value={formData.tributacao ?? ''}
+              onChange={(e) => updateForm({ tributacao: e.currentTarget.value })}
             />
-          )}
-          <TextInput
-            label="Fabricante"
-            placeholder="Fabricante"
-            maxLength={120}
-            value={formData.fabricante ?? ''}
-            onChange={(e) => updateForm({ fabricante: e.currentTarget.value })}
-          />
-          <NumberInput
-            label="Qtd. modelos"
-            placeholder="0"
-            min={0}
-            allowDecimal={false}
-            value={numVal(formData.qtdModelos)}
-            onChange={onNum('qtdModelos')}
-          />
-          <TextInput
-            label="ARTE"
-            placeholder="Ex.: NOVA"
-            maxLength={60}
-            value={formData.arte ?? ''}
-            onChange={(e) => updateForm({ arte: e.currentTarget.value })}
-          />
-          {mostrar('microondulado') && (
+            <TextInput
+              label="Fabricante"
+              placeholder="Fabricante"
+              maxLength={120}
+              value={formData.fabricante ?? ''}
+              onChange={(e) => updateForm({ fabricante: e.currentTarget.value })}
+            />
+            <NumberInput
+              label="Qtd. modelos"
+              placeholder="0"
+              min={0}
+              allowDecimal={false}
+              value={numVal(formData.qtdModelos)}
+              onChange={onNum('qtdModelos')}
+            />
+            <TextInput
+              label="ARTE"
+              placeholder="Ex.: NOVA"
+              maxLength={60}
+              value={formData.arte ?? ''}
+              onChange={(e) => updateForm({ arte: e.currentTarget.value })}
+            />
+            {mostrar('microondulado') && (
+              <Switch
+                label="Microondulado"
+                mt="xl"
+                checked={!!formData.microondulado}
+                onChange={(e) => updateForm({ microondulado: e.currentTarget.checked })}
+              />
+            )}
+            {/* R8 — seletor condicional: só aparece com Microondulado marcado. */}
+            {mostrar('microondulado') && formData.microondulado && (
+              <Select
+                label="Material microondulado"
+                placeholder="Selecione o material"
+                data={materiaisMicro}
+                value={formData.materialMicroonduladoId ?? null}
+                onChange={(value) => updateForm({ materialMicroonduladoId: value })}
+                clearable
+                searchable
+                nothingFoundMessage="Nenhum material cadastrado"
+              />
+            )}
             <Switch
-              label="Microondulado"
+              label="Fornecido"
               mt="xl"
-              checked={!!formData.microondulado}
-              onChange={(e) => updateForm({ microondulado: e.currentTarget.checked })}
+              checked={!!formData.fornecido}
+              onChange={(e) => updateForm({ fornecido: e.currentTarget.checked })}
             />
-          )}
-          {/* R8 — seletor condicional: só aparece com Microondulado marcado. */}
-          {mostrar('microondulado') && formData.microondulado && (
-            <Select
-              label="Material microondulado"
-              placeholder="Selecione o material"
-              data={materiaisMicro}
-              value={formData.materialMicroonduladoId ?? null}
-              onChange={(value) => updateForm({ materialMicroonduladoId: value })}
-              clearable
-              searchable
-              nothingFoundMessage="Nenhum material cadastrado"
+          </SimpleGrid>
+
+          <SimpleGrid cols={1} spacing="sm" mt="sm">
+            <Textarea
+              label="Observação"
+              placeholder="Observações gerais do cálculo"
+              autosize
+              minRows={2}
+              maxRows={5}
+              maxLength={1000}
+              value={formData.observacao ?? ''}
+              onChange={(e) => updateForm({ observacao: e.currentTarget.value })}
             />
+            <Textarea
+              label="Observação de áreas de OP"
+              placeholder="Instruções para as áreas de produção"
+              autosize
+              minRows={2}
+              maxRows={5}
+              maxLength={1000}
+              value={formData.observacaoAreasOp ?? ''}
+              onChange={(e) => updateForm({ observacaoAreasOp: e.currentTarget.value })}
+            />
+          </SimpleGrid>
+        </Paper>
+
+        {/* ============== Painel — Avisos de Preenchimento ============== */}
+        <Paper p="md" withBorder>
+          <Group gap="xs" mb="xs">
+            <ThemeIcon variant="light" color="orange" size="md" radius="md">
+              <IconAlertTriangle size={18} />
+            </ThemeIcon>
+            <Text fw={600}>Avisos de Preenchimento</Text>
+          </Group>
+          <Text size="xs" c="dimmed" mb="sm">
+            Campos técnicos essenciais que ainda estão sem valor. Preencher é
+            opcional e não afeta o custo.
+          </Text>
+
+          {camposVazios.length > 0 ? (
+            <Stack gap="xs">
+              <Group gap={6} wrap="nowrap">
+                <IconAlertTriangle size={16} color="var(--mantine-color-orange-6)" />
+                <Text size="sm" c="orange.7" fw={500}>
+                  {camposVazios.length} campo(s) a preencher:
+                </Text>
+              </Group>
+              <List size="sm" spacing={4} withPadding>
+                {camposVazios.map(({ campo, rotulo }) => (
+                  <List.Item key={campo}>{rotulo}</List.Item>
+                ))}
+              </List>
+            </Stack>
+          ) : (
+            <Group gap={6} wrap="nowrap">
+              <IconCircleCheck size={18} color="var(--mantine-color-green-6)" />
+              <Text size="sm" c="green.7" fw={500}>
+                Dados técnicos preenchidos.
+              </Text>
+            </Group>
           )}
-          <Switch
-            label="Fornecido"
-            mt="xl"
-            checked={!!formData.fornecido}
-            onChange={(e) => updateForm({ fornecido: e.currentTarget.checked })}
-          />
-        </SimpleGrid>
+        </Paper>
+      </SimpleGrid>
 
-        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm" mt="sm">
-          <Textarea
-            label="Observação"
-            placeholder="Observações gerais do cálculo"
-            autosize
-            minRows={2}
-            maxRows={5}
-            maxLength={1000}
-            value={formData.observacao ?? ''}
-            onChange={(e) => updateForm({ observacao: e.currentTarget.value })}
-          />
-          <Textarea
-            label="Observação de áreas de OP"
-            placeholder="Instruções para as áreas de produção"
-            autosize
-            minRows={2}
-            maxRows={5}
-            maxLength={1000}
-            value={formData.observacaoAreasOp ?? ''}
-            onChange={(e) => updateForm({ observacaoAreasOp: e.currentTarget.value })}
-          />
-        </SimpleGrid>
-      </Paper>
-
-      <Divider />
-
-      {/* ================= Bloco 2 — Geometria e Formatos ================= */}
+      {/* ============== Painel — Configuração da Faca ============== */}
       <Paper p="md" withBorder>
-        <Text fw={600} mb="xs">Geometria e Formatos</Text>
+        <Group gap="xs" mb="xs">
+          <ThemeIcon variant="light" color="grape" size="md" radius="md">
+            <IconScissors size={18} />
+          </ThemeIcon>
+          <Text fw={600}>Configuração da Faca</Text>
+        </Group>
         <Text size="xs" c="dimmed" mb="sm">
           A montagem (linhas × colunas) define as peças por folha e os formatos
           de suporte/corte afetam o consumo de material no cálculo.
         </Text>
 
+        {/* Visualização da faca (apenas exibição — sem upload aqui). */}
+        <Box mb="md">
+          {formData._imagemFaca ? (
+            <Image
+              src={formData._imagemFaca}
+              alt="Imagem da faca"
+              radius="md"
+              fit="contain"
+              mah={220}
+              style={{ border: '1px solid var(--mantine-color-default-border)' }}
+            />
+          ) : (
+            <Box
+              style={{
+                border: '1px dashed var(--mantine-color-default-border)',
+                borderRadius: 'var(--mantine-radius-md)',
+                padding: 'var(--mantine-spacing-xl)',
+                textAlign: 'center',
+                color: 'var(--mantine-color-dimmed)',
+              }}
+            >
+              <IconScissors size={24} style={{ opacity: 0.5 }} />
+              <Text size="sm" c="dimmed" mt={4}>Sem imagem da faca</Text>
+            </Box>
+          )}
+        </Box>
+
         <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="sm">
+          <NumberInput
+            label="Formato de entrada — largura (mm)"
+            min={0}
+            value={numVal(formData.formatoSupLarguraMm)}
+            onChange={onNum('formatoSupLarguraMm')}
+          />
+          <NumberInput
+            label="Formato de entrada — altura (mm)"
+            min={0}
+            value={numVal(formData.formatoSupAlturaMm)}
+            onChange={onNum('formatoSupAlturaMm')}
+          />
+          {mostrar('formatoCorte') && (
+            <NumberInput
+              label="Formato de corte — largura (mm)"
+              min={0}
+              value={numVal(formData.formatoCorteLarguraMm)}
+              onChange={onNum('formatoCorteLarguraMm')}
+            />
+          )}
+          {mostrar('formatoCorte') && (
+            <NumberInput
+              label="Formato de corte — altura (mm)"
+              min={0}
+              value={numVal(formData.formatoCorteAlturaMm)}
+              onChange={onNum('formatoCorteAlturaMm')}
+            />
+          )}
+          <NumberInput
+            label="Montagem — linhas"
+            min={1}
+            allowDecimal={false}
+            value={numVal(formData.montagemLinhas)}
+            onChange={onNum('montagemLinhas')}
+          />
+          <NumberInput
+            label="Montagem — colunas"
+            min={1}
+            allowDecimal={false}
+            value={numVal(formData.montagemColunas)}
+            onChange={onNum('montagemColunas')}
+          />
           <NumberInput
             label="Comprimento (mm)"
             min={0}
@@ -330,6 +482,12 @@ export default function StepDadosTecnicos({ formData, updateForm, mostrarCampo }
               onChange={onNum('abaFechamentoMm')}
             />
           )}
+          <NumberInput
+            label="Ajuste corte micro (mm)"
+            min={0}
+            value={numVal(formData.ajusteCorteMicroMm)}
+            onChange={onNum('ajusteCorteMicroMm')}
+          />
           {mostrar('fibra') && (
             <Switch
               label="Fibra"
@@ -338,60 +496,10 @@ export default function StepDadosTecnicos({ formData, updateForm, mostrarCampo }
               onChange={(e) => updateForm({ fibra: e.currentTarget.checked })}
             />
           )}
-          <NumberInput
-            label="Montagem — linhas"
-            min={1}
-            allowDecimal={false}
-            value={numVal(formData.montagemLinhas)}
-            onChange={onNum('montagemLinhas')}
-          />
-          <NumberInput
-            label="Montagem — colunas"
-            min={1}
-            allowDecimal={false}
-            value={numVal(formData.montagemColunas)}
-            onChange={onNum('montagemColunas')}
-          />
-          <NumberInput
-            label="Ajuste corte micro (mm)"
-            min={0}
-            value={numVal(formData.ajusteCorteMicroMm)}
-            onChange={onNum('ajusteCorteMicroMm')}
-          />
-          <NumberInput
-            label="Formato suporte — largura (mm)"
-            min={0}
-            value={numVal(formData.formatoSupLarguraMm)}
-            onChange={onNum('formatoSupLarguraMm')}
-          />
-          <NumberInput
-            label="Formato suporte — altura (mm)"
-            min={0}
-            value={numVal(formData.formatoSupAlturaMm)}
-            onChange={onNum('formatoSupAlturaMm')}
-          />
-          {mostrar('formatoCorte') && (
-            <NumberInput
-              label="Formato de corte — largura (mm)"
-              min={0}
-              value={numVal(formData.formatoCorteLarguraMm)}
-              onChange={onNum('formatoCorteLarguraMm')}
-            />
-          )}
-          {mostrar('formatoCorte') && (
-            <NumberInput
-              label="Formato de corte — altura (mm)"
-              min={0}
-              value={numVal(formData.formatoCorteAlturaMm)}
-              onChange={onNum('formatoCorteAlturaMm')}
-            />
-          )}
         </SimpleGrid>
       </Paper>
 
-      <Divider />
-
-      {/* ================= Bloco 3 — Acondicionamento ================= */}
+      {/* ================= Acondicionamento (largura cheia, inalterado) ================= */}
       <Paper p="md" withBorder>
         <Group justify="space-between" align="center" mb="xs">
           <Text fw={600}>Acondicionamento</Text>

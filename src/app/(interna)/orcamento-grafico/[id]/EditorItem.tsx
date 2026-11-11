@@ -26,7 +26,7 @@
  * NÃO aciona fluxo de OP (fora de escopo).
  */
 
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import {
   ActionIcon, Alert, Box, Button, Grid, Group, LoadingOverlay, Paper, Select, Stack, Text, Title, Tooltip,
 } from '@mantine/core'
@@ -142,6 +142,23 @@ interface LinhaProdutoOpt {
   ativo: boolean
 }
 
+/**
+ * Resposta do endpoint `GET /orcamento-grafico/:id/ficha-master`. A Ficha Master
+ * consolida dados técnicos de origem (Produto, Rascunho, Orçamento anterior) para
+ * (a) pré-preencher campos vazios do item e (b) exibir faca + arte no Preview.
+ */
+interface FichaMasterResp {
+  origem: 'PRODUTO' | 'RASCUNHO' | 'ORCAMENTO' | 'VAZIO'
+  imagemFaca: string | null
+  arte: string | null
+  cartao: string | null
+  gramatura: string | null
+  numCores: number | null
+  coresDescricao: string | null
+  acabamentos: string | null
+  matriz: string | null
+}
+
 export default function EditorItem({
   orcamentoId,
   item,
@@ -183,6 +200,30 @@ export default function EditorItem({
   const [formData, setFormData] = useState<WizardFormData>(INITIAL_ITEM)
   const [saving, setSaving] = useState(false)
 
+  // Ficha Master do orçamento (dados técnicos de origem). Carregada ao montar e
+  // quando o `orcamentoId` muda. Erro tratado em silêncio (null) — o editor
+  // funciona normalmente sem a ficha (ela é um bônus de pré-preenchimento/preview).
+  const [fichaMaster, setFichaMaster] = useState<FichaMasterResp | null>(null)
+  // Flag p/ aplicar o pré-preenchimento UMA vez por carga (não brigar com a
+  // digitação do usuário nem repreencher a cada render).
+  const fichaAplicadaRef = useRef(false)
+
+  useEffect(() => {
+    let cancelado = false
+    fichaAplicadaRef.current = false // nova carga de ficha ⇒ permite reaplicar uma vez
+    api
+      .get(`/orcamento-grafico/${orcamentoId}/ficha-master`)
+      .then(({ data }) => {
+        if (!cancelado) setFichaMaster(data as FichaMasterResp)
+      })
+      .catch(() => {
+        if (!cancelado) setFichaMaster(null)
+      })
+    return () => {
+      cancelado = true
+    }
+  }, [orcamentoId])
+
   useEffect(() => {
     if (item) {
       setFormData(
@@ -195,12 +236,40 @@ export default function EditorItem({
         _imagemProdutoUrl: imagemProdutoOrcamento ?? null,
       })
     }
+    // O form foi re-hidratado ⇒ libera o pré-preenchimento da ficha para rodar
+    // de novo sobre os novos valores.
+    fichaAplicadaRef.current = false
   }, [item, orcamentoId, observacoesOrcamento, imagemFacaOrcamento, imagemProdutoOrcamento])
 
   // `updateForm` disponível para as seções reais (tarefas 5.x) atualizarem o form.
   const updateForm = useCallback((partial: Partial<WizardFormData>) => {
     setFormData((prev) => ({ ...prev, ...partial }))
   }, [])
+
+  // Pré-preenchimento CONSERVADOR dos campos técnicos a partir da Ficha Master
+  // (Req 3.3). Regras:
+  //  - roda UMA vez por carga (fichaAplicadaRef), após a ficha carregar e o
+  //    formData já ter sido hidratado (os dois efeitos acima zeram a flag);
+  //  - só preenche campos que (1) EXISTEM no WizardFormData e (2) estão
+  //    vazios/ausentes — NUNCA sobrescreve o que o usuário/engenharia já tem;
+  //  - campos sem equivalente no form do item (coresDescricao, cartao, numCores,
+  //    acabamentos, matriz) são IGNORADOS no preenchimento (podem ser usados só
+  //    na exibição/preview). O objetivo central é faca/arte no preview.
+  useEffect(() => {
+    if (!fichaMaster || fichaAplicadaRef.current) return
+    fichaAplicadaRef.current = true
+
+    const patch: Partial<WizardFormData> = {}
+
+    // gramatura (number): só quando atual <= 0 e a ficha traz valor numérico.
+    // Aceita vírgula decimal (padrão BR) convertendo para ponto.
+    if ((formData.gramatura ?? 0) <= 0 && fichaMaster.gramatura) {
+      const g = parseFloat(String(fichaMaster.gramatura).replace(',', '.'))
+      if (Number.isFinite(g) && g > 0) patch.gramatura = g
+    }
+
+    if (Object.keys(patch).length > 0) updateForm(patch)
+  }, [fichaMaster, formData.gramatura, updateForm])
 
   // Recálculo ao vivo (KPIs em tempo real) — Req 3. Consome as rotas de cálculo
   // existentes (sem persistir). Semeado com o resultado persistido do item para
@@ -449,8 +518,9 @@ export default function EditorItem({
           <Grid.Col span={{ base: 12, md: 3 }} order={{ base: 3, md: 3 }}>
             <Box style={{ position: 'sticky', top: 76 }}>
               <PainelPreview
-                imagemFaca={formData._imagemFaca}
+                imagemFaca={fichaMaster?.imagemFaca ?? formData._imagemFaca}
                 imagemProduto={formData._imagemProdutoUrl}
+                arte={fichaMaster?.arte ?? null}
                 encaixeLayout={encaixeLayout}
               />
             </Box>

@@ -16,25 +16,28 @@
  * sumir — o painel continua visível para o usuário saber onde o preview aparece.
  */
 
-import { Paper, Stack, Text, Group } from '@mantine/core'
+import { Paper, Stack, Text, Group, Image } from '@mantine/core'
 import { IconPhoto } from '@tabler/icons-react'
 
 import EncaixeVisual, { type EncaixeLayout } from '../../novo/EncaixeVisual'
 import ImagensProdutoFaca from '../../novo/ImagensProdutoFaca'
 
 interface Props {
-  /** dataURL/base64 da imagem da faca (do orçamento/RFQ). */
+  /** dataURL/base64 da imagem da faca (do orçamento/RFQ ou Ficha Master). */
   imagemFaca?: string | null
   /** URL da foto do produto cadastrado. */
   imagemProduto?: string | null
+  /** Imagem da ARTE (dataURL/URL) vinda da Ficha Master, se houver. */
+  arte?: string | null
   /** Layout do encaixe na folha (de `resultadoCalculo.encaixe.layout`), se houver. */
   encaixeLayout?: EncaixeLayout | null
 }
 
-export default function PainelPreview({ imagemFaca, imagemProduto, encaixeLayout }: Props) {
+export default function PainelPreview({ imagemFaca, imagemProduto, arte, encaixeLayout }: Props) {
   const temEncaixe = !!encaixeLayout && encaixeLayout.folhaLarguraMm > 0 && encaixeLayout.folhaAlturaMm > 0
   const temImagem = !!imagemFaca || !!imagemProduto
-  const vazio = !temEncaixe && !temImagem
+  const temArte = !!arte
+  const vazio = !temEncaixe && !temImagem && !temArte
 
   return (
     <Paper withBorder p="md">
@@ -47,6 +50,20 @@ export default function PainelPreview({ imagemFaca, imagemProduto, encaixeLayout
         {temEncaixe && <EncaixeVisual layout={encaixeLayout!} />}
         {temImagem && (
           <ImagensProdutoFaca imagemFaca={imagemFaca} imagemProduto={imagemProduto} />
+        )}
+
+        {/* Arte da Ficha Master — bloco próprio com borda, fit contain. */}
+        {temArte && (
+          <Stack gap={4}>
+            <Text size="sm" fw={600}>Arte</Text>
+            <Image
+              src={arte!}
+              alt="Arte da Ficha Master"
+              fit="contain"
+              mah={220}
+              style={{ border: '1px solid var(--mantine-color-default-border)', borderRadius: 4 }}
+            />
+          </Stack>
         )}
 
         {vazio && (
