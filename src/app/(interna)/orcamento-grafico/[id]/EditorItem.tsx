@@ -119,7 +119,7 @@ function SecaoContainer({
       p="md"
       style={{
         // Ao navegar via índice, a seção para ABAIXO da barra de KPIs fixa.
-        scrollMarginTop: 120,
+        scrollMarginTop: 84,
         borderColor: comErro ? 'var(--mantine-color-red-6)' : undefined,
         background: 'var(--mantine-color-body)',
       }}
@@ -387,7 +387,7 @@ export default function EditorItem({
             `top` maior que 16 para o índice fixar ABAIXO da barra de KPIs (que é
             sticky no topo), sem ficar escondido atrás dela ao rolar. */}
         <Grid.Col span={{ base: 12, md: 3 }} order={{ base: 2, md: 1 }}>
-          <Box style={{ position: 'sticky', top: 112 }}>
+          <Box style={{ position: 'sticky', top: 76 }}>
             <IndiceAncoras
               ancoras={ancoras}
               ativa={ativa}
@@ -434,7 +434,7 @@ export default function EditorItem({
             desktop quando aberto; recolher preserva o estado do form. */}
         {previewAberto && (
           <Grid.Col span={{ base: 12, md: 3 }} order={{ base: 3, md: 3 }}>
-            <Box style={{ position: 'sticky', top: 112 }}>
+            <Box style={{ position: 'sticky', top: 76 }}>
               <PainelPreview
                 imagemFaca={formData._imagemFaca}
                 imagemProduto={formData._imagemProdutoUrl}
