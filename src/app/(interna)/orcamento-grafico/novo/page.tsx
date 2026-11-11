@@ -74,7 +74,25 @@ export interface AcabamentoRicoSelecionado {
   medidaMm?: number
 }
 
+/**
+ * Material de acabamento (R6 — orcamento-grafico-paridade-total-calcgraf) que
+ * o usuário escolhe COMPUTAR no custo do item. Quando `computarCusto` é true, o
+ * backend soma `valorUnitario × quantidade` ao Material Direto. A lista é
+ * enviada no payload do item como `materiaisAcabamento`; itens não marcados
+ * ficam com `computarCusto=false` (ou são omitidos).
+ */
+export interface MaterialAcabamentoItem {
+  materialAcabamentoId?: string
+  nome?: string
+  computarCusto: boolean
+  valorUnitario?: number | null
+  quantidade?: number | null
+}
+
 export interface WizardFormData {
+  // Linha de Produto — 1ª escolha do fluxo de criação (etapa inicial do Step
+  // Produto). Opcional/aditivo: orçamento sem linha funciona igual (R2.9).
+  linhaProdutoId?: string | null
   // Step 1 — Cliente
   clienteId: string | null
   clienteNome: string
@@ -99,6 +117,8 @@ export interface WizardFormData {
   // Step 6 — Acabamentos (legado: lista fixa; ricos: do cadastro Calcgraf)
   acabamentos: AcabamentoItem[]
   acabamentosRicos: AcabamentoRicoSelecionado[]
+  // R6 — materiais de acabamento a computar no custo (soma ao Material Direto)
+  materiaisAcabamento?: MaterialAcabamentoItem[]
   // Step 7 — Revisão
   quantidade: number
   tabelaMargemId: string | null
@@ -130,6 +150,8 @@ export interface WizardFormData {
   coberturaTintaTexto?: string
   fabricante?: string
   microondulado?: boolean
+  /** Material microondulado selecionado (cadastro) quando `microondulado` = true. */
+  materialMicroonduladoId?: string | null
   fornecido?: boolean
   qtdModelos?: number | null
   arte?: string
@@ -175,6 +197,7 @@ export interface WizardFormData {
 }
 
 const INITIAL_FORM: WizardFormData = {
+  linhaProdutoId: null,
   clienteId: null,
   clienteNome: '',
   vendedorId: null,
@@ -203,6 +226,7 @@ const INITIAL_FORM: WizardFormData = {
     { tipo: 'HOT_STAMPING', label: 'Hot Stamping', ativo: false, custoHora: 250, velocidade: 2000, custoMaterialM2: 0.25 },
   ],
   acabamentosRicos: [],
+  materiaisAcabamento: [],
   quantidade: 10000,
   tabelaMargemId: null,
   maquinaId: null,
@@ -223,6 +247,7 @@ const INITIAL_FORM: WizardFormData = {
   coberturaTintaTexto: '',
   fabricante: '',
   microondulado: false,
+  materialMicroonduladoId: null,
   fornecido: false,
   qtdModelos: null,
   arte: '',
@@ -348,6 +373,7 @@ export default function NovoOrcamentoGraficoPage() {
         }
 
         const formCarregado: WizardFormData = {
+          linhaProdutoId: data.linhaProdutoId ?? null,
           clienteId: data.clienteId ?? null,
           clienteNome: data.clienteNome ?? '',
           vendedorId: data.vendedorId ?? null,
@@ -364,6 +390,16 @@ export default function NovoOrcamentoGraficoPage() {
           precoKg: precoKgCarregado,
           cores: coresMapeadas.length > 0 ? coresMapeadas : INITIAL_FORM.cores,
           acabamentos: acabamentosMapeados,
+          // R6 — materiais de acabamento computados no custo (reabrir)
+          materiaisAcabamento: Array.isArray(data.materiaisAcabamento)
+            ? data.materiaisAcabamento.map((m: any) => ({
+                materialAcabamentoId: m.materialAcabamentoId ?? undefined,
+                nome: m.nome ?? undefined,
+                computarCusto: m.computarCusto ?? true,
+                valorUnitario: m.valorUnitario != null ? Number(m.valorUnitario) : null,
+                quantidade: m.quantidade != null ? Number(m.quantidade) : null,
+              }))
+            : [],
           quantidade: data.quantidade ?? 10000,
           tabelaMargemId: formData.tabelaMargemId,
           maquinaId: data.maquinaId ?? null,
@@ -383,6 +419,7 @@ export default function NovoOrcamentoGraficoPage() {
           coberturaTintaTexto: data.coberturaTintaTexto ?? '',
           fabricante: data.fabricante ?? '',
           microondulado: data.microondulado ?? false,
+          materialMicroonduladoId: data.materialMicroonduladoId ?? null,
           fornecido: data.fornecido ?? false,
           qtdModelos: data.qtdModelos != null ? Number(data.qtdModelos) : null,
           arte: data.arte ?? '',
@@ -468,6 +505,9 @@ export default function NovoOrcamentoGraficoPage() {
         .map(a => ({ tipo: a.tipo, custoHora: a.custoHora, velocidade: a.velocidade, custoMaterialM2: a.custoMaterialM2 }))
 
       const payload = {
+        // Linha de Produto (1ª escolha do fluxo). Aditivo — orçamento pode
+        // seguir sem linha (R2.9). Envia null quando não selecionada.
+        linhaProdutoId: formData.linhaProdutoId || undefined,
         clienteId: formData.clienteId || undefined,
         clienteNome: formData.clienteNome || undefined,
         vendedorId: formData.vendedorId || undefined,
@@ -486,6 +526,20 @@ export default function NovoOrcamentoGraficoPage() {
         })),
         acabamentos: acabamentosAtivos,
         acabamentosRicos: formData.acabamentosRicos?.length ? formData.acabamentosRicos : undefined,
+        // R6 — materiais de acabamento a computar no custo. Só envia os
+        // efetivamente marcados (computarCusto=true); lista vazia → omite.
+        materiaisAcabamento: (() => {
+          const itens = (formData.materiaisAcabamento ?? [])
+            .filter((m) => m.computarCusto)
+            .map((m) => ({
+              materialAcabamentoId: m.materialAcabamentoId,
+              nome: m.nome,
+              computarCusto: true,
+              valorUnitario: m.valorUnitario ?? 0,
+              quantidade: m.quantidade ?? 1,
+            }))
+          return itens.length ? itens : undefined
+        })(),
         quantidade: formData.quantidade,
         tabelaMargemId: formData.tabelaMargemId || undefined,
         precoKg: formData.precoKg,
@@ -572,7 +626,7 @@ export default function NovoOrcamentoGraficoPage() {
           {active === 1 && (
             // Step "Produto" — Tipo + Medidas + Papel numa única tela.
             <Stack gap="xl">
-              <StepTipo formData={formData} updateForm={updateForm} />
+              <StepTipo formData={formData} updateForm={updateForm} mostrarLinhaProduto />
               <Divider label="Medidas" labelPosition="center" />
               <StepMedidas formData={formData} updateForm={updateForm} />
               <Divider label="Papel / Cartão" labelPosition="center" />

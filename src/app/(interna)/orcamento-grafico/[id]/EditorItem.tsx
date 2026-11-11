@@ -42,6 +42,7 @@ import {
 } from './itemFormShared'
 import { ANCORA_LABEL, montarAncoras, type AncoraId } from './editor/ancoras'
 import { useScrollSpy } from './editor/useScrollSpy'
+import { camposDaLinha, type CampoCondicional } from './editor/campos-por-linha'
 import IndiceAncoras from './editor/IndiceAncoras'
 import SecaoProduto from './editor/SecaoProduto'
 import SecaoPlanos from './editor/SecaoPlanos'
@@ -55,6 +56,13 @@ interface Props {
   orcamentoId: string
   /** Item a editar (do GET /:id → itens[]). Se ausente, edita um item novo. */
   item?: ItemParaEditar | null
+  /**
+   * CÓDIGO da Linha de Produto do orçamento (resolvido na página de detalhe a
+   * partir do `linhaProdutoId`). Decide quais campos condicionais são exibidos
+   * nas seções (campos-por-linha). Ausente/null ⇒ conjunto PADRÃO (todos os
+   * campos) — não-regressão para orçamentos sem linha.
+   */
+  linhaProdutoCodigo?: string | null
   /** Observações do orçamento (p/ pré-preencher a grade de tiragens na Revisão). */
   observacoesOrcamento?: string | null
   /** Imagem da faca do orçamento (dataURL) — exibida nas seções que a usam. */
@@ -85,6 +93,7 @@ function SecaoContainer({ id, children }: { id: AncoraId; children: React.ReactN
 export default function EditorItem({
   orcamentoId,
   item,
+  linhaProdutoCodigo,
   observacoesOrcamento,
   imagemFacaOrcamento,
   imagemProdutoOrcamento,
@@ -92,6 +101,16 @@ export default function EditorItem({
   onCancel,
 }: Props) {
   const isEditing = !!item
+
+  // Campos condicionais exibidos conforme a Linha de Produto do orçamento.
+  // `mostrar(campo)` = true quando o campo deve ser renderizado. Ocultar NÃO
+  // apaga valores do formData (só esconde o input) — trocar de linha preserva
+  // os valores comuns (R2.6).
+  const camposLinha = useMemo(() => camposDaLinha(linhaProdutoCodigo), [linhaProdutoCodigo])
+  const mostrarCampo = useCallback(
+    (campo: CampoCondicional) => camposLinha.includes(campo),
+    [camposLinha],
+  )
 
   // Estado do form — MESMO shape/hidratação do wizard (itemFormShared).
   const [formData, setFormData] = useState<WizardFormData>(INITIAL_ITEM)
@@ -140,11 +159,11 @@ export default function EditorItem({
     (id: AncoraId) => {
       switch (id) {
         case 'produto':
-          return <SecaoProduto formData={formData} updateForm={updateForm} />
+          return <SecaoProduto formData={formData} updateForm={updateForm} mostrarCampo={mostrarCampo} />
         case 'planos':
           return <SecaoPlanos planos={item?.planos ?? null} />
         case 'dados-tecnicos':
-          return <SecaoDadosTecnicos formData={formData} updateForm={updateForm} />
+          return <SecaoDadosTecnicos formData={formData} updateForm={updateForm} mostrarCampo={mostrarCampo} />
         case 'acabamentos':
           return <SecaoAcabamentos formData={formData} updateForm={updateForm} />
         case 'estrutura':
@@ -163,7 +182,7 @@ export default function EditorItem({
           return null
       }
     },
-    [formData, updateForm, item?.planos, item?.resultadoCalculo, baseCusto, cevPct, margemAtualPct],
+    [formData, updateForm, item?.planos, item?.resultadoCalculo, baseCusto, cevPct, margemAtualPct, mostrarCampo],
   )
 
   const salvar = async () => {

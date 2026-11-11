@@ -36,6 +36,9 @@ export function montarPayloadDadosTecnicos(formData: WizardFormData): Record<str
     coberturaTintaTexto: str(formData.coberturaTintaTexto),
     fabricante: str(formData.fabricante),
     microondulado: formData.microondulado || undefined,
+    // Material microondulado só é relevante quando microondulado = true. Quando
+    // desmarcado, envia null para limpar o vínculo anterior (não-regressão).
+    materialMicroonduladoId: formData.microondulado ? (formData.materialMicroonduladoId || null) : null,
     fornecido: formData.fornecido || undefined,
     qtdModelos: num(formData.qtdModelos),
     arte: str(formData.arte),

@@ -10,7 +10,7 @@ import {
 } from '@mantine/core'
 import {
   IconArrowLeft, IconEdit, IconCopy, IconSend, IconCheck, IconX,
-  IconChartPie, IconAlertCircle, IconFileText, IconPlus, IconTrash,
+  IconChartPie, IconAlertCircle, IconAlertTriangle, IconFileText, IconPlus, IconTrash,
   IconChevronDown, IconChevronRight, IconStack2, IconFileInvoice,
   IconReportAnalytics, IconRepeat, IconSearch, IconShoppingCartPlus,
   IconPhoto, IconGridDots, IconFileTypePdf, IconMail,
@@ -162,6 +162,12 @@ interface OrcamentoDetalhe {
   variacoes?: Array<{ quantidade: number; precoUnitario: number; precoTotal: number }> | null
   observacoes?: string | null
   produtoNome?: string | null
+  // Linha de Produto selecionada no cabeçalho (1ª escolha do fluxo de criação).
+  // Usada para derivar os campos condicionais por linha no editor de item.
+  linhaProdutoId?: string | null
+  // Observação cadastrada no Cliente (GET /:id resolve `clienteObservacao`).
+  // Exibida como Alert de atenção no topo do orçamento (não-bloqueante).
+  clienteObservacao?: string | null
   // Imagem da faca do produto (dataURL/base64), transferida do RFQ ou enviada
   // direto no orçamento. Exibida no card Produto/Especificação.
   imagemFaca?: string | null
@@ -410,6 +416,10 @@ export default function OrcamentoDetalhePage() {
   const [orcamento, setOrcamento] = useState<OrcamentoDetalhe | null>(null)
   const [versoes, setVersoes] = useState<VersaoResumida[]>([])
   const [loading, setLoading] = useState(true)
+  // Linhas de Produto (todas) para traduzir o `linhaProdutoId` do orçamento no
+  // CÓDIGO da linha, que o editor de item usa para decidir os campos
+  // condicionais (campos-por-linha). Carregadas uma vez.
+  const [linhasProduto, setLinhasProduto] = useState<Array<{ id: string; codigo: string }>>([])
   const [actionLoading, setActionLoading] = useState(false)
 
   // Modal de recusa
@@ -524,6 +534,19 @@ export default function OrcamentoDetalhePage() {
   }, [id])
 
   useEffect(() => { carregar() }, [carregar])
+
+  // Carrega TODAS as linhas de produto (situacao=todas) para traduzir o
+  // `linhaProdutoId` do orçamento → código mesmo quando a linha está inativa.
+  // Lista vazia/erro não quebra: o editor cai no conjunto padrão de campos.
+  useEffect(() => {
+    api.get('/orcamento-grafico/linhas-produto', { params: { situacao: 'todas' } })
+      .then(({ data }) => setLinhasProduto(Array.isArray(data) ? data : data?.data ?? []))
+      .catch(() => setLinhasProduto([]))
+  }, [])
+
+  // Código da linha do orçamento (para os campos condicionais do editor de item).
+  const linhaProdutoCodigo =
+    linhasProduto.find((l) => l.id === orcamento?.linhaProdutoId)?.codigo ?? null
 
   // Carrega o status de OP de cada item (badge "OP: N") ao montar/atualizar a
   // lista. Faz uma requisição por item (lazy por lista) — a ausência de badge é
@@ -1107,6 +1130,21 @@ export default function OrcamentoDetalhePage() {
       {orcamento.status === 'RECUSADO' && orcamento.motivoRecusa && (
         <Alert icon={<IconX size={16} />} color="red" title="Motivo da Recusa">
           {orcamento.motivoRecusa}
+        </Alert>
+      )}
+
+      {/* Observação do cliente — alerta destacado de ATENÇÃO no topo do conteúdo.
+          Não-bloqueante (só informa). Renderizado apenas quando há texto. */}
+      {orcamento.clienteObservacao?.trim() && (
+        <Alert
+          icon={<IconAlertTriangle size={18} />}
+          color="orange"
+          variant="light"
+          title="Observação do cliente"
+        >
+          <Text size="sm" style={{ whiteSpace: 'pre-line' }}>
+            {orcamento.clienteObservacao}
+          </Text>
         </Alert>
       )}
 
@@ -1934,6 +1972,7 @@ export default function OrcamentoDetalhePage() {
           <EditorItem
             orcamentoId={id}
             item={itemEditorPagina}
+            linhaProdutoCodigo={linhaProdutoCodigo}
             observacoesOrcamento={orcamento?.observacoes ?? null}
             imagemFacaOrcamento={orcamento?.imagemFaca ?? null}
             imagemProdutoOrcamento={orcamento?.imagemProdutoUrl ?? null}

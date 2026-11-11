@@ -1,6 +1,6 @@
 'use client'
 
-import { Modal, TextInput, Button, Group, Select, Tabs, Tooltip, NumberInput } from '@mantine/core'
+import { Modal, TextInput, Button, Group, Select, Tabs, Tooltip, NumberInput, Textarea } from '@mantine/core'
 import { useForm, Controller } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -32,6 +32,8 @@ const schema = z.object({
   email: z.string().optional(),
   // Shelf life mínimo de expedição exigido pelo cliente (dias) — spec atributos-logisticos-shelf-life.
   shelfLifeMinimoExpedicaoDias: z.number().int().min(0).nullable().optional(),
+  // Observação livre do cliente. Exibida como alerta de atenção no orçamento.
+  observacao: z.string().max(1000, 'Observação até 1000 caracteres').optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -78,9 +80,10 @@ export default function ClienteModal({ opened, onClose, editData }: Props) {
         uf: editData.uf || '', cep: editData.cep || '',
         telefone: editData.telefone || '', email: editData.email || '',
         shelfLifeMinimoExpedicaoDias: editData.shelfLifeMinimoExpedicaoDias ?? null,
+        observacao: editData.observacao || '',
       })
     } else {
-      reset({ razaoSocial: '', cpfCnpj: '', rotaId: null, codigoMunicipio: '' })
+      reset({ razaoSocial: '', cpfCnpj: '', rotaId: null, codigoMunicipio: '', observacao: '' })
     }
   }, [editData, reset, opened])
 
@@ -179,6 +182,18 @@ export default function ClienteModal({ opened, onClose, editData }: Props) {
                   value={field.value || null}
                   onChange={(v) => field.onChange(v || null)}
                   className="max-w-sm"
+                />
+              )} />
+              <Controller name="observacao" control={control} render={({ field }) => (
+                <Textarea
+                  label="Observação"
+                  placeholder="Observação sobre o cliente (exibida em destaque no orçamento)"
+                  autosize
+                  minRows={2}
+                  maxLength={1000}
+                  error={errors.observacao?.message}
+                  {...field}
+                  value={field.value ?? ''}
                 />
               )} />
             </div>

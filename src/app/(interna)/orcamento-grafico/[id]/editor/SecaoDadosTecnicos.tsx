@@ -33,10 +33,18 @@ import StepDadosTecnicos from '../../novo/StepDadosTecnicos'
 import type { WizardFormData } from '../../novo/page'
 import BadgeOrigemCampo from './BadgeOrigemCampo'
 import { CLASSE_CAMPO_TECNICO, origemCampoDoCampo } from './origem-campo'
+import type { CampoCondicional } from './campos-por-linha'
 
 interface Props {
   formData: WizardFormData
   updateForm: (partial: Partial<WizardFormData>) => void
+  /**
+   * Decide quais campos condicionais por Linha de Produto exibir. Quando
+   * ausente, todos os campos são exibidos (comportamento legado). Repassado ao
+   * `StepDadosTecnicos`, que oculta os inputs condicionais mapeáveis. Ocultar
+   * NÃO apaga valores do formData (R2.6).
+   */
+  mostrarCampo?: (campo: CampoCondicional) => boolean
 }
 
 /**
@@ -62,7 +70,7 @@ const ROTULO_CAMPO_TECNICO: Record<string, string> = {
 /** Campos técnicos avaliados no resumo, na ordem de exibição. */
 const CAMPOS_TECNICOS = Object.keys(ROTULO_CAMPO_TECNICO)
 
-export default function SecaoDadosTecnicos({ formData, updateForm }: Props) {
+export default function SecaoDadosTecnicos({ formData, updateForm, mostrarCampo }: Props) {
   // Campos técnicos cujo estado derivado é "vazio" (COPIAVEL sem valor) ou
   // "manual-vazio" (MANUAL sem valor) — ou seja, precisam ser completados.
   const camposVazios = CAMPOS_TECNICOS.filter((campo) => {
@@ -105,9 +113,11 @@ export default function SecaoDadosTecnicos({ formData, updateForm }: Props) {
         </Alert>
       )}
 
-      {/* Sub-form reaproveitado (rótulos Calcgraf + validação Zod existentes) */}
+      {/* Sub-form reaproveitado (rótulos Calcgraf + validação Zod existentes).
+          `mostrarCampo` oculta os campos condicionais não pertencentes à Linha
+          de Produto do orçamento (sem apagar valores — R2.6). */}
       <Paper withBorder p="md">
-        <StepDadosTecnicos formData={formData} updateForm={updateForm} />
+        <StepDadosTecnicos formData={formData} updateForm={updateForm} mostrarCampo={mostrarCampo} />
       </Paper>
     </Stack>
   )

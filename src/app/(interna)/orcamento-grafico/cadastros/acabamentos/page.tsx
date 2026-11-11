@@ -328,7 +328,7 @@ export default function AcabamentosPage() {
               {data.length === 0 && (
                 <Table.Tr>
                   <Table.Td colSpan={6}>
-                    <Text ta="center" c="dimmed" py="md">Nenhum acabamento encontrado. Importe do Calcgraf ou crie manualmente.</Text>
+                    <Text ta="center" c="dimmed" py="md">Nenhum acabamento encontrado. Crie manualmente.</Text>
                   </Table.Td>
                 </Table.Tr>
               )}

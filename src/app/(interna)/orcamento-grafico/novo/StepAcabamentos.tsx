@@ -5,9 +5,9 @@ import {
   Stack, Text, Checkbox, Paper, NumberInput, SimpleGrid, Group, Collapse, Badge,
   Loader, Center, TextInput, Alert, Select, ActionIcon, Tooltip, Box,
 } from '@mantine/core'
-import { IconSettings, IconAlertCircle } from '@tabler/icons-react'
+import { IconSettings, IconAlertCircle, IconTrash, IconPlus } from '@tabler/icons-react'
 import { api } from '@/lib/api'
-import type { WizardFormData, AcabamentoRicoSelecionado } from './page'
+import type { WizardFormData, AcabamentoRicoSelecionado, MaterialAcabamentoItem } from './page'
 
 interface Props {
   formData: WizardFormData
@@ -38,6 +38,15 @@ interface Restricao {
   nome: string
 }
 
+// R6 — catálogo de materiais de acabamento (computar no custo).
+interface MaterialAcabamentoCatalogo {
+  id: string
+  codigo: string
+  nome: string
+  valorReferencia: number | null
+  ativo: boolean
+}
+
 const naturezaBadge: Record<string, { label: string; color: string }> = {
   HORA_MAQUINA: { label: 'Hora-máquina', color: 'orange' },
   MATERIAL_KG: { label: 'Material/kg', color: 'blue' },
@@ -56,6 +65,27 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
   const [extrasAbertos, setExtrasAbertos] = useState<Record<string, boolean>>({})
   const toggleExtras = (acabId: string) =>
     setExtrasAbertos((prev) => ({ ...prev, [acabId]: !prev[acabId] }))
+
+  // R6 — catálogo de materiais de acabamento (computar no custo).
+  const [materiaisCatalogo, setMateriaisCatalogo] = useState<MaterialAcabamentoCatalogo[]>([])
+  const [materiaisLoading, setMateriaisLoading] = useState(true)
+
+  useEffect(() => {
+    api.get('/orcamento-grafico/materiais-acabamento', { params: { situacao: 'ativa' } })
+      .then(({ data }) => {
+        const num = (v: unknown): number | null => (v == null || v === '' ? null : Number(v))
+        const items: MaterialAcabamentoCatalogo[] = (data.data || data || []).map((m: any) => ({
+          id: m.id,
+          codigo: m.codigo,
+          nome: m.nome,
+          valorReferencia: num(m.valorReferencia),
+          ativo: !!m.ativo,
+        }))
+        setMateriaisCatalogo(items)
+      })
+      .catch(() => setMateriaisCatalogo([]))
+      .finally(() => setMateriaisLoading(false))
+  }, [])
 
   useEffect(() => {
     // limit máx do backend é 100 (Zod). 200 fazia o Zod rejeitar (400) e a lista
@@ -215,6 +245,50 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
   const filtrados = busca.trim()
     ? cadastro.filter((a) => `${a.codigo} ${a.nome}`.toLowerCase().includes(busca.toLowerCase()))
     : cadastro
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // R6 — Materiais de acabamento (computar no custo)
+  // ──────────────────────────────────────────────────────────────────────────
+  const materiais = formData.materiaisAcabamento ?? []
+  const matById = new Map(
+    materiais.filter((m) => m.materialAcabamentoId).map((m) => [m.materialAcabamentoId!, m]),
+  )
+
+  // Marca/desmarca um material do catálogo. Ao marcar, cria a linha com valor
+  // default = valorReferencia do catálogo e quantidade 1.
+  const toggleMaterial = (mat: MaterialAcabamentoCatalogo) => {
+    const existente = matById.get(mat.id)
+    if (existente) {
+      updateForm({
+        materiaisAcabamento: materiais.filter((m) => m.materialAcabamentoId !== mat.id),
+      })
+    } else {
+      const novo: MaterialAcabamentoItem = {
+        materialAcabamentoId: mat.id,
+        nome: mat.nome,
+        computarCusto: true,
+        valorUnitario: mat.valorReferencia ?? 0,
+        quantidade: 1,
+      }
+      updateForm({ materiaisAcabamento: [...materiais, novo] })
+    }
+  }
+
+  // Atualiza um campo (valorUnitario/quantidade) do material marcado.
+  const patchMaterial = (
+    matId: string,
+    campo: 'valorUnitario' | 'quantidade',
+    valor: number | undefined,
+  ) => {
+    updateForm({
+      materiaisAcabamento: materiais.map((m) =>
+        m.materialAcabamentoId === matId ? { ...m, [campo]: valor ?? null } : m,
+      ),
+    })
+  }
+
+  const subtotalMaterial = (m: MaterialAcabamentoItem) =>
+    (Number(m.valorUnitario) || 0) * (Number(m.quantidade) || 0)
 
   if (loading) return <Center py="xl"><Loader /></Center>
 
@@ -431,6 +505,187 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
           )
         })}
       </Stack>
+
+      {/* ───────────────────────────────────────────────────────────────── */}
+      {/* R6 — Materiais de acabamento (computar no custo). Soma ao Material  */}
+      {/* Direto os itens marcados (valorUnitario × quantidade) no backend.   */}
+      {/* ───────────────────────────────────────────────────────────────── */}
+      <Stack gap="xs" mt="md">
+        <div>
+          <Text fw={600} size="lg">Materiais de acabamento (computar no custo)</Text>
+          <Text size="sm" c="dimmed">
+            Marque os materiais que devem ser somados ao Material Direto do item. O valor
+            computado é valor unitário × quantidade.
+          </Text>
+        </div>
+
+        {materiaisLoading ? (
+          <Center py="md"><Loader size="sm" /></Center>
+        ) : materiaisCatalogo.length === 0 ? (
+          <MiniEditorMateriais materiais={materiais} updateForm={updateForm} />
+        ) : (
+          <Stack gap={4}>
+            {materiaisCatalogo.map((mat) => {
+              const sel = matById.get(mat.id)
+              const marcado = !!sel
+              return (
+                <Paper
+                  key={mat.id}
+                  px="xs"
+                  py={6}
+                  withBorder
+                  bg={marcado ? 'var(--mantine-color-default-hover)' : undefined}
+                >
+                  <Group gap="xs" wrap="nowrap" align="center">
+                    <Box style={{ flex: 1, minWidth: 220 }}>
+                      <Checkbox
+                        checked={marcado}
+                        onChange={() => toggleMaterial(mat)}
+                        label={
+                          <Group gap={6} wrap="nowrap">
+                            <Text size="sm" fw={500} lineClamp={1}>{mat.nome}</Text>
+                            {mat.valorReferencia != null && (
+                              <Badge size="xs" variant="light" color="teal">
+                                ref. R$ {Number(mat.valorReferencia).toFixed(2)}
+                              </Badge>
+                            )}
+                          </Group>
+                        }
+                      />
+                    </Box>
+                    <NumberInput
+                      w={130}
+                      size="xs"
+                      min={0}
+                      max={9999999.99}
+                      decimalScale={2}
+                      hideControls
+                      disabled={!marcado}
+                      prefix="R$ "
+                      placeholder="Valor unit."
+                      value={sel?.valorUnitario ?? ''}
+                      onChange={(v) => patchMaterial(mat.id, 'valorUnitario', typeof v === 'number' ? v : undefined)}
+                      styles={{ input: { textAlign: 'right' } }}
+                    />
+                    <NumberInput
+                      w={100}
+                      size="xs"
+                      min={0}
+                      decimalScale={2}
+                      hideControls
+                      disabled={!marcado}
+                      placeholder="Qtd."
+                      value={sel?.quantidade ?? ''}
+                      onChange={(v) => patchMaterial(mat.id, 'quantidade', typeof v === 'number' ? v : undefined)}
+                      styles={{ input: { textAlign: 'right' } }}
+                    />
+                    <Box w={120} ta="right">
+                      {marcado && (
+                        <Text size="sm" fw={600}>
+                          R$ {subtotalMaterial(sel!).toFixed(2)}
+                        </Text>
+                      )}
+                    </Box>
+                  </Group>
+                </Paper>
+              )
+            })}
+          </Stack>
+        )}
+      </Stack>
+    </Stack>
+  )
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// R6 — Mini-editor de linhas (fallback quando o catálogo está vazio). Permite
+// adicionar/remover materiais manualmente (nome + computar + valor + qtd).
+// ────────────────────────────────────────────────────────────────────────────
+function MiniEditorMateriais({
+  materiais,
+  updateForm,
+}: {
+  materiais: MaterialAcabamentoItem[]
+  updateForm: (partial: Partial<WizardFormData>) => void
+}) {
+  const setLinhas = (linhas: MaterialAcabamentoItem[]) => updateForm({ materiaisAcabamento: linhas })
+
+  const adicionar = () =>
+    setLinhas([...materiais, { nome: '', computarCusto: true, valorUnitario: 0, quantidade: 1 }])
+
+  const remover = (idx: number) => setLinhas(materiais.filter((_, i) => i !== idx))
+
+  const patch = (idx: number, partial: Partial<MaterialAcabamentoItem>) =>
+    setLinhas(materiais.map((m, i) => (i === idx ? { ...m, ...partial } : m)))
+
+  return (
+    <Stack gap={4}>
+      <Alert icon={<IconAlertCircle size={16} />} color="blue" p="xs">
+        <Text size="xs">
+          Nenhum material de acabamento cadastrado. Informe as linhas manualmente abaixo,
+          ou cadastre em Orçamento Gráfico → Cadastros → Materiais de Acabamento.
+        </Text>
+      </Alert>
+
+      {materiais.map((m, idx) => (
+        <Paper key={idx} px="xs" py={6} withBorder>
+          <Group gap="xs" wrap="nowrap" align="center">
+            <Checkbox
+              checked={m.computarCusto}
+              onChange={(e) => patch(idx, { computarCusto: e.currentTarget.checked })}
+              aria-label="Computar no custo"
+            />
+            <TextInput
+              size="xs"
+              style={{ flex: 1, minWidth: 180 }}
+              placeholder="Nome do material"
+              value={m.nome ?? ''}
+              onChange={(e) => patch(idx, { nome: e.currentTarget.value })}
+            />
+            <NumberInput
+              w={130}
+              size="xs"
+              min={0}
+              max={9999999.99}
+              decimalScale={2}
+              hideControls
+              disabled={!m.computarCusto}
+              prefix="R$ "
+              placeholder="Valor unit."
+              value={m.valorUnitario ?? ''}
+              onChange={(v) => patch(idx, { valorUnitario: typeof v === 'number' ? v : null })}
+              styles={{ input: { textAlign: 'right' } }}
+            />
+            <NumberInput
+              w={100}
+              size="xs"
+              min={0}
+              decimalScale={2}
+              hideControls
+              disabled={!m.computarCusto}
+              placeholder="Qtd."
+              value={m.quantidade ?? ''}
+              onChange={(v) => patch(idx, { quantidade: typeof v === 'number' ? v : null })}
+              styles={{ input: { textAlign: 'right' } }}
+            />
+            <Box w={110} ta="right">
+              <Text size="sm" fw={600}>
+                R$ {((Number(m.valorUnitario) || 0) * (Number(m.quantidade) || 0)).toFixed(2)}
+              </Text>
+            </Box>
+            <ActionIcon variant="subtle" color="red" onClick={() => remover(idx)} aria-label="Remover">
+              <IconTrash size={16} />
+            </ActionIcon>
+          </Group>
+        </Paper>
+      ))}
+
+      <Group>
+        <ActionIcon variant="light" onClick={adicionar} aria-label="Adicionar material">
+          <IconPlus size={16} />
+        </ActionIcon>
+        <Text size="xs" c="dimmed">Adicionar material</Text>
+      </Group>
     </Stack>
   )
 }

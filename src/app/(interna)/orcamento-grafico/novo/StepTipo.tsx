@@ -9,6 +9,12 @@ import type { WizardFormData } from './page'
 interface Props {
   formData: WizardFormData
   updateForm: (partial: Partial<WizardFormData>) => void
+  /**
+   * Exibe o seletor de Linha de Produto acima do Tipo de Embalagem. Usado só no
+   * fluxo de criação `/novo` (1ª escolha). No editor de item a linha é do
+   * cabeçalho do orçamento — não se escolhe por item — então fica oculto.
+   */
+  mostrarLinhaProduto?: boolean
 }
 
 interface TipoEmbalagem {
@@ -18,6 +24,13 @@ interface TipoEmbalagem {
   parametros: any[]
   processosObrigatorios: string[]
   imagemUrl?: string | null
+}
+
+interface LinhaProduto {
+  id: string
+  codigo: string
+  nome: string
+  ativo: boolean
 }
 
 const ICONS: Record<string, any> = {
@@ -48,9 +61,13 @@ function Miniatura({ tipo, size = 36 }: { tipo?: TipoEmbalagem; size?: number })
   )
 }
 
-export default function StepTipo({ formData, updateForm }: Props) {
+export default function StepTipo({ formData, updateForm, mostrarLinhaProduto = false }: Props) {
   const [tipos, setTipos] = useState<TipoEmbalagem[]>([])
   const [loading, setLoading] = useState(true)
+  // Linha de Produto — carregada só com as ATIVAS (a query já filtra). Lista
+  // vazia NÃO bloqueia: o Select aparece vazio e o orçamento pode seguir sem
+  // linha (R2.9).
+  const [linhas, setLinhas] = useState<LinhaProduto[]>([])
 
   useEffect(() => {
     api.get('/orcamento-grafico/tipos-embalagem')
@@ -59,6 +76,13 @@ export default function StepTipo({ formData, updateForm }: Props) {
       .finally(() => setLoading(false))
   }, [])
 
+  useEffect(() => {
+    if (!mostrarLinhaProduto) return
+    api.get('/orcamento-grafico/linhas-produto', { params: { situacao: 'ativa' } })
+      .then(({ data }) => setLinhas(Array.isArray(data) ? data : data?.data ?? []))
+      .catch(() => setLinhas([]))
+  }, [mostrarLinhaProduto])
+
   if (loading) return <Center py="xl"><Loader /></Center>
 
   const selecionado = tipos.find((t) => t.id === formData.tipoEmbalagemId)
@@ -66,6 +90,29 @@ export default function StepTipo({ formData, updateForm }: Props) {
 
   return (
     <Stack gap="md">
+      {/* Linha de Produto — 1ª escolha do fluxo de criação (antes do Tipo de
+          Embalagem). Só linhas ativas (a query filtra). Opcional: não bloqueia
+          o avanço nem a criação do orçamento (R2.9). Oculto no editor de item. */}
+      {mostrarLinhaProduto && (
+        <>
+          <div>
+            <Text fw={600} size="lg">Linha de Produto</Text>
+            <Text size="sm" c="dimmed">Selecione a linha de produto deste orçamento (opcional).</Text>
+          </div>
+
+          <Select
+            label="Linha de produto"
+            placeholder="Selecione a linha..."
+            searchable
+            clearable
+            data={linhas.map((l) => ({ value: l.id, label: l.nome }))}
+            value={formData.linhaProdutoId ?? null}
+            onChange={(v) => updateForm({ linhaProdutoId: v })}
+            comboboxProps={{ withinPortal: true }}
+          />
+        </>
+      )}
+
       <div>
         <Text fw={600} size="lg">Tipo de Embalagem</Text>
         <Text size="sm" c="dimmed">Selecione o tipo de produto gráfico para este orçamento.</Text>

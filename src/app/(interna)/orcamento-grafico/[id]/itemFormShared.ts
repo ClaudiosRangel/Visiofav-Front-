@@ -20,7 +20,7 @@
 
 import { api } from '@/lib/api'
 
-import type { WizardFormData, CorItem, AcabamentoItem } from '../novo/page'
+import type { WizardFormData, CorItem, AcabamentoItem, MaterialAcabamentoItem } from '../novo/page'
 import { extrairTiragensDasObservacoes } from '../novo/page'
 import { montarPayloadDadosTecnicos } from '../novo/dadosTecnicosPayload'
 
@@ -58,6 +58,7 @@ export const INITIAL_ITEM: WizardFormData = {
     { tipo: 'HOT_STAMPING', label: 'Hot Stamping', ativo: false, custoHora: 250, velocidade: 2000, custoMaterialM2: 0.25 },
   ],
   acabamentosRicos: [],
+  materiaisAcabamento: [],
   quantidade: 10000,
   tabelaMargemId: null,
   maquinaId: null,
@@ -78,6 +79,7 @@ export const INITIAL_ITEM: WizardFormData = {
   coberturaTintaTexto: '',
   fabricante: '',
   microondulado: false,
+  materialMicroonduladoId: null,
   fornecido: false,
   qtdModelos: null,
   arte: '',
@@ -116,6 +118,14 @@ export interface ItemParaEditar {
   numCores?: number
   cores?: any[] | null
   acabamentosRicos?: any[] | null
+  // R6 — materiais de acabamento computados no custo
+  materiaisAcabamento?: Array<{
+    materialAcabamentoId?: string | null
+    nome?: string | null
+    computarCusto?: boolean | null
+    valorUnitario?: number | string | null
+    quantidade?: number | string | null
+  }> | null
   maquinaId?: string | null
   aproveitamentoManual?: number | null
   modeloFacaId?: string | null
@@ -134,6 +144,7 @@ export interface ItemParaEditar {
   coberturaTintaTexto?: string | null
   fabricante?: string | null
   microondulado?: boolean | null
+  materialMicroonduladoId?: string | null
   fornecido?: boolean | null
   qtdModelos?: number | string | null
   arte?: string | null
@@ -218,6 +229,16 @@ export function itemParaForm(
     precoKg: precoKgCarregado,
     cores: coresMapeadas.length > 0 ? coresMapeadas : INITIAL_ITEM.cores,
     acabamentosRicos: (item.acabamentosRicos as any) ?? [],
+    // R6 — materiais de acabamento computados no custo (reabrir item salvo)
+    materiaisAcabamento: Array.isArray(item.materiaisAcabamento)
+      ? item.materiaisAcabamento.map((m): MaterialAcabamentoItem => ({
+          materialAcabamentoId: m.materialAcabamentoId ?? undefined,
+          nome: m.nome ?? undefined,
+          computarCusto: m.computarCusto ?? true,
+          valorUnitario: m.valorUnitario != null ? Number(m.valorUnitario) : null,
+          quantidade: m.quantidade != null ? Number(m.quantidade) : null,
+        }))
+      : [],
     quantidade: item.quantidade ?? 10000,
     maquinaId: item.maquinaId ?? null,
     aproveitamentoManual: item.aproveitamentoManual ?? null,
@@ -238,6 +259,7 @@ export function itemParaForm(
     coberturaTintaTexto: item.coberturaTintaTexto ?? '',
     fabricante: item.fabricante ?? '',
     microondulado: item.microondulado ?? false,
+    materialMicroonduladoId: item.materialMicroonduladoId ?? null,
     fornecido: item.fornecido ?? false,
     qtdModelos: item.qtdModelos != null ? Number(item.qtdModelos) : null,
     arte: item.arte ?? '',
@@ -310,6 +332,20 @@ export function montarPayloadItem(formData: WizardFormData): Record<string, unkn
     })),
     acabamentos: acabamentosAtivos,
     acabamentosRicos: formData.acabamentosRicos?.length ? formData.acabamentosRicos : undefined,
+    // R6 — materiais de acabamento a computar no custo. Só envia os marcados
+    // (computarCusto=true); lista vazia → omite (não-regressão).
+    materiaisAcabamento: (() => {
+      const itens = (formData.materiaisAcabamento ?? [])
+        .filter((m) => m.computarCusto)
+        .map((m) => ({
+          materialAcabamentoId: m.materialAcabamentoId,
+          nome: m.nome,
+          computarCusto: true,
+          valorUnitario: m.valorUnitario ?? 0,
+          quantidade: m.quantidade ?? 1,
+        }))
+      return itens.length ? itens : undefined
+    })(),
     quantidade: formData.quantidade,
     tabelaMargemId: formData.tabelaMargemId || undefined,
     maquinaId: formData.maquinaId || undefined,

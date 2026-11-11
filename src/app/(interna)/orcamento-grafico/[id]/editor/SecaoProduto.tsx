@@ -25,10 +25,19 @@ import type { WizardFormData } from '../../novo/page'
 import StepTipo from '../../novo/StepTipo'
 import StepMedidas from '../../novo/StepMedidas'
 import StepPapel from '../../novo/StepPapel'
+import type { CampoCondicional } from './campos-por-linha'
 
 interface Props {
   formData: WizardFormData
   updateForm: (partial: Partial<WizardFormData>) => void
+  /**
+   * Campos condicionais por Linha de Produto a exibir. Recebido do EditorItem
+   * para consistência de assinatura; a ocultação de campos condicionais da
+   * seção Produto (ex.: alça/fundo) fica para depois — os campos condicionais
+   * mapeáveis hoje vivem em Dados Técnicos (ver SecaoDadosTecnicos). A seção
+   * Produto segue exibindo Tipo/Medidas/Papel na íntegra.
+   */
+  mostrarCampo?: (campo: CampoCondicional) => boolean
 }
 
 export default function SecaoProduto({ formData, updateForm }: Props) {

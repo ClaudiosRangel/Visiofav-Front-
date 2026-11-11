@@ -19,22 +19,121 @@
 
 import {
   Stack, Text, Group, Paper, Divider, SimpleGrid, TextInput, Textarea,
-  NumberInput, Switch, Button, ActionIcon, Table,
+  NumberInput, Switch, Button, ActionIcon, Table, Autocomplete, Select,
 } from '@mantine/core'
 import { IconPlus, IconTrash, IconSettings2 } from '@tabler/icons-react'
+import { useEffect, useState } from 'react'
+import { api } from '@/lib/api'
 import type { WizardFormData } from './page'
+import type { CampoCondicional } from '../[id]/editor/campos-por-linha'
 
 interface Props {
   formData: WizardFormData
   updateForm: (partial: Partial<WizardFormData>) => void
+  /**
+   * Decide quais campos condicionais por Linha de Produto exibir (editor de
+   * item). Quando AUSENTE, todos os campos aparecem (comportamento legado do
+   * wizard `/novo`). Ocultar um campo só esconde o input — NÃO apaga o valor
+   * do formData (trocar de linha preserva valores comuns — R2.6).
+   */
+  mostrarCampo?: (campo: CampoCondicional) => boolean
 }
 
 const MAX_ACONDICIONAMENTO = 20
 
 type ItemAcond = { descricao: string }
 
-export default function StepDadosTecnicos({ formData, updateForm }: Props) {
+export default function StepDadosTecnicos({ formData, updateForm, mostrarCampo }: Props) {
   const acondicionamento: ItemAcond[] = formData.acondicionamento ?? []
+  // Sem `mostrarCampo` (fluxo /novo), tudo é exibido. Com ele (editor de item),
+  // só os campos mapeáveis da Linha de Produto aparecem.
+  const mostrar = (campo: CampoCondicional) => (mostrarCampo ? mostrarCampo(campo) : true)
+
+  // Listas de cadastro para os seletores (Autocomplete permite escolher da
+  // lista OU digitar livre — preserva o texto livre pré-existente). Lista
+  // vazia em erro NÃO quebra: o Autocomplete segue aceitando digitação.
+  const [coberturas, setCoberturas] = useState<string[]>([])
+  const [processos, setProcessos] = useState<string[]>([])
+  // R9 — nomes de acabados do cadastro para o Autocomplete da "Sigla acabado"
+  // (permite escolher do cadastro OU digitar livre; preserva texto livre).
+  const [acabados, setAcabados] = useState<string[]>([])
+
+  useEffect(() => {
+    let ativo = true
+    const carregar = async () => {
+      try {
+        const [respCob, respProc, respAcab] = await Promise.all([
+          api.get('/orcamento-grafico/coberturas-tinta', { params: { situacao: 'ativa' } }),
+          api.get('/orcamento-grafico/processos-impressao', { params: { situacao: 'ativa' } }),
+          api.get('/orcamento-grafico/acabamentos', { params: { limit: 100 } }),
+        ])
+        if (!ativo) return
+        const nomesCob = (Array.isArray(respCob.data) ? respCob.data : [])
+          .map((c: { nome?: string }) => c?.nome)
+          .filter((n: unknown): n is string => typeof n === 'string' && n.length > 0)
+        const nomesProc = (Array.isArray(respProc.data) ? respProc.data : [])
+          .map((p: { nome?: string }) => p?.nome)
+          .filter((n: unknown): n is string => typeof n === 'string' && n.length > 0)
+        // O catálogo de acabamentos pode vir como array direto ou { data: [] }.
+        const listaAcab = Array.isArray(respAcab.data)
+          ? respAcab.data
+          : Array.isArray(respAcab.data?.data)
+            ? respAcab.data.data
+            : []
+        const nomesAcab = listaAcab
+          .filter((a: { ativo?: boolean }) => a?.ativo !== false)
+          .map((a: { nome?: string }) => a?.nome)
+          .filter((n: unknown): n is string => typeof n === 'string' && n.length > 0)
+        setCoberturas(nomesCob)
+        setProcessos(nomesProc)
+        setAcabados(Array.from(new Set(nomesAcab)))
+      } catch {
+        // Silencioso: sem cadastro/erro de rede, as listas ficam vazias e os
+        // Autocomplete continuam aceitando texto livre (comportamento atual).
+        if (ativo) {
+          setCoberturas([])
+          setProcessos([])
+          setAcabados([])
+        }
+      }
+    }
+    carregar()
+    return () => {
+      ativo = false
+    }
+  }, [])
+
+  // R8 — lista de materiais microondulado (só quando o Switch estiver marcado).
+  // Estado local, carregamento com try/catch silencioso.
+  const [materiaisMicro, setMateriaisMicro] = useState<{ value: string; label: string }[]>([])
+  useEffect(() => {
+    if (!formData.microondulado) return
+    let ativo = true
+    const carregar = async () => {
+      try {
+        const resp = await api.get('/orcamento-grafico/materiais-microondulado', {
+          params: { situacao: 'ativa' },
+        })
+        if (!ativo) return
+        const lista = Array.isArray(resp.data)
+          ? resp.data
+          : Array.isArray(resp.data?.data)
+            ? resp.data.data
+            : []
+        const opcoes = lista
+          .filter((m: { id?: string; nome?: string }) => m?.id && m?.nome)
+          .map((m: { id: string; nome: string }) => ({ value: m.id, label: m.nome }))
+        setMateriaisMicro(opcoes)
+      } catch {
+        // Silencioso: sem cadastro/erro de rede, o Select fica sem opções.
+        if (ativo) setMateriaisMicro([])
+      }
+    }
+    carregar()
+    return () => {
+      ativo = false
+    }
+  }, [formData.microondulado])
 
   // Helpers de número para NumberInput (value aceita '' quando vazio)
   const numVal = (v?: number | null): number | '' => (typeof v === 'number' ? v : '')
@@ -74,12 +173,13 @@ export default function StepDadosTecnicos({ formData, updateForm }: Props) {
         </Text>
 
         <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="sm">
-          <TextInput
+          <Autocomplete
             label="Sigla acabado"
             placeholder="Ex.: CTC"
             maxLength={60}
+            data={acabados}
             value={formData.siglaAcabado ?? ''}
-            onChange={(e) => updateForm({ siglaAcabado: e.currentTarget.value })}
+            onChange={(value) => updateForm({ siglaAcabado: value })}
           />
           <TextInput
             label="Tributação"
@@ -88,20 +188,26 @@ export default function StepDadosTecnicos({ formData, updateForm }: Props) {
             value={formData.tributacao ?? ''}
             onChange={(e) => updateForm({ tributacao: e.currentTarget.value })}
           />
-          <TextInput
-            label="Processo de impressão"
-            placeholder="Ex.: Offset Plana"
-            maxLength={60}
-            value={formData.processoImpressao ?? ''}
-            onChange={(e) => updateForm({ processoImpressao: e.currentTarget.value })}
-          />
-          <TextInput
-            label="Cobertura de tinta"
-            placeholder="Ex.: Definição Manual"
-            maxLength={60}
-            value={formData.coberturaTintaTexto ?? ''}
-            onChange={(e) => updateForm({ coberturaTintaTexto: e.currentTarget.value })}
-          />
+          {mostrar('processoImpressao') && (
+            <Autocomplete
+              label="Processo de impressão"
+              placeholder="Ex.: Offset Plana"
+              maxLength={60}
+              data={processos}
+              value={formData.processoImpressao ?? ''}
+              onChange={(value) => updateForm({ processoImpressao: value })}
+            />
+          )}
+          {mostrar('coberturaTinta') && (
+            <Autocomplete
+              label="Cobertura de tinta"
+              placeholder="Ex.: Definição Manual"
+              maxLength={60}
+              data={coberturas}
+              value={formData.coberturaTintaTexto ?? ''}
+              onChange={(value) => updateForm({ coberturaTintaTexto: value })}
+            />
+          )}
           <TextInput
             label="Fabricante"
             placeholder="Fabricante"
@@ -124,12 +230,27 @@ export default function StepDadosTecnicos({ formData, updateForm }: Props) {
             value={formData.arte ?? ''}
             onChange={(e) => updateForm({ arte: e.currentTarget.value })}
           />
-          <Switch
-            label="Microondulado"
-            mt="xl"
-            checked={!!formData.microondulado}
-            onChange={(e) => updateForm({ microondulado: e.currentTarget.checked })}
-          />
+          {mostrar('microondulado') && (
+            <Switch
+              label="Microondulado"
+              mt="xl"
+              checked={!!formData.microondulado}
+              onChange={(e) => updateForm({ microondulado: e.currentTarget.checked })}
+            />
+          )}
+          {/* R8 — seletor condicional: só aparece com Microondulado marcado. */}
+          {mostrar('microondulado') && formData.microondulado && (
+            <Select
+              label="Material microondulado"
+              placeholder="Selecione o material"
+              data={materiaisMicro}
+              value={formData.materialMicroonduladoId ?? null}
+              onChange={(value) => updateForm({ materialMicroonduladoId: value })}
+              clearable
+              searchable
+              nothingFoundMessage="Nenhum material cadastrado"
+            />
+          )}
           <Switch
             label="Fornecido"
             mt="xl"
@@ -185,30 +306,38 @@ export default function StepDadosTecnicos({ formData, updateForm }: Props) {
             value={numVal(formData.larguraMm)}
             onChange={onNum('larguraMm')}
           />
-          <NumberInput
-            label="Altura (mm)"
-            min={0}
-            value={numVal(formData.alturaMm)}
-            onChange={onNum('alturaMm')}
-          />
-          <NumberInput
-            label="Aba cola (mm)"
-            min={0}
-            value={numVal(formData.abaColaMm)}
-            onChange={onNum('abaColaMm')}
-          />
-          <NumberInput
-            label="Aba fechamento (mm)"
-            min={0}
-            value={numVal(formData.abaFechamentoMm)}
-            onChange={onNum('abaFechamentoMm')}
-          />
-          <Switch
-            label="Fibra"
-            mt="xl"
-            checked={!!formData.fibra}
-            onChange={(e) => updateForm({ fibra: e.currentTarget.checked })}
-          />
+          {mostrar('montagem3d') && (
+            <NumberInput
+              label="Altura (mm)"
+              min={0}
+              value={numVal(formData.alturaMm)}
+              onChange={onNum('alturaMm')}
+            />
+          )}
+          {mostrar('abaCola') && (
+            <NumberInput
+              label="Aba cola (mm)"
+              min={0}
+              value={numVal(formData.abaColaMm)}
+              onChange={onNum('abaColaMm')}
+            />
+          )}
+          {mostrar('abaFechamento') && (
+            <NumberInput
+              label="Aba fechamento (mm)"
+              min={0}
+              value={numVal(formData.abaFechamentoMm)}
+              onChange={onNum('abaFechamentoMm')}
+            />
+          )}
+          {mostrar('fibra') && (
+            <Switch
+              label="Fibra"
+              mt="xl"
+              checked={!!formData.fibra}
+              onChange={(e) => updateForm({ fibra: e.currentTarget.checked })}
+            />
+          )}
           <NumberInput
             label="Montagem — linhas"
             min={1}
@@ -241,18 +370,22 @@ export default function StepDadosTecnicos({ formData, updateForm }: Props) {
             value={numVal(formData.formatoSupAlturaMm)}
             onChange={onNum('formatoSupAlturaMm')}
           />
-          <NumberInput
-            label="Formato de corte — largura (mm)"
-            min={0}
-            value={numVal(formData.formatoCorteLarguraMm)}
-            onChange={onNum('formatoCorteLarguraMm')}
-          />
-          <NumberInput
-            label="Formato de corte — altura (mm)"
-            min={0}
-            value={numVal(formData.formatoCorteAlturaMm)}
-            onChange={onNum('formatoCorteAlturaMm')}
-          />
+          {mostrar('formatoCorte') && (
+            <NumberInput
+              label="Formato de corte — largura (mm)"
+              min={0}
+              value={numVal(formData.formatoCorteLarguraMm)}
+              onChange={onNum('formatoCorteLarguraMm')}
+            />
+          )}
+          {mostrar('formatoCorte') && (
+            <NumberInput
+              label="Formato de corte — altura (mm)"
+              min={0}
+              value={numVal(formData.formatoCorteAlturaMm)}
+              onChange={onNum('formatoCorteAlturaMm')}
+            />
+          )}
         </SimpleGrid>
       </Paper>
 
