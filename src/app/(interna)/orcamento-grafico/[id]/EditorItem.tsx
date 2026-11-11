@@ -28,11 +28,16 @@
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import {
-  Box, Button, Grid, Group, LoadingOverlay, Paper, Stack, Title,
+  ActionIcon, Alert, Box, Button, Grid, Group, LoadingOverlay, Paper, Select, Stack, Text, Title, Tooltip,
 } from '@mantine/core'
-import { IconDeviceFloppy, IconX } from '@tabler/icons-react'
+import {
+  IconDeviceFloppy, IconX, IconCategory, IconAlertCircle,
+  IconLayoutSidebarRightExpand, IconLayoutSidebarRightCollapse,
+  IconCircleCheck, IconAlertTriangle,
+} from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 
+import { api } from '@/lib/api'
 import type { WizardFormData } from '../novo/page'
 import {
   INITIAL_ITEM,
@@ -43,7 +48,11 @@ import {
 import { ANCORA_LABEL, montarAncoras, type AncoraId } from './editor/ancoras'
 import { useScrollSpy } from './editor/useScrollSpy'
 import { camposDaLinha, type CampoCondicional } from './editor/campos-por-linha'
-import IndiceAncoras from './editor/IndiceAncoras'
+import { useCalculoAoVivo } from './editor/useCalculoAoVivo'
+import ResumoKpis from './editor/ResumoKpis'
+import IndiceAncoras, { type StatusAncora } from './editor/IndiceAncoras'
+import PainelPreview from './editor/PainelPreview'
+import type { EncaixeLayout } from '../novo/EncaixeVisual'
 import SecaoProduto from './editor/SecaoProduto'
 import SecaoPlanos from './editor/SecaoPlanos'
 import SecaoDadosTecnicos from './editor/SecaoDadosTecnicos'
@@ -63,6 +72,17 @@ interface Props {
    * campos) — não-regressão para orçamentos sem linha.
    */
   linhaProdutoCodigo?: string | null
+  /**
+   * ID da Linha de Produto do orçamento (do cabeçalho). Alimenta o seletor fixo
+   * de Linha de Produto no topo do editor (visível no novo e no editar).
+   */
+  linhaProdutoId?: string | null
+  /**
+   * Chamado quando o usuário troca a Linha de Produto no topo do editor. A
+   * página persiste via PUT /:id e recarrega (atualizando o `linhaProdutoCodigo`
+   * que controla os campos condicionais).
+   */
+  onLinhaProdutoChange?: (linhaProdutoId: string | null) => void
   /** Observações do orçamento (p/ pré-preencher a grade de tiragens na Revisão). */
   observacoesOrcamento?: string | null
   /** Imagem da faca do orçamento (dataURL) — exibida nas seções que a usam. */
@@ -79,21 +99,52 @@ interface Props {
  * Container ancorado de uma seção — renderiza o `id={ancoraId}` (necessário para
  * o scroll-spy) + o título (rótulo Calcgraf) + o conteúdo real da seção.
  */
-function SecaoContainer({ id, children }: { id: AncoraId; children: React.ReactNode }) {
+function SecaoContainer({
+  id,
+  status,
+  children,
+}: {
+  id: AncoraId
+  status?: StatusAncora
+  children: React.ReactNode
+}) {
+  // Destaque visual por status (Req 2/4): borda vermelha sutil quando a seção
+  // tem pendência de erro; ícone de status ao lado do título. Tokens adaptativos
+  // (seguem o tema claro/escuro).
+  const comErro = status === 'erro'
   return (
-    <Paper id={id} withBorder p="md" style={{ scrollMarginTop: 16 }}>
-      <Title order={4} mb="md">
-        {ANCORA_LABEL[id]}
-      </Title>
+    <Paper
+      id={id}
+      withBorder
+      p="md"
+      style={{
+        scrollMarginTop: 16,
+        borderColor: comErro ? 'var(--mantine-color-red-6)' : undefined,
+        background: 'var(--mantine-color-body)',
+      }}
+    >
+      <Group gap={8} mb="md" align="center">
+        {status === 'ok' && <IconCircleCheck size={18} color="var(--mantine-color-teal-6)" />}
+        {status === 'erro' && <IconAlertTriangle size={18} color="var(--mantine-color-red-6)" />}
+        <Title order={4}>{ANCORA_LABEL[id]}</Title>
+      </Group>
       {children}
     </Paper>
   )
+}
+
+interface LinhaProdutoOpt {
+  id: string
+  nome: string
+  ativo: boolean
 }
 
 export default function EditorItem({
   orcamentoId,
   item,
   linhaProdutoCodigo,
+  linhaProdutoId,
+  onLinhaProdutoChange,
   observacoesOrcamento,
   imagemFacaOrcamento,
   imagemProdutoOrcamento,
@@ -101,6 +152,19 @@ export default function EditorItem({
   onCancel,
 }: Props) {
   const isEditing = !!item
+
+  // Painel lateral de preview 2D — retrátil (Req 5). Começa aberto; recolher
+  // mantém o estado do form intacto (só esconde a coluna de preview).
+  const [previewAberto, setPreviewAberto] = useState(true)
+
+  // Linhas de Produto ATIVAS para o seletor fixo no topo do editor.
+  const [linhasProduto, setLinhasProduto] = useState<LinhaProdutoOpt[]>([])
+  useEffect(() => {
+    api
+      .get('/orcamento-grafico/linhas-produto', { params: { situacao: 'ativa' } })
+      .then(({ data }) => setLinhasProduto(Array.isArray(data) ? data : data?.data ?? []))
+      .catch(() => setLinhasProduto([]))
+  }, [])
 
   // Campos condicionais exibidos conforme a Linha de Produto do orçamento.
   // `mostrar(campo)` = true quando o campo deve ser renderizado. Ocultar NÃO
@@ -135,10 +199,62 @@ export default function EditorItem({
     setFormData((prev) => ({ ...prev, ...partial }))
   }, [])
 
+  // Recálculo ao vivo (KPIs em tempo real) — Req 3. Consome as rotas de cálculo
+  // existentes (sem persistir). Semeado com o resultado persistido do item para
+  // os cards não começarem vazios na edição.
+  const { kpis, loading: recalculando, erros } = useCalculoAoVivo(formData, {
+    orcamentoId,
+    itemId: isEditing ? item!.id : null,
+  })
+  // Fallback inicial dos KPIs a partir do resultado já persistido (edição).
+  const resultadoPersistido = (item?.resultadoCalculo ?? null) as Record<string, unknown> | null
+  const kpisExibidos = {
+    custoTotal: kpis.custoTotal ?? (resultadoPersistido ? Number(resultadoPersistido.custoProducao ?? resultadoPersistido.custoTotal) || null : null),
+    precoVenda: kpis.precoVenda ?? (resultadoPersistido ? Number(resultadoPersistido.precoVenda) || null : null),
+    margem: kpis.margem ?? (resultadoPersistido ? Number(resultadoPersistido.margemReal) || null : null),
+    precoUnitario: kpis.precoUnitario ?? (resultadoPersistido ? Number(resultadoPersistido.precoUnitario) || null : null),
+  }
+
   // Âncoras/seções presentes — a seção "Planos" só aparece se o item tem planos.
   const ancoras = useMemo(() => montarAncoras({ planos: item?.planos ?? null }), [item?.planos])
 
   const { ativa, irPara } = useScrollSpy(ancoras)
+
+  // Status por seção (Req 4): mapa seção → campos essenciais ao cálculo.
+  // Regra por seção: 'erro' se algum essencial está em `erros.porCampo`; senão
+  // 'ok' se TODOS os essenciais estão preenchidos no formData; senão 'pendente'.
+  // Seções sem campos essenciais ⇒ sempre 'ok' (leitura/informativas).
+  const statusPorAncora = useMemo<Partial<Record<AncoraId, StatusAncora>>>(() => {
+    const essenciaisPorSecao: Record<AncoraId, (keyof WizardFormData)[]> = {
+      produto: ['tipoEmbalagemId', 'gramatura', 'precoKg'],
+      planos: [],
+      'dados-tecnicos': [],
+      acabamentos: [],
+      estrutura: [],
+      fechamento: ['quantidade'],
+    }
+
+    // Um campo essencial está "preenchido" quando é truthy; para campos
+    // numéricos (gramatura/precoKg/quantidade) exige valor > 0.
+    const preenchido = (campo: keyof WizardFormData): boolean => {
+      const valor = formData[campo]
+      if (typeof valor === 'number') return valor > 0
+      return !!valor
+    }
+
+    const resultado: Partial<Record<AncoraId, StatusAncora>> = {}
+    for (const ancora of ancoras) {
+      const essenciais = essenciaisPorSecao[ancora]
+      if (essenciais.some((c) => erros.porCampo[c])) {
+        resultado[ancora] = 'erro'
+      } else if (essenciais.every((c) => preenchido(c))) {
+        resultado[ancora] = 'ok'
+      } else {
+        resultado[ancora] = 'pendente'
+      }
+    }
+    return resultado
+  }, [ancoras, formData, erros.porCampo])
 
   // Base de custo / CEV / margem do consolidado já calculado (apenas leitura),
   // usados pela PRÉ-VISUALIZAÇÃO de margem da seção Fechamento (não persiste).
@@ -153,6 +269,14 @@ export default function EditorItem({
   const cevPct = resultado && Number.isFinite(Number(resultado.cevPerc)) ? Number(resultado.cevPerc) : null
   const margemAtualPct =
     resultado && Number.isFinite(Number(resultado.margemReal)) ? Number(resultado.margemReal) : null
+
+  // Layout do encaixe para o painel de preview 2D — vem de
+  // `resultadoCalculo.encaixe.layout` do item (tolerante a undefined).
+  const encaixeLayout = useMemo<EncaixeLayout | null>(() => {
+    const encaixe = (resultado?.encaixe ?? null) as Record<string, unknown> | null
+    const layout = (encaixe?.layout ?? null) as EncaixeLayout | null
+    return layout && Number(layout.folhaLarguraMm) > 0 && Number(layout.folhaAlturaMm) > 0 ? layout : null
+  }, [resultado])
 
   // Mapeia cada âncora presente ao seu componente de seção real.
   const renderSecao = useCallback(
@@ -210,24 +334,112 @@ export default function EditorItem({
     <Box pos="relative">
       <LoadingOverlay visible={saving} />
 
+      {/* Sticky Summary Bar — KPIs em tempo real (Req 3). */}
+      <ResumoKpis kpis={kpisExibidos} loading={recalculando} />
+
+      {/* Resumo amigável de pendências (Req 1) — sem texto técnico de validação. */}
+      {(erros.geral || Object.keys(erros.porCampo).length > 0) && (
+        <Alert
+          variant="light"
+          color="orange"
+          icon={<IconAlertCircle size={18} />}
+          title="Complete os dados do item"
+          mb="md"
+        >
+          {erros.geral && <Text size="sm" mb={Object.keys(erros.porCampo).length ? 'xs' : 0}>{erros.geral}</Text>}
+          {Object.keys(erros.porCampo).length > 0 && (
+            <Stack gap={2}>
+              {Object.entries(erros.porCampo).map(([campo, msg]) => (
+                <Text key={campo} size="sm">• {msg}</Text>
+              ))}
+            </Stack>
+          )}
+        </Alert>
+      )}
+
+      {/* Linha de Produto — sempre visível no topo (novo e editar). Trocar
+          persiste no cabeçalho do orçamento (via onLinhaProdutoChange → PUT /:id)
+          e atualiza os campos condicionais exibidos nas seções. */}
+      <Paper withBorder p="md" mb="md">
+        <Group gap="sm" mb="xs">
+          <IconCategory size={18} />
+          <Text fw={600}>Linha de Produto</Text>
+        </Group>
+        <Select
+          placeholder="Selecione a linha de produto (opcional)..."
+          searchable
+          clearable
+          data={linhasProduto.map((l) => ({ value: l.id, label: l.nome }))}
+          value={linhaProdutoId ?? null}
+          onChange={(v) => onLinhaProdutoChange?.(v)}
+          comboboxProps={{ withinPortal: true }}
+          maw={420}
+        />
+        <Text size="xs" c="dimmed" mt={6}>
+          Define quais campos técnicos aparecem abaixo. Pode ser alterada a
+          qualquer momento sem perder o que já foi preenchido.
+        </Text>
+      </Paper>
+
       <Grid gutter="md">
         {/* Índice lateral (desktop) / reempilha abaixo do conteúdo (telas menores). */}
         <Grid.Col span={{ base: 12, md: 3 }} order={{ base: 2, md: 1 }}>
           <Box style={{ position: 'sticky', top: 16 }}>
-            <IndiceAncoras ancoras={ancoras} ativa={ativa} onIrPara={irPara} />
+            <IndiceAncoras
+              ancoras={ancoras}
+              ativa={ativa}
+              onIrPara={irPara}
+              statusPorAncora={statusPorAncora}
+            />
           </Box>
         </Grid.Col>
 
-        {/* Coluna de conteúdo: seções ancoradas na ordem de `montarAncoras`. */}
-        <Grid.Col span={{ base: 12, md: 9 }} order={{ base: 1, md: 2 }}>
+        {/* Coluna de conteúdo: seções ancoradas na ordem de `montarAncoras`.
+            Estreita (md=6) quando o painel de preview está aberto; larga (md=9)
+            quando recolhido, para o form não perder espaço. */}
+        <Grid.Col
+          span={{ base: 12, md: previewAberto ? 6 : 9 }}
+          order={{ base: 1, md: 2 }}
+        >
           <Stack gap="md">
+            {/* Barra com o toggle do painel de preview (Req 5.2). Recolhido,
+                mostra só o botão de expandir; aberto, o de recolher. */}
+            <Group justify="flex-end">
+              <Tooltip label={previewAberto ? 'Recolher preview' : 'Mostrar preview'}>
+                <ActionIcon
+                  variant="light"
+                  aria-label={previewAberto ? 'Recolher preview' : 'Mostrar preview'}
+                  onClick={() => setPreviewAberto((v) => !v)}
+                >
+                  {previewAberto ? (
+                    <IconLayoutSidebarRightCollapse size={18} />
+                  ) : (
+                    <IconLayoutSidebarRightExpand size={18} />
+                  )}
+                </ActionIcon>
+              </Tooltip>
+            </Group>
             {ancoras.map((id) => (
-              <SecaoContainer key={id} id={id}>
+              <SecaoContainer key={id} id={id} status={statusPorAncora[id]}>
                 {renderSecao(id)}
               </SecaoContainer>
             ))}
           </Stack>
         </Grid.Col>
+
+        {/* Painel lateral RETRÁTIL de preview 2D (Req 5). Só ocupa coluna no
+            desktop quando aberto; recolher preserva o estado do form. */}
+        {previewAberto && (
+          <Grid.Col span={{ base: 12, md: 3 }} order={{ base: 3, md: 3 }}>
+            <Box style={{ position: 'sticky', top: 16 }}>
+              <PainelPreview
+                imagemFaca={formData._imagemFaca}
+                imagemProduto={formData._imagemProdutoUrl}
+                encaixeLayout={encaixeLayout}
+              />
+            </Box>
+          </Grid.Col>
+        )}
       </Grid>
 
       {/* Rodapé de ações — Cancelar / Salvar Item (reaproveita `salvar()`). */}

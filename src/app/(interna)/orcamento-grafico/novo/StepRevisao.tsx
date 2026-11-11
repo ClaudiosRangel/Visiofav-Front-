@@ -14,6 +14,7 @@ import EncaixeVisual, { type EncaixeLayout } from './EncaixeVisual'
 import { gerarPlanificacao, type GabaritoId } from './planificacao-gabaritos'
 import { parseFaixasTiragem } from './parse-faixas-tiragem'
 import ImagensProdutoFaca from './ImagensProdutoFaca'
+import { traduzirErros } from '../[id]/editor/erros-amigaveis'
 
 // Base da API (mesmo padrão do EncaixeArquivoModal), usada para montar a URL do
 // arquivo de encaixe real servido pelo backend (aceita token via query).
@@ -332,20 +333,12 @@ export default function StepRevisao({ formData, updateForm }: Props) {
       }
       setResultado(data)
     } catch (err: any) {
-      // O backend já compõe `message` com os campos que falharam. Como reforço,
-      // se vier o array `issues` (erro de validação), montamos "campo: motivo"
-      // para o operador saber exatamente o que corrigir (em vez do genérico).
-      const resp = err?.response?.data
-      const issues = Array.isArray(resp?.issues) ? resp.issues : []
-      const detalhe = issues.length
-        ? issues
-            .map((i: { campo?: string; mensagem?: string }) =>
-              i.campo ? `${i.campo}: ${i.mensagem}` : i.mensagem,
-            )
-            .filter(Boolean)
-            .join('\n')
-        : ''
-      setErro(detalhe || resp?.message || 'Erro ao calcular orçamento.')
+      // Traduz os erros de validação para linguagem humana (PT), sem vazar o
+      // texto cru do Zod ("Expected string, received null", etc.) para o usuário.
+      const { geral, porCampo } = traduzirErros(err?.response?.data)
+      const linhas = Object.values(porCampo)
+      const texto = [geral, ...linhas].filter(Boolean).join('\n')
+      setErro(texto || 'Revise os dados do item para continuar.')
       setResultado(null)
     } finally {
       setLoading(false)
@@ -552,7 +545,7 @@ export default function StepRevisao({ formData, updateForm }: Props) {
       )}
 
       {erro && (
-        <Alert icon={<IconAlertCircle size={16} />} color="red" title="Corrija os dados do item">
+        <Alert icon={<IconAlertCircle size={16} />} color="orange" title="Complete os dados do item">
           <Text size="sm" style={{ whiteSpace: 'pre-line' }}>{erro}</Text>
         </Alert>
       )}

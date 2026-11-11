@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef, Fragment } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   Title, Stack, Group, Button, Text, Loader, Center, Paper, SimpleGrid,
   Badge, Divider, Progress, Table, Modal, Textarea, Alert, ScrollArea,
@@ -411,6 +411,7 @@ function ProdutoEspecificacao({
 export default function OrcamentoDetalhePage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const id = params.id as string
 
   const [orcamento, setOrcamento] = useState<OrcamentoDetalhe | null>(null)
@@ -547,6 +548,39 @@ export default function OrcamentoDetalhePage() {
   // Código da linha do orçamento (para os campos condicionais do editor de item).
   const linhaProdutoCodigo =
     linhasProduto.find((l) => l.id === orcamento?.linhaProdutoId)?.codigo ?? null
+
+  // Abertura automática do Editor de página única quando vier de "Novo Orçamento"
+  // (query `?novoItem=1`). Abre UMA vez (item novo) e limpa o query param para
+  // não reabrir em refresh/navegação. Aguarda o orçamento ter carregado.
+  const [novoItemTratado, setNovoItemTratado] = useState(false)
+  useEffect(() => {
+    if (novoItemTratado || loading || !orcamento) return
+    if (searchParams.get('novoItem') === '1') {
+      setItemEditorPagina(null)
+      setEditorPaginaOpen(true)
+      setNovoItemTratado(true)
+      router.replace(`/orcamento-grafico/${id}`)
+    }
+  }, [searchParams, loading, orcamento, novoItemTratado, router, id])
+
+  // Troca da Linha de Produto pelo seletor fixo do editor: persiste no cabeçalho
+  // (PUT /:id) e recarrega para atualizar o `linhaProdutoCodigo` (campos
+  // condicionais). Preserva o restante do cabeçalho (o PUT não recalcula).
+  const handleLinhaProdutoChange = useCallback(
+    async (novaLinhaId: string | null) => {
+      try {
+        await api.put(`/orcamento-grafico/${id}`, { linhaProdutoId: novaLinhaId })
+        await carregar()
+      } catch (err: any) {
+        notifications.show({
+          title: 'Erro',
+          message: err?.response?.data?.message || 'Falha ao atualizar a linha de produto.',
+          color: 'red',
+        })
+      }
+    },
+    [id],
+  )
 
   // Carrega o status de OP de cada item (badge "OP: N") ao montar/atualizar a
   // lista. Faz uma requisição por item (lazy por lista) — a ausência de badge é
@@ -1973,6 +2007,8 @@ export default function OrcamentoDetalhePage() {
             orcamentoId={id}
             item={itemEditorPagina}
             linhaProdutoCodigo={linhaProdutoCodigo}
+            linhaProdutoId={orcamento?.linhaProdutoId ?? null}
+            onLinhaProdutoChange={handleLinhaProdutoChange}
             observacoesOrcamento={orcamento?.observacoes ?? null}
             imagemFacaOrcamento={orcamento?.imagemFaca ?? null}
             imagemProdutoOrcamento={orcamento?.imagemProdutoUrl ?? null}

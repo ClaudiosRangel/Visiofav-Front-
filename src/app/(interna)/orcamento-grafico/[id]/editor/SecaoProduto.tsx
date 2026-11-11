@@ -19,7 +19,8 @@
  * aqui).
  */
 
-import { Stack, Divider } from '@mantine/core'
+import { Stack, Divider, Paper, Group, Image, ThemeIcon, Text, Badge } from '@mantine/core'
+import { IconPackage } from '@tabler/icons-react'
 
 import type { WizardFormData } from '../../novo/page'
 import StepTipo from '../../novo/StepTipo'
@@ -41,8 +42,51 @@ interface Props {
 }
 
 export default function SecaoProduto({ formData, updateForm }: Props) {
+  // Resumo do produto/embalagem selecionado (informação do produto no topo da
+  // seção — Req 4). Usa o tipo de embalagem escolhido + nome/foto do produto
+  // cadastrado quando houver. Estado vazio quando nada foi selecionado ainda.
+  const tipo = formData.tipoEmbalagem as { descricao?: string; codigo?: string } | null | undefined
+  const nomeProduto = formData.produtoNome?.trim() || undefined
+  const fotoProduto = formData._imagemProdutoUrl
+  const temProduto = !!(tipo?.descricao || nomeProduto || fotoProduto)
+
   return (
     <Stack gap="xl">
+      {/* Resumo "Informação do Produto" */}
+      <Paper withBorder p="md" bg="var(--mantine-color-default)">
+        {temProduto ? (
+          <Group gap="md" wrap="nowrap">
+            {fotoProduto ? (
+              <Image src={fotoProduto} alt={nomeProduto ?? 'Produto'} w={56} h={56} fit="contain" radius="sm" />
+            ) : (
+              <ThemeIcon variant="light" color="gray" size={56} radius="sm">
+                <IconPackage size={32} stroke={1.5} />
+              </ThemeIcon>
+            )}
+            <div style={{ flex: 1 }}>
+              <Text size="xs" c="dimmed">Produto deste orçamento</Text>
+              <Text fw={600}>{nomeProduto ?? tipo?.descricao ?? 'Produto'}</Text>
+              {tipo?.descricao && (
+                <Group gap={6} mt={4}>
+                  <Badge size="sm" variant="light" color="teal">{tipo.descricao}</Badge>
+                  {tipo.codigo && <Badge size="sm" variant="light" color="gray">{tipo.codigo}</Badge>}
+                </Group>
+              )}
+            </div>
+          </Group>
+        ) : (
+          <Group gap="md" wrap="nowrap">
+            <ThemeIcon variant="light" color="gray" size={56} radius="sm">
+              <IconPackage size={32} stroke={1.5} />
+            </ThemeIcon>
+            <div>
+              <Text fw={600}>Nenhum produto selecionado</Text>
+              <Text size="sm" c="dimmed">Escolha o Tipo de Embalagem abaixo para montar o produto.</Text>
+            </div>
+          </Group>
+        )}
+      </Paper>
+
       <StepTipo formData={formData} updateForm={updateForm} />
       <Divider label="Medidas" labelPosition="center" />
       <StepMedidas formData={formData} updateForm={updateForm} />

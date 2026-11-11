@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import {
   Stack, Text, Checkbox, Paper, NumberInput, SimpleGrid, Group, Collapse, Badge,
-  Loader, Center, TextInput, Alert, Select, ActionIcon, Tooltip, Box,
+  Loader, Center, TextInput, Alert, Select, ActionIcon, Tooltip, Box, SegmentedControl,
 } from '@mantine/core'
 import { IconSettings, IconAlertCircle, IconTrash, IconPlus } from '@tabler/icons-react'
 import { api } from '@/lib/api'
@@ -58,6 +58,12 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
   const [cadastro, setCadastro] = useState<AcabamentoCadastro[]>([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
+  // R6.2 — filtro por CATEGORIA (natureza de custo). Puramente de apresentação:
+  // restringe o que entra em `filtrados` em conjunto com a busca de texto; não
+  // toca toggle/patch/hidratação/payload nem o cálculo.
+  const [filtroNatureza, setFiltroNatureza] = useState<
+    'TODOS' | 'HORA_MAQUINA' | 'MATERIAL_KG' | 'MATERIAL_UN' | 'CUSTO_FIXO'
+  >('TODOS')
   // Restrições (sub-opções) carregadas sob demanda, por acabamento HORA_MAQUINA.
   const [restricoesPorAcab, setRestricoesPorAcab] = useState<Record<string, Restricao[]>>({})
   // Layout em LINHA (densidade estilo planilha — pedido do usuário): os extras
@@ -242,9 +248,31 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
     })
   }
 
-  const filtrados = busca.trim()
+  // R6.2/R6.3 — lista exibida derivada PURAMENTE de apresentação (sem tocar o
+  // cálculo). Combina a busca de texto já existente com o filtro de natureza e,
+  // por fim, reordena colocando os JÁ SELECIONADOS primeiro — preservando a
+  // ordem relativa original dentro de cada grupo (ordenação estável).
+  const estaSelecionado = (a: AcabamentoCadastro) =>
+    selById.has(a.id) || selByNome.has(norm(a.nome))
+
+  const porBusca = busca.trim()
     ? cadastro.filter((a) => `${a.codigo} ${a.nome}`.toLowerCase().includes(busca.toLowerCase()))
     : cadastro
+  const porNatureza =
+    filtroNatureza === 'TODOS'
+      ? porBusca
+      : porBusca.filter((a) => a.naturezaCusto === filtroNatureza)
+  const filtrados = porNatureza
+    .map((a, i) => ({ a, i }))
+    .sort((x, y) => {
+      const sx = estaSelecionado(x.a) ? 0 : 1
+      const sy = estaSelecionado(y.a) ? 0 : 1
+      // Selecionados primeiro; empate mantém a ordem original (índice).
+      return sx - sy || x.i - y.i
+    })
+    .map((e) => e.a)
+
+  const totalSelecionados = selecionados.length
 
   // ──────────────────────────────────────────────────────────────────────────
   // R6 — Materiais de acabamento (computar no custo)
@@ -307,11 +335,35 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
       )}
 
       {cadastro.length > 0 && (
-        <TextInput
-          placeholder="Buscar acabamento..."
-          value={busca}
-          onChange={(e) => setBusca(e.currentTarget.value)}
-        />
+        <Stack gap="xs">
+          <Group gap="xs" align="center" wrap="wrap">
+            <TextInput
+              placeholder="Buscar acabamento..."
+              value={busca}
+              onChange={(e) => setBusca(e.currentTarget.value)}
+              style={{ flex: 1, minWidth: 220 }}
+            />
+            {totalSelecionados > 0 && (
+              <Badge size="sm" variant="light" color="blue">
+                {totalSelecionados} selecionado{totalSelecionados > 1 ? 's' : ''}
+              </Badge>
+            )}
+          </Group>
+          {/* R6.2 — filtro por categoria (natureza de custo). Usa os labels do
+              naturezaBadge quando possível. */}
+          <SegmentedControl
+            size="xs"
+            value={filtroNatureza}
+            onChange={(v) => setFiltroNatureza(v as typeof filtroNatureza)}
+            data={[
+              { value: 'TODOS', label: 'Todos' },
+              { value: 'HORA_MAQUINA', label: naturezaBadge.HORA_MAQUINA.label },
+              { value: 'MATERIAL_KG', label: naturezaBadge.MATERIAL_KG.label },
+              { value: 'MATERIAL_UN', label: naturezaBadge.MATERIAL_UN.label },
+              { value: 'CUSTO_FIXO', label: naturezaBadge.CUSTO_FIXO.label },
+            ]}
+          />
+        </Stack>
       )}
 
       {/* Cabeçalho de colunas (densidade tipo planilha) — só na largura md+. */}

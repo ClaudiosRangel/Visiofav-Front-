@@ -388,6 +388,60 @@ export function montarPayloadItem(formData: WizardFormData): Record<string, unkn
 }
 
 /**
+ * Monta o payload do RECÁLCULO (preview) de um item — o mesmo shape que o
+ * `StepRevisao` envia para `POST /orcamento-grafico/calcular` (item novo) ou
+ * `POST /:id/itens/:itemId/calcular` (item de repetição ancorado). Fonte única
+ * para o recálculo ao vivo do editor e para o StepRevisao, evitando divergência.
+ *
+ * É um SUBCONJUNTO do payload de salvar focado nos parâmetros que afetam o
+ * cálculo. Função PURA.
+ */
+export function montarPayloadCalculo(formData: WizardFormData): Record<string, unknown> {
+  const acabamentosAtivos = formData.acabamentos
+    .filter((a: AcabamentoItem) => a.ativo)
+    .map((a: AcabamentoItem) => ({
+      tipo: a.tipo,
+      custoHora: a.custoHora,
+      velocidade: a.velocidade,
+      custoMaterialM2: a.custoMaterialM2,
+    }))
+
+  const itensDiversos = (formData.itensDiversos ?? [])
+    .filter((i) => i.descricao?.trim())
+    .map((i) => ({
+      descricao: i.descricao.trim(),
+      quantidade: i.fixo ? 1 : i.quantidade && i.quantidade >= 0.001 ? i.quantidade : 1,
+      valor: i.valor && i.valor >= 0.01 ? i.valor : 0.01,
+      fixo: !!i.fixo,
+    }))
+
+  return {
+    tipoEmbalagemId: formData.tipoEmbalagemId,
+    medidas: formData.medidas,
+    suporteId: formData.suporteId || undefined,
+    papelId: formData.papelId || undefined,
+    gramatura: formData.gramatura,
+    precoKg: formData.precoKg,
+    cores: formData.cores.map((c) => ({
+      nome: c.nome,
+      tipo: c.tipo,
+      coberturaPercent: c.coberturaPercent,
+      precoKg: c.precoKg,
+      rendimentoM2Kg: c.rendimentoM2Kg,
+    })),
+    acabamentos: acabamentosAtivos,
+    acabamentosRicos: formData.acabamentosRicos?.length ? formData.acabamentosRicos : undefined,
+    quantidade: formData.quantidade,
+    tabelaMargemId: formData.tabelaMargemId || undefined,
+    maquinaId: formData.maquinaId || undefined,
+    aproveitamentoManual: formData.aproveitamentoManual || undefined,
+    itensDiversos: itensDiversos.length ? itensDiversos : undefined,
+    formatoCorteLarguraMm: formData.formatoCorteLarguraMm || undefined,
+    formatoCorteAlturaMm: formData.formatoCorteAlturaMm || undefined,
+  }
+}
+
+/**
  * Salva o item: PUT quando há `itemId` (edição), POST quando é novo.
  *
  * Reaproveita `montarPayloadItem`. É a MESMA chamada que o `ItemWizardModal`
