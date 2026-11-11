@@ -71,10 +71,18 @@ export default function ResumoKpis({ kpis, loading }: Props) {
       style={{
         position: 'sticky',
         top: 0,
-        zIndex: 5,
+        zIndex: 20,
         background: 'var(--mantine-color-body)',
-        paddingBottom: 8,
-        paddingTop: 4,
+        // Cobre 100% da largura mesmo com o padding do corpo do modal (margens
+        // negativas) e recria o padding horizontal, para o conteúdo que rola
+        // NÃO aparecer pelas laterais da barra fixa.
+        marginInline: 'calc(var(--mantine-spacing-md) * -1)',
+        paddingInline: 'var(--mantine-spacing-md)',
+        paddingTop: 10,
+        paddingBottom: 10,
+        // Separação visual do conteúdo que passa por baixo ao rolar.
+        borderBottom: '1px solid var(--mantine-color-default-border)',
+        boxShadow: 'var(--mantine-shadow-sm)',
       }}
     >
       <Group justify="space-between" mb={6}>

@@ -118,7 +118,8 @@ function SecaoContainer({
       withBorder
       p="md"
       style={{
-        scrollMarginTop: 16,
+        // Ao navegar via índice, a seção para ABAIXO da barra de KPIs fixa.
+        scrollMarginTop: 120,
         borderColor: comErro ? 'var(--mantine-color-red-6)' : undefined,
         background: 'var(--mantine-color-body)',
       }}
@@ -382,9 +383,11 @@ export default function EditorItem({
       </Paper>
 
       <Grid gutter="md">
-        {/* Índice lateral (desktop) / reempilha abaixo do conteúdo (telas menores). */}
+        {/* Índice lateral (desktop) / reempilha abaixo do conteúdo (telas menores).
+            `top` maior que 16 para o índice fixar ABAIXO da barra de KPIs (que é
+            sticky no topo), sem ficar escondido atrás dela ao rolar. */}
         <Grid.Col span={{ base: 12, md: 3 }} order={{ base: 2, md: 1 }}>
-          <Box style={{ position: 'sticky', top: 16 }}>
+          <Box style={{ position: 'sticky', top: 112 }}>
             <IndiceAncoras
               ancoras={ancoras}
               ativa={ativa}
@@ -431,7 +434,7 @@ export default function EditorItem({
             desktop quando aberto; recolher preserva o estado do form. */}
         {previewAberto && (
           <Grid.Col span={{ base: 12, md: 3 }} order={{ base: 3, md: 3 }}>
-            <Box style={{ position: 'sticky', top: 16 }}>
+            <Box style={{ position: 'sticky', top: 112 }}>
               <PainelPreview
                 imagemFaca={formData._imagemFaca}
                 imagemProduto={formData._imagemProdutoUrl}
