@@ -38,7 +38,10 @@ import {
 import { notifications } from '@mantine/notifications'
 
 import { api } from '@/lib/api'
+import { getAuthToken } from '@/lib/authStorage'
 import type { WizardFormData } from '../novo/page'
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
 import {
   INITIAL_ITEM,
   type ItemParaEditar,
@@ -151,6 +154,8 @@ interface FichaMasterResp {
   origem: 'PRODUTO' | 'RASCUNHO' | 'ORCAMENTO' | 'VAZIO'
   imagemFaca: string | null
   arte: string | null
+  /** Caminho relativo da API para a arte servida como binário (anexo do pedido). */
+  arteUrl?: string | null
   cartao: string | null
   gramatura: string | null
   numCores: number | null
@@ -344,6 +349,17 @@ export default function EditorItem({
   const margemAtualPct =
     resultado && Number.isFinite(Number(resultado.margemReal)) ? Number(resultado.margemReal) : null
 
+  // Arte para o Preview: dataURL direta (produto definitivo) OU URL do anexo do
+  // pedido (rascunho da Pré-Impressão), montada com base da API + token.
+  const artePreview = useMemo<string | null>(() => {
+    if (fichaMaster?.arte) return fichaMaster.arte
+    if (fichaMaster?.arteUrl) {
+      const token = getAuthToken() || ''
+      return `${API_BASE}${fichaMaster.arteUrl}?token=${token}`
+    }
+    return null
+  }, [fichaMaster?.arte, fichaMaster?.arteUrl])
+
   // Layout do encaixe para o painel de preview 2D — vem de
   // `resultadoCalculo.encaixe.layout` do item (tolerante a undefined).
   const encaixeLayout = useMemo<EncaixeLayout | null>(() => {
@@ -520,7 +536,7 @@ export default function EditorItem({
               <PainelPreview
                 imagemFaca={fichaMaster?.imagemFaca ?? formData._imagemFaca}
                 imagemProduto={formData._imagemProdutoUrl}
-                arte={fichaMaster?.arte ?? null}
+                arte={artePreview}
                 encaixeLayout={encaixeLayout}
               />
             </Box>

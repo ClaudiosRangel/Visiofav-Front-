@@ -283,7 +283,18 @@ export default function StepRevisao({ formData, updateForm }: Props) {
   const faixasManuaisKey = faixasManuais.join(',')
 
   const calcular = useCallback(async () => {
-    if (formData.quantidade <= 0) return
+    // Só calcula quando os campos essenciais estão preenchidos — evita o alerta
+    // "Complete os dados" com os campos já OK (o backend exige tipo/gramatura/
+    // preço positivos). Pré-condição insuficiente ⇒ limpa o erro e aborta.
+    const prontoParaCalcular =
+      !!formData.tipoEmbalagemId &&
+      formData.quantidade > 0 &&
+      formData.gramatura > 0 &&
+      formData.precoKg > 0
+    if (!prontoParaCalcular) {
+      setErro(null)
+      return
+    }
 
     setLoading(true)
     setErro(null)

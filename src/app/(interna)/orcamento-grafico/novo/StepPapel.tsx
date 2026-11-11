@@ -331,39 +331,16 @@ export default function StepPapel({ formData, updateForm }: Props) {
 
   return (
     <Stack gap="md">
-      <Group justify="space-between" align="flex-start">
-        <div>
-          <Text fw={600} size="lg">Papel / Cartão</Text>
-          <Text size="sm" c="dimmed">
-            Escolha primeiro o Suporte (ex.: &quot;Duplex 280&quot;, &quot;Triplex&quot;, &quot;Kraft&quot;) e,
-            em seguida, o preço do papel/gramatura vinculado a ele.
-          </Text>
-        </div>
-        <Button
-          variant="light"
-          color="grape"
-          leftSection={<IconScissors size={16} />}
-          onClick={() => setModalGcad(true)}
-        >
-          NC — Selecionar Modelo (GCad)
-        </Button>
-      </Group>
+      <div>
+        <Text fw={600} size="lg">Papel / Cartão</Text>
+        <Text size="sm" c="dimmed">
+          Escolha primeiro o Suporte (ex.: &quot;Duplex 280&quot;, &quot;Triplex&quot;, &quot;Kraft&quot;) e,
+          em seguida, o preço do papel/gramatura vinculado a ele.
+        </Text>
+      </div>
 
-      {formData.modeloFacaId && (
-        <Alert color="grape" icon={<IconScissors size={16} />} title="Modelo de Faca (GCad) selecionado">
-          <Group justify="space-between" wrap="nowrap">
-            <Text size="sm">
-              {modeloSelecionadoLabel || 'Modelo vinculado'} — o encaixe real será aplicado no cálculo (backend).
-              {formData.aproveitamentoManual ? ` Poses/folha: ${formData.aproveitamentoManual}.` : ''}
-            </Text>
-            <Tooltip label="Remover modelo">
-              <ActionIcon variant="subtle" color="red" onClick={limparModelo}>
-                <IconX size={16} />
-              </ActionIcon>
-            </Tooltip>
-          </Group>
-        </Alert>
-      )}
+      {/* Botão "NC — Selecionar Modelo (GCad)" removido a pedido do usuário. O
+          modal/lógica de GCad permanecem no código, mas sem ponto de entrada. */}
 
       {/* Nível 1 — Suporte */}
       <Select
