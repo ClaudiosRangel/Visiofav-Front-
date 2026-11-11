@@ -70,16 +70,21 @@ export function useCalculoAoVivo(formData: WizardFormData, opcoes: Opcoes) {
   const reqIdRef = useRef(0)
 
   useEffect(() => {
-    // Pré-condições para recalcular ao vivo. Exigimos JÁ os campos essenciais
-    // (tipo, quantidade, gramatura, preço/kg) — assim o recálculo só dispara
-    // quando o payload é válido, evitando o erro "Complete os dados" com os
-    // campos de fato preenchidos. Quando a pré-condição NÃO é atendida, LIMPAMOS
-    // os erros (não deixamos um erro transitório preso na tela).
+    // Valida o PRÓPRIO payload que será enviado (depsDebounced), não o formData
+    // atual — senão havia descompasso: a guarda via o formData já preenchido
+    // enquanto o payload (debounced) ainda estava vazio, disparando o recálculo
+    // com tipo/gramatura/preço nulos e exibindo "Complete os dados" indevidamente.
+    const corpo = JSON.parse(depsDebounced) as {
+      tipoEmbalagemId?: string | null
+      quantidade?: number
+      gramatura?: number
+      precoKg?: number
+    }
     const prontos =
-      !!formData.tipoEmbalagemId &&
-      formData.quantidade > 0 &&
-      formData.gramatura > 0 &&
-      formData.precoKg > 0
+      !!corpo.tipoEmbalagemId &&
+      (corpo.quantidade ?? 0) > 0 &&
+      (corpo.gramatura ?? 0) > 0 &&
+      (corpo.precoKg ?? 0) > 0
     if (!prontos) {
       setLoading(false)
       setErros({ geral: null, porCampo: {} })
@@ -96,7 +101,7 @@ export function useCalculoAoVivo(formData: WizardFormData, opcoes: Opcoes) {
         : `/orcamento-grafico/calcular`
 
     api
-      .post(rota, JSON.parse(depsDebounced))
+      .post(rota, corpo)
       .then((resp) => {
         if (cancelado || reqId !== reqIdRef.current) return
         const data = (resp.data?.resultado ?? resp.data) as Record<string, unknown>
