@@ -67,10 +67,10 @@ export default function StepDadosTecnicos({ formData, updateForm }: Props) {
 
       {/* ================= Bloco 1 — Dados do Produto (paridade) ================= */}
       <Paper p="md" withBorder>
-        <Text fw={600} mb="xs">Dados do Produto (paridade)</Text>
+        <Text fw={600} mb="xs">Dados do Produto</Text>
         <Text size="xs" c="dimmed" mb="sm">
-          Informações do pré-cálculo do Calcgraf — repassadas ao relatório e à
-          OP, sem efeito sobre o custo.
+          Informações do pré-cálculo — repassadas ao relatório e à OP, sem
+          efeito sobre o custo.
         </Text>
 
         <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="sm">

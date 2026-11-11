@@ -348,7 +348,7 @@ export default function SecaoEstruturaCusto({ resultadoCalculo }: Props) {
 
       <Text size="xs" c="dimmed">
         {temCustosCalcgraf
-          ? 'Decomposição por componente do cálculo de origem (Calcgraf). Somente leitura.'
+          ? 'Decomposição por componente do cálculo de origem. Somente leitura.'
           : 'Decomposição a partir do resultado do cálculo. Somente leitura.'}
       </Text>
     </Stack>

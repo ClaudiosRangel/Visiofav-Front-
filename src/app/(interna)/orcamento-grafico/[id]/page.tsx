@@ -13,13 +13,12 @@ import {
   IconChartPie, IconAlertCircle, IconFileText, IconPlus, IconTrash,
   IconChevronDown, IconChevronRight, IconStack2, IconFileInvoice,
   IconReportAnalytics, IconRepeat, IconSearch, IconShoppingCartPlus,
-  IconPhoto, IconGridDots, IconFileTypePdf, IconMail, IconLayoutList,
+  IconPhoto, IconGridDots, IconFileTypePdf, IconMail,
 } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { getAuthToken } from '@/lib/authStorage'
 import { notifications } from '@mantine/notifications'
 import { StatusBadge } from '../page'
-import ItemWizardModal, { type ItemParaEditar } from './ItemWizardModal'
 import EditorItem from './EditorItem'
 import type { ItemParaEditar as ItemParaEditorPagina } from './itemFormShared'
 import BuscaCalculoModal from './BuscaCalculoModal'
@@ -441,13 +440,9 @@ export default function OrcamentoDetalhePage() {
   const [reapObs, setReapObs] = useState('')
   const [reaproveitando, setReaproveitando] = useState(false)
 
-  // Editor de item (modal reusando os steps — wizard linear, fallback)
-  const [itemModalOpen, setItemModalOpen] = useState(false)
-  const [itemEmEdicao, setItemEmEdicao] = useState<ItemParaEditar | null>(null)
-
-  // Editor de item em PÁGINA ÚNICA com âncoras (experiência Calcgraf — Tarefa 7.2).
-  // Aberto num modal full-screen a partir do grid de itens; o `ItemWizardModal`
-  // continua disponível como fallback.
+  // Editor de item em PÁGINA ÚNICA com âncoras — editor único de item do
+  // orçamento. Aberto num modal full-screen a partir do grid de itens
+  // ("Novo Item" / "Editar item"). `itemEditorPagina === null` ⇒ item novo.
   const [editorPaginaOpen, setEditorPaginaOpen] = useState(false)
   const [itemEditorPagina, setItemEditorPagina] = useState<ItemParaEditorPagina | null>(null)
 
@@ -808,38 +803,22 @@ export default function OrcamentoDetalhePage() {
   // Ações de item (multi-item)
   // ============================================================================
 
+  // "Novo Item" abre o Editor de Orçamento (página única) com item novo.
   const abrirNovoItem = () => {
-    setItemEmEdicao(null)
-    setItemModalOpen(true)
+    setItemEditorPagina(null)
+    setEditorPaginaOpen(true)
   }
 
+  // "Editar" passou a abrir o Editor de Orçamento (página única), que agora é o
+  // único editor de item. O wizard linear foi descontinuado da UI.
   const abrirEdicaoItem = (item: ItemOrcamento) => {
-    setItemEmEdicao({
-      id: item.id,
-      tipoEmbalagemId: item.tipoEmbalagemId,
-      tipoEmbalagem: orcamento?.tipoEmbalagem ?? null,
-      medidas: item.medidas ?? null,
-      papelId: item.papelId ?? null,
-      papelDescricao: item.papelDescricao ?? null,
-      suporteId: item.suporteId ?? null,
-      gramatura: item.gramatura ?? null,
-      numCores: item.numCores,
-      cores: item.cores ?? null,
-      acabamentosRicos: item.acabamentosRicos ?? null,
-      maquinaId: item.maquinaId ?? null,
-      quantidade: item.quantidade,
-      resultadoCalculo: item.resultadoCalculo ?? null,
-      // Origem do cálculo (repetição) — habilita a ancoragem do custo real do
-      // Calcgraf no StepRevisao (usa a rota /itens/:itemId/calcular ancorada).
-      calculoGraficoOrigemId: item.calculoGraficoOrigemId ?? null,
-    })
-    setItemModalOpen(true)
+    abrirEditorPagina(item)
   }
 
   /**
-   * Abre o Editor de Item em PÁGINA ÚNICA (experiência Calcgraf) para o item.
-   * Passa o shape completo esperado por `EditorItem`/`itemFormShared` (inclui os
-   * campos técnicos, planos e resultadoCalculo).
+   * Abre o Editor de Item em PÁGINA ÚNICA para o item. Passa o shape completo
+   * esperado por `EditorItem`/`itemFormShared` (inclui os campos técnicos,
+   * planos e resultadoCalculo).
    */
   const abrirEditorPagina = (item: ItemOrcamento) => {
     setItemEditorPagina({
@@ -1310,17 +1289,7 @@ export default function OrcamentoDetalhePage() {
                               <IconGridDots size={16} />
                             </ActionIcon>
                           </Tooltip>
-                          <Tooltip label={podeEditarItens ? 'Abrir editor (página única)' : 'Edição só em rascunho'}>
-                            <ActionIcon
-                              variant="subtle"
-                              color="indigo"
-                              onClick={() => abrirEditorPagina(item)}
-                              disabled={!podeEditarItens}
-                            >
-                              <IconLayoutList size={16} />
-                            </ActionIcon>
-                          </Tooltip>
-                          <Tooltip label={podeEditarItens ? 'Editar item (wizard)' : 'Edição só em rascunho'}>
+                          <Tooltip label={podeEditarItens ? 'Editar item' : 'Edição só em rascunho'}>
                             <ActionIcon
                               variant="subtle"
                               color="blue"
@@ -1508,7 +1477,7 @@ export default function OrcamentoDetalhePage() {
               {/* Decomposição estilo Calcgraf (paridade) */}
               {resultado.custoProducao != null && (
                 <Paper p="md" withBorder>
-                  <Text fw={500} size="sm" mb="sm">Decomposição do Custo (paridade Calcgraf)</Text>
+                  <Text fw={500} size="sm" mb="sm">Decomposição do Custo</Text>
                   <Table>
                     <Table.Tbody>
                       <Table.Tr>
@@ -1951,28 +1920,17 @@ export default function OrcamentoDetalhePage() {
         onSalvo={carregar}
       />
 
-      {/* Editor de item (modal reusando os steps do wizard) */}
-      <ItemWizardModal
-        opened={itemModalOpen}
-        onClose={() => setItemModalOpen(false)}
-        orcamentoId={id}
-        item={itemEmEdicao}
-        observacoesOrcamento={orcamento?.observacoes ?? null}
-        imagemFacaOrcamento={orcamento?.imagemFaca ?? null}
-        imagemProdutoOrcamento={orcamento?.imagemProdutoUrl ?? null}
-        onSaved={carregar}
-      />
-
-      {/* Editor de item em PÁGINA ÚNICA com âncoras (experiência Calcgraf) —
-          aberto full-screen a partir do grid. Fecha ao salvar/cancelar. */}
+      {/* Editor de item em PÁGINA ÚNICA com âncoras — editor único de item,
+          aberto full-screen a partir do grid ("Novo Item" / "Editar item").
+          Com `itemEditorPagina === null`, edita um item novo. */}
       <Modal
         opened={editorPaginaOpen}
         onClose={() => setEditorPaginaOpen(false)}
         fullScreen
-        title="Editor de Item — Experiência Calcgraf"
+        title={itemEditorPagina ? 'Editar Item do Orçamento' : 'Novo Item do Orçamento'}
         styles={{ body: { paddingBottom: 0 } }}
       >
-        {itemEditorPagina && (
+        {editorPaginaOpen && (
           <EditorItem
             orcamentoId={id}
             item={itemEditorPagina}

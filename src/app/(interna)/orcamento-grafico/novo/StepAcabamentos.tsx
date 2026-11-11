@@ -227,8 +227,8 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
 
       {cadastro.length === 0 && (
         <Alert icon={<IconAlertCircle size={16} />} color="yellow">
-          Nenhum acabamento cadastrado. Cadastre em Orçamento Gráfico → Cadastros → Acabamentos
-          (ou importe do Calcgraf). Você pode seguir sem acabamentos.
+          Nenhum acabamento cadastrado. Cadastre em Orçamento Gráfico → Cadastros → Acabamentos.
+          Você pode seguir sem acabamentos.
         </Alert>
       )}
 

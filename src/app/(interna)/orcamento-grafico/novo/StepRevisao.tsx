@@ -572,19 +572,19 @@ export default function StepRevisao({ formData, updateForm }: Props) {
           variant="light"
           title={
             conferencia.confere
-              ? `Confere com o Calcgraf${conferencia.numeroCalcgraf ? ` (cálculo ${conferencia.numeroCalcgraf})` : ''}`
-              : 'Atenção: divergência com o Calcgraf'
+              ? `Confere com o cálculo de origem${conferencia.numeroCalcgraf ? ` (cálculo ${conferencia.numeroCalcgraf})` : ''}`
+              : 'Atenção: divergência com o cálculo de origem'
           }
         >
           <Stack gap={4}>
             <Group gap="xl">
               <Text size="sm">
-                <strong>Calcgraf (foto):</strong> {formatCurrency(conferencia.foto.valorTotal)}
+                <strong>Origem (foto):</strong> {formatCurrency(conferencia.foto.valorTotal)}
                 {' · C.Prod '}{formatCurrency(conferencia.foto.custoProducao)}
               </Text>
               {conferencia.vizor && (
                 <Text size="sm">
-                  <strong>{conferencia.fonte === 'CALCULO_STC' ? 'Vizor (decomposição):' : 'Vizor (recálculo):'}</strong>{' '}
+                  <strong>{conferencia.fonte === 'CALCULO_STC' ? 'Recalculado (decomposição):' : 'Recalculado:'}</strong>{' '}
                   {formatCurrency(conferencia.vizor.valorTotal ?? undefined)}
                   {' · C.Prod '}{formatCurrency(conferencia.vizor.custoProducao ?? undefined)}
                 </Text>
@@ -599,12 +599,12 @@ export default function StepRevisao({ formData, updateForm }: Props) {
             {conferencia.confere ? (
               <Text size="xs" c="dimmed">
                 {conferencia.fonte === 'CALCULO_STC'
-                  ? 'Decomposição por componente (CalculoSTC) bate com o Calcgraf item a item.'
-                  : 'O recálculo do Vizor confere com a foto do Calcgraf.'}
+                  ? 'A decomposição por componente bate com o cálculo de origem item a item.'
+                  : 'O recálculo confere com a foto do cálculo de origem.'}
               </Text>
             ) : (
               <Text size="xs" c="dimmed">
-                A foto do Calcgraf é preservada. Use-a na proposta quando houver divergência não resolvida.
+                A foto do cálculo de origem é preservada. Use-a na proposta quando houver divergência não resolvida.
               </Text>
             )}
           </Stack>
@@ -636,7 +636,7 @@ export default function StepRevisao({ formData, updateForm }: Props) {
           {/* Decomposição estilo Calcgraf (paridade) */}
           {resultado.custoProducao != null && (
             <Paper p="md" withBorder>
-              <Text fw={500} size="sm" mb="sm">Decomposição do Custo (paridade Calcgraf)</Text>
+              <Text fw={500} size="sm" mb="sm">Decomposição do Custo</Text>
               <Table>
                 <Table.Tbody>
                   <Table.Tr>
