@@ -57,6 +57,8 @@ import SecaoProduto from './editor/SecaoProduto'
 import SecaoPlanos from './editor/SecaoPlanos'
 import SecaoDadosTecnicos from './editor/SecaoDadosTecnicos'
 import SecaoAcabamentos from './editor/SecaoAcabamentos'
+import SecaoMateriaisAcabamento from './editor/SecaoMateriaisAcabamento'
+import SecaoItensComplementares from './editor/SecaoItensComplementares'
 import SecaoEstruturaCusto from './editor/SecaoEstruturaCusto'
 import SecaoFechamento from './editor/SecaoFechamento'
 
@@ -231,6 +233,8 @@ export default function EditorItem({
       planos: [],
       'dados-tecnicos': [],
       acabamentos: [],
+      'materiais-acabamento': [],
+      'itens-complementares': [],
       estrutura: [],
       fechamento: ['quantidade'],
     }
@@ -291,6 +295,10 @@ export default function EditorItem({
           return <SecaoDadosTecnicos formData={formData} updateForm={updateForm} mostrarCampo={mostrarCampo} />
         case 'acabamentos':
           return <SecaoAcabamentos formData={formData} updateForm={updateForm} />
+        case 'materiais-acabamento':
+          return <SecaoMateriaisAcabamento formData={formData} updateForm={updateForm} />
+        case 'itens-complementares':
+          return <SecaoItensComplementares formData={formData} updateForm={updateForm} />
         case 'estrutura':
           return <SecaoEstruturaCusto resultadoCalculo={item?.resultadoCalculo ?? null} />
         case 'fechamento':
@@ -335,8 +343,13 @@ export default function EditorItem({
     <Box pos="relative">
       <LoadingOverlay visible={saving} />
 
-      {/* Sticky Summary Bar — KPIs em tempo real (Req 3). */}
+      {/* Sticky Summary Bar — KPIs em tempo real (Req 3). Fica colada no topo do
+          corpo do modal (que tem padding 0), logo abaixo do header do modal — sem
+          padding acima que cortasse os cards ao rolar. */}
       <ResumoKpis kpis={kpisExibidos} loading={recalculando} />
+
+      {/* Conteúdo com padding próprio (o body do modal está com padding 0). */}
+      <Box p="md">
 
       {/* Resumo amigável de pendências (Req 1) — sem texto técnico de validação. */}
       {(erros.geral || Object.keys(erros.porCampo).length > 0) && (
@@ -454,6 +467,8 @@ export default function EditorItem({
           {isEditing ? 'Salvar Item' : 'Adicionar Item'}
         </Button>
       </Group>
+
+      </Box>
     </Box>
   )
 }

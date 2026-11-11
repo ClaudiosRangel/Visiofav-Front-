@@ -86,16 +86,15 @@ export default function ResumoKpis({ kpis, loading }: Props) {
       spacing="xs"
       style={{
         position: 'sticky',
+        // Cola no topo do corpo do modal (padding 0), logo abaixo do header.
         top: 0,
         zIndex: 20,
         background: 'var(--mantine-color-body)',
-        // Cobre 100% da largura mesmo com o padding do corpo do modal (margens
-        // negativas) e recria o padding horizontal, para o conteúdo que rola NÃO
-        // aparecer pelas laterais da barra fixa.
-        marginInline: 'calc(var(--mantine-spacing-md) * -1)',
+        // Padding próprio (o corpo do modal não tem padding). Cobre 100% da
+        // largura, então o conteúdo que rola não aparece pelas laterais.
         paddingInline: 'var(--mantine-spacing-md)',
-        paddingTop: 8,
-        paddingBottom: 8,
+        paddingTop: 10,
+        paddingBottom: 10,
         borderBottom: '1px solid var(--mantine-color-default-border)',
         boxShadow: 'var(--mantine-shadow-sm)',
       }}

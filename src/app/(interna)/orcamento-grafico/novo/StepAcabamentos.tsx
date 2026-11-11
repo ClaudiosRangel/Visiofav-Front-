@@ -12,6 +12,17 @@ import type { WizardFormData, AcabamentoRicoSelecionado, MaterialAcabamentoItem 
 interface Props {
   formData: WizardFormData
   updateForm: (partial: Partial<WizardFormData>) => void
+  /**
+   * Qual(is) bloco(s) de JSX exibir. Puramente de APRESENTAÇÃO — todos os
+   * estados/efeitos/handlers (toggle/patch/toggleMaterial/patchMaterial/
+   * hidratação) continuam vivos no componente, independente do valor. Só
+   * condiciona QUAL bloco é renderizado.
+   *   - 'acabamentos' → só a lista de acabamentos (sem materiais).
+   *   - 'materiais'   → só "Materiais de acabamento (computar no custo)".
+   *   - 'ambos' (default/ausente) → comportamento ATUAL idêntico (os dois
+   *     blocos empilhados; não-regressão do fluxo /novo).
+   */
+  mostrar?: 'acabamentos' | 'materiais' | 'ambos'
 }
 
 interface AcabamentoCadastro {
@@ -54,7 +65,9 @@ const naturezaBadge: Record<string, { label: string; color: string }> = {
   CUSTO_FIXO: { label: 'Custo fixo', color: 'grape' },
 }
 
-export default function StepAcabamentos({ formData, updateForm }: Props) {
+export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos' }: Props) {
+  const mostrarAcabamentos = mostrar === 'ambos' || mostrar === 'acabamentos'
+  const mostrarMateriais = mostrar === 'ambos' || mostrar === 'materiais'
   const [cadastro, setCadastro] = useState<AcabamentoCadastro[]>([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
@@ -322,6 +335,8 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
 
   return (
     <Stack gap="md">
+      {mostrarAcabamentos && (
+        <>
       <Text fw={600} size="lg">Acabamentos</Text>
       <Text size="sm" c="dimmed">
         Selecione os acabamentos do orçamento e informe os consumos/tempos. A lista vem do cadastro de Acabamentos.
@@ -557,11 +572,14 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
           )
         })}
       </Stack>
+        </>
+      )}
 
       {/* ───────────────────────────────────────────────────────────────── */}
       {/* R6 — Materiais de acabamento (computar no custo). Soma ao Material  */}
       {/* Direto os itens marcados (valorUnitario × quantidade) no backend.   */}
       {/* ───────────────────────────────────────────────────────────────── */}
+      {mostrarMateriais && (
       <Stack gap="xs" mt="md">
         <div>
           <Text fw={600} size="lg">Materiais de acabamento (computar no custo)</Text>
@@ -645,6 +663,7 @@ export default function StepAcabamentos({ formData, updateForm }: Props) {
           </Stack>
         )}
       </Stack>
+      )}
     </Stack>
   )
 }

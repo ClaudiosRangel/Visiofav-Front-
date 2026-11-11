@@ -16,6 +16,8 @@ export type AncoraId =
   | 'planos'
   | 'dados-tecnicos'
   | 'acabamentos'
+  | 'materiais-acabamento'
+  | 'itens-complementares'
   | 'estrutura'
   | 'fechamento'
 
@@ -28,6 +30,8 @@ export const ANCORA_LABEL: Record<AncoraId, string> = {
   planos: 'Tipos de Plano',
   'dados-tecnicos': 'Dados Técnicos',
   acabamentos: 'Acabamentos',
+  'materiais-acabamento': 'Materiais de Acabamento',
+  'itens-complementares': 'Itens Complementares',
   estrutura: 'Estrutura',
   fechamento: 'Fechamento',
 }
@@ -53,6 +57,8 @@ export function montarAncoras(item: { planos?: unknown[] | null }): AncoraId[] {
     ...(temPlanos ? (['planos'] as const) : []),
     'dados-tecnicos',
     'acabamentos',
+    'materiais-acabamento',
+    'itens-complementares',
     'estrutura',
     'fechamento',
   ]

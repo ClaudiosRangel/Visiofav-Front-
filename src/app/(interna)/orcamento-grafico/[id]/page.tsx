@@ -2000,7 +2000,10 @@ export default function OrcamentoDetalhePage() {
         onClose={() => setEditorPaginaOpen(false)}
         fullScreen
         title={itemEditorPagina ? 'Editar Item do Orçamento' : 'Novo Item do Orçamento'}
-        styles={{ body: { paddingBottom: 0 } }}
+        // body sem padding próprio: o EditorItem controla o espaçamento. Assim a
+        // barra de KPIs (sticky top:0) gruda logo abaixo do HEADER do modal, sem
+        // o padding do body cortar os cards ao rolar.
+        styles={{ body: { padding: 0, height: 'calc(100vh - 60px)', overflowY: 'auto' } }}
       >
         {editorPaginaOpen && (
           <EditorItem
