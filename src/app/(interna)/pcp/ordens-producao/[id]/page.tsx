@@ -63,6 +63,54 @@ export default function DetalheOpPage() {
   const [modalForcarStatus, setModalForcarStatus] = useState(false)
   const [formForcarStatus, setFormForcarStatus] = useState({ status: '', motivoAlteracao: '', emailAdmin: '', senhaAdmin: '' })
   const [salvandoForcarStatus, setSalvandoForcarStatus] = useState(false)
+  // Edição de uma programação de entrega (aba Entregas) — data/quantidade/pedido.
+  const [editEntrega, setEditEntrega] = useState<any | null>(null)
+  const [editEntregaData, setEditEntregaData] = useState('')
+  const [editEntregaQtd, setEditEntregaQtd] = useState<number | ''>('')
+  const [editEntregaPedido, setEditEntregaPedido] = useState('')
+  const [salvandoEditEntrega, setSalvandoEditEntrega] = useState(false)
+
+  // Recarrega só as programações de entrega (após editar uma linha).
+  async function recarregarProgramacoes() {
+    try {
+      const { data } = await api.get(`/ordens-producao/${id}/programacao-entrega`)
+      setProgramacoes(data.programacoes || [])
+    } catch {
+      // silencioso — mantém o estado atual
+    }
+  }
+
+  // Abre o modal de edição de uma programação, semeando os campos.
+  function abrirEditEntrega(p: any) {
+    setEditEntrega(p)
+    // date input espera 'YYYY-MM-DD'
+    setEditEntregaData(p.dataEntrega ? new Date(p.dataEntrega).toISOString().slice(0, 10) : '')
+    setEditEntregaQtd(Number(p.quantidade) || '')
+    setEditEntregaPedido(p.codigoPedido || '')
+  }
+
+  async function salvarEditEntrega() {
+    if (!editEntrega) return
+    if (!editEntregaData) {
+      notifications.show({ title: 'Data obrigatória', message: 'Informe a data de entrega.', color: 'red' })
+      return
+    }
+    setSalvandoEditEntrega(true)
+    try {
+      await api.patch(`/ordens-producao/${id}/programacao-entrega/${editEntrega.id}`, {
+        dataEntrega: editEntregaData,
+        ...(typeof editEntregaQtd === 'number' && editEntregaQtd > 0 ? { quantidade: editEntregaQtd } : {}),
+        codigoPedido: editEntregaPedido.trim() || null,
+      })
+      notifications.show({ title: 'Entrega atualizada', message: 'Data de programação de entrega salva.', color: 'green' })
+      setEditEntrega(null)
+      await recarregarProgramacoes()
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar a entrega.', color: 'red' })
+    } finally {
+      setSalvandoEditEntrega(false)
+    }
+  }
 
   useEffect(() => { document.title = 'PCP - Detalhe OP' }, [])
 
@@ -699,6 +747,7 @@ export default function DetalheOpPage() {
                   <Table.Th>Quantidade</Table.Th>
                   <Table.Th>Pedido</Table.Th>
                   <Table.Th>Status</Table.Th>
+                  <Table.Th w={60} ta="center">Ações</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -708,6 +757,13 @@ export default function DetalheOpPage() {
                     <Table.Td fw={600}>{Number(p.quantidade)}</Table.Td>
                     <Table.Td>{p.codigoPedido || '—'}</Table.Td>
                     <Table.Td><Badge color={p.status === 'EXPEDIDO' ? 'green' : p.status === 'PRODUZIDO' ? 'blue' : 'gray'}>{p.status}</Badge></Table.Td>
+                    <Table.Td ta="center">
+                      <Tooltip label="Alterar data / quantidade">
+                        <ActionIcon variant="subtle" onClick={() => abrirEditEntrega(p)} aria-label="Editar entrega">
+                          <IconPencil size={16} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
@@ -729,6 +785,41 @@ export default function DetalheOpPage() {
           ) : <Text c="dimmed" ta="center">Nenhum registro</Text>}
         </Tabs.Panel>
       </Tabs>
+
+      {/* Modal: Editar Programação de Entrega (data/quantidade/pedido) */}
+      <Modal opened={!!editEntrega} onClose={() => setEditEntrega(null)} title="Alterar Programação de Entrega" centered>
+        <Stack gap="md">
+          <TextInput
+            type="date"
+            label="Data de entrega"
+            value={editEntregaData}
+            onChange={(e) => setEditEntregaData(e.currentTarget.value)}
+            withAsterisk
+          />
+          <NumberInput
+            label="Quantidade"
+            min={0}
+            value={editEntregaQtd}
+            onChange={(v) => setEditEntregaQtd(typeof v === 'number' ? v : '')}
+            thousandSeparator="."
+            decimalSeparator=","
+          />
+          <TextInput
+            label="Pedido (opcional)"
+            value={editEntregaPedido}
+            onChange={(e) => setEditEntregaPedido(e.currentTarget.value)}
+            placeholder="Código do pedido"
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setEditEntrega(null)} disabled={salvandoEditEntrega}>
+              Cancelar
+            </Button>
+            <Button onClick={salvarEditEntrega} loading={salvandoEditEntrega}>
+              Salvar
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       {/* Modal: Nova Etapa (criação manual na OP visualizada) */}
       <Modal opened={modalNovaEtapa} onClose={() => setModalNovaEtapa(false)} title="Nova Etapa" centered>
