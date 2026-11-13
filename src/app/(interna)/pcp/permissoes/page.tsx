@@ -154,6 +154,7 @@ export default function PermissoesPcpPage() {
                     <Checkbox size="xs" label="Prioridade" checked={getVal('podeAlterarPrioridade')} onChange={(e) => setVal('podeAlterarPrioridade', e.currentTarget.checked)} />
                     <Checkbox size="xs" label="Postergar" checked={getVal('podePostergarEntrega')} onChange={(e) => setVal('podePostergarEntrega', e.currentTarget.checked)} />
                     <Checkbox size="xs" label="Acomp." checked={getVal('podeEditarObservacao')} onChange={(e) => setVal('podeEditarObservacao', e.currentTarget.checked)} />
+                    <Checkbox size="xs" label="Voltar etapa" checked={getVal('podeRetornarEtapa')} onChange={(e) => setVal('podeRetornarEtapa', e.currentTarget.checked)} />
                   </Group>
                 </Card>
               )

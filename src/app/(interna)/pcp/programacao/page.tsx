@@ -645,17 +645,32 @@ export default function ProgramacaoPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab])
 
-  async function retornarEtapa() {
-    if (!modalRetornar) return
+  // Decide o caminho de retornar uma etapa concluída: se o usuário tem a
+  // permissão `podeRetornarEtapa` (global/por processo), chama DIRETO (sem
+  // credencial de admin); senão, abre o modal de credencial (fluxo legado).
+  function solicitarRetorno(ec: { id: string; opNumero: string; centroTipoProcessoId?: string | null }) {
+    if (podeExecutar('podeRetornarEtapa', ec.centroTipoProcessoId)) {
+      executarRetorno(ec.id, ec.opNumero)
+    } else {
+      setModalRetornar({ etapaId: ec.id, opNumero: ec.opNumero })
+    }
+  }
+
+  // Executa a chamada de retorno. `credenciais` vazio quando o usuário tem a
+  // permissão própria (o backend aceita corpo sem email/senha nesse caso).
+  async function executarRetorno(
+    etapaId: string,
+    opNumero: string,
+    credenciais?: { emailAdmin: string; senhaAdmin: string },
+  ) {
     setSalvandoRetornar(true)
     try {
-      await api.patch(`/pcp/etapas/${modalRetornar.etapaId}/retornar`, formRetornar)
-      notifications.show({ title: 'Sucesso', message: `OS ${modalRetornar.opNumero} retornada à fila`, color: 'green' })
-      const etapaRetornada = modalRetornar.etapaId
+      await api.patch(`/pcp/etapas/${etapaId}/retornar`, credenciais ?? {})
+      notifications.show({ title: 'Sucesso', message: `OS ${opNumero} retornada à fila`, color: 'green' })
       setModalRetornar(null)
       setFormRetornar({ emailAdmin: '', senhaAdmin: '' })
       // Remove da lista de concluídas
-      setEtapasConcluidas(prev => prev.filter((e: any) => e.id !== etapaRetornada))
+      setEtapasConcluidas(prev => prev.filter((e: any) => e.id !== etapaId))
       // Recarrega o painel completo silenciosamente (sem mostrar loading)
       // para que a etapa retornada apareça com todos os dados corretos
       try {
@@ -667,6 +682,12 @@ export default function ProgramacaoPage() {
     } finally {
       setSalvandoRetornar(false)
     }
+  }
+
+  // Wrapper do modal (fluxo legado com credencial de admin).
+  async function retornarEtapa() {
+    if (!modalRetornar) return
+    await executarRetorno(modalRetornar.etapaId, modalRetornar.opNumero, formRetornar)
   }
 
   async function carregar() {
@@ -2147,9 +2168,12 @@ export default function ProgramacaoPage() {
       quantidade: { header: 'Qtd', align: 'right', render: (e) => `<td class="right">${e.quantidade?.toLocaleString('pt-BR') || '—'}</td>` },
       tiragem: { header: 'Tiragem', align: 'right', render: (e) => `<td class="right">${e.tiragem ? e.tiragem.toLocaleString('pt-BR') : '—'}</td>` },
       entrega: { header: 'Entrega', render: (e) => `<td>${e.dataEntrega ? new Date(e.dataEntrega).toLocaleDateString('pt-BR') : '—'}</td>` },
-      material: { header: 'Material/Cartão', render: (e) => `<td>${e.materialPrincipal || '—'}</td>` },
-      gramatura: { header: 'Gramatura', render: (e) => `<td>${e.gramatura || '—'}</td>` },
-      formato: { header: 'Formato', render: (e) => `<td>${e.formato || '—'}</td>` },
+      // ACOPLAGEM: exibe o MICRO (material/formato/gramatura do microondulado),
+      // não o cartão — pedido do Caio. `_acoplagem` é marcado por etapa abaixo.
+      // Fallback ao cartão quando a OP não tem item de micro.
+      material: { header: 'Material/Cartão', render: (e) => `<td>${(e._acoplagem && e.materialMicro) || e.materialPrincipal || '—'}</td>` },
+      gramatura: { header: 'Gramatura', render: (e) => `<td>${(e._acoplagem && e.gramaturaMicro) || e.gramatura || '—'}</td>` },
+      formato: { header: 'Formato', render: (e) => `<td>${(e._acoplagem && e.formatoMicro) || e.formato || '—'}</td>` },
       matriz: { header: 'Matriz', render: (e) => `<td>${e.matriz || '—'}</td>` },
       cores: { header: 'Cores', align: 'center', render: (e) => `<td class="center">${e.qtdCores || '—'}</td>` },
       pantone01: { header: 'Pantone 1', render: (e) => `<td>${e.pantone01 || '—'}</td>` },
@@ -2179,6 +2203,10 @@ export default function ProgramacaoPage() {
     centrosParaImprimir.forEach((centro: any) => {
       const tipoProcessoCodigo = centro.centro.tipoProcesso?.codigo || 'outros'
       const colunas = getColunasParaProcesso(tipoProcessoCodigo)
+      // Marca cada etapa com a flag de ACOPLAGEM para as colunas material/
+      // gramatura/formato usarem o MICRO em vez do cartão (pedido do Caio).
+      const isAcoplagem = String(tipoProcessoCodigo).toUpperCase() === 'ACOPLAGEM'
+      for (const e of centro.etapas) e._acoplagem = isAcoplagem
 
       html += `<h2>${centro.centro.descricao.toUpperCase()}</h2>`
       html += `<table><thead><tr>`
@@ -2682,7 +2710,8 @@ export default function ProgramacaoPage() {
                         size="compact-xs"
                         variant="light"
                         color="orange"
-                        onClick={() => setModalRetornar({ etapaId: ec.id, opNumero: ec.opNumero })}
+                        loading={salvandoRetornar}
+                        onClick={() => solicitarRetorno(ec)}
                       >
                         Retornar
                       </Button>
