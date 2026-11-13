@@ -51,7 +51,9 @@ export default function OrdensProducaoPage() {
     setLoading(true)
     try {
       const params: any = { page, limit: 20 }
-      if (statusFilter !== 'TODAS') params.status = statusFilter
+      // Aba "RC" (Requisições de Corte) não filtra OPs por status (mostra só
+      // RCs); as demais abas enviam o status ao backend normalmente.
+      if (statusFilter !== 'TODAS' && statusFilter !== 'RC') params.status = statusFilter
       if (busca) params.numero = busca
       if (filtroCliente.trim()) params.cliente = filtroCliente.trim()
       if (filtroProduto.trim()) params.produto = filtroProduto.trim()
@@ -87,10 +89,11 @@ export default function OrdensProducaoPage() {
     return `RC-${seq.padStart(3, '0')}`
   }
 
-  // RCs filtradas pela aba de status e pela busca por número — convertidas em
-  // "linhas" com a mesma forma que a tabela espera (marcadas com _tipo: 'RC').
-  const rcsFiltradas = rcs
-    .filter((rc) => statusFilter === 'TODAS' || rc.status === statusFilter)
+  // RCs: aparecem SOMENTE na aba dedicada "Requisições de Corte" (statusFilter
+  // === 'RC'), não mais mescladas nas abas de OP (Todas/Rascunho/...). Pedido do
+  // Caio — limpar a listagem de OPs. A busca por número continua valendo dentro
+  // da aba RC.
+  const rcsFiltradas = (statusFilter === 'RC' ? rcs : [])
     .filter((rc) => {
       if (!busca.trim()) return true
       const alvo = `${formatarNumeroRc(rc.numero)} ${rc.numero}`.toLowerCase()
@@ -99,11 +102,8 @@ export default function OrdensProducaoPage() {
     // Filtros de cliente/produto não se aplicam à RC; se preenchidos, oculta as RCs.
     .filter(() => !filtroCliente.trim() && !filtroProduto.trim())
 
-  // Lista combinada exibida na tabela: RCs no topo (mais recentes) + OPs.
-  const linhasCombinadas = [
-    ...rcsFiltradas.map((rc) => ({ _tipo: 'RC' as const, ...rc })),
-    ...data.map((op) => ({ _tipo: 'OP' as const, ...op })),
-  ]
+  // (A tabela renderiza `rcsFiltradas` e `data` diretamente — RCs só na aba RC,
+  // OPs nas demais abas. Ver o corpo da tabela abaixo.)
 
   async function handlePdfUpload(file: File) {
     if (!uploadTargetOpId) return
@@ -208,13 +208,16 @@ export default function OrdensProducaoPage() {
           <Tabs.Tab value="EM_PRODUCAO">Em Produção</Tabs.Tab>
           <Tabs.Tab value="CONCLUIDA">Concluída</Tabs.Tab>
           <Tabs.Tab value="CANCELADA">Cancelada</Tabs.Tab>
+          <Tabs.Tab value="RC" leftSection={<IconScissors size={14} />}>Requisições de Corte</Tabs.Tab>
         </Tabs.List>
       </Tabs>
 
       {loading ? (
         <Center py="xl"><Loader /></Center>
-      ) : linhasCombinadas.length === 0 ? (
-        <Text c="dimmed" ta="center" py="xl">Nenhuma ordem de produção encontrada.</Text>
+      ) : (statusFilter === 'RC' ? rcsFiltradas.length === 0 : data.length === 0) ? (
+        <Text c="dimmed" ta="center" py="xl">
+          {statusFilter === 'RC' ? 'Nenhuma requisição de corte encontrada.' : 'Nenhuma ordem de produção encontrada.'}
+        </Text>
       ) : (
         <>
           <Table striped highlightOnHover>
@@ -277,7 +280,7 @@ export default function OrdensProducaoPage() {
                   </Table.Td>
                 </Table.Tr>
               ))}
-              {data.map((op) => (
+              {statusFilter !== 'RC' && data.map((op) => (
                 <Table.Tr key={op.id}>
                   <Table.Td fw={600}>{op.referenciaExterna || op.numero}</Table.Td>
                   <Table.Td>{op.produtoNome || op.produtoId?.substring(0, 8)}</Table.Td>
@@ -352,9 +355,11 @@ export default function OrdensProducaoPage() {
             </Table.Tbody>
           </Table>
 
-          <Group justify="center">
-            <Pagination total={Math.ceil(total / 20)} value={page} onChange={setPage} />
-          </Group>
+          {statusFilter !== 'RC' && (
+            <Group justify="center">
+              <Pagination total={Math.ceil(total / 20)} value={page} onChange={setPage} />
+            </Group>
+          )}
         </>
       )}
 

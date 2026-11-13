@@ -22,7 +22,7 @@ export default function CentrosProducaoPage() {
   const [mostrarInativos, setMostrarInativos] = useState(false)
   const [modalAberto, setModalAberto] = useState(false)
   const [editando, setEditando] = useState<any>(null)
-  const [form, setForm] = useState({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null as string | null, turnoProducaoId: null as string | null, capacidadeHora: 0, custoHora: 0, velocidade: 0, unidadeVelocidade: null as string | null, formatoFolhaLargura: 0, formatoFolhaAltura: 0, pincaMm: 0, acertoPorCorMin: 0, tempoSetupMin: 0, disponivelProgramacao: true, modoContagem: 'QUANTIDADE', contadorZeraDiariamente: false })
+  const [form, setForm] = useState({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null as string | null, turnoProducaoId: null as string | null, capacidadeHora: 0, custoHora: 0, velocidade: 0, unidadeVelocidade: null as string | null, formatoFolhaLargura: 0, formatoFolhaAltura: 0, pincaMm: 0, acertoPorCorMin: 0, tempoSetupMin: 0, disponivelProgramacao: true, disponivelQuadroProducao: true, modoContagem: 'QUANTIDADE', contadorZeraDiariamente: false })
 
   async function carregar() {
     setLoading(true)
@@ -42,8 +42,8 @@ export default function CentrosProducaoPage() {
 
   useEffect(() => { carregar() }, [mostrarInativos])
 
-  function abrirNovo() { setEditando(null); setForm({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null, turnoProducaoId: null, capacidadeHora: 0, custoHora: 0, velocidade: 0, unidadeVelocidade: null, formatoFolhaLargura: 0, formatoFolhaAltura: 0, pincaMm: 0, acertoPorCorMin: 0, tempoSetupMin: 0, disponivelProgramacao: true, modoContagem: 'QUANTIDADE', contadorZeraDiariamente: false }); setModalAberto(true) }
-  function abrirEdicao(item: any) { setEditando(item); setForm({ codigo: item.codigo, descricao: item.descricao, tipo: item.tipo, tipoProcessoId: item.tipoProcessoId || null, turnoProducaoId: item.turnoProducaoId || null, capacidadeHora: Number(item.capacidadeHora) || 0, custoHora: Number(item.custoHora) || 0, velocidade: Number(item.velocidade) || 0, unidadeVelocidade: item.unidadeVelocidade || null, formatoFolhaLargura: Number(item.formatoFolhaLargura) || 0, formatoFolhaAltura: Number(item.formatoFolhaAltura) || 0, pincaMm: Number(item.pincaMm) || 0, acertoPorCorMin: Number(item.acertoPorCorMin) || 0, tempoSetupMin: Number(item.tempoSetupMin) || 0, disponivelProgramacao: item.disponivelProgramacao ?? true, modoContagem: item.modoContagem || 'QUANTIDADE', contadorZeraDiariamente: item.contadorZeraDiariamente ?? false }); setModalAberto(true) }
+  function abrirNovo() { setEditando(null); setForm({ codigo: '', descricao: '', tipo: 'MAQUINA', tipoProcessoId: null, turnoProducaoId: null, capacidadeHora: 0, custoHora: 0, velocidade: 0, unidadeVelocidade: null, formatoFolhaLargura: 0, formatoFolhaAltura: 0, pincaMm: 0, acertoPorCorMin: 0, tempoSetupMin: 0, disponivelProgramacao: true, disponivelQuadroProducao: true, modoContagem: 'QUANTIDADE', contadorZeraDiariamente: false }); setModalAberto(true) }
+  function abrirEdicao(item: any) { setEditando(item); setForm({ codigo: item.codigo, descricao: item.descricao, tipo: item.tipo, tipoProcessoId: item.tipoProcessoId || null, turnoProducaoId: item.turnoProducaoId || null, capacidadeHora: Number(item.capacidadeHora) || 0, custoHora: Number(item.custoHora) || 0, velocidade: Number(item.velocidade) || 0, unidadeVelocidade: item.unidadeVelocidade || null, formatoFolhaLargura: Number(item.formatoFolhaLargura) || 0, formatoFolhaAltura: Number(item.formatoFolhaAltura) || 0, pincaMm: Number(item.pincaMm) || 0, acertoPorCorMin: Number(item.acertoPorCorMin) || 0, tempoSetupMin: Number(item.tempoSetupMin) || 0, disponivelProgramacao: item.disponivelProgramacao ?? true, disponivelQuadroProducao: item.disponivelQuadroProducao ?? true, modoContagem: item.modoContagem || 'QUANTIDADE', contadorZeraDiariamente: item.contadorZeraDiariamente ?? false }); setModalAberto(true) }
 
   async function salvar() {
     if (!form.tipoProcessoId) {
@@ -181,6 +181,13 @@ export default function CentrosProducaoPage() {
             description="Quando desligado, este centro não aparece no painel de Programação"
             checked={form.disponivelProgramacao}
             onChange={(e) => setForm({ ...form, disponivelProgramacao: e.currentTarget.checked })}
+          />
+
+          <Switch
+            label="Aparece no Quadro de Produção (TV)"
+            description="Quando desligado, este centro não aparece no Quadro de Produção, mesmo disponível na Programação (ex.: filas organizacionais como Fila Colagem)"
+            checked={form.disponivelQuadroProducao}
+            onChange={(e) => setForm({ ...form, disponivelQuadroProducao: e.currentTarget.checked })}
           />
 
           <Divider label="Contagem de Produção" labelPosition="left" mt="sm" />
