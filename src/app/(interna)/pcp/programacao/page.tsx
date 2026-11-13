@@ -2973,9 +2973,10 @@ export default function ProgramacaoPage() {
                                 </Text>
                               ) : <Text size="xs" c="dimmed">—</Text>}
                             </Table.Td>}
-                            {colVis('material') && <Table.Td><Text size="sm" style={{ wordBreak: 'break-word' }}>{etapa.plano?.material || etapa.materialPrincipal || '—'}</Text></Table.Td>}
-                            {colVis('gramatura') && <Table.Td>{etapa.plano?.gramatura || etapa.gramatura || '—'}</Table.Td>}
-                            {colVis('formato') && <Table.Td>{etapa.plano?.formato || etapa.formato || '—'}</Table.Td>}
+                            {/* ACOPLAGEM: material/formato/gramatura do MICRO (pedido do Caio), com fallback ao cartão/plano. */}
+                            {colVis('material') && <Table.Td><Text size="sm" style={{ wordBreak: 'break-word' }}>{(centro.centro.tipoProcesso?.codigo === 'ACOPLAGEM' && (etapa.materialMicro || etapa.formatoMicro)) ? (etapa.materialMicro || etapa.plano?.material || etapa.materialPrincipal) : (etapa.plano?.material || etapa.materialPrincipal) || '—'}</Text></Table.Td>}
+                            {colVis('gramatura') && <Table.Td>{(centro.centro.tipoProcesso?.codigo === 'ACOPLAGEM' && etapa.gramaturaMicro) || etapa.plano?.gramatura || etapa.gramatura || '—'}</Table.Td>}
+                            {colVis('formato') && <Table.Td>{(centro.centro.tipoProcesso?.codigo === 'ACOPLAGEM' && etapa.formatoMicro) || etapa.plano?.formato || etapa.formato || '—'}</Table.Td>}
                             {colVis('kg') && <Table.Td>{(etapa.plano?.pesoKg ?? etapa.pesoKg) ? (etapa.plano?.pesoKg ?? etapa.pesoKg).toLocaleString('pt-BR') : '—'}</Table.Td>}
                             {colVis('enviado') && <Table.Td>
                               <Text
@@ -3208,9 +3209,10 @@ export default function ProgramacaoPage() {
                             </Table.Td>
                             {colVis('tipoOp') && <Table.Td><Text size="xs" fw={600} c={etapa.tipoOp?.includes('NOVO') ? 'green' : etapa.tipoOp?.includes('REPETI') ? 'blue' : etapa.tipoOp?.includes('ALTERA') ? 'orange' : etapa.tipoOp?.includes('PILOTO') ? 'violet' : 'gray'} style={{ whiteSpace: 'nowrap', fontSize: '10px' }}>{etapa.tipoOp || '—'}</Text></Table.Td>}
                             {colVis('tiragem') && <Table.Td>{(etapa.plano?.tiragem ?? etapa.tiragem) ? (etapa.plano?.tiragem ?? etapa.tiragem).toLocaleString('pt-BR') : '—'}</Table.Td>}
-                            {colVis('material') && <Table.Td><Text size="sm" style={{ wordBreak: 'break-word' }}>{etapa.plano?.material || etapa.materialPrincipal || '—'}</Text></Table.Td>}
-                            {colVis('gramatura') && <Table.Td>{etapa.plano?.gramatura || etapa.gramatura || '—'}</Table.Td>}
-                            {colVis('formato') && <Table.Td>{etapa.plano?.formato || etapa.formato || '—'}</Table.Td>}
+                            {/* ACOPLAGEM: material/formato/gramatura do MICRO (pedido do Caio), com fallback ao cartão/plano. */}
+                            {colVis('material') && <Table.Td><Text size="sm" style={{ wordBreak: 'break-word' }}>{(centro.centro.tipoProcesso?.codigo === 'ACOPLAGEM' && (etapa.materialMicro || etapa.formatoMicro)) ? (etapa.materialMicro || etapa.plano?.material || etapa.materialPrincipal) : (etapa.plano?.material || etapa.materialPrincipal) || '—'}</Text></Table.Td>}
+                            {colVis('gramatura') && <Table.Td>{(centro.centro.tipoProcesso?.codigo === 'ACOPLAGEM' && etapa.gramaturaMicro) || etapa.plano?.gramatura || etapa.gramatura || '—'}</Table.Td>}
+                            {colVis('formato') && <Table.Td>{(centro.centro.tipoProcesso?.codigo === 'ACOPLAGEM' && etapa.formatoMicro) || etapa.plano?.formato || etapa.formato || '—'}</Table.Td>}
                             {colVis('kg') && <Table.Td>{(etapa.plano?.pesoKg ?? etapa.pesoKg) ? `${(etapa.plano?.pesoKg ?? etapa.pesoKg).toLocaleString('pt-BR')} kg` : '—'}</Table.Td>}
                             {colVis('quantidade') && <Table.Td>
                               {editingQtd?.etapaId === etapa.id ? (
