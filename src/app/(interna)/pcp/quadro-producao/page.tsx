@@ -1,8 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Box, Group, Progress, Text, ActionIcon, Tooltip } from '@mantine/core'
-import { IconMaximize, IconMinimize } from '@tabler/icons-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Box, Group, Progress, Text, ActionIcon, Tooltip, TextInput } from '@mantine/core'
+import { IconMaximize, IconMinimize, IconSearch, IconFilterOff, IconX } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
@@ -79,11 +79,20 @@ const COLORS = {
 
 // ─── Componente Principal ───────────────────────────────────────────────────
 
+type StatusFiltro = 'PRODUZINDO' | 'PARADA' | 'OCIOSA'
+
 export default function QuadroProducaoPage() {
   const [data, setData] = useState<QuadroData | null>(null)
   const [clock, setClock] = useState(new Date())
   const [fullscreen, setFullscreen] = useState(false)
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date | null>(null)
+
+  // ── Filtros (client-side; os dados já vêm completos do backend) ──
+  // Status selecionados (vazio = todos). Tipos de processo selecionados
+  // (vazio = todos). Busca por nome de máquina. Persistem no auto-refresh.
+  const [statusSel, setStatusSel] = useState<Set<StatusFiltro>>(new Set())
+  const [processosSel, setProcessosSel] = useState<Set<string>>(new Set())
+  const [busca, setBusca] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const scrollPosRef = useRef(0)
@@ -128,7 +137,8 @@ export default function QuadroProducaoPage() {
       el.scrollTop = scrollPosRef.current
     }, 50)
     return () => clearInterval(interval)
-  }, [data])
+    // Reavalia quando os dados OU os filtros mudam (a lista visível muda).
+  }, [data, statusSel, processosSel, busca])
 
   // Fullscreen toggle
   const toggleFullscreen = useCallback(() => {
@@ -172,7 +182,54 @@ export default function QuadroProducaoPage() {
   }, [])
 
   const resumo = data?.resumo
-  const maquinas = data?.maquinas || []
+  const maquinas = useMemo(() => data?.maquinas || [], [data])
+
+  // Lista de tipos de processo distintos presentes (para os chips de processo).
+  const processosDisponiveis = useMemo(() => {
+    const set = new Set<string>()
+    for (const m of maquinas) if (m.tipoProcesso) set.add(m.tipoProcesso)
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  }, [maquinas])
+
+  // Máquinas após aplicar os filtros (status + processo + busca).
+  const maquinasFiltradas = useMemo(() => {
+    const termo = busca.trim().toLowerCase()
+    return maquinas.filter((m) => {
+      if (statusSel.size > 0 && !statusSel.has(m.status)) return false
+      if (processosSel.size > 0 && !processosSel.has(m.tipoProcesso)) return false
+      if (termo) {
+        const alvo = `${m.centroNome} ${m.tipoProcesso} ${m.etapaAtual?.opNumero ?? ''} ${m.etapaAtual?.cliente ?? ''} ${m.etapaAtual?.produto ?? ''}`.toLowerCase()
+        if (!alvo.includes(termo)) return false
+      }
+      return true
+    })
+  }, [maquinas, statusSel, processosSel, busca])
+
+  const temFiltro = statusSel.size > 0 || processosSel.size > 0 || busca.trim().length > 0
+
+  const toggleStatus = useCallback((s: StatusFiltro) => {
+    setStatusSel((prev) => {
+      const next = new Set(prev)
+      if (next.has(s)) next.delete(s)
+      else next.add(s)
+      return next
+    })
+  }, [])
+
+  const toggleProcesso = useCallback((p: string) => {
+    setProcessosSel((prev) => {
+      const next = new Set(prev)
+      if (next.has(p)) next.delete(p)
+      else next.add(p)
+      return next
+    })
+  }, [])
+
+  const limparFiltros = useCallback(() => {
+    setStatusSel(new Set())
+    setProcessosSel(new Set())
+    setBusca('')
+  }, [])
 
   return (
     <Box
@@ -197,10 +254,27 @@ export default function QuadroProducaoPage() {
           </Text>
           {resumo && (
             <Group gap="md" wrap="wrap">
-              <Badge color="green" label={`🟢 ${resumo.maquinasAtivas} Produzindo`} />
-              <Badge color="orange" label={`🟡 ${resumo.maquinasParadas} Parada${resumo.maquinasParadas !== 1 ? 's' : ''}`} />
-              <Badge color="gray" label={`⚪ ${resumo.maquinasOciosas} Ociosa${resumo.maquinasOciosas !== 1 ? 's' : ''}`} />
-              <Badge color="teal" label={`✅ ${resumo.opsConcluídasHoje} Concluída${resumo.opsConcluídasHoje !== 1 ? 's' : ''}`} />
+              {/* Totalizadores CLICÁVEIS = filtro por status (pedido do cliente). */}
+              <Badge
+                color={COLORS.green}
+                label={`🟢 ${resumo.maquinasAtivas} Produzindo`}
+                active={statusSel.has('PRODUZINDO')}
+                onClick={() => toggleStatus('PRODUZINDO')}
+              />
+              <Badge
+                color={COLORS.orange}
+                label={`🟡 ${resumo.maquinasParadas} Parada${resumo.maquinasParadas !== 1 ? 's' : ''}`}
+                active={statusSel.has('PARADA')}
+                onClick={() => toggleStatus('PARADA')}
+              />
+              <Badge
+                color={COLORS.gray}
+                label={`⚪ ${resumo.maquinasOciosas} Ociosa${resumo.maquinasOciosas !== 1 ? 's' : ''}`}
+                active={statusSel.has('OCIOSA')}
+                onClick={() => toggleStatus('OCIOSA')}
+              />
+              {/* Concluídas é indicador do dia (não é status de máquina) — informativo. */}
+              <Badge color="#099268" label={`✅ ${resumo.opsConcluídasHoje} Concluída${resumo.opsConcluídasHoje !== 1 ? 's' : ''}`} />
             </Group>
           )}
         </Group>
@@ -232,6 +306,63 @@ export default function QuadroProducaoPage() {
         </Group>
       </Group>
 
+      {/* ─── Barra de filtros ──────────────────────────────────────── */}
+      <Group justify="space-between" mb="sm" wrap="wrap" gap="sm">
+        <Group gap={8} wrap="wrap" style={{ flex: 1, minWidth: 0 }}>
+          {/* Filtro por TIPO DE PROCESSO (grupos de máquinas) — chips clicáveis. */}
+          {processosDisponiveis.map((p) => (
+            <Badge
+              key={p}
+              color="#4c6ef5"
+              label={p}
+              active={processosSel.has(p)}
+              onClick={() => toggleProcesso(p)}
+            />
+          ))}
+        </Group>
+
+        <Group gap="sm" wrap="nowrap">
+          <TextInput
+            size="xs"
+            placeholder="Buscar máquina, OP, cliente..."
+            value={busca}
+            onChange={(e) => setBusca(e.currentTarget.value)}
+            leftSection={<IconSearch size={14} />}
+            rightSection={
+              busca ? (
+                <IconX
+                  size={14}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setBusca('')}
+                />
+              ) : null
+            }
+            styles={{
+              input: {
+                background: COLORS.card,
+                borderColor: COLORS.cardBorder,
+                color: COLORS.textBright,
+                width: 240,
+              },
+            }}
+          />
+          {temFiltro && (
+            <Tooltip label="Limpar filtros">
+              <ActionIcon variant="subtle" color="gray" size="md" onClick={limparFiltros}>
+                <IconFilterOff size={18} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </Group>
+      </Group>
+
+      {/* Contador de resultado (mostrando X de Y) — só quando há filtro. */}
+      {temFiltro && (
+        <Text size="xs" c={COLORS.textSecondary} mb={6}>
+          Mostrando {maquinasFiltradas.length} de {maquinas.length} máquinas
+        </Text>
+      )}
+
       {/* ─── Grid de Cards ─────────────────────────────────────────── */}
       <Box
         ref={scrollRef}
@@ -244,7 +375,7 @@ export default function QuadroProducaoPage() {
           alignContent: 'start',
         }}
       >
-        {maquinas.map(maquina => (
+        {maquinasFiltradas.map(maquina => (
           <MaquinaCard key={maquina.centroId} maquina={maquina} />
         ))}
 
@@ -255,6 +386,14 @@ export default function QuadroProducaoPage() {
             </Text>
           </Box>
         )}
+
+        {maquinas.length > 0 && maquinasFiltradas.length === 0 && (
+          <Box style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '60px 0' }}>
+            <Text size="xl" c={COLORS.textSecondary}>
+              Nenhuma máquina para os filtros selecionados.
+            </Text>
+          </Box>
+        )}
       </Box>
     </Box>
   )
@@ -262,18 +401,37 @@ export default function QuadroProducaoPage() {
 
 // ─── Badge simples (substitui Mantine Badge para controle visual) ───────────
 
-function Badge({ color, label }: { color: string; label: string }) {
+function Badge({
+  color,
+  label,
+  active,
+  onClick,
+}: {
+  color: string
+  label: string
+  active?: boolean
+  onClick?: () => void
+}) {
+  const clicavel = typeof onClick === 'function'
   return (
     <Text
       size="sm"
       fw={600}
-      c={COLORS.textPrimary}
+      c={active ? COLORS.textBright : COLORS.textPrimary}
+      onClick={onClick}
+      role={clicavel ? 'button' : undefined}
       style={{
-        background: `color-mix(in srgb, ${color} 15%, transparent)`,
-        border: `1px solid color-mix(in srgb, ${color} 40%, transparent)`,
+        background: active
+          ? `color-mix(in srgb, ${color} 45%, transparent)`
+          : `color-mix(in srgb, ${color} 15%, transparent)`,
+        border: `1px solid color-mix(in srgb, ${color} ${active ? 90 : 40}%, transparent)`,
         borderRadius: 6,
         padding: '4px 10px',
         whiteSpace: 'nowrap',
+        cursor: clicavel ? 'pointer' : 'default',
+        boxShadow: active ? `0 0 10px color-mix(in srgb, ${color} 35%, transparent)` : undefined,
+        transition: 'all 0.15s ease',
+        userSelect: 'none',
       }}
     >
       {label}
