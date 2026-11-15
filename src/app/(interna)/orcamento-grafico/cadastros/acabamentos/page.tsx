@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react'
 import {
   Title, Stack, Table, Group, Button, Badge, Text, Loader, Center,
   Modal, TextInput, Select, NumberInput, ActionIcon, ScrollArea, Divider, SimpleGrid, Pagination,
-  Checkbox, Paper, TagsInput,
+  Checkbox, Paper, TagsInput, Tabs, Textarea, MultiSelect,
 } from '@mantine/core'
 import { IconPlus, IconEdit, IconTrash } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
+import { relacoesApi, mensagemErroApi } from '../_shared/cadastros-graficos.api'
 
 // ============================================================================
 // Cadastro de ACABAMENTOS do Orçamento Gráfico (paridade relatório Calcgraf).
@@ -36,6 +37,11 @@ interface Acabamento {
   exigeRestricao: boolean
   // P16 — materiais informativos por atividade (lista de nomes). Só texto.
   materiais?: string[] | null
+  // Campos novos (opcionais) — spec orcamento-grafico-cadastros-relacoes
+  acondicionamento?: boolean | null
+  textoProposta?: string | null
+  exibirNomePlano?: boolean | null
+  caracteristicas?: Record<string, unknown> | null
   status: boolean
 }
 
@@ -46,7 +52,21 @@ interface Restricao {
   nome: string
   tempoAcertoMin: number | string
   tempoOperacaoMin: number | string
+  exibirNaProposta?: boolean | null
+  centroProducaoId?: string | null
   criadoEm: string
+}
+
+interface RestricaoForm {
+  nome: string
+  tempoAcertoMin: number | ''
+  tempoOperacaoMin: number | ''
+  exibirNaProposta: boolean
+  centroProducaoId: string | null
+}
+
+const RESTRICAO_FORM_INICIAL: RestricaoForm = {
+  nome: '', tempoAcertoMin: '', tempoOperacaoMin: '', exibirNaProposta: false, centroProducaoId: null,
 }
 
 interface FormData {
@@ -65,6 +85,10 @@ interface FormData {
   exigeRestricao: boolean
   // P16 — materiais informativos (lista de nomes). Editado como TagsInput.
   materiais: string[]
+  acondicionamento: boolean
+  textoProposta: string
+  exibirNomePlano: boolean
+  caracteristicas: string // JSON em texto (vazio = não informado)
 }
 
 const FORM_INICIAL: FormData = {
@@ -82,6 +106,10 @@ const FORM_INICIAL: FormData = {
   unidadeBase: 'FOLHA',
   exigeRestricao: false,
   materiais: [],
+  acondicionamento: false,
+  textoProposta: '',
+  exibirNomePlano: false,
+  caracteristicas: '',
 }
 
 const NATUREZAS = [
@@ -105,10 +133,16 @@ export default function AcabamentosPage() {
   // Restrições (sub-opções) do acabamento em edição
   const [restricoes, setRestricoes] = useState<Restricao[]>([])
   const [carregandoRestricoes, setCarregandoRestricoes] = useState(false)
-  const [novaRestricao, setNovaRestricao] = useState<{ nome: string; tempoAcertoMin: number | ''; tempoOperacaoMin: number | '' }>({
-    nome: '', tempoAcertoMin: '', tempoOperacaoMin: '',
-  })
+  const [novaRestricao, setNovaRestricao] = useState<RestricaoForm>(RESTRICAO_FORM_INICIAL)
+  const [restricaoEditId, setRestricaoEditId] = useState<string | null>(null)
   const [salvandoRestricao, setSalvandoRestricao] = useState(false)
+  const [aba, setAba] = useState<string>('dados')
+  const [centros, setCentros] = useState<{ value: string; label: string }[]>([])
+  // Materiais permitidos (relação ATIVIDADE→MATERIAL)
+  const [materiaisOpcoes, setMateriaisOpcoes] = useState<{ value: string; label: string }[]>([])
+  const [materiaisSel, setMateriaisSel] = useState<string[]>([])
+  const [carregandoMateriais, setCarregandoMateriais] = useState(false)
+  const [salvandoMateriais, setSalvandoMateriais] = useState(false)
   // Paginação (50 itens/página)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -135,6 +169,7 @@ export default function AcabamentosPage() {
   function abrirNovo() {
     setEditando(null)
     setForm(FORM_INICIAL)
+    setAba('dados')
     setModalAberto(true)
   }
 
@@ -157,7 +192,12 @@ export default function AcabamentosPage() {
       unidadeBase: item.unidadeBase || 'FOLHA',
       exigeRestricao: item.exigeRestricao ?? false,
       materiais: Array.isArray(item.materiais) ? item.materiais : [],
+      acondicionamento: !!item.acondicionamento,
+      textoProposta: item.textoProposta ?? '',
+      exibirNomePlano: !!item.exibirNomePlano,
+      caracteristicas: item.caracteristicas ? JSON.stringify(item.caracteristicas, null, 2) : '',
     })
+    setAba('dados')
     setModalAberto(true)
   }
 
@@ -165,11 +205,50 @@ export default function AcabamentosPage() {
   useEffect(() => {
     if (!modalAberto || !editando) {
       setRestricoes([])
-      setNovaRestricao({ nome: '', tempoAcertoMin: '', tempoOperacaoMin: '' })
+      setNovaRestricao(RESTRICAO_FORM_INICIAL)
+      setRestricaoEditId(null)
+      setMateriaisSel([])
       return
     }
     carregarRestricoes(editando.id)
+    carregarMateriaisPermitidos(editando.id)
   }, [modalAberto, editando]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Centros de produção (para vincular restrição) — carregados uma vez
+  useEffect(() => {
+    api.get('/centros-producao', { params: { limit: 100, status: 'true' } })
+      .then(({ data }) => {
+        const items = data.data || data || []
+        setCentros(items.map((c: any) => ({ value: c.id, label: `${c.codigo ?? ''} ${c.descricao ?? c.nome ?? ''}`.trim() })))
+      })
+      .catch(() => setCentros([]))
+  }, [])
+
+  async function carregarMateriaisPermitidos(acabamentoId: string) {
+    setCarregandoMateriais(true)
+    try {
+      const [mats, rels] = await Promise.all([
+        api.get('/orcamento-grafico/materiais-acabamento', { params: { situacao: 'todas' } }),
+        relacoesApi.listar({ tipoOrigem: 'ATIVIDADE', idOrigem: acabamentoId, tipoDestino: 'MATERIAL' }),
+      ])
+      const lista = mats.data.data || mats.data || []
+      setMateriaisOpcoes(lista.map((m: any) => ({ value: m.id, label: `${m.codigo} — ${m.nome}` })))
+      setMateriaisSel(rels.map((r) => r.idDestino))
+    } catch (err) {
+      notifications.show({ title: 'Erro ao carregar materiais', message: mensagemErroApi(err, 'Falha ao buscar materiais permitidos'), color: 'red' })
+    } finally { setCarregandoMateriais(false) }
+  }
+
+  async function salvarMateriaisPermitidos() {
+    if (!editando) return
+    setSalvandoMateriais(true)
+    try {
+      await relacoesApi.salvar({ tipoOrigem: 'ATIVIDADE', idOrigem: editando.id, tipoDestino: 'MATERIAL', ids: materiaisSel })
+      notifications.show({ title: 'Salvo', message: 'Materiais permitidos atualizados', color: 'green' })
+    } catch (err) {
+      notifications.show({ title: 'Erro ao salvar', message: mensagemErroApi(err, 'Falha ao salvar materiais permitidos'), color: 'red' })
+    } finally { setSalvandoMateriais(false) }
+  }
 
   async function carregarRestricoes(acabamentoId: string) {
     setCarregandoRestricoes(true)
@@ -186,17 +265,36 @@ export default function AcabamentosPage() {
     if (!novaRestricao.nome.trim()) { notifications.show({ title: 'Erro', message: 'Nome da restrição obrigatório', color: 'red' }); return }
     setSalvandoRestricao(true)
     try {
-      await api.post(`/orcamento-grafico/acabamentos/${editando.id}/restricoes`, {
+      const body = {
         nome: novaRestricao.nome.trim(),
         tempoAcertoMin: novaRestricao.tempoAcertoMin === '' ? 0 : Number(novaRestricao.tempoAcertoMin),
         tempoOperacaoMin: novaRestricao.tempoOperacaoMin === '' ? 0 : Number(novaRestricao.tempoOperacaoMin),
-      })
-      notifications.show({ title: 'Restrição adicionada', message: `"${novaRestricao.nome.trim()}" criada`, color: 'green' })
-      setNovaRestricao({ nome: '', tempoAcertoMin: '', tempoOperacaoMin: '' })
+        exibirNaProposta: novaRestricao.exibirNaProposta,
+        centroProducaoId: novaRestricao.centroProducaoId,
+      }
+      if (restricaoEditId) {
+        await api.put(`/orcamento-grafico/acabamentos/${editando.id}/restricoes/${restricaoEditId}`, body)
+      } else {
+        await api.post(`/orcamento-grafico/acabamentos/${editando.id}/restricoes`, body)
+      }
+      notifications.show({ title: restricaoEditId ? 'Restrição atualizada' : 'Restrição adicionada', message: `"${body.nome}" salva`, color: 'green' })
+      setNovaRestricao(RESTRICAO_FORM_INICIAL)
+      setRestricaoEditId(null)
       carregarRestricoes(editando.id)
     } catch (err: any) {
       notifications.show({ title: 'Erro ao adicionar', message: err?.response?.data?.message || 'Falha ao criar restrição', color: 'red' })
     } finally { setSalvandoRestricao(false) }
+  }
+
+  function editarRestricao(r: Restricao) {
+    setRestricaoEditId(r.id)
+    setNovaRestricao({
+      nome: r.nome,
+      tempoAcertoMin: Number(r.tempoAcertoMin),
+      tempoOperacaoMin: Number(r.tempoOperacaoMin),
+      exibirNaProposta: !!r.exibirNaProposta,
+      centroProducaoId: r.centroProducaoId ?? null,
+    })
   }
 
   async function excluirRestricao(r: Restricao) {
@@ -216,6 +314,17 @@ export default function AcabamentosPage() {
     if (!form.nome.trim()) { notifications.show({ title: 'Erro', message: 'Nome obrigatório', color: 'red' }); return }
 
     const numOrNull = (v: number | '') => (v === '' ? null : Number(v))
+    let caracteristicas: Record<string, unknown> | null = null
+    if (form.caracteristicas.trim()) {
+      try {
+        const parsed = JSON.parse(form.caracteristicas)
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('não é objeto')
+        caracteristicas = parsed
+      } catch {
+        notifications.show({ title: 'Erro', message: 'Características: informe um objeto JSON válido', color: 'red' })
+        return
+      }
+    }
     setSalvando(true)
     try {
       const payload = {
@@ -234,6 +343,10 @@ export default function AcabamentosPage() {
         exigeRestricao: form.exigeRestricao,
         // P16 — materiais informativos (lista de nomes). Sem efeito no cálculo.
         materiais: form.materiais.map((m) => m.trim()).filter((m) => m.length > 0),
+        acondicionamento: form.acondicionamento,
+        textoProposta: form.textoProposta.trim() ? form.textoProposta.trim() : null,
+        exibirNomePlano: form.exibirNomePlano,
+        caracteristicas,
       }
       if (editando) {
         await api.put(`/orcamento-grafico/acabamentos/${editando.id}`, payload)
@@ -304,6 +417,9 @@ export default function AcabamentosPage() {
                       {item.exigeRestricao && (
                         <Badge size="xs" variant="light" color="orange">Exige restrição</Badge>
                       )}
+                      {item.acondicionamento && (
+                        <Badge size="xs" variant="light" color="grape">Acondicionamento</Badge>
+                      )}
                     </Group>
                   </Table.Td>
                   <Table.Td><Badge variant="light" color={item.tipoAtividade === 'IMPRESSAO' ? 'blue' : 'gray'}>{item.tipoAtividade}</Badge></Table.Td>
@@ -351,6 +467,16 @@ export default function AcabamentosPage() {
         size="lg"
       >
         <Stack gap="md">
+          {editando && (
+            <Tabs value={aba} onChange={(v) => setAba(v || 'dados')}>
+              <Tabs.List>
+                <Tabs.Tab value="dados">Dados</Tabs.Tab>
+                <Tabs.Tab value="restricoes">Restrições</Tabs.Tab>
+                <Tabs.Tab value="materiais">Materiais</Tabs.Tab>
+              </Tabs.List>
+            </Tabs>
+          )}
+          {aba === 'dados' && (<>
           <Group grow>
             <TextInput
               label="Código"
@@ -395,6 +521,34 @@ export default function AcabamentosPage() {
             description="Quando marcado, o orçamento exige escolher uma sub-opção (restrição) para este acabamento."
             checked={form.exigeRestricao}
             onChange={(e) => setForm({ ...form, exigeRestricao: e.currentTarget.checked })}
+          />
+          <Checkbox
+            label="Acondicionamento"
+            description="Marca esta atividade como acondicionamento (embalagem do produto pronto)."
+            checked={form.acondicionamento}
+            onChange={(e) => setForm({ ...form, acondicionamento: e.currentTarget.checked })}
+          />
+          <Checkbox
+            label="Exibir nome do plano na proposta"
+            checked={form.exibirNomePlano}
+            onChange={(e) => setForm({ ...form, exibirNomePlano: e.currentTarget.checked })}
+          />
+          <Textarea
+            label="Texto na proposta"
+            value={form.textoProposta}
+            onChange={(e) => setForm({ ...form, textoProposta: e.currentTarget.value })}
+            autosize
+            minRows={2}
+            maxLength={5000}
+          />
+          <Textarea
+            label="Características (JSON)"
+            description="Opcional. Objeto JSON, ex.: {&quot;chave&quot;: &quot;valor&quot;}. Deixe vazio para não informar."
+            value={form.caracteristicas}
+            onChange={(e) => setForm({ ...form, caracteristicas: e.currentTarget.value })}
+            autosize
+            minRows={2}
+            styles={{ input: { fontFamily: 'monospace', fontSize: 12 } }}
           />
 
           <Divider label="Parâmetros de custo" labelPosition="left" />
@@ -479,8 +633,37 @@ export default function AcabamentosPage() {
             onChange={(v) => setForm({ ...form, materiais: v })}
             clearable
           />
+          <Button onClick={salvar} fullWidth loading={salvando}>
+            {editando ? 'Salvar Alterações' : 'Criar Acabamento'}
+          </Button>
+          </>)}
 
-          {editando && (
+          {editando && aba === 'materiais' && (
+            <>
+              <Text size="xs" c="dimmed">
+                Materiais permitidos para esta atividade (relação Atividade → Material).
+              </Text>
+              {carregandoMateriais ? (
+                <Center py="sm"><Loader size="sm" /></Center>
+              ) : (
+                <MultiSelect
+                  label="Materiais permitidos"
+                  data={materiaisOpcoes}
+                  value={materiaisSel}
+                  onChange={setMateriaisSel}
+                  searchable
+                  clearable
+                  placeholder="Selecione os materiais"
+                  nothingFoundMessage="Nenhum material encontrado"
+                />
+              )}
+              <Button onClick={salvarMateriaisPermitidos} fullWidth loading={salvandoMateriais} disabled={carregandoMateriais}>
+                Salvar materiais
+              </Button>
+            </>
+          )}
+
+          {editando && aba === 'restricoes' && (
             <>
               <Divider label="Restrições (sub-opções)" labelPosition="left" />
               <Text size="xs" c="dimmed">
@@ -502,11 +685,18 @@ export default function AcabamentosPage() {
                           <Text size="sm" fw={500} truncate>{r.nome}</Text>
                           <Text size="xs" c="dimmed">
                             Acerto: {Number(r.tempoAcertoMin)} min · Operação: {Number(r.tempoOperacaoMin)} min
+                            {r.exibirNaProposta ? ' · Exibe na proposta' : ''}
+                            {r.centroProducaoId ? ` · Centro: ${centros.find((c) => c.value === r.centroProducaoId)?.label ?? '—'}` : ''}
                           </Text>
                         </div>
-                        <ActionIcon variant="subtle" color="red" onClick={() => excluirRestricao(r)}>
-                          <IconTrash size={16} />
-                        </ActionIcon>
+                        <Group gap={4} wrap="nowrap">
+                          <ActionIcon variant="subtle" onClick={() => editarRestricao(r)}>
+                            <IconEdit size={16} />
+                          </ActionIcon>
+                          <ActionIcon variant="subtle" color="red" onClick={() => excluirRestricao(r)}>
+                            <IconTrash size={16} />
+                          </ActionIcon>
+                        </Group>
                       </Group>
                     </Paper>
                   ))}
@@ -515,7 +705,7 @@ export default function AcabamentosPage() {
 
               <Paper p="sm" withBorder bg="var(--mantine-color-default-hover)">
                 <Stack gap="xs">
-                  <Text size="sm" fw={500}>Adicionar restrição</Text>
+                  <Text size="sm" fw={500}>{restricaoEditId ? 'Editar restrição' : 'Adicionar restrição'}</Text>
                   <TextInput
                     label="Nome"
                     value={novaRestricao.nome}
@@ -541,23 +731,45 @@ export default function AcabamentosPage() {
                       decimalScale={2}
                     />
                   </SimpleGrid>
-                  <Button
-                    size="xs"
-                    variant="light"
-                    leftSection={<IconPlus size={14} />}
-                    onClick={adicionarRestricao}
-                    loading={salvandoRestricao}
-                  >
-                    Adicionar restrição
-                  </Button>
+                  <Select
+                    label="Centro de produção"
+                    data={centros}
+                    value={novaRestricao.centroProducaoId}
+                    onChange={(v) => setNovaRestricao({ ...novaRestricao, centroProducaoId: v })}
+                    searchable
+                    clearable
+                    placeholder="Opcional"
+                  />
+                  <Checkbox
+                    label="Exibir na proposta"
+                    checked={novaRestricao.exibirNaProposta}
+                    onChange={(e) => setNovaRestricao({ ...novaRestricao, exibirNaProposta: e.currentTarget.checked })}
+                  />
+                  <Group gap="xs">
+                    <Button
+                      size="xs"
+                      variant="light"
+                      leftSection={restricaoEditId ? <IconEdit size={14} /> : <IconPlus size={14} />}
+                      onClick={adicionarRestricao}
+                      loading={salvandoRestricao}
+                    >
+                      {restricaoEditId ? 'Salvar restrição' : 'Adicionar restrição'}
+                    </Button>
+                    {restricaoEditId && (
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        color="gray"
+                        onClick={() => { setRestricaoEditId(null); setNovaRestricao(RESTRICAO_FORM_INICIAL) }}
+                      >
+                        Cancelar edição
+                      </Button>
+                    )}
+                  </Group>
                 </Stack>
               </Paper>
             </>
           )}
-
-          <Button onClick={salvar} fullWidth loading={salvando}>
-            {editando ? 'Salvar Alterações' : 'Criar Acabamento'}
-          </Button>
         </Stack>
       </Modal>
     </Stack>

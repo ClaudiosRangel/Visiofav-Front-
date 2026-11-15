@@ -494,6 +494,15 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       { icon: IconLock, label: 'Permissões', href: '/orcamento-grafico/permissoes' },
       {
         label: 'Cadastros', icon: IconDatabase, items: [
+          { icon: IconPackage, label: 'Produtos', href: '/orcamento-grafico/cadastros/produtos' },
+          { icon: IconCategory, label: 'Tipos de Plano', href: '/orcamento-grafico/cadastros/tipos-plano' },
+          { icon: IconSitemap, label: 'Relações', href: '/orcamento-grafico/cadastros/relacoes' },
+          { icon: IconListDetails, label: 'Itens Diversos', href: '/orcamento-grafico/cadastros/itens-diversos' },
+          { icon: IconFileText, label: 'Campos Livres', href: '/orcamento-grafico/cadastros/campos-livres' },
+          { icon: IconGauge, label: 'Ajustes de Produtividade', href: '/orcamento-grafico/cadastros/ajustes-produtividade' },
+          { icon: IconChartBar, label: 'Quebras', href: '/orcamento-grafico/cadastros/quebras' },
+          { icon: IconAssembly, label: 'Limites de Montagem', href: '/orcamento-grafico/cadastros/limites-montagem' },
+          { icon: IconSettings, label: 'Parâmetros do Orçamento', href: '/orcamento-grafico/cadastros/parametros-orcamento' },
           { icon: IconPackage, label: 'Tipos de Embalagem', href: '/orcamento-grafico/cadastros/tipos-embalagem' },
           { icon: IconCash, label: 'Preços Materiais', href: '/orcamento-grafico/cadastros/precos-materiais' },
           { icon: IconPalette, label: 'Suportes', href: '/orcamento-grafico/cadastros/suportes' },

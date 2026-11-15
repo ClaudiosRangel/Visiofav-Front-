@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import {
   Title, Stack, Table, Group, Button, Badge, Text, Loader, Center,
-  Modal, TextInput, NumberInput, Switch, ActionIcon, ScrollArea,
+  Modal, TextInput, NumberInput, Switch, ActionIcon, ScrollArea, Select, Textarea,
 } from '@mantine/core'
 import { IconPlus, IconEdit } from '@tabler/icons-react'
 import { api } from '@/lib/api'
@@ -20,6 +20,14 @@ interface MaterialAcabamento {
   nome: string
   valorReferencia: number | null
   ativo: boolean
+  // Campos novos (opcionais) — spec orcamento-grafico-cadastros-relacoes
+  tipoMaterial?: string | null
+  unidadeCusto?: string | null
+  usoObrigatorio?: boolean | null
+  medidaLinear?: boolean | null
+  conteudoRoloMetros?: number | string | null
+  consumoMinimo?: number | string | null
+  textoProposta?: string | null
 }
 
 interface FormData {
@@ -27,6 +35,13 @@ interface FormData {
   nome: string
   valorReferencia: number | string
   ativo: boolean
+  tipoMaterial: string | null
+  unidadeCusto: string | null
+  usoObrigatorio: boolean
+  medidaLinear: boolean
+  conteudoRoloMetros: number | ''
+  consumoMinimo: number | ''
+  textoProposta: string
 }
 
 const FORM_INICIAL: FormData = {
@@ -34,7 +49,33 @@ const FORM_INICIAL: FormData = {
   nome: '',
   valorReferencia: 0,
   ativo: true,
+  tipoMaterial: null,
+  unidadeCusto: null,
+  usoObrigatorio: false,
+  medidaLinear: false,
+  conteudoRoloMetros: '',
+  consumoMinimo: '',
+  textoProposta: '',
 }
+
+const TIPOS_MATERIAL = [
+  { value: 'ACONDICIONAMENTO', label: 'Acondicionamento' },
+  { value: 'COLA', label: 'Cola' },
+  { value: 'FITA', label: 'Fita' },
+  { value: 'PROPORCIONAL_TIRAGEM', label: 'Proporcional à tiragem' },
+  { value: 'REVESTIMENTO_KG', label: 'Revestimento (kg)' },
+  { value: 'OUTRO', label: 'Outro' },
+]
+const UNIDADES_CUSTO = [
+  { value: 'KG', label: 'kg' },
+  { value: 'M2', label: 'm²' },
+  { value: 'UN', label: 'un' },
+  { value: 'M', label: 'm' },
+]
+// Tipos cujo parâmetro é informativo / ainda a verificar (não alteram o preço).
+const TIPOS_PARAM_INFORMATIVO = ['FITA', 'OUTRO']
+const numOuVazio = (v: number | string | null | undefined): number | '' =>
+  v == null || v === '' ? '' : Number(v)
 
 export default function MateriaisAcabamentoPage() {
   useEffect(() => { document.title = 'Orçamento Gráfico - Materiais de Acabamento' }, [])
@@ -78,6 +119,13 @@ export default function MateriaisAcabamentoPage() {
       nome: item.nome,
       valorReferencia: item.valorReferencia != null ? Number(item.valorReferencia) : 0,
       ativo: item.ativo,
+      tipoMaterial: item.tipoMaterial ?? null,
+      unidadeCusto: item.unidadeCusto ?? null,
+      usoObrigatorio: !!item.usoObrigatorio,
+      medidaLinear: !!item.medidaLinear,
+      conteudoRoloMetros: numOuVazio(item.conteudoRoloMetros),
+      consumoMinimo: numOuVazio(item.consumoMinimo),
+      textoProposta: item.textoProposta ?? '',
     })
     setModalAberto(true)
   }
@@ -93,6 +141,13 @@ export default function MateriaisAcabamentoPage() {
         nome: form.nome.trim(),
         valorReferencia: typeof form.valorReferencia === 'number' ? form.valorReferencia : 0,
         ativo: form.ativo,
+        tipoMaterial: form.tipoMaterial,
+        unidadeCusto: form.unidadeCusto,
+        usoObrigatorio: form.usoObrigatorio,
+        medidaLinear: form.medidaLinear,
+        conteudoRoloMetros: form.conteudoRoloMetros === '' ? null : Number(form.conteudoRoloMetros),
+        consumoMinimo: form.consumoMinimo === '' ? null : Number(form.consumoMinimo),
+        textoProposta: form.textoProposta.trim() ? form.textoProposta.trim() : null,
       }
       if (editando) {
         await api.put(`/orcamento-grafico/materiais-acabamento/${editando.id}`, payload)
@@ -209,6 +264,65 @@ export default function MateriaisAcabamentoPage() {
             decimalSeparator=","
             thousandSeparator="."
             step={0.01}
+          />
+          <Group grow align="flex-start">
+            <Select
+              label="Tipo de material"
+              data={TIPOS_MATERIAL}
+              value={form.tipoMaterial}
+              onChange={(v) => setForm({ ...form, tipoMaterial: v })}
+              clearable
+              placeholder="Não informado"
+            />
+            <Select
+              label="Unidade de custo"
+              data={UNIDADES_CUSTO}
+              value={form.unidadeCusto}
+              onChange={(v) => setForm({ ...form, unidadeCusto: v })}
+              clearable
+              placeholder="Não informada"
+            />
+          </Group>
+          {form.tipoMaterial && TIPOS_PARAM_INFORMATIVO.includes(form.tipoMaterial) && (
+            <Text size="xs" c="dimmed" fs="italic">
+              Funcionamento exato deste tipo de parâmetro ainda a verificar; não altera o preço.
+            </Text>
+          )}
+          <Group grow align="flex-start">
+            <NumberInput
+              label="Conteúdo do rolo (m)"
+              value={form.conteudoRoloMetros}
+              onChange={(v) => setForm({ ...form, conteudoRoloMetros: typeof v === 'number' ? v : '' })}
+              min={0}
+              decimalScale={4}
+            />
+            <NumberInput
+              label="Consumo mínimo"
+              value={form.consumoMinimo}
+              onChange={(v) => setForm({ ...form, consumoMinimo: typeof v === 'number' ? v : '' })}
+              min={0}
+              decimalScale={4}
+            />
+          </Group>
+          <Group>
+            <Switch
+              label="Uso obrigatório"
+              checked={form.usoObrigatorio}
+              onChange={(e) => setForm({ ...form, usoObrigatorio: e.currentTarget.checked })}
+            />
+            <Switch
+              label="Medida linear"
+              checked={form.medidaLinear}
+              onChange={(e) => setForm({ ...form, medidaLinear: e.currentTarget.checked })}
+            />
+          </Group>
+          <Textarea
+            label="Texto na proposta"
+            value={form.textoProposta}
+            onChange={(e) => setForm({ ...form, textoProposta: e.currentTarget.value })}
+            autosize
+            minRows={2}
+            maxLength={5000}
           />
           <Switch
             label="Ativo"
