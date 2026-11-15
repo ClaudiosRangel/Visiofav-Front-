@@ -27,10 +27,18 @@ import StepTipo from '../../novo/StepTipo'
 import StepMedidas from '../../novo/StepMedidas'
 import StepPapel from '../../novo/StepPapel'
 import type { CampoCondicional } from './campos-por-linha'
+import SeletorProdutoGrafico, { type ProdutoEscolhido } from './catalogo/SeletorProdutoGrafico'
+import type { UseCatalogoItemResultado } from './catalogo/useCatalogoItem'
 
 interface Props {
   formData: WizardFormData
   updateForm: (partial: Partial<WizardFormData>) => void
+  /** Linha de Produto do orçamento (filtra o seletor de Produto Gráfico). */
+  linhaProdutoId?: string | null
+  /** Estado do catálogo carregado pelo EditorItem (mensagens de carga/erro). */
+  catalogoItem?: UseCatalogoItemResultado
+  /** Escolha/limpeza do Produto Gráfico; o EditorItem aplica defaults e guarda o id. */
+  onProdutoChange?: (produto: ProdutoEscolhido | null) => void
   /**
    * Campos condicionais por Linha de Produto a exibir. Recebido do EditorItem
    * para consistência de assinatura; a ocultação de campos condicionais da
@@ -41,7 +49,13 @@ interface Props {
   mostrarCampo?: (campo: CampoCondicional) => boolean
 }
 
-export default function SecaoProduto({ formData, updateForm }: Props) {
+export default function SecaoProduto({
+  formData,
+  updateForm,
+  linhaProdutoId,
+  catalogoItem,
+  onProdutoChange,
+}: Props) {
   // Resumo do produto/embalagem selecionado (informação do produto no topo da
   // seção — Req 4). Usa o tipo de embalagem escolhido + nome/foto do produto
   // cadastrado quando houver. Estado vazio quando nada foi selecionado ainda.
@@ -52,6 +66,16 @@ export default function SecaoProduto({ formData, updateForm }: Props) {
 
   return (
     <Stack gap="xl">
+      {/* Produto Gráfico do catálogo (opcional): só aparece quando o editor liga o seletor. */}
+      {onProdutoChange && (
+        <SeletorProdutoGrafico
+          value={formData.produtoGraficoId}
+          linhaProdutoId={linhaProdutoId}
+          catalogo={catalogoItem}
+          onChange={onProdutoChange}
+        />
+      )}
+
       {/* Resumo "Informação do Produto" */}
       <Paper withBorder p="md" bg="var(--mantine-color-default)">
         {temProduto ? (

@@ -125,7 +125,12 @@ export interface ItemParaEditar {
     computarCusto?: boolean | null
     valorUnitario?: number | string | null
     quantidade?: number | string | null
+    // Fase 2 — linhas de seleção de material por atividade
+    origem?: string | null
+    selecaoId?: string | null
   }> | null
+  // Fase 2 — Produto Gráfico do catálogo
+  produtoGraficoId?: string | null
   maquinaId?: string | null
   aproveitamentoManual?: number | null
   modeloFacaId?: string | null
@@ -237,8 +242,13 @@ export function itemParaForm(
           computarCusto: m.computarCusto ?? true,
           valorUnitario: m.valorUnitario != null ? Number(m.valorUnitario) : null,
           quantidade: m.quantidade != null ? Number(m.quantidade) : null,
+          // Fase 2 — preserva a marca de seleção (só quando existe; linha manual fica idêntica).
+          ...(m.origem ? { origem: m.origem } : {}),
+          ...(m.selecaoId ? { selecaoId: m.selecaoId } : {}),
         }))
       : [],
+    // Fase 2 — indefinido quando o item não tem produto (não enviar ao salvar).
+    produtoGraficoId: item.produtoGraficoId ?? undefined,
     quantidade: item.quantidade ?? 10000,
     maquinaId: item.maquinaId ?? null,
     aproveitamentoManual: item.aproveitamentoManual ?? null,
@@ -332,20 +342,40 @@ export function montarPayloadItem(formData: WizardFormData): Record<string, unkn
     })),
     acabamentos: acabamentosAtivos,
     acabamentosRicos: formData.acabamentosRicos?.length ? formData.acabamentosRicos : undefined,
-    // R6 — materiais de acabamento a computar no custo. Só envia os marcados
-    // (computarCusto=true); lista vazia → omite (não-regressão).
+    // R6 — materiais de acabamento a computar no custo. Linhas manuais: só as
+    // marcadas (computarCusto=true). Fase 2: TODAS as linhas de seleção
+    // (origem 'SELECAO', inclusive computarCusto=false) para não serem apagadas
+    // do Json ao salvar. Lista vazia → omite (não-regressão).
     materiaisAcabamento: (() => {
-      const itens = (formData.materiaisAcabamento ?? [])
-        .filter((m) => m.computarCusto)
-        .map((m) => ({
-          materialAcabamentoId: m.materialAcabamentoId,
-          nome: m.nome,
-          computarCusto: true,
-          valorUnitario: m.valorUnitario ?? 0,
-          quantidade: m.quantidade ?? 1,
-        }))
+      const itens = (formData.materiaisAcabamento ?? []).flatMap((m) => {
+        if (m.origem === 'SELECAO') {
+          return [
+            {
+              materialAcabamentoId: m.materialAcabamentoId,
+              nome: m.nome,
+              computarCusto: !!m.computarCusto,
+              valorUnitario: m.valorUnitario ?? 0,
+              quantidade: m.quantidade ?? 1,
+              origem: 'SELECAO',
+              selecaoId: m.selecaoId,
+            },
+          ]
+        }
+        if (!m.computarCusto) return []
+        return [
+          {
+            materialAcabamentoId: m.materialAcabamentoId,
+            nome: m.nome,
+            computarCusto: true,
+            valorUnitario: m.valorUnitario ?? 0,
+            quantidade: m.quantidade ?? 1,
+          },
+        ]
+      })
       return itens.length ? itens : undefined
     })(),
+    // Fase 2 — Produto Gráfico: só envia quando definido (undefined não altera; null limpa).
+    ...(formData.produtoGraficoId !== undefined ? { produtoGraficoId: formData.produtoGraficoId } : {}),
     quantidade: formData.quantidade,
     tabelaMargemId: formData.tabelaMargemId || undefined,
     maquinaId: formData.maquinaId || undefined,
@@ -438,7 +468,25 @@ export function montarPayloadCalculo(formData: WizardFormData): Record<string, u
     itensDiversos: itensDiversos.length ? itensDiversos : undefined,
     formatoCorteLarguraMm: formData.formatoCorteLarguraMm || undefined,
     formatoCorteAlturaMm: formData.formatoCorteAlturaMm || undefined,
+    // Fase 2 — só com Produto Gráfico: os KPIs ao vivo passam a considerar os
+    // materiais (manuais e de seleção) com custo computado. Sem produto, o
+    // payload fica idêntico ao anterior.
+    ...(formData.produtoGraficoId ? materiaisParaCalculo(formData) : {}),
   }
+}
+
+/** `materiaisAcabamento` do cálculo ao vivo: só linhas com custo computado. */
+function materiaisParaCalculo(formData: WizardFormData): Record<string, unknown> {
+  const itens = (formData.materiaisAcabamento ?? [])
+    .filter((m) => m.computarCusto)
+    .map((m) => ({
+      materialAcabamentoId: m.materialAcabamentoId,
+      nome: m.nome,
+      computarCusto: true,
+      valorUnitario: m.valorUnitario ?? 0,
+      quantidade: m.quantidade ?? 1,
+    }))
+  return itens.length ? { materiaisAcabamento: itens } : {}
 }
 
 /**
@@ -451,11 +499,18 @@ export async function salvarItem(
   orcamentoId: string,
   formData: WizardFormData,
   itemId?: string | null,
-): Promise<void> {
+): Promise<ItemSalvo> {
   const payload = montarPayloadItem(formData)
-  if (itemId) {
-    await api.put(`/orcamento-grafico/${orcamentoId}/itens/${itemId}`, payload)
-  } else {
-    await api.post(`/orcamento-grafico/${orcamentoId}/itens`, payload)
-  }
+  // Fase 2: devolve o item salvo (o POST responde o item criado; o PUT, o atualizado).
+  // Quem ignora o retorno continua compatível.
+  const resposta = itemId
+    ? await api.put(`/orcamento-grafico/${orcamentoId}/itens/${itemId}`, payload)
+    : await api.post(`/orcamento-grafico/${orcamentoId}/itens`, payload)
+  return (resposta?.data ?? {}) as ItemSalvo
+}
+
+/** Item devolvido pela API ao salvar (só o necessário; campos extras aceitos). */
+export interface ItemSalvo {
+  id?: string
+  [campo: string]: unknown
 }

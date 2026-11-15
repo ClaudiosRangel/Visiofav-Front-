@@ -27,6 +27,8 @@
 
 import { Paper, Stack, Table, Text, ScrollArea } from '@mantine/core'
 
+import type { CatalogoDoItem } from './catalogo/catalogo.types'
+
 /**
  * Shape tolerante de um plano recebido por prop. Todos os campos são opcionais
  * (dados vêm do `GET /:id` do orçamento, que pode variar), e aceitamos campos
@@ -38,12 +40,16 @@ export interface PlanoApresentacao {
   cores?: string | null
   formato?: string | null
   acabamento?: string | null
+  /** Fase 2 — tipo de plano do catálogo (ausente/null = plano sem tipo). */
+  tipoPlanoId?: string | null
   [extra: string]: unknown
 }
 
 interface Props {
   /** Planos do item a exibir (modo leitura). Vazio/ausente → seção não renderiza. */
   planos?: Array<PlanoApresentacao | unknown> | null
+  /** Catálogo do produto do item (null = sem produto). Usado na tarefa 4.10 (coluna "Tipo de plano"). */
+  catalogo?: CatalogoDoItem | null
 }
 
 /** Texto de célula tolerante: normaliza vazio/nulo para "—". */
@@ -53,12 +59,20 @@ function celula(valor: unknown): string {
   return texto.length > 0 ? texto : '—'
 }
 
-export default function SecaoPlanos({ planos }: Props) {
+export default function SecaoPlanos({ planos, catalogo }: Props) {
   // Defensivo (Req 5.2): sem planos, não renderiza nada. A ocultação da
   // seção+âncora já é decidida por `montarAncoras` no EditorItem.
   if (!planos || planos.length === 0) return null
 
   const linhas = planos as PlanoApresentacao[]
+
+  // Coluna "Tipo de plano" (Req 4.6): só quando algum plano tem tipo. O nome vem do catálogo.
+  const temTipo = linhas.some((p) => typeof p?.tipoPlanoId === 'string' && p.tipoPlanoId.length > 0)
+  const nomeDoTipo = (id: unknown): string => {
+    if (typeof id !== 'string' || !id) return '—'
+    const doProduto = catalogo?.produto.planos.find((t) => t.id === id)?.nome
+    return celula(doProduto ?? catalogo?.porTipoPlano[id]?.plano.nome)
+  }
 
   return (
     <Paper withBorder p="md" radius="sm">
@@ -73,6 +87,7 @@ export default function SecaoPlanos({ planos }: Props) {
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Nome</Table.Th>
+                {temTipo && <Table.Th>Tipo de plano</Table.Th>}
                 <Table.Th>Suporte</Table.Th>
                 <Table.Th>Cores</Table.Th>
                 <Table.Th>Formato</Table.Th>
@@ -83,6 +98,7 @@ export default function SecaoPlanos({ planos }: Props) {
               {linhas.map((plano, i) => (
                 <Table.Tr key={(plano?.nome as string) ?? i}>
                   <Table.Td fw={600}>{celula(plano?.nome)}</Table.Td>
+                  {temTipo && <Table.Td>{nomeDoTipo(plano?.tipoPlanoId)}</Table.Td>}
                   <Table.Td>{celula(plano?.suporte)}</Table.Td>
                   <Table.Td>{celula(plano?.cores)}</Table.Td>
                   <Table.Td>{celula(plano?.formato)}</Table.Td>

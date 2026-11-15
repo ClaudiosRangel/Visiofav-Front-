@@ -15,12 +15,27 @@
 
 import type { WizardFormData } from '../../novo/page'
 import StepItensDiversos from '../../novo/StepItensDiversos'
+import type { CatalogoDoItem } from './catalogo/catalogo.types'
+import SugestaoItensDiversos from './catalogo/SugestaoItensDiversos'
 
 interface Props {
   formData: WizardFormData
   updateForm: (partial: Partial<WizardFormData>) => void
+  /** Catálogo do produto do item (null = sem produto). Usado na tarefa 4.11 (itens sugeridos). */
+  catalogo?: CatalogoDoItem | null
 }
 
-export default function SecaoItensComplementares({ formData, updateForm }: Props) {
-  return <StepItensDiversos formData={formData} updateForm={updateForm} />
+export default function SecaoItensComplementares({ formData, updateForm, catalogo }: Props) {
+  return (
+    <>
+      <SugestaoItensDiversos
+        catalogo={catalogo}
+        itensAtuais={formData.itensDiversos}
+        onAdicionar={(novos) =>
+          updateForm({ itensDiversos: [...(formData.itensDiversos ?? []), ...novos] })
+        }
+      />
+      <StepItensDiversos formData={formData} updateForm={updateForm} />
+    </>
+  )
 }

@@ -431,6 +431,10 @@ export interface CatalogoProduto {
 export interface MaterialCatalogo {
   id: string
   nome: string
+  /** Tipo de parâmetro do material (decisão 3 da Fase 2); nulo até o importador preencher. */
+  tipoParam?: number | null
+  tipoMaterial?: string | null
+  unidadeCusto?: string | null
   [outros: string]: unknown
 }
 
@@ -480,6 +484,11 @@ export interface SalvarSelecaoMaterialInput {
   param2?: number | null
   gramaturaKgM2?: number | null
   pecasPorCaixa?: number | null
+}
+
+export interface RemoverSelecaoMaterialResposta {
+  removidas: number
+  resumoCustos: unknown
 }
 
 export interface SalvarSelecaoMaterialResposta {

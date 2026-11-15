@@ -1,17 +1,38 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import {
   Stack, Text, Checkbox, Paper, NumberInput, SimpleGrid, Group, Collapse, Badge,
-  Loader, Center, TextInput, Alert, Select, ActionIcon, Tooltip, Box, SegmentedControl,
+  Loader, Center, TextInput, Alert, Select, ActionIcon, Tooltip, Box, SegmentedControl, Anchor,
 } from '@mantine/core'
 import { IconSettings, IconAlertCircle, IconTrash, IconPlus } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import type { WizardFormData, AcabamentoRicoSelecionado, MaterialAcabamentoItem } from './page'
+// Fase 2 (catálogo no editor): só o EditorItem passa `catalogo`/`selecao`; o wizard /novo não.
+import type { CatalogoDoItem } from '../[id]/editor/catalogo/catalogo.types'
+import type { ControleSelecao } from '../[id]/editor/catalogo/useSelecaoMaterial'
+import SeletorMaterialAtividade from '../[id]/editor/catalogo/SeletorMaterialAtividade'
+import {
+  chaveSelecao,
+  filtrarOrdenarAtividades,
+  idsPreMarcados,
+  materialPadraoDaAtividade,
+  paramsPadraoMaterial,
+  preMarcarAtividades,
+  tipoParamDoMaterial,
+  unirAtividades,
+} from '../[id]/editor/catalogo/catalogo-puro'
 
 interface Props {
   formData: WizardFormData
   updateForm: (partial: Partial<WizardFormData>) => void
+  /**
+   * Catálogo do Produto Gráfico do item (Fase 2). Ausente/null = comportamento
+   * atual idêntico (nenhum código novo executa). O wizard /novo não passa a prop.
+   */
+  catalogo?: CatalogoDoItem | null
+  /** Controle da seleção de material por atividade (só junto com `catalogo`). */
+  selecao?: ControleSelecao
   /**
    * Qual(is) bloco(s) de JSX exibir. Puramente de APRESENTAÇÃO — todos os
    * estados/efeitos/handlers (toggle/patch/toggleMaterial/patchMaterial/
@@ -65,8 +86,11 @@ const naturezaBadge: Record<string, { label: string; color: string }> = {
   CUSTO_FIXO: { label: 'Custo fixo', color: 'grape' },
 }
 
-export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos' }: Props) {
+export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos', catalogo = null, selecao }: Props) {
   const mostrarAcabamentos = mostrar === 'ambos' || mostrar === 'acabamentos'
+  // Fase 2 — "Ver lista geral" permite marcar algo fora do catálogo do produto.
+  const [listaGeral, setListaGeral] = useState(false)
+  const preMarcadoRef = useRef(false)
   const mostrarMateriais = mostrar === 'ambos' || mostrar === 'materiais'
   const [cadastro, setCadastro] = useState<AcabamentoCadastro[]>([])
   const [loading, setLoading] = useState(true)
@@ -215,6 +239,48 @@ export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos
     })
   }, [cadastro]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // O cadastro vem com Decimals serializados como STRING (ex.: custoHora "320").
+  // O backend (Zod) espera number — converter com `num()` evita o erro
+  // "Expected number, received string" no /calcular.
+  const novoSelecionado = (ac: AcabamentoCadastro): AcabamentoRicoSelecionado => {
+    const num = (v: unknown): number | undefined =>
+      v == null || v === '' ? undefined : Number(v)
+    return {
+      acabamentoId: ac.id,
+      nome: ac.nome,
+      naturezaCusto: ac.naturezaCusto,
+      // defaults a partir do cadastro (modo DERIVADO — tempos vêm do Calcgraf).
+      // O usuário pode ajustar; se deixar como veio, o backend usa o cadastro.
+      custoHora: num(ac.custoHora),
+      producaoHora: num(ac.producaoHora),
+      quantAcertos: num(ac.quantAcertos),
+      tempoPorAcertoMin: num(ac.tempoPorAcertoMin),
+      tempoPrimeiroAcertoMin: num(ac.tempoPrimeiroAcertoMin),
+      unidadeBase: (ac.unidadeBase as 'FOLHA' | 'PRODUTO') ?? 'FOLHA',
+    }
+  }
+
+  // ── Fase 2: atividade do plano fixo no catálogo (materiais permitidos) ──
+  const atividadeDoPlano = (acabamentoId: string) =>
+    catalogo?.planoFixo?.atividades.find((a) => a.id === acabamentoId) ?? null
+
+  // Ao marcar a atividade, escolhe o material padrão (ou o único permitido).
+  const escolherMaterialPadrao = (acabamentoId: string) => {
+    if (!selecao) return
+    const atividade = atividadeDoPlano(acabamentoId)
+    const padrao = materialPadraoDaAtividade(atividade?.materiais)
+    if (!padrao) return
+    const tipoParam = tipoParamDoMaterial(padrao)
+    const params = paramsPadraoMaterial(tipoParam)
+    void selecao.escolher({
+      acabamentoId,
+      materialId: padrao.id,
+      tipoParam,
+      param1: params.param1,
+      param2: params.param2,
+    })
+  }
+
   const toggle = (ac: AcabamentoCadastro) => {
     const jaSelecionado = selById.has(ac.id) || selByNome.has(norm(ac.nome))
     if (jaSelecionado) {
@@ -224,29 +290,33 @@ export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos
           (s) => s.acabamentoId !== ac.id && norm(s.nome ?? '') !== norm(ac.nome),
         ),
       })
+      // Fase 2: desmarcar a atividade remove a escolha de material (DELETE no item salvo).
+      if (selecao) void selecao.limpar(ac.id)
     } else {
       carregarRestricoes(ac)
-      // O cadastro vem com Decimals serializados como STRING (ex.: custoHora "320").
-      // O backend (Zod) espera number — converter com `num()` evita o erro
-      // "Expected number, received string" no /calcular.
-      const num = (v: unknown): number | undefined =>
-        v == null || v === '' ? undefined : Number(v)
-      const novo: AcabamentoRicoSelecionado = {
-        acabamentoId: ac.id,
-        nome: ac.nome,
-        naturezaCusto: ac.naturezaCusto,
-        // defaults a partir do cadastro (modo DERIVADO — tempos vêm do Calcgraf).
-        // O usuário pode ajustar; se deixar como veio, o backend usa o cadastro.
-        custoHora: num(ac.custoHora),
-        producaoHora: num(ac.producaoHora),
-        quantAcertos: num(ac.quantAcertos),
-        tempoPorAcertoMin: num(ac.tempoPorAcertoMin),
-        tempoPrimeiroAcertoMin: num(ac.tempoPrimeiroAcertoMin),
-        unidadeBase: (ac.unidadeBase as 'FOLHA' | 'PRODUTO') ?? 'FOLHA',
-      }
-      updateForm({ acabamentosRicos: [...selecionados, novo] })
+      updateForm({ acabamentosRicos: [...selecionados, novoSelecionado(ac)] })
+      escolherMaterialPadrao(ac.id)
     }
   }
+
+  // Fase 2 — pré-marcação das atividades do catálogo: só em item NOVO (sem id salvo,
+  // não puxado) e sem nenhuma marcação; roda uma única vez por editor.
+  useEffect(() => {
+    if (!catalogo || !mostrarAcabamentos || preMarcadoRef.current || cadastro.length === 0) return
+    if (formData._itemSalvoId || formData._conferenciaItemId) {
+      preMarcadoRef.current = true
+      return
+    }
+    // Aguarda o catálogo do plano fixo quando o produto tem um.
+    if (catalogo.planoFixoId && !catalogo.planoFixo) return
+    preMarcadoRef.current = true
+    const ids = idsPreMarcados(catalogo.planoFixo, catalogo.planoFixo?.defaultProduto)
+    const marcar = preMarcarAtividades(formData.acabamentosRicos, ids, cadastro)
+    if (marcar.length === 0) return
+    marcar.forEach((ac) => carregarRestricoes(ac))
+    updateForm({ acabamentosRicos: marcar.map(novoSelecionado) })
+    marcar.forEach((ac) => escolherMaterialPadrao(ac.id))
+  }, [catalogo, cadastro]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Atualiza o acabamento casando por `acabamentoId` OU por NOME — itens vindos
   // de cálculo puxado podem não ter `acabamentoId` (gravados por nome), e antes
@@ -268,9 +338,34 @@ export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos
   const estaSelecionado = (a: AcabamentoCadastro) =>
     selById.has(a.id) || selByNome.has(norm(a.nome))
 
-  const porBusca = busca.trim()
-    ? cadastro.filter((a) => `${a.codigo} ${a.nome}`.toLowerCase().includes(busca.toLowerCase()))
+  // Fase 2 — com catálogo, a lista vira três grupos na ordem do catálogo:
+  // Atividades, Acondicionamento e Fora do catálogo (marcadas que o catálogo não prevê).
+  // Catálogo vazio ou "lista geral" ligada: lista atual, sem grupos.
+  const grupos = catalogo
+    ? filtrarOrdenarAtividades(
+        cadastro,
+        {
+          atividades: unirAtividades(catalogo.planoFixo?.atividades ?? [], catalogo.produto.atividades),
+          acondicionamento: catalogo.produto.acondicionamento,
+        },
+        selecionados.map((s) => s.acabamentoId).filter((id): id is string => !!id),
+      )
+    : null
+  const usarCatalogo = !!grupos && !listaGeral && grupos.planoProduto.length + grupos.acondicionamento.length > 0
+  const GRUPOS_ROTULO = ['Atividades', 'Acondicionamento', 'Fora do catálogo do produto'] as const
+  const grupoPorId = new Map<string, number>()
+  if (usarCatalogo && grupos) {
+    grupos.planoProduto.forEach((a) => grupoPorId.set(a.id, 0))
+    grupos.acondicionamento.forEach((a) => grupoPorId.set(a.id, 1))
+    grupos.foraDoCatalogo.forEach((a) => grupoPorId.set(a.id, 2))
+  }
+  const baseLista = usarCatalogo && grupos
+    ? [...grupos.planoProduto, ...grupos.acondicionamento, ...grupos.foraDoCatalogo]
     : cadastro
+
+  const porBusca = busca.trim()
+    ? baseLista.filter((a) => `${a.codigo} ${a.nome}`.toLowerCase().includes(busca.toLowerCase()))
+    : baseLista
   const porNatureza =
     filtroNatureza === 'TODOS'
       ? porBusca
@@ -278,6 +373,10 @@ export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos
   const filtrados = porNatureza
     .map((a, i) => ({ a, i }))
     .sort((x, y) => {
+      // Sem catálogo todos ficam no grupo 0 (ordenação idêntica à atual).
+      const gx = grupoPorId.get(x.a.id) ?? 0
+      const gy = grupoPorId.get(y.a.id) ?? 0
+      if (gx !== gy) return gx - gy
       const sx = estaSelecionado(x.a) ? 0 : 1
       const sy = estaSelecionado(y.a) ? 0 : 1
       // Selecionados primeiro; empate mantém a ordem original (índice).
@@ -285,24 +384,40 @@ export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos
     })
     .map((e) => e.a)
 
+  // Restrições do catálogo: quando o catálogo as define para a atividade, a lista
+  // carregada do cadastro é limitada a elas (cai na lista completa se nenhuma casar).
+  const restricoesVisiveis = (ac: AcabamentoCadastro): Restricao[] => {
+    const todas = restricoesPorAcab[ac.id] ?? []
+    if (!usarCatalogo) return todas
+    const permitidas = new Set((atividadeDoPlano(ac.id)?.restricoes ?? []).map((r) => r.id))
+    if (permitidas.size === 0) return todas
+    const filtradas = todas.filter((r) => permitidas.has(r.id))
+    return filtradas.length > 0 ? filtradas : todas
+  }
+
   const totalSelecionados = selecionados.length
 
   // ──────────────────────────────────────────────────────────────────────────
   // R6 — Materiais de acabamento (computar no custo)
   // ──────────────────────────────────────────────────────────────────────────
-  const materiais = formData.materiaisAcabamento ?? []
+  // Fase 2: as linhas de seleção (origem 'SELECAO') são geridas pela seleção de
+  // material por atividade; a lista manual abaixo só enxerga e altera as manuais.
+  // Sem linhas SELECAO (wizard /novo, item sem produto) nada muda.
+  const todasLinhas = formData.materiaisAcabamento ?? []
+  const linhasSelecao = todasLinhas.filter((m) => m.origem === 'SELECAO')
+  const materiais = todasLinhas.filter((m) => m.origem !== 'SELECAO')
   const matById = new Map(
     materiais.filter((m) => m.materialAcabamentoId).map((m) => [m.materialAcabamentoId!, m]),
   )
+  const salvarManuais = (manuais: MaterialAcabamentoItem[]) =>
+    updateForm({ materiaisAcabamento: linhasSelecao.length ? [...manuais, ...linhasSelecao] : manuais })
 
   // Marca/desmarca um material do catálogo. Ao marcar, cria a linha com valor
   // default = valorReferencia do catálogo e quantidade 1.
   const toggleMaterial = (mat: MaterialAcabamentoCatalogo) => {
     const existente = matById.get(mat.id)
     if (existente) {
-      updateForm({
-        materiaisAcabamento: materiais.filter((m) => m.materialAcabamentoId !== mat.id),
-      })
+      salvarManuais(materiais.filter((m) => m.materialAcabamentoId !== mat.id))
     } else {
       const novo: MaterialAcabamentoItem = {
         materialAcabamentoId: mat.id,
@@ -311,7 +426,7 @@ export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos
         valorUnitario: mat.valorReferencia ?? 0,
         quantidade: 1,
       }
-      updateForm({ materiaisAcabamento: [...materiais, novo] })
+      salvarManuais([...materiais, novo])
     }
   }
 
@@ -321,11 +436,11 @@ export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos
     campo: 'valorUnitario' | 'quantidade',
     valor: number | undefined,
   ) => {
-    updateForm({
-      materiaisAcabamento: materiais.map((m) =>
+    salvarManuais(
+      materiais.map((m) =>
         m.materialAcabamentoId === matId ? { ...m, [campo]: valor ?? null } : m,
       ),
-    })
+    )
   }
 
   const subtotalMaterial = (m: MaterialAcabamentoItem) =>
@@ -378,6 +493,23 @@ export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos
               { value: 'CUSTO_FIXO', label: naturezaBadge.CUSTO_FIXO.label },
             ]}
           />
+          {catalogo && grupos && (grupos.planoProduto.length + grupos.acondicionamento.length > 0) && (
+            <Group gap={6}>
+              <Text size="xs" c="dimmed">
+                {listaGeral
+                  ? 'Exibindo todos os acabamentos cadastrados.'
+                  : 'Exibindo as atividades do produto escolhido, na ordem do roteiro.'}
+              </Text>
+              <Anchor size="xs" component="button" type="button" onClick={() => setListaGeral((v) => !v)}>
+                {listaGeral ? 'Voltar ao catálogo do produto' : 'Ver lista geral'}
+              </Anchor>
+            </Group>
+          )}
+          {catalogo && grupos && (grupos.planoProduto.length + grupos.acondicionamento.length === 0) && (
+            <Text size="xs" c="dimmed">
+              Nenhuma atividade cadastrada para este produto; exibindo a lista geral de acabamentos.
+            </Text>
+          )}
         </Stack>
       )}
 
@@ -395,14 +527,25 @@ export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos
       )}
 
       <Stack gap={4}>
-        {filtrados.map((ac) => {
+        {filtrados.map((ac, indice) => {
           const sel = selById.get(ac.id) ?? selByNome.get(norm(ac.nome))
           const ativo = !!sel
           const nb = naturezaBadge[ac.naturezaCusto]
+          // Fase 2: atividade do plano com materiais permitidos (seleção de material).
+          const atividadeCat = usarCatalogo && selecao ? atividadeDoPlano(ac.id) : null
+          const comMateriais = (atividadeCat?.materiais?.length ?? 0) > 0
+          const restricoesLista = restricoesVisiveis(ac)
+          const grupoAtual = grupoPorId.get(ac.id)
+          const cabecalhoGrupo =
+            usarCatalogo && grupoAtual !== undefined &&
+            (indice === 0 || grupoPorId.get(filtrados[indice - 1].id) !== grupoAtual)
+              ? GRUPOS_ROTULO[grupoAtual]
+              : null
           const temExtras =
-            (restricoesPorAcab[ac.id]?.length ?? 0) > 0 ||
+            restricoesLista.length > 0 ||
             (ac.restricoes?.length ?? 0) > 0 ||
             (ac.materiais?.length ?? 0) > 0 ||
+            comMateriais ||
             ac.exigeRestricao
           const extrasAberto = !!extrasAbertos[ac.id]
           // Campos numéricos sempre visíveis; desabilitados quando não selecionado
@@ -429,7 +572,13 @@ export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos
           )
 
           return (
-            <Paper key={ac.id} px="xs" py={6} withBorder bg={ativo ? 'var(--mantine-color-default-hover)' : undefined}>
+            <Fragment key={ac.id}>
+            {cabecalhoGrupo && (
+              <Text size="xs" fw={700} c="dimmed" tt="uppercase" mt={indice === 0 ? 0 : 'xs'}>
+                {cabecalhoGrupo}
+              </Text>
+            )}
+            <Paper px="xs" py={6} withBorder bg={ativo ? 'var(--mantine-color-default-hover)' : undefined}>
               {/* LINHA principal — tudo numa linha só (pedido do usuário). */}
               <Group gap="xs" wrap="nowrap" align="center">
                 <Box style={{ flex: 1, minWidth: 220 }}>
@@ -509,7 +658,7 @@ export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos
                   <Box mt={8} pt={8} style={{ borderTop: '1px solid var(--mantine-color-default-border)' }}>
                     <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
                       {/* Restrição EFETIVA (ajusta o cálculo) — só HORA_MÁQUINA. */}
-                      {ac.naturezaCusto === 'HORA_MAQUINA' && (restricoesPorAcab[ac.id]?.length ?? 0) > 0 && (
+                      {ac.naturezaCusto === 'HORA_MAQUINA' && restricoesLista.length > 0 && (
                         <Select
                           label="Restrição (sub-opção)"
                           description="Ajusta o acerto/operação"
@@ -517,7 +666,7 @@ export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos
                           size="xs"
                           clearable
                           disabled={dis}
-                          data={(restricoesPorAcab[ac.id] || []).map((r) => ({ value: r.id, label: r.nome }))}
+                          data={restricoesLista.map((r) => ({ value: r.id, label: r.nome }))}
                           value={sel?.restricaoAcabamentoId ?? null}
                           onChange={(v) => patch(ac, 'restricaoAcabamentoId', v || undefined)}
                         />
@@ -557,6 +706,20 @@ export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos
                         value={sel?.medidaMm ?? ''}
                         onChange={(v) => patch(ac, 'medidaMm', typeof v === 'number' ? v : undefined)}
                       />
+                      {/* Fase 2: material permitido da atividade (catálogo do produto). */}
+                      {comMateriais && selecao && atividadeCat && (
+                        <SeletorMaterialAtividade
+                          atividade={atividadeCat}
+                          selecao={selecao.selecoes.find((s) => s.acabamentoId === ac.id && !s.planoId)}
+                          pendente={selecao.pendentes.find((p) => p.acabamentoId === ac.id && !p.planoId)}
+                          erro={selecao.erros[chaveSelecao(ac.id)] ?? null}
+                          itemPuxado={selecao.itemPuxado}
+                          ocupado={!!selecao.ocupados[chaveSelecao(ac.id)]}
+                          disabled={dis}
+                          onEscolher={(escolha) => void selecao.escolher({ ...escolha, acabamentoId: ac.id })}
+                          onLimpar={() => void selecao.limpar(ac.id)}
+                        />
+                      )}
                     </SimpleGrid>
 
                     {sel && ac.exigeRestricao && !sel.restricaoAcabamentoId && (
@@ -569,6 +732,7 @@ export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos
                 </Collapse>
               )}
             </Paper>
+            </Fragment>
           )
         })}
       </Stack>
@@ -592,7 +756,12 @@ export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos
         {materiaisLoading ? (
           <Center py="md"><Loader size="sm" /></Center>
         ) : materiaisCatalogo.length === 0 ? (
-          <MiniEditorMateriais materiais={materiais} updateForm={updateForm} />
+          <MiniEditorMateriais
+            materiais={materiais}
+            updateForm={(parcial) =>
+              salvarManuais(parcial.materiaisAcabamento ?? materiais)
+            }
+          />
         ) : (
           <Stack gap={4}>
             {materiaisCatalogo.map((mat) => {

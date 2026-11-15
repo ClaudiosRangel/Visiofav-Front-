@@ -22,18 +22,20 @@
  * (totais do item/orçamento reconsolidados).
  */
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   Stack, Group, Button, Text, Table, Modal, TextInput, NumberInput, Select,
   Loader, ActionIcon, Tooltip, ScrollArea, Badge, Paper, SimpleGrid, Collapse,
 } from '@mantine/core'
 import {
   IconPlus, IconEdit, IconTrash, IconCalculator, IconArrowRight, IconHistory,
-  IconChevronDown, IconChevronRight,
+  IconChevronDown, IconChevronRight, IconX,
 } from '@tabler/icons-react'
 import { useDebouncedValue } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
 import { api } from '@/lib/api'
+import { useCatalogoItem } from './editor/catalogo/useCatalogoItem'
+import { aplicarDefaultsEmPlano, preMarcarAtividades } from './editor/catalogo/catalogo-puro'
 
 // ============================================================================
 // Tipos
@@ -57,6 +59,8 @@ export interface PlanoCalculo {
   custoAcabamento?: number | string | null
   /** Rótulo "X → Y" quando o suporte de produção difere do orçado (null = sem troca). */
   rotuloTrocaSuporte?: string | null
+  /** Fase 2 — tipo de plano do catálogo (null/ausente = plano sem tipo, como antes). */
+  tipoPlanoId?: string | null
 }
 
 /** Registro do histórico de trocas de suporte (GET .../historico-troca-suporte). */
@@ -81,6 +85,11 @@ interface Props {
   suporteProducaoItemInicial?: string | null
   /** Rótulo de troca no nível do item ("X → Y") vindo do GET, quando houver. */
   rotuloTrocaItemInicial?: string | null
+  /**
+   * Fase 2 — Produto Gráfico do item. Sem ele o modal fica idêntico ao atual; com ele a
+   * tarefa 4.9 liga o seletor de tipo de plano, os defaults e as atividades do catálogo.
+   */
+  produtoGraficoId?: string | null
   /** Edição permitida apenas em rascunho (mesma regra dos itens). */
   podeEditar: boolean
   /** Chamado após cada mutation para a página recarregar o orçamento. */
@@ -98,6 +107,10 @@ interface PlanoForm {
   maquinaId: string | null
   montagemLinhas: number | ''
   montagemColunas: number | ''
+  /** Fase 2 — tipo de plano do catálogo (só usado quando há produto gráfico no item). */
+  tipoPlanoId: string | null
+  /** Fase 2 — atividades pré-marcadas do tipo (só plano novo). */
+  atividadesPreMarcadas: { acabamentoId: string; nome: string }[]
 }
 
 const FORM_VAZIO: PlanoForm = {
@@ -110,6 +123,8 @@ const FORM_VAZIO: PlanoForm = {
   maquinaId: null,
   montagemLinhas: '',
   montagemColunas: '',
+  tipoPlanoId: null,
+  atividadesPreMarcadas: [],
 }
 
 // ============================================================================
@@ -142,8 +157,21 @@ function formatDateTime(dateStr: string | null | undefined): string {
 // Componente
 // ============================================================================
 
-export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, suporteProducaoItemInicial, rotuloTrocaItemInicial, podeEditar, onChanged }: Props) {
+export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, suporteProducaoItemInicial, rotuloTrocaItemInicial, produtoGraficoId, podeEditar, onChanged }: Props) {
   const [planos, setPlanos] = useState<PlanoCalculo[]>(planosIniciais ?? [])
+
+  // ----- Fase 2: catálogo do Produto Gráfico (sem produto = nenhuma chamada, modal como antes) -----
+  const catalogoItem = useCatalogoItem(produtoGraficoId)
+  const tiposDoCatalogo = catalogoItem.catalogo?.produto.planos ?? []
+  const usaTipoPlano = !!produtoGraficoId && tiposDoCatalogo.length > 0
+  /** Campos que o usuário mexeu no modal: defaults do tipo nunca os sobrescrevem. */
+  const camposTocados = useRef<Set<string>>(new Set())
+  /** Valores aplicados automaticamente pelo tipo anterior (trocar de tipo os substitui). */
+  const autoAplicados = useRef<Partial<Record<'nome' | 'suporteId' | 'gramatura', unknown>>>({})
+  const tipoEscolhidoRef = useRef<string | null>(null)
+  const [carregandoTipo, setCarregandoTipo] = useState(false)
+  /** Suportes permitidos pelo tipo escolhido (vazio = sem restrição). */
+  const [suportesDoTipo, setSuportesDoTipo] = useState<{ value: string; label: string }[]>([])
 
   // Re-semeia quando o pai recarrega e passa novos planos (ex.: após onChanged).
   useEffect(() => {
@@ -189,6 +217,8 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
   const [modalAberto, setModalAberto] = useState(false)
   const [editando, setEditando] = useState<PlanoCalculo | null>(null)
   const [form, setForm] = useState<PlanoForm>(FORM_VAZIO)
+  const formRef = useRef<PlanoForm>(form)
+  formRef.current = form
   const [salvando, setSalvando] = useState(false)
 
   // Remoção / recálculo
@@ -244,6 +274,10 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
 
   // ----- Abertura do form -----
   const abrirNovo = () => {
+    camposTocados.current = new Set()
+    autoAplicados.current = {}
+    tipoEscolhidoRef.current = null
+    setSuportesDoTipo([])
     setEditando(null)
     setForm(FORM_VAZIO)
     setTermoSuporte('')
@@ -251,6 +285,11 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
   }
 
   const abrirEdicao = (p: PlanoCalculo) => {
+    // Plano existente: trocar o tipo nunca altera valores já gravados.
+    camposTocados.current = new Set(['nome', 'numCores', 'suporteId', 'gramatura', 'atividadesPreMarcadas'])
+    autoAplicados.current = {}
+    tipoEscolhidoRef.current = null
+    setSuportesDoTipo([])
     setEditando(p)
     setForm({
       nome: p.nome,
@@ -262,6 +301,8 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
       maquinaId: p.maquinaId ?? null,
       montagemLinhas: p.montagemLinhas != null ? toNum(p.montagemLinhas) : '',
       montagemColunas: p.montagemColunas != null ? toNum(p.montagemColunas) : '',
+      tipoPlanoId: p.tipoPlanoId ?? null,
+      atividadesPreMarcadas: [],
     })
     // Garante que o suporte selecionado apareça como option mesmo sem busca.
     if (p.suporteId) {
@@ -273,6 +314,92 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
     setModalAberto(true)
   }
 
+  // ----- Fase 2: campos tocados e escolha do tipo de plano -----
+  const marcarTocado = (campo: string) => {
+    camposTocados.current.add(campo)
+  }
+
+  const escolherTipo = async (tipoId: string | null) => {
+    tipoEscolhidoRef.current = tipoId
+    setForm(f => ({ ...f, tipoPlanoId: tipoId }))
+    if (!tipoId) {
+      setSuportesDoTipo([])
+      return
+    }
+    setCarregandoTipo(true)
+    const catalogoPlano = await catalogoItem.carregarPlano(tipoId)
+    // O usuário trocou de tipo enquanto consultava: descarta a resposta antiga.
+    if (tipoEscolhidoRef.current !== tipoId) return
+    setCarregandoTipo(false)
+    if (!catalogoPlano) {
+      setSuportesDoTipo([])
+      notifications.show({
+        title: 'Catálogo indisponível',
+        message: 'Não foi possível carregar os padrões deste tipo de plano. Preencha os campos manualmente.',
+        color: 'yellow',
+      })
+      return
+    }
+
+    // Suportes permitidos: ids da relação PLANO→SUPORTE são os mesmos do seletor (suporte_grafico).
+    // Lista vazia no catálogo = sem restrição.
+    setSuportesDoTipo(catalogoPlano.suportes.map(s => ({ value: s.id, label: s.descricao })))
+
+    const tocados = camposTocados.current
+    const auto = autoAplicados.current
+    const f = formRef.current
+    {
+      // Valores que o tipo anterior preencheu (e o usuário não tocou) são liberados antes de aplicar o novo.
+      const base: PlanoForm = { ...f }
+      if (!tocados.has('nome') && auto.nome !== undefined && base.nome === auto.nome) base.nome = ''
+      if (!tocados.has('suporteId') && auto.suporteId !== undefined && base.suporteId === auto.suporteId) base.suporteId = null
+      if (!tocados.has('gramatura') && auto.gramatura !== undefined && base.gramatura === auto.gramatura) base.gramatura = ''
+
+      const aplicado = aplicarDefaultsEmPlano(
+        {
+          nome: base.nome,
+          numCores: base.numCores === '' ? null : base.numCores,
+          suporteId: base.suporteId,
+          gramatura: base.gramatura === '' ? null : base.gramatura,
+        },
+        catalogoPlano.plano,
+        catalogoPlano.defaultProduto,
+        tocados,
+      )
+      const proximo: PlanoForm = {
+        ...base,
+        nome: aplicado.nome ?? '',
+        numCores: aplicado.numCores ?? '',
+        suporteId: aplicado.suporteId ?? null,
+        gramatura: aplicado.gramatura == null || aplicado.gramatura === '' ? '' : Number(aplicado.gramatura),
+      }
+      if (!tocados.has('nome') && proximo.nome !== base.nome) auto.nome = proximo.nome
+      if (!tocados.has('suporteId') && proximo.suporteId !== base.suporteId) auto.suporteId = proximo.suporteId
+      if (!tocados.has('gramatura') && proximo.gramatura !== base.gramatura) auto.gramatura = proximo.gramatura
+
+      // Atividades do tipo pré-marcadas (só plano novo; se o usuário já removeu alguma, não repõe).
+      if (!editando && !tocados.has('atividadesPreMarcadas')) {
+        const ids = catalogoPlano.atividades.filter(a => a.preMarcada).map(a => a.id)
+        proximo.atividadesPreMarcadas = preMarcarAtividades([], ids, catalogoPlano.atividades)
+          .map(a => ({ acabamentoId: a.id, nome: a.nome }))
+      }
+      setForm({ ...proximo, tipoPlanoId: tipoId })
+    }
+  }
+
+  // Opções do seletor de suporte: restritas ao tipo (quando ele define suportes), sempre com o valor atual.
+  const restringeSuporte = suportesDoTipo.length > 0
+  const opcoesSuporte = useMemo(() => {
+    const base = restringeSuporte ? suportesDoTipo : suportes
+    if (form.suporteId && !base.some(s => s.value === form.suporteId)) {
+      const rotulo = suportesProducao.find(s => s.value === form.suporteId)?.label
+        ?? suportes.find(s => s.value === form.suporteId)?.label
+        ?? 'Suporte selecionado'
+      return [{ value: form.suporteId, label: rotulo }, ...base]
+    }
+    return base
+  }, [restringeSuporte, suportesDoTipo, suportes, suportesProducao, form.suporteId])
+
   // ----- Montagem do payload (planoBodySchema) -----
   function montarPayload(): Record<string, unknown> | null {
     if (!form.nome.trim()) {
@@ -283,7 +410,17 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
       notifications.show({ title: 'Validação', message: 'Informe a largura e a altura do formato (mm).', color: 'red' })
       return null
     }
+    if (usaTipoPlano && !editando && !form.tipoPlanoId) {
+      notifications.show({ title: 'Validação', message: 'Selecione o tipo de plano.', color: 'red' })
+      return null
+    }
     return {
+      // Fase 2: só viaja com produto + catálogo com tipos; sem eles o payload é o de sempre.
+      ...(usaTipoPlano ? { tipoPlanoId: form.tipoPlanoId } : {}),
+      // Atividades pré-marcadas do tipo: só em plano novo.
+      ...(usaTipoPlano && !editando && form.atividadesPreMarcadas.length > 0
+        ? { acabamentosRicos: form.atividadesPreMarcadas }
+        : {}),
       nome: form.nome.trim(),
       suporteId: form.suporteId || undefined,
       gramatura: form.gramatura !== '' && Number(form.gramatura) > 0 ? Number(form.gramatura) : undefined,
@@ -696,27 +833,82 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
         centered
       >
         <Stack gap="md">
+          {usaTipoPlano && (
+            <Select
+              label="Tipo de plano"
+              placeholder="Selecione o tipo de plano"
+              description={editando ? undefined : 'Preenche os padrões do tipo nos campos que você ainda não alterou.'}
+              data={tiposDoCatalogo.map(t => ({ value: t.id, label: t.nome }))}
+              value={form.tipoPlanoId}
+              onChange={escolherTipo}
+              required={!editando}
+              clearable={!!editando}
+              searchable
+              rightSection={carregandoTipo ? <Loader size={14} /> : undefined}
+              comboboxProps={{ withinPortal: true }}
+            />
+          )}
+          {!!produtoGraficoId && catalogoItem.carregando && (
+            <Group gap="xs"><Loader size={12} /><Text size="xs" c="dimmed">Carregando tipos de plano do produto...</Text></Group>
+          )}
+          {!!produtoGraficoId && !catalogoItem.carregando && catalogoItem.erro && (
+            <Text size="xs" c="dimmed">{catalogoItem.erro} Preencha os campos manualmente.</Text>
+          )}
+
           <TextInput
             label="Nome do plano"
             placeholder="Ex.: TAMPA, CAIXA, FRENTE"
             value={form.nome}
-            onChange={(e) => setForm(f => ({ ...f, nome: e.currentTarget.value }))}
+            onChange={(e) => { marcarTocado('nome'); setForm(f => ({ ...f, nome: e.currentTarget.value })) }}
             required
             maxLength={60}
           />
 
+          {usaTipoPlano && !editando && form.atividadesPreMarcadas.length > 0 && (
+            <Stack gap={4}>
+              <Text size="sm" fw={500}>Atividades do tipo (pré-marcadas)</Text>
+              <Group gap={6}>
+                {form.atividadesPreMarcadas.map(a => (
+                  <Badge
+                    key={a.acabamentoId}
+                    variant="light"
+                    rightSection={
+                      <ActionIcon
+                        size="xs"
+                        variant="transparent"
+                        aria-label={`Remover ${a.nome}`}
+                        onClick={() => {
+                          marcarTocado('atividadesPreMarcadas')
+                          setForm(f => ({
+                            ...f,
+                            atividadesPreMarcadas: f.atividadesPreMarcadas.filter(x => x.acabamentoId !== a.acabamentoId),
+                          }))
+                        }}
+                      >
+                        <IconX size={10} />
+                      </ActionIcon>
+                    }
+                  >
+                    {a.nome}
+                  </Badge>
+                ))}
+              </Group>
+            </Stack>
+          )}
+
           <Select
             label="Suporte (Papel/Cartão)"
             placeholder="Digite para buscar (ex.: Duplex 280)"
-            data={suportes}
+            data={opcoesSuporte}
             value={form.suporteId}
-            onChange={(v) => setForm(f => ({ ...f, suporteId: v }))}
+            onChange={(v) => { marcarTocado('suporteId'); setForm(f => ({ ...f, suporteId: v })) }}
             searchable
             searchValue={termoSuporte}
             onSearchChange={setTermoSuporte}
-            filter={({ options }) => options}
+            filter={restringeSuporte ? undefined : ({ options }) => options}
             rightSection={loadingSuportes ? <Loader size={14} /> : null}
             nothingFoundMessage={
+              restringeSuporte ? 'Nenhum suporte do tipo encontrado' :
               loadingSuportes ? 'Buscando...' :
               termoSuporte.trim().length < 2 ? 'Digite ao menos 2 letras' :
               'Nenhum suporte encontrado'
@@ -747,7 +939,7 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
             <NumberInput
               label="Nº de cores"
               value={form.numCores}
-              onChange={(v) => setForm(f => ({ ...f, numCores: typeof v === 'number' ? v : '' }))}
+              onChange={(v) => { marcarTocado('numCores'); setForm(f => ({ ...f, numCores: typeof v === 'number' ? v : '' })) }}
               min={0}
               max={12}
             />
@@ -760,7 +952,7 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
               placeholder="Ex.: 300"
               suffix=" g/m²"
               value={form.gramatura}
-              onChange={(v) => setForm(f => ({ ...f, gramatura: typeof v === 'number' ? v : '' }))}
+              onChange={(v) => { marcarTocado('gramatura'); setForm(f => ({ ...f, gramatura: typeof v === 'number' ? v : '' })) }}
               min={0}
               max={2000}
             />

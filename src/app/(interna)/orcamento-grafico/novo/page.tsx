@@ -19,6 +19,7 @@ import StepItensDiversos from './StepItensDiversos'
 import StepDadosTecnicos from './StepDadosTecnicos'
 import StepRevisao from './StepRevisao'
 import { montarPayloadDadosTecnicos } from './dadosTecnicosPayload'
+import type { SelecaoPendente } from '../[id]/editor/catalogo/catalogo.types'
 
 // ============================================================================
 // Tipos do Wizard
@@ -87,6 +88,10 @@ export interface MaterialAcabamentoItem {
   computarCusto: boolean
   valorUnitario?: number | null
   quantidade?: number | null
+  // Fase 2 (catálogo no editor): linhas criadas pela seleção de material por
+  // atividade levam `origem: 'SELECAO'` e `selecaoId`. Ausentes = linha manual.
+  origem?: string
+  selecaoId?: string
 }
 
 export interface WizardFormData {
@@ -194,6 +199,17 @@ export interface WizardFormData {
   // uma ao lado da outra. Só visualização; não afetam o cálculo.
   _imagemFaca?: string | null
   _imagemProdutoUrl?: string | null
+  // ──────────────────────────────────────────────────────────────────────────
+  // Fase 2 (orcamento-grafico-catalogo-no-editor) — Produto Gráfico do catálogo.
+  // Indefinido = não enviar ao salvar (não altera); null = limpar.
+  // ──────────────────────────────────────────────────────────────────────────
+  produtoGraficoId?: string | null
+  /** Nome do produto (exibição, inclusive de produto inativo). */
+  _produtoGraficoNome?: string | null
+  /** Seleções de material escolhidas antes do 1º salvamento (aplicadas no passe). */
+  _selecoesPendentes?: SelecaoPendente[]
+  /** Marca (ISO) de quando os defaults do catálogo foram aplicados. */
+  _catalogoAplicadoEm?: string | null
 }
 
 const INITIAL_FORM: WizardFormData = {

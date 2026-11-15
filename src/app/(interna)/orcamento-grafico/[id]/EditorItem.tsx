@@ -28,7 +28,7 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import {
-  ActionIcon, Alert, Box, Button, Grid, Group, LoadingOverlay, Paper, Select, Stack, Text, Title, Tooltip,
+  ActionIcon, Alert, Box, Button, Grid, Group, LoadingOverlay, Modal, Paper, Select, Stack, Text, Title, Tooltip,
 } from '@mantine/core'
 import {
   IconDeviceFloppy, IconX, IconCategory, IconAlertCircle,
@@ -64,6 +64,14 @@ import SecaoMateriaisAcabamento from './editor/SecaoMateriaisAcabamento'
 import SecaoItensComplementares from './editor/SecaoItensComplementares'
 import SecaoEstruturaCusto from './editor/SecaoEstruturaCusto'
 import SecaoFechamento from './editor/SecaoFechamento'
+import { useCatalogoItem } from './editor/catalogo/useCatalogoItem'
+import { useSelecaoMaterial } from './editor/catalogo/useSelecaoMaterial'
+import type { ProdutoEscolhido } from './editor/catalogo/SeletorProdutoGrafico'
+import {
+  aplicarDefaultsEmVazios,
+  deveAplicarDefaults,
+  type NomesDefault,
+} from './editor/catalogo/catalogo-puro'
 
 interface Props {
   /** Orçamento ao qual o item pertence. */
@@ -276,6 +284,89 @@ export default function EditorItem({
     if (Object.keys(patch).length > 0) updateForm(patch)
   }, [fichaMaster, formData.gramatura, updateForm])
 
+  // Catálogo do Produto Gráfico do item (Fase 2). Sem produto ⇒ `catalogo = null`
+  // e nenhuma chamada de rede: o editor segue com as listas gerais atuais.
+  const catalogoItem = useCatalogoItem(formData.produtoGraficoId)
+  const catalogo = catalogoItem.catalogo
+
+  // Escolha de material por atividade (item salvo: PUT/DELETE imediatos; item novo:
+  // pendentes aplicados no passe de seleções ao salvar).
+  const selecao = useSelecaoMaterial({
+    itemId: isEditing ? item!.id : null,
+    itemPuxado: !!item?.calculoGraficoOrigemId,
+    formData,
+    updateForm,
+    catalogo,
+  })
+  const [confirmarSaida, setConfirmarSaida] = useState(false)
+
+  // Escolha/limpeza do produto no seletor. Limpar um produto já gravado envia `null`
+  // (limpa no back); sem produto gravado volta a `undefined` (não envia nada).
+  const trocarProduto = useCallback(
+    (produto: ProdutoEscolhido | null) => {
+      if (produto) {
+        updateForm({
+          produtoGraficoId: produto.id,
+          _produtoGraficoNome: produto.nome,
+          _catalogoAplicadoEm: null,
+        })
+      } else {
+        updateForm({
+          produtoGraficoId: item?.produtoGraficoId ? null : undefined,
+          _produtoGraficoNome: null,
+          _catalogoAplicadoEm: null,
+        })
+      }
+    },
+    [updateForm, item?.produtoGraficoId],
+  )
+
+  // Defaults do produto no plano fixo: aplicados UMA vez por escolha de produto,
+  // só em campos vazios (Req 5.1, 5.3). Item puxado ou item salvo com o mesmo
+  // produto nunca reaplica (Req 5.5, 5.6). A marca `_catalogoAplicadoEm` evita repetir.
+  useEffect(() => {
+    if (!catalogo) return
+    const produtoId = catalogo.produto.produto.id
+    if (formData.produtoGraficoId !== produtoId || formData._catalogoAplicadoEm) return
+
+    const padrao = catalogo.planoFixo?.defaultProduto ?? null
+    const aplicar =
+      !!padrao &&
+      deveAplicarDefaults({
+        calculoGraficoOrigemId: item?.calculoGraficoOrigemId ?? null,
+        produtoGraficoIdSalvo: item?.produtoGraficoId === produtoId ? produtoId : null,
+      })
+
+    let cancelado = false
+    ;(async () => {
+      const nomes: NomesDefault = {}
+      if (aplicar && padrao) {
+        nomes.coberturaTinta =
+          catalogo.planoFixo?.coberturas.find((c) => c.id === padrao.coberturaTintaId)?.nome ?? null
+        if (padrao.processoImpressaoId) {
+          try {
+            const { data } = await api.get('/orcamento-grafico/processos-impressao', {
+              params: { situacao: 'todas' },
+            })
+            const lista: Array<{ id: string; nome: string }> = Array.isArray(data) ? data : data?.data ?? []
+            nomes.processoImpressao = lista.find((p) => p.id === padrao.processoImpressaoId)?.nome ?? null
+          } catch {
+            // Sem o nome do processo o campo fica como está; os demais defaults seguem.
+          }
+        }
+      }
+      if (cancelado) return
+      setFormData((prev) => {
+        if (prev.produtoGraficoId !== produtoId || prev._catalogoAplicadoEm) return prev
+        const base = aplicar ? aplicarDefaultsEmVazios(prev, padrao, nomes) : prev
+        return { ...base, _catalogoAplicadoEm: new Date().toISOString() }
+      })
+    })()
+    return () => {
+      cancelado = true
+    }
+  }, [catalogo, formData.produtoGraficoId, formData._catalogoAplicadoEm, item?.calculoGraficoOrigemId, item?.produtoGraficoId])
+
   // Recálculo ao vivo (KPIs em tempo real) — Req 3. Consome as rotas de cálculo
   // existentes (sem persistir). Semeado com o resultado persistido do item para
   // os cards não começarem vazios na edição.
@@ -373,17 +464,33 @@ export default function EditorItem({
     (id: AncoraId) => {
       switch (id) {
         case 'produto':
-          return <SecaoProduto formData={formData} updateForm={updateForm} mostrarCampo={mostrarCampo} />
+          return (
+            <SecaoProduto
+              formData={formData}
+              updateForm={updateForm}
+              mostrarCampo={mostrarCampo}
+              linhaProdutoId={linhaProdutoId}
+              catalogoItem={catalogoItem}
+              onProdutoChange={trocarProduto}
+            />
+          )
         case 'planos':
-          return <SecaoPlanos planos={item?.planos ?? null} />
+          return <SecaoPlanos planos={item?.planos ?? null} catalogo={catalogo} />
         case 'dados-tecnicos':
           return <SecaoDadosTecnicos formData={formData} updateForm={updateForm} mostrarCampo={mostrarCampo} />
         case 'acabamentos':
-          return <SecaoAcabamentos formData={formData} updateForm={updateForm} />
+          return <SecaoAcabamentos formData={formData} updateForm={updateForm} catalogo={catalogo} selecao={selecao} />
         case 'materiais-acabamento':
-          return <SecaoMateriaisAcabamento formData={formData} updateForm={updateForm} />
+          return (
+            <SecaoMateriaisAcabamento
+              formData={formData}
+              updateForm={updateForm}
+              catalogo={catalogo}
+              selecao={selecao}
+            />
+          )
         case 'itens-complementares':
-          return <SecaoItensComplementares formData={formData} updateForm={updateForm} />
+          return <SecaoItensComplementares formData={formData} updateForm={updateForm} catalogo={catalogo} />
         case 'estrutura':
           return <SecaoEstruturaCusto resultadoCalculo={item?.resultadoCalculo ?? null} />
         case 'fechamento':
@@ -400,18 +507,43 @@ export default function EditorItem({
           return null
       }
     },
-    [formData, updateForm, item?.planos, item?.resultadoCalculo, baseCusto, cevPct, margemAtualPct, mostrarCampo],
+    [
+      formData, updateForm, item?.planos, item?.resultadoCalculo, baseCusto, cevPct, margemAtualPct,
+      mostrarCampo, linhaProdutoId, catalogoItem, catalogo, trocarProduto, selecao,
+    ],
   )
 
+  // Salvar em passes (Fase 2): 1) salva o item; 2) aplica escolhas de material
+  // pendentes/remoções com o id devolvido; 3) regrava o item com as linhas SELECAO
+  // mescladas para recalcular. Sem pendentes, é a mesma chamada única de antes.
   const salvar = async () => {
     setSaving(true)
     try {
-      await salvarItem(orcamentoId, formData, isEditing ? item!.id : null)
+      const salvo = await salvarItem(orcamentoId, formData, isEditing ? item!.id : null)
+      const itemId = isEditing ? item!.id : (salvo?.id as string | undefined)
+      let falhasSelecao = 0
+      if (itemId && (formData._selecoesPendentes?.length ?? 0) > 0) {
+        const passe = await selecao.aplicarPendentes(itemId)
+        falhasSelecao = passe.falhas
+        if (passe.linhas) {
+          await salvarItem(orcamentoId, { ...formData, materiaisAcabamento: passe.linhas }, itemId)
+        }
+      }
+      selecao.zerarSujo()
       notifications.show(
         isEditing
           ? { title: 'Item atualizado', message: 'Item recalculado e salvo.', color: 'green' }
           : { title: 'Item adicionado', message: 'Novo item calculado e salvo.', color: 'green' },
       )
+      if (falhasSelecao > 0) {
+        notifications.show({
+          title: 'Escolhas de material não aplicadas',
+          message: `Item salvo, mas ${falhasSelecao} escolha${falhasSelecao > 1 ? 's' : ''} de material não ${
+            falhasSelecao > 1 ? 'foram aplicadas' : 'foi aplicada'
+          }. Reabra o item e escolha o material de novo.`,
+          color: 'yellow',
+        })
+      }
       onSaved?.()
     } catch (err: any) {
       notifications.show({
@@ -424,9 +556,51 @@ export default function EditorItem({
     }
   }
 
+  // Cancelar: se há escolhas de material já gravadas que ainda não entraram no preço,
+  // pergunta se o usuário quer salvar o item antes de sair.
+  const cancelar = () => {
+    if (selecao.sujo) setConfirmarSaida(true)
+    else onCancel?.()
+  }
+
   return (
     <Box pos="relative">
       <LoadingOverlay visible={saving} />
+
+      <Modal
+        opened={confirmarSaida}
+        onClose={() => setConfirmarSaida(false)}
+        title="Salvar o item?"
+        centered
+        size="md"
+      >
+        <Text size="sm">
+          As escolhas de material já foram gravadas, mas ainda não entraram no preço do item. Salve o item para
+          aplicá-las ao preço.
+        </Text>
+        <Group justify="flex-end" mt="md">
+          <Button variant="subtle" onClick={() => setConfirmarSaida(false)}>
+            Continuar editando
+          </Button>
+          <Button
+            variant="default"
+            onClick={() => {
+              setConfirmarSaida(false)
+              onCancel?.()
+            }}
+          >
+            Sair sem salvar
+          </Button>
+          <Button
+            onClick={() => {
+              setConfirmarSaida(false)
+              void salvar()
+            }}
+          >
+            Salvar item
+          </Button>
+        </Group>
+      </Modal>
 
       {/* Sticky Summary Bar — KPIs em tempo real (Req 3). Fica colada no topo do
           corpo do modal (que tem padding 0), logo abaixo do header do modal — sem
@@ -546,7 +720,7 @@ export default function EditorItem({
 
       {/* Rodapé de ações — Cancelar / Salvar Item (reaproveita `salvar()`). */}
       <Group justify="flex-end" mt="lg" pb="md">
-        <Button variant="subtle" leftSection={<IconX size={16} />} onClick={onCancel} disabled={saving}>
+        <Button variant="subtle" leftSection={<IconX size={16} />} onClick={cancelar} disabled={saving}>
           Cancelar
         </Button>
         <Button leftSection={<IconDeviceFloppy size={16} />} onClick={salvar} loading={saving}>

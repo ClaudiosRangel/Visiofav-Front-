@@ -123,7 +123,13 @@ interface ItemOrcamento {
   rotuloTrocaSuporte?: string | null
   // Planos do cálculo (Task 11). O GET /:id ainda não os retorna; quando passar
   // a retornar, semeiam o editor PlanosDoItem (senão parte de estado vazio).
+  // Fase 2: cada plano pode trazer `tipoPlanoId` (catálogo).
   planos?: PlanoCalculo[] | null
+  // Fase 2 — Produto Gráfico do catálogo (null = item sem produto, comportamento atual).
+  produtoGraficoId?: string | null
+  // Fase 2 — linhas de material (manuais e `origem: 'SELECAO'`). O GET /:id só as devolve
+  // quando o select de itens inclui `materiaisAcabamento` (ver registro no handoff).
+  materiaisAcabamento?: ItemParaEditorPagina['materiaisAcabamento']
 }
 
 interface OrcamentoDetalhe {
@@ -899,7 +905,13 @@ export default function OrcamentoDetalhePage() {
       quantidade: item.quantidade,
       resultadoCalculo: item.resultadoCalculo ?? null,
       calculoGraficoOrigemId: item.calculoGraficoOrigemId ?? null,
-      planos: Array.isArray(item.planos) ? item.planos : null,
+      // Fase 2 — vínculo com o catálogo e seleções de material.
+      produtoGraficoId: item.produtoGraficoId ?? null,
+      materiaisAcabamento: Array.isArray(item.materiaisAcabamento) ? item.materiaisAcabamento : null,
+      // `tipoPlanoId` de cada plano segue junto (o item de plano já vem do GET com o campo).
+      planos: Array.isArray(item.planos)
+        ? item.planos.map((p) => ({ ...p, tipoPlanoId: p.tipoPlanoId ?? null }))
+        : null,
     })
     setEditorPaginaOpen(true)
   }
@@ -1414,6 +1426,7 @@ export default function OrcamentoDetalhePage() {
                               planosIniciais={Array.isArray(item.planos) ? item.planos : null}
                               suporteProducaoItemInicial={item.suporteProducaoId ?? null}
                               rotuloTrocaItemInicial={item.rotuloTrocaSuporte ?? null}
+                              produtoGraficoId={item.produtoGraficoId ?? null}
                               podeEditar={podeEditarItens}
                               onChanged={carregar}
                             />

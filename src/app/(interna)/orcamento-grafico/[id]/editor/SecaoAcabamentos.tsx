@@ -17,12 +17,26 @@
 
 import type { WizardFormData } from '../../novo/page'
 import StepAcabamentos from '../../novo/StepAcabamentos'
+import type { CatalogoDoItem } from './catalogo/catalogo.types'
+import type { ControleSelecao } from './catalogo/useSelecaoMaterial'
 
 interface Props {
   formData: WizardFormData
   updateForm: (partial: Partial<WizardFormData>) => void
+  /** Catálogo do produto do item (null = sem produto: lista geral, como hoje). */
+  catalogo?: CatalogoDoItem | null
+  /** Controle da escolha de material por atividade (só com catálogo). */
+  selecao?: ControleSelecao
 }
 
-export default function SecaoAcabamentos({ formData, updateForm }: Props) {
-  return <StepAcabamentos formData={formData} updateForm={updateForm} mostrar="acabamentos" />
+export default function SecaoAcabamentos({ formData, updateForm, catalogo, selecao }: Props) {
+  return (
+    <StepAcabamentos
+      formData={formData}
+      updateForm={updateForm}
+      mostrar="acabamentos"
+      catalogo={catalogo ?? null}
+      selecao={catalogo ? selecao : undefined}
+    />
+  )
 }

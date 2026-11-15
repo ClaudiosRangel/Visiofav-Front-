@@ -31,6 +31,7 @@ import type {
   SalvarRelacoesInput,
   SalvarSelecaoMaterialInput,
   SalvarSelecaoMaterialResposta,
+  RemoverSelecaoMaterialResposta,
   SelecaoMaterial,
   TipoPlanoGrafico,
   TipoPlanoGraficoInput,
@@ -198,6 +199,13 @@ export const selecaoMaterialApi = {
       .then((r) => r.data.dados),
   salvar: (dados: SalvarSelecaoMaterialInput) =>
     api.put<SalvarSelecaoMaterialResposta>(`${BASE}/selecao-material`, dados).then((r) => r.data),
+  /** Remove a seleção do par (item, plano, atividade). Idempotente. */
+  remover: (itemId: string, acabamentoId: string, planoId?: string | null) =>
+    api
+      .delete<RemoverSelecaoMaterialResposta>(`${BASE}/selecao-material`, {
+        params: { itemId, acabamentoId, ...(planoId ? { planoId } : {}) },
+      })
+      .then((r) => r.data),
 }
 
 /** Extrai a mensagem de erro da API (padrão `{ message }`). */
