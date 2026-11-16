@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  Modal, Tabs, Stack, Group, Button, TextInput, NumberInput, Select, Switch, SimpleGrid, Text,
+  Modal, Tabs, Stack, Group, Button, TextInput, NumberInput, Select, Switch, SimpleGrid, Text, Loader,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
+import { api } from '@/lib/api'
 import { produtosApi, mensagemErroApi } from '../_shared/cadastros-graficos.api'
 import type { ModoFormato, ProdutoGrafico, ProdutoGraficoInput } from '../_shared/cadastros-graficos.types'
 import AbaDefaultsPlano from './AbaDefaultsPlano'
@@ -38,6 +39,35 @@ interface FormState {
   tributacao2026: string
   tributacao2027: string
   classificacaoFiscal: string
+  tipoEmbalagemId: string | null
+}
+
+interface TipoEmbalagemOpcao {
+  id: string
+  codigo: string
+  descricao: string
+  status: boolean
+}
+
+const TAMANHO_PAGINA = 100
+
+/** Busca todas as páginas de /tipos-embalagem para o status informado. */
+async function buscarTiposEmbalagem(ativos: boolean): Promise<TipoEmbalagemOpcao[]> {
+  const todos: TipoEmbalagemOpcao[] = []
+  let pagina = 1
+  let totalPaginas = 1
+  do {
+    const { data } = await api.get('/orcamento-grafico/tipos-embalagem', {
+      params: { status: ativos ? 'true' : 'false', page: pagina, limit: TAMANHO_PAGINA },
+    })
+    const lista: Array<{ id: string; codigo: string; descricao: string }> = Array.isArray(data?.data)
+      ? data.data
+      : Array.isArray(data) ? data : []
+    for (const t of lista) todos.push({ id: t.id, codigo: t.codigo, descricao: t.descricao, status: ativos })
+    totalPaginas = Number(data?.totalPages) || 1
+    pagina += 1
+  } while (pagina <= totalPaginas)
+  return todos
 }
 
 const FORM_INICIAL: FormState = {
@@ -58,6 +88,7 @@ const FORM_INICIAL: FormState = {
   tributacao2026: '',
   tributacao2027: '',
   classificacaoFiscal: '',
+  tipoEmbalagemId: null,
 }
 
 function paraNum(v: unknown): NumCampo {
@@ -89,6 +120,7 @@ function doProduto(p: ProdutoGrafico): FormState {
     tributacao2026: p.tributacao2026 ?? '',
     tributacao2027: p.tributacao2027 ?? '',
     classificacaoFiscal: p.classificacaoFiscal ?? '',
+    tipoEmbalagemId: p.tipoEmbalagemId ?? null,
   }
 }
 
@@ -108,6 +140,51 @@ export default function ProdutoModal({ produto, onClose, onSalvo }: ProdutoModal
   const [versaoRelacoes, setVersaoRelacoes] = useState(0)
 
   const salvo = atual !== null
+
+  // Tipos de embalagem ativos (+ o tipo inativo já vinculado, se houver).
+  const [tiposAtivos, setTiposAtivos] = useState<TipoEmbalagemOpcao[]>([])
+  const [tipoInativoVinculado, setTipoInativoVinculado] = useState<TipoEmbalagemOpcao | null>(null)
+  const [carregandoTipos, setCarregandoTipos] = useState(true)
+  const [erroTipos, setErroTipos] = useState<string | null>(null)
+  const [tentativaTipos, setTentativaTipos] = useState(0)
+  const vinculoGravado = atual?.tipoEmbalagemId ?? null
+
+  const carregarTipos = useCallback(async (vinculo: string | null, ativo: { valor: boolean }) => {
+    setCarregandoTipos(true)
+    setErroTipos(null)
+    try {
+      const ativos = await buscarTiposEmbalagem(true)
+      let inativo: TipoEmbalagemOpcao | null = null
+      if (vinculo && !ativos.some((t) => t.id === vinculo)) {
+        const inativos = await buscarTiposEmbalagem(false)
+        inativo = inativos.find((t) => t.id === vinculo) ?? null
+      }
+      if (!ativo.valor) return
+      setTiposAtivos(ativos)
+      setTipoInativoVinculado(inativo)
+    } catch (err) {
+      if (!ativo.valor) return
+      setErroTipos(mensagemErroApi(err, 'Não foi possível carregar os tipos de embalagem'))
+    } finally {
+      if (ativo.valor) setCarregandoTipos(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const ativo = { valor: true }
+    carregarTipos(produto?.tipoEmbalagemId ?? null, ativo)
+    return () => { ativo.valor = false }
+    // Recarrega apenas na abertura e na nova tentativa.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tentativaTipos, carregarTipos])
+
+  const opcoesTipo = useMemo(() => {
+    const itens = tiposAtivos.map((t) => ({ value: t.id, label: t.descricao }))
+    if (tipoInativoVinculado) {
+      itens.push({ value: tipoInativoVinculado.id, label: `${tipoInativoVinculado.descricao} (inativo)` })
+    }
+    return itens.sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'))
+  }, [tiposAtivos, tipoInativoVinculado])
 
   async function salvar() {
     if (!form.codigo.trim() || !form.nome.trim()) {
@@ -134,12 +211,14 @@ export default function ProdutoModal({ produto, onClose, onSalvo }: ProdutoModal
       tributacao2027: form.tributacao2027.trim() || null,
       classificacaoFiscal: form.classificacaoFiscal.trim() || null,
     }
+    // Só envia o vínculo quando mudou (ou na criação com valor); limpar envia null.
+    if (form.tipoEmbalagemId !== vinculoGravado) payload.tipoEmbalagemId = form.tipoEmbalagemId
     setSalvando(true)
     try {
       const gravado = atual
         ? await produtosApi.atualizar(atual.id, payload)
         : await produtosApi.criar(payload)
-      setAtual(gravado)
+      setAtual({ ...gravado, tipoEmbalagemId: gravado.tipoEmbalagemId ?? form.tipoEmbalagemId })
       notifications.show({
         title: 'Salvo',
         message: `Produto ${atual ? 'atualizado' : 'criado'} com sucesso`,
@@ -246,6 +325,34 @@ export default function ProdutoModal({ produto, onClose, onSalvo }: ProdutoModal
                 onChange={setNum('formatoPadraoAltura')}
               />
             </SimpleGrid>
+
+            <Stack gap={4}>
+              <Select
+                label="Tipo de Embalagem"
+                placeholder={carregandoTipos ? 'Carregando...' : 'Selecione o tipo de embalagem'}
+                data={opcoesTipo}
+                value={form.tipoEmbalagemId}
+                onChange={(v) => setForm({ ...form, tipoEmbalagemId: v })}
+                clearable
+                searchable
+                disabled={carregandoTipos && !erroTipos}
+                nothingFoundMessage="Nenhum tipo de embalagem encontrado"
+                rightSection={carregandoTipos ? <Loader size="xs" /> : undefined}
+              />
+              {erroTipos && (
+                <Group gap="xs">
+                  <Text size="xs" c="red">{erroTipos}</Text>
+                  <Button size="compact-xs" variant="light" onClick={() => setTentativaTipos((n) => n + 1)}>
+                    Tentar novamente
+                  </Button>
+                </Group>
+              )}
+              {!carregandoTipos && !erroTipos && opcoesTipo.length === 0 && (
+                <Text size="xs" c="dimmed">
+                  Nenhum tipo de embalagem ativo cadastrado. Cadastre em Tipos de Embalagem.
+                </Text>
+              )}
+            </Stack>
 
             <Group align="flex-end">
               <Switch

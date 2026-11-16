@@ -130,6 +130,38 @@ interface ItemOrcamento {
   // Fase 2 — linhas de material (manuais e `origem: 'SELECAO'`). O GET /:id só as devolve
   // quando o select de itens inclui `materiaisAcabamento` (ver registro no handoff).
   materiaisAcabamento?: ItemParaEditorPagina['materiaisAcabamento']
+  // Fase 3 (Req 9) — Campos_Tecnicos que o GET /:id já devolve e que o
+  // `abrirEditorPagina` precisa repassar ao editor (senão o PUT os regrava vazios).
+  aproveitamentoManual?: number | null
+  tintaModo?: 'COBERTURA' | 'CONSUMO_DIRETO' | null
+  tintaConsumoKg?: number | string | null
+  siglaAcabado?: string | null
+  tributacao?: string | null
+  processoImpressao?: string | null
+  coberturaTintaTexto?: string | null
+  fabricante?: string | null
+  microondulado?: boolean | null
+  materialMicroonduladoId?: string | null
+  fornecido?: boolean | null
+  qtdModelos?: number | string | null
+  arte?: string | null
+  observacao?: string | null
+  observacaoAreasOp?: string | null
+  conteudoVolume?: number | string | null
+  acondicionamento?: Array<{ descricao: string }> | null
+  comprimentoMm?: number | string | null
+  larguraMm?: number | string | null
+  alturaMm?: number | string | null
+  abaColaMm?: number | string | null
+  abaFechamentoMm?: number | string | null
+  fibra?: boolean | null
+  montagemLinhas?: number | string | null
+  montagemColunas?: number | string | null
+  formatoSupLarguraMm?: number | string | null
+  formatoSupAlturaMm?: number | string | null
+  formatoCorteLarguraMm?: number | string | null
+  formatoCorteAlturaMm?: number | string | null
+  ajusteCorteMicroMm?: number | string | null
 }
 
 interface OrcamentoDetalhe {
@@ -897,6 +929,38 @@ export default function OrcamentoDetalhePage() {
       cores: item.cores ?? null,
       acabamentosRicos: item.acabamentosRicos ?? null,
       maquinaId: item.maquinaId ?? null,
+      modeloFacaId: item.modeloFacaId ?? null,
+      aproveitamentoManual: item.aproveitamentoManual ?? null,
+      tintaModo: item.tintaModo ?? null,
+      tintaConsumoKg: item.tintaConsumoKg ?? null,
+      // Fase 3 (Req 9) — Campos_Tecnicos: null permanece null (o `itemParaForm` normaliza).
+      siglaAcabado: item.siglaAcabado ?? null,
+      tributacao: item.tributacao ?? null,
+      processoImpressao: item.processoImpressao ?? null,
+      coberturaTintaTexto: item.coberturaTintaTexto ?? null,
+      fabricante: item.fabricante ?? null,
+      microondulado: item.microondulado ?? null,
+      materialMicroonduladoId: item.materialMicroonduladoId ?? null,
+      fornecido: item.fornecido ?? null,
+      qtdModelos: item.qtdModelos ?? null,
+      arte: item.arte ?? null,
+      observacao: item.observacao ?? null,
+      observacaoAreasOp: item.observacaoAreasOp ?? null,
+      conteudoVolume: item.conteudoVolume ?? null,
+      acondicionamento: Array.isArray(item.acondicionamento) ? item.acondicionamento : null,
+      comprimentoMm: item.comprimentoMm ?? null,
+      larguraMm: item.larguraMm ?? null,
+      alturaMm: item.alturaMm ?? null,
+      abaColaMm: item.abaColaMm ?? null,
+      abaFechamentoMm: item.abaFechamentoMm ?? null,
+      fibra: item.fibra ?? null,
+      montagemLinhas: item.montagemLinhas ?? null,
+      montagemColunas: item.montagemColunas ?? null,
+      formatoSupLarguraMm: item.formatoSupLarguraMm ?? null,
+      formatoSupAlturaMm: item.formatoSupAlturaMm ?? null,
+      formatoCorteLarguraMm: item.formatoCorteLarguraMm ?? null,
+      formatoCorteAlturaMm: item.formatoCorteAlturaMm ?? null,
+      ajusteCorteMicroMm: item.ajusteCorteMicroMm ?? null,
       matrizQuantidade: item.matrizQuantidade ?? null,
       matrizPrecoUnitario: item.matrizPrecoUnitario ?? null,
       itensDiversos: (item.itensDiversos as any) ?? null,
@@ -1427,6 +1491,7 @@ export default function OrcamentoDetalhePage() {
                               suporteProducaoItemInicial={item.suporteProducaoId ?? null}
                               rotuloTrocaItemInicial={item.rotuloTrocaSuporte ?? null}
                               produtoGraficoId={item.produtoGraficoId ?? null}
+                              itemPuxado={!!item.calculoGraficoOrigemId}
                               podeEditar={podeEditarItens}
                               onChanged={carregar}
                             />

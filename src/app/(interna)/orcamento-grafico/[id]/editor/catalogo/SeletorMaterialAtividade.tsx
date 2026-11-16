@@ -35,6 +35,8 @@ interface Props {
   itemPuxado: boolean
   ocupado: boolean
   disabled?: boolean
+  /** Texto da escolha pendente (padrão: "Será gravado ao salvar o item"). O modal de plano usa o próprio. */
+  rotuloPendente?: string
   onEscolher: (escolha: Omit<SelecaoPendente, 'acabamentoId'>) => void
   onLimpar: () => void
 }
@@ -52,6 +54,7 @@ export default function SeletorMaterialAtividade({
   itemPuxado,
   ocupado,
   disabled,
+  rotuloPendente,
   onEscolher,
   onLimpar,
 }: Props) {
@@ -115,7 +118,7 @@ export default function SeletorMaterialAtividade({
       <Group gap="xs" align="flex-end" wrap="wrap">
         <Select
           label="Material"
-          description={pendente && !selecao ? 'Será gravado ao salvar o item' : undefined}
+          description={pendente && !selecao ? (rotuloPendente ?? 'Será gravado ao salvar o item') : undefined}
           placeholder="Selecione o material..."
           size="xs"
           clearable

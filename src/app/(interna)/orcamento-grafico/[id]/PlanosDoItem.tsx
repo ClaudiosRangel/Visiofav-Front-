@@ -25,17 +25,32 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   Stack, Group, Button, Text, Table, Modal, TextInput, NumberInput, Select,
-  Loader, ActionIcon, Tooltip, ScrollArea, Badge, Paper, SimpleGrid, Collapse,
+  Loader, ActionIcon, Tooltip, ScrollArea, Badge, Paper, SimpleGrid, Collapse, Alert,
 } from '@mantine/core'
 import {
   IconPlus, IconEdit, IconTrash, IconCalculator, IconArrowRight, IconHistory,
-  IconChevronDown, IconChevronRight, IconX,
+  IconChevronDown, IconChevronRight, IconX, IconAlertTriangle,
 } from '@tabler/icons-react'
 import { useDebouncedValue } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
 import { api } from '@/lib/api'
-import { useCatalogoItem } from './editor/catalogo/useCatalogoItem'
-import { aplicarDefaultsEmPlano, preMarcarAtividades } from './editor/catalogo/catalogo-puro'
+import { useCatalogoItem, type UseCatalogoItemResultado } from './editor/catalogo/useCatalogoItem'
+import {
+  aplicarDefaultsEmPlano, preMarcarAtividades, chaveSelecao, erroDaSelecao,
+  type ErroSelecaoMaterial,
+} from './editor/catalogo/catalogo-puro'
+import SeletorMaterialAtividade from './editor/catalogo/SeletorMaterialAtividade'
+import {
+  deveExibirSeletorNoPlano, mesclarSelecoesPorPlano, type SelecaoDoPlano,
+} from './editor/catalogo/selecoes-por-plano-puro'
+import { executarPasse, type FalhaSelecao, type ItemDoPasse } from './editor/catalogo/passe-selecao-puro'
+import type { SelecaoPendente } from './editor/catalogo/catalogo.types'
+import {
+  sugerirSuporteGramatura, sugerirPrecoKg, filtrarCandidatosPapel,
+  type MotivoAvisoPreco, type PapelComPreco,
+} from './editor/sugestoes'
+import { selecaoMaterialApi, mensagemErroApi } from '../cadastros/_shared/cadastros-graficos.api'
+import type { CatalogoPlano, SelecaoMaterial } from '../cadastros/_shared/cadastros-graficos.types'
 
 // ============================================================================
 // Tipos
@@ -61,6 +76,8 @@ export interface PlanoCalculo {
   rotuloTrocaSuporte?: string | null
   /** Fase 2 — tipo de plano do catálogo (null/ausente = plano sem tipo, como antes). */
   tipoPlanoId?: string | null
+  /** Atividades marcadas do plano (JSON do back). Só `acabamentoId` e `nome` são lidos aqui. */
+  acabamentosRicos?: Array<{ acabamentoId?: string; nome?: string; [outros: string]: unknown }> | null
 }
 
 /** Registro do histórico de trocas de suporte (GET .../historico-troca-suporte). */
@@ -90,6 +107,13 @@ interface Props {
    * tarefa 4.9 liga o seletor de tipo de plano, os defaults e as atividades do catálogo.
    */
   produtoGraficoId?: string | null
+  /**
+   * Fase 3 — catálogo já carregado pelo editor (uma instância de `useCatalogoItem` por sessão).
+   * Sem ele o componente cria o seu, como antes.
+   */
+  catalogoCompartilhado?: UseCatalogoItemResultado
+  /** Item puxado do acervo: seleção de material é só informativa e não sugere suporte/preço. */
+  itemPuxado?: boolean
   /** Edição permitida apenas em rascunho (mesma regra dos itens). */
   podeEditar: boolean
   /** Chamado após cada mutation para a página recarregar o orçamento. */
@@ -101,6 +125,8 @@ interface PlanoForm {
   nome: string
   suporteId: string | null
   gramatura: number | ''
+  /** Fase 3 — preço do papel (R$/kg) do plano; vazio = usa o preço do item. */
+  precoKg: number | ''
   formatoLarguraMm: number | ''
   formatoAlturaMm: number | ''
   numCores: number | ''
@@ -109,7 +135,7 @@ interface PlanoForm {
   montagemColunas: number | ''
   /** Fase 2 — tipo de plano do catálogo (só usado quando há produto gráfico no item). */
   tipoPlanoId: string | null
-  /** Fase 2 — atividades pré-marcadas do tipo (só plano novo). */
+  /** Atividades marcadas do plano: as pré-marcadas do tipo (plano novo) ou as já gravadas (edição). */
   atividadesPreMarcadas: { acabamentoId: string; nome: string }[]
 }
 
@@ -117,6 +143,7 @@ const FORM_VAZIO: PlanoForm = {
   nome: '',
   suporteId: null,
   gramatura: '',
+  precoKg: '',
   formatoLarguraMm: '',
   formatoAlturaMm: '',
   numCores: 4,
@@ -157,11 +184,40 @@ function formatDateTime(dateStr: string | null | undefined): string {
 // Componente
 // ============================================================================
 
-export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, suporteProducaoItemInicial, rotuloTrocaItemInicial, produtoGraficoId, podeEditar, onChanged }: Props) {
+/** Id provisório do plano ainda não salvo (chave das escolhas de material pendentes). */
+const PLANO_TEMP = '__plano-novo__'
+
+export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, suporteProducaoItemInicial, rotuloTrocaItemInicial, produtoGraficoId, catalogoCompartilhado, itemPuxado, podeEditar, onChanged }: Props) {
   const [planos, setPlanos] = useState<PlanoCalculo[]>(planosIniciais ?? [])
 
-  // ----- Fase 2: catálogo do Produto Gráfico (sem produto = nenhuma chamada, modal como antes) -----
-  const catalogoItem = useCatalogoItem(produtoGraficoId)
+  // ----- Fase 2/3: catálogo do Produto Gráfico (sem produto = nenhuma chamada, modal como antes) -----
+  // Com `catalogoCompartilhado` o componente não cria consulta própria (o hook recebe null).
+  const catalogoProprio = useCatalogoItem(catalogoCompartilhado ? null : produtoGraficoId)
+  const catalogoItem = catalogoCompartilhado ?? catalogoProprio
+
+  // ----- Fase 3: escolha de material por atividade dentro do modal de plano -----
+  /** Catálogo do tipo de plano mostrado no modal (null = ainda não carregado ou falhou). */
+  const [catalogoPlanoAtual, setCatalogoPlanoAtual] = useState<CatalogoPlano | null>(null)
+  const [falhaCatalogoPlano, setFalhaCatalogoPlano] = useState(false)
+  const catalogoPlanoTokenRef = useRef(0)
+  /** Escolhas do modal ainda não gravadas (chave `acabamentoId|planoId`; plano novo usa PLANO_TEMP). */
+  const [escolhas, setEscolhas] = useState<SelecaoDoPlano[]>([])
+  /** Seleções já gravadas do plano em edição. */
+  const [gravadasPlano, setGravadasPlano] = useState<SelecaoMaterial[]>([])
+  /** Atividades cujo material o usuário limpou (a remoção roda ao salvar o plano). */
+  const [materiaisLimpos, setMateriaisLimpos] = useState<string[]>([])
+  const [falhasSel, setFalhasSel] = useState<FalhaSelecao[]>([])
+  const [errosSel, setErrosSel] = useState<Record<string, ErroSelecaoMaterial>>({})
+  /** Atividade marcada foi removida num plano existente: o PUT precisa reenviar a lista. */
+  const marcadasAlteradasRef = useRef(false)
+  /** O plano mudou no servidor e a página ainda não recarregou (adiado enquanto o modal fica aberto). */
+  const recarregarAoFecharRef = useRef(false)
+
+  // ----- Fase 3: preço do papel sugerido pelo suporte + gramatura -----
+  const [avisoPreco, setAvisoPreco] = useState<MotivoAvisoPreco | 'FALHA' | null>(null)
+  const papeisPorSuporteRef = useRef<Map<string, PapelComPreco[]>>(new Map())
+  const autoPrecoRef = useRef<number | null>(null)
+  const precoTokenRef = useRef(0)
   const tiposDoCatalogo = catalogoItem.catalogo?.produto.planos ?? []
   const usaTipoPlano = !!produtoGraficoId && tiposDoCatalogo.length > 0
   /** Campos que o usuário mexeu no modal: defaults do tipo nunca os sobrescrevem. */
@@ -272,11 +328,61 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
     return suportes.find(s => s.value === id)?.label ?? '—'
   }, [suportes])
 
+  // ----- Fase 3: estado das escolhas de material do modal -----
+  const zerarSelecoesDoModal = () => {
+    catalogoPlanoTokenRef.current += 1
+    precoTokenRef.current += 1
+    setCatalogoPlanoAtual(null)
+    setFalhaCatalogoPlano(false)
+    setEscolhas([])
+    setGravadasPlano([])
+    setMateriaisLimpos([])
+    setFalhasSel([])
+    setErrosSel({})
+    setAvisoPreco(null)
+    autoPrecoRef.current = null
+    marcadasAlteradasRef.current = false
+  }
+
+  /** Consulta o catálogo do tipo (cache do editor) e guarda para os seletores do modal. */
+  const carregarCatalogoDoPlano = async (tipoId: string | null) => {
+    const token = ++catalogoPlanoTokenRef.current
+    setFalhaCatalogoPlano(false)
+    if (!tipoId || !produtoGraficoId) {
+      setCatalogoPlanoAtual(null)
+      return null
+    }
+    const encontrado = await catalogoItem.carregarPlano(tipoId)
+    if (token !== catalogoPlanoTokenRef.current) return null
+    setCatalogoPlanoAtual(encontrado)
+    setFalhaCatalogoPlano(!encontrado)
+    return encontrado
+  }
+
+  /** Relê as seleções gravadas do item e guarda as do plano informado. */
+  const recarregarGravadas = async (planoId: string) => {
+    try {
+      const lista = await selecaoMaterialApi.listar(itemId)
+      setGravadasPlano((Array.isArray(lista) ? lista : []).filter(s => s.planoId === planoId))
+    } catch {
+      // Sem a lista o seletor só perde o resumo de custo; não bloqueia o modal.
+    }
+  }
+
+  const fecharModal = () => {
+    setModalAberto(false)
+    if (recarregarAoFecharRef.current) {
+      recarregarAoFecharRef.current = false
+      onChanged()
+    }
+  }
+
   // ----- Abertura do form -----
   const abrirNovo = () => {
     camposTocados.current = new Set()
     autoAplicados.current = {}
     tipoEscolhidoRef.current = null
+    zerarSelecoesDoModal()
     setSuportesDoTipo([])
     setEditando(null)
     setForm(FORM_VAZIO)
@@ -286,15 +392,24 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
 
   const abrirEdicao = (p: PlanoCalculo) => {
     // Plano existente: trocar o tipo nunca altera valores já gravados.
-    camposTocados.current = new Set(['nome', 'numCores', 'suporteId', 'gramatura', 'atividadesPreMarcadas'])
+    camposTocados.current = new Set(['nome', 'numCores', 'suporteId', 'gramatura', 'precoKg', 'atividadesPreMarcadas'])
     autoAplicados.current = {}
     tipoEscolhidoRef.current = null
+    zerarSelecoesDoModal()
     setSuportesDoTipo([])
     setEditando(p)
+    const marcadas = (p.acabamentosRicos ?? [])
+      .filter((a): a is { acabamentoId: string; nome?: string } => typeof a?.acabamentoId === 'string')
+      .map(a => ({ acabamentoId: a.acabamentoId, nome: a.nome ?? 'Atividade' }))
+    if (produtoGraficoId && p.tipoPlanoId) {
+      void carregarCatalogoDoPlano(p.tipoPlanoId)
+      void recarregarGravadas(p.id)
+    }
     setForm({
       nome: p.nome,
       suporteId: p.suporteId ?? null,
       gramatura: p.gramatura != null ? toNum(p.gramatura) : '',
+      precoKg: '',
       formatoLarguraMm: toNum(p.formatoLarguraMm),
       formatoAlturaMm: toNum(p.formatoAlturaMm),
       numCores: p.numCores,
@@ -302,7 +417,7 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
       montagemLinhas: p.montagemLinhas != null ? toNum(p.montagemLinhas) : '',
       montagemColunas: p.montagemColunas != null ? toNum(p.montagemColunas) : '',
       tipoPlanoId: p.tipoPlanoId ?? null,
-      atividadesPreMarcadas: [],
+      atividadesPreMarcadas: produtoGraficoId ? marcadas : [],
     })
     // Garante que o suporte selecionado apareça como option mesmo sem busca.
     if (p.suporteId) {
@@ -322,7 +437,14 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
   const escolherTipo = async (tipoId: string | null) => {
     tipoEscolhidoRef.current = tipoId
     setForm(f => ({ ...f, tipoPlanoId: tipoId }))
+    // Outro tipo, outras atividades: as escolhas de material do tipo anterior não valem mais.
+    setEscolhas([])
+    setFalhasSel([])
+    setErrosSel({})
+    setCatalogoPlanoAtual(null)
+    setFalhaCatalogoPlano(false)
     if (!tipoId) {
+      catalogoPlanoTokenRef.current += 1
       setSuportesDoTipo([])
       return
     }
@@ -331,6 +453,9 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
     // O usuário trocou de tipo enquanto consultava: descarta a resposta antiga.
     if (tipoEscolhidoRef.current !== tipoId) return
     setCarregandoTipo(false)
+    catalogoPlanoTokenRef.current += 1
+    setCatalogoPlanoAtual(catalogoPlano)
+    setFalhaCatalogoPlano(!catalogoPlano)
     if (!catalogoPlano) {
       setSuportesDoTipo([])
       notifications.show({
@@ -355,6 +480,11 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
       if (!tocados.has('suporteId') && auto.suporteId !== undefined && base.suporteId === auto.suporteId) base.suporteId = null
       if (!tocados.has('gramatura') && auto.gramatura !== undefined && base.gramatura === auto.gramatura) base.gramatura = ''
 
+      // Nome e nº de cores seguem o default do tipo; suporte e gramatura passam por
+      // `sugerirSuporteGramatura` (Req 4.3 e 4.7), por isso entram como "tocados" aqui.
+      const tocadosSemSugestao = new Set<string>(Array.from(tocados))
+      tocadosSemSugestao.add('suporteId')
+      tocadosSemSugestao.add('gramatura')
       const aplicado = aplicarDefaultsEmPlano(
         {
           nome: base.nome,
@@ -364,7 +494,7 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
         },
         catalogoPlano.plano,
         catalogoPlano.defaultProduto,
-        tocados,
+        tocadosSemSugestao,
       )
       const proximo: PlanoForm = {
         ...base,
@@ -373,6 +503,20 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
         suporteId: aplicado.suporteId ?? null,
         gramatura: aplicado.gramatura == null || aplicado.gramatura === '' ? '' : Number(aplicado.gramatura),
       }
+      // Suporte e gramatura padrão do tipo: só campos vazios, nunca em item puxado.
+      const sugerido = sugerirSuporteGramatura({
+        itemNovo: true,
+        itemPuxado: !!itemPuxado,
+        itemSalvo: false,
+        planoFixo: {
+          suportePadraoId: catalogoPlano.plano.suportePadraoId ?? null,
+          gramaturaPadrao: catalogoPlano.plano.gramaturaPadrao != null ? Number(catalogoPlano.plano.gramaturaPadrao) : null,
+        },
+        suporteAtual: proximo.suporteId,
+        gramaturaAtual: proximo.gramatura === '' ? null : Number(proximo.gramatura),
+      })
+      if (!tocados.has('suporteId') && sugerido.suporteId !== undefined) proximo.suporteId = sugerido.suporteId
+      if (!tocados.has('gramatura') && sugerido.gramatura !== undefined) proximo.gramatura = sugerido.gramatura
       if (!tocados.has('nome') && proximo.nome !== base.nome) auto.nome = proximo.nome
       if (!tocados.has('suporteId') && proximo.suporteId !== base.suporteId) auto.suporteId = proximo.suporteId
       if (!tocados.has('gramatura') && proximo.gramatura !== base.gramatura) auto.gramatura = proximo.gramatura
@@ -400,6 +544,149 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
     return base
   }, [restringeSuporte, suportesDoTipo, suportes, suportesProducao, form.suporteId])
 
+  // ----- Fase 3: preço por kg do papel a partir de suporte + gramatura (Req 4.4, 4.5, 4.10) -----
+  const [gramaturaDebounced] = useDebouncedValue(form.gramatura, 500)
+
+  useEffect(() => {
+    if (!modalAberto || !produtoGraficoId || editando) return
+    const suporteId = form.suporteId
+    const gramatura = gramaturaDebounced === '' ? null : Number(gramaturaDebounced)
+    const atual = formRef.current.precoKg
+    const veioDaSugestao = autoPrecoRef.current !== null && atual === autoPrecoRef.current
+    if (camposTocados.current.has('precoKg')) return
+    const token = ++precoTokenRef.current
+
+    const limparSugestaoAntiga = () => {
+      if (veioDaSugestao) {
+        autoPrecoRef.current = null
+        setForm(f => (f.precoKg === atual ? { ...f, precoKg: '' } : f))
+      }
+    }
+    if (!suporteId || !(Number(gramatura) > 0)) {
+      setAvisoPreco(null)
+      limparSugestaoAntiga()
+      return
+    }
+
+    ;(async () => {
+      let papeis = papeisPorSuporteRef.current.get(suporteId)
+      if (!papeis) {
+        try {
+          const coletados: PapelComPreco[] = []
+          for (let pagina = 1; pagina <= 5; pagina += 1) {
+            const { data } = await api.get('/orcamento-grafico/precos-mp', {
+              params: { tipo: 'PAPEL', suporteId, comPreco: 'true', limit: 100, page: pagina },
+            })
+            const lista: any[] = Array.isArray(data) ? data : data?.data || []
+            coletados.push(...lista.map((m: any) => ({
+              id: m.id,
+              suporteId: m.suporteId ?? suporteId,
+              gramatura: m.gramatura,
+              precoUnitario: m.precoUnitario,
+            })))
+            if (Array.isArray(data) || pagina >= (data?.totalPages ?? 1)) break
+          }
+          papeis = coletados
+          papeisPorSuporteRef.current.set(suporteId, papeis)
+        } catch {
+          if (token !== precoTokenRef.current) return
+          limparSugestaoAntiga()
+          setAvisoPreco('FALHA')
+          return
+        }
+      }
+      if (token !== precoTokenRef.current) return
+
+      const precoVazio = !(Number(atual) > 0) || veioDaSugestao
+      const sugestao = sugerirPrecoKg({
+        itemNovo: true,
+        itemPuxado: !!itemPuxado,
+        itemSalvo: false,
+        suporteId,
+        gramatura,
+        precoKgAtual: precoVazio ? null : Number(atual),
+        candidatos: filtrarCandidatosPapel(papeis, suporteId, gramatura),
+      })
+      if (sugestao.acao === 'APLICAR') {
+        autoPrecoRef.current = sugestao.precoKg
+        setAvisoPreco(null)
+        setForm(f => (f.precoKg === atual ? { ...f, precoKg: sugestao.precoKg } : f))
+      } else if (sugestao.acao === 'AVISO') {
+        limparSugestaoAntiga()
+        setAvisoPreco(sugestao.motivo)
+      } else {
+        setAvisoPreco(null)
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalAberto, produtoGraficoId, editando, form.suporteId, gramaturaDebounced, itemPuxado])
+
+  const textoAvisoPreco =
+    avisoPreco === 'SEM_PAPEL' ? 'Preço do papel não encontrado no cadastro para este suporte e gramatura. Informe o valor.'
+    : avisoPreco === 'MAIS_DE_UM' ? 'Mais de um papel encontrado para este suporte e gramatura. Informe o preço.'
+    : avisoPreco === 'FALHA' ? 'Não foi possível consultar o cadastro de preços de papel. Informe o preço manualmente.'
+    : null
+
+  // ----- Fase 3: seletores de material por atividade marcada -----
+  const tipoDoModal = form.tipoPlanoId
+  const ehPlanoFixo = !!tipoDoModal && tipoDoModal === catalogoItem.catalogo?.planoFixoId
+  const planoChave = editando?.id ?? PLANO_TEMP
+  const atividadesComSeletor = useMemo(() => {
+    if (!produtoGraficoId || !catalogoPlanoAtual || catalogoItem.erro) return []
+    return form.atividadesPreMarcadas
+      .map(m => ({ marcada: m, atividade: catalogoPlanoAtual.atividades.find(a => a.id === m.acabamentoId) }))
+      .filter(x => !!x.atividade && deveExibirSeletorNoPlano({
+        temProduto: !!produtoGraficoId,
+        atividadeMarcada: true,
+        materiais: x.atividade!.materiais,
+        planoFixo: ehPlanoFixo,
+      }))
+  }, [produtoGraficoId, catalogoPlanoAtual, catalogoItem.erro, form.atividadesPreMarcadas, ehPlanoFixo])
+
+  const puxado = itemPuxado ?? gravadasPlano.some(s => s.aplicaNoPreco === false)
+
+  const nomeDaAtividade = (acabamentoId: string): string =>
+    form.atividadesPreMarcadas.find(a => a.acabamentoId === acabamentoId)?.nome
+    ?? catalogoPlanoAtual?.atividades.find(a => a.id === acabamentoId)?.nome
+    ?? 'Atividade sem nome'
+
+  const esquecerFalha = (chave: string) => {
+    setFalhasSel(prev => prev.filter(f => f.chave !== chave))
+    setErrosSel(prev => {
+      if (!(chave in prev)) return prev
+      const { [chave]: _descartado, ...resto } = prev
+      return resto
+    })
+  }
+
+  const escolherMaterial = (acabamentoId: string, escolha: Omit<SelecaoPendente, 'acabamentoId'>) => {
+    setEscolhas(prev => mesclarSelecoesPorPlano(prev, {
+      tipo: 'escolher',
+      selecao: { ...escolha, acabamentoId, planoId: planoChave, materialId: escolha.materialId },
+    }))
+    setMateriaisLimpos(prev => prev.filter(id => id !== acabamentoId))
+    esquecerFalha(chaveSelecao(acabamentoId, planoChave))
+  }
+
+  const limparMaterial = (acabamentoId: string) => {
+    setEscolhas(prev => mesclarSelecoesPorPlano(prev, { tipo: 'remover', acabamentoId, planoId: planoChave }))
+    if (gravadasPlano.some(s => s.acabamentoId === acabamentoId)) {
+      setMateriaisLimpos(prev => (prev.includes(acabamentoId) ? prev : [...prev, acabamentoId]))
+    }
+    esquecerFalha(chaveSelecao(acabamentoId, planoChave))
+  }
+
+  const desmarcarAtividade = (acabamentoId: string) => {
+    marcarTocado('atividadesPreMarcadas')
+    if (editando) marcadasAlteradasRef.current = true
+    setForm(f => ({
+      ...f,
+      atividadesPreMarcadas: f.atividadesPreMarcadas.filter(x => x.acabamentoId !== acabamentoId),
+    }))
+    setEscolhas(prev => mesclarSelecoesPorPlano(prev, { tipo: 'desmarcar', acabamentoId, planoId: planoChave }))
+    esquecerFalha(chaveSelecao(acabamentoId, planoChave))
+  }
+
   // ----- Montagem do payload (planoBodySchema) -----
   function montarPayload(): Record<string, unknown> | null {
     if (!form.nome.trim()) {
@@ -421,9 +708,20 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
       ...(usaTipoPlano && !editando && form.atividadesPreMarcadas.length > 0
         ? { acabamentosRicos: form.atividadesPreMarcadas }
         : {}),
+      // Plano existente: só reenvia a lista quando o usuário desmarcou alguma atividade
+      // (reaproveita as linhas gravadas, sem inventar campos).
+      ...(usaTipoPlano && editando && marcadasAlteradasRef.current
+        ? {
+            acabamentosRicos: (editando.acabamentosRicos ?? []).filter(
+              a => typeof a?.acabamentoId === 'string'
+                && form.atividadesPreMarcadas.some(m => m.acabamentoId === a.acabamentoId),
+            ),
+          }
+        : {}),
       nome: form.nome.trim(),
       suporteId: form.suporteId || undefined,
       gramatura: form.gramatura !== '' && Number(form.gramatura) > 0 ? Number(form.gramatura) : undefined,
+      precoKgPapel: form.precoKg !== '' && Number(form.precoKg) > 0 ? Number(form.precoKg) : undefined,
       formatoLarguraMm: Number(form.formatoLarguraMm),
       formatoAlturaMm: Number(form.formatoAlturaMm),
       numCores: form.numCores === '' ? 0 : Number(form.numCores),
@@ -438,12 +736,14 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
     const payload = montarPayload()
     if (!payload) return
     setSalvando(true)
+    let planoSalvo: PlanoCalculo
     try {
       if (editando) {
         const { data } = await api.put(
           `/orcamento-grafico/${orcamentoId}/itens/${itemId}/planos/${editando.id}`,
           payload,
         )
+        planoSalvo = data
         setPlanos(prev => prev.map(p => (p.id === editando.id ? data : p)))
         notifications.show({ title: 'Plano atualizado', message: 'Plano recalculado e item reconsolidado.', color: 'green' })
       } else {
@@ -451,17 +751,114 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
           `/orcamento-grafico/${orcamentoId}/itens/${itemId}/planos`,
           payload,
         )
+        planoSalvo = data
         setPlanos(prev => [...prev, data])
+        // Daqui em diante o modal edita este plano: "Salvar"/"Tentar novamente" faz PUT e nunca cria outro.
+        setEditando(data)
         notifications.show({ title: 'Plano criado', message: 'Plano calculado e item reconsolidado.', color: 'green' })
       }
-      setModalAberto(false)
-      onChanged()
     } catch (err: any) {
       notifications.show({
         title: 'Erro ao salvar plano',
         message: err?.response?.data?.message || 'Falha ao salvar o plano.',
         color: 'red',
       })
+      setSalvando(false)
+      return
+    }
+
+    // ----- Fase 3: grava as escolhas de material do plano após o sucesso do POST/PUT -----
+    try {
+      const planoId = planoSalvo.id
+      const marcadasIds = new Set(form.atividadesPreMarcadas.map(a => a.acabamentoId))
+      // Escolhas feitas com o plano ainda sem id passam a apontar para o id definitivo.
+      let aGravar = mesclarSelecoesPorPlano(escolhas, { tipo: 'salvarPlano', planoIdTemporario: PLANO_TEMP, planoId })
+      aGravar = aGravar.filter(e => marcadasIds.has(e.acabamentoId) && e.planoId === planoId)
+      const comEscolha = new Set(aGravar.map(e => e.acabamentoId))
+      const aRemover = gravadasPlano.filter(
+        s => !comEscolha.has(s.acabamentoId) && (!marcadasIds.has(s.acabamentoId) || materiaisLimpos.includes(s.acabamentoId)),
+      )
+
+      if (produtoGraficoId && (aGravar.length > 0 || aRemover.length > 0)) {
+        const errosDoPasse: Record<string, ErroSelecaoMaterial> = {}
+        const rejeitadas = new Set<string>()
+        const guardarErro = (chave: string, err: unknown) => {
+          errosDoPasse[chave] = erroDaSelecao(err, mensagemErroApi(err, 'Não foi possível gravar a escolha de material.'))
+          if ((err as { response?: { status?: number } })?.response?.status === 422) rejeitadas.add(chave)
+        }
+        const itens: ItemDoPasse[] = [
+          ...aRemover.map((s): ItemDoPasse => {
+            const chave = chaveSelecao(s.acabamentoId, planoId)
+            return {
+              chave,
+              atividadeNome: nomeDaAtividade(s.acabamentoId),
+              executar: async (signal) => {
+                try { await selecaoMaterialApi.remover(itemId, s.acabamentoId, planoId, signal) } catch (err) { guardarErro(chave, err); throw err }
+              },
+            }
+          }),
+          ...aGravar.map((e): ItemDoPasse => {
+            const chave = chaveSelecao(e.acabamentoId, planoId)
+            return {
+              chave,
+              atividadeNome: nomeDaAtividade(e.acabamentoId),
+              executar: async (signal) => {
+                try {
+                  await selecaoMaterialApi.salvar({
+                    itemId,
+                    planoId,
+                    acabamentoId: e.acabamentoId,
+                    materialId: e.materialId,
+                    restricaoId: (e.restricaoId as string | null | undefined) ?? null,
+                    tipoParam: e.tipoParam as number | undefined,
+                    param1: (e.param1 as number | null | undefined) ?? null,
+                    param2: (e.param2 as number | null | undefined) ?? null,
+                    gramaturaKgM2: (e.gramaturaKgM2 as number | null | undefined) ?? null,
+                    pecasPorCaixa: (e.pecasPorCaixa as number | null | undefined) ?? null,
+                  }, signal)
+                } catch (err) { guardarErro(chave, err); throw err }
+              },
+            }
+          }),
+        ]
+        const resultado = await executarPasse(itens, {
+          mensagemDoErro: (err) => mensagemErroApi(err, 'Não foi possível gravar a escolha de material.'),
+        })
+        await recarregarGravadas(planoId)
+        setMateriaisLimpos([])
+
+        if (resultado.falhas.length > 0) {
+          const falhas = resultado.falhas.map(f => {
+            const permitidos = errosDoPasse[f.chave]?.permitidos ?? []
+            return permitidos.length > 0 ? { ...f, mensagem: `${f.mensagem} Permitidos: ${permitidos.join(', ')}.` } : f
+          })
+          const chavesComFalha = new Set(falhas.map(f => f.chave))
+          setFalhasSel(falhas)
+          setErrosSel(errosDoPasse)
+          // Escolhas gravadas saem do rascunho; as que falharam ficam para a nova tentativa.
+          // Em 422 a escolha rejeitada é descartada e a seleção anterior permanece.
+          setEscolhas(
+            aGravar.filter(e => {
+              const chave = chaveSelecao(e.acabamentoId, planoId)
+              return chavesComFalha.has(chave) && !rejeitadas.has(chave)
+            }),
+          )
+          recarregarAoFecharRef.current = true
+          notifications.show({
+            title: 'Plano salvo, escolhas de material pendentes',
+            message: `${falhas.length === 1 ? '1 escolha de material não foi gravada' : `${falhas.length} escolhas de material não foram gravadas`}. Veja o aviso no modal.`,
+            color: 'yellow',
+          })
+          setSalvando(false)
+          return
+        }
+        setEscolhas([])
+      }
+      setFalhasSel([])
+      setErrosSel({})
+      recarregarAoFecharRef.current = false
+      setModalAberto(false)
+      onChanged()
     } finally {
       setSalvando(false)
     }
@@ -827,7 +1224,7 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
       {/* Modal de form (novo/editar plano) */}
       <Modal
         opened={modalAberto}
-        onClose={() => setModalAberto(false)}
+        onClose={fecharModal}
         title={editando ? `Editar Plano #${editando.sequencia}` : 'Novo Plano'}
         size="lg"
         centered
@@ -864,9 +1261,11 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
             maxLength={60}
           />
 
-          {usaTipoPlano && !editando && form.atividadesPreMarcadas.length > 0 && (
+          {usaTipoPlano && form.atividadesPreMarcadas.length > 0 && (
             <Stack gap={4}>
-              <Text size="sm" fw={500}>Atividades do tipo (pré-marcadas)</Text>
+              <Text size="sm" fw={500}>
+                {editando ? 'Atividades do plano' : 'Atividades do tipo (pré-marcadas)'}
+              </Text>
               <Group gap={6}>
                 {form.atividadesPreMarcadas.map(a => (
                   <Badge
@@ -877,13 +1276,8 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
                         size="xs"
                         variant="transparent"
                         aria-label={`Remover ${a.nome}`}
-                        onClick={() => {
-                          marcarTocado('atividadesPreMarcadas')
-                          setForm(f => ({
-                            ...f,
-                            atividadesPreMarcadas: f.atividadesPreMarcadas.filter(x => x.acabamentoId !== a.acabamentoId),
-                          }))
-                        }}
+                        disabled={salvando}
+                        onClick={() => desmarcarAtividade(a.acabamentoId)}
                       >
                         <IconX size={10} />
                       </ActionIcon>
@@ -894,6 +1288,69 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
                 ))}
               </Group>
             </Stack>
+          )}
+
+          {!!produtoGraficoId && !catalogoItem.erro && falhaCatalogoPlano && (
+            <Text size="xs" c="dimmed">
+              Não foi possível carregar os materiais permitidos deste plano. As escolhas de material ficam
+              indisponíveis; o restante do plano continua normal.
+            </Text>
+          )}
+
+          {atividadesComSeletor.length > 0 && (
+            <Stack gap="xs">
+              <Text size="sm" fw={500}>Material das atividades</Text>
+              {atividadesComSeletor.map(({ marcada, atividade }) => {
+                const chave = chaveSelecao(marcada.acabamentoId, planoChave)
+                const rascunho = escolhas.find(e => chaveSelecao(e.acabamentoId, e.planoId) === chave)
+                const gravada = gravadasPlano.find(s => s.acabamentoId === marcada.acabamentoId)
+                const naoGravada = falhasSel.some(f => f.chave === chave)
+                return (
+                  <Paper key={marcada.acabamentoId} p="xs" withBorder radius="sm">
+                    <Stack gap={4}>
+                      <Group gap="xs">
+                        <Text size="sm" fw={600}>{marcada.nome}</Text>
+                        {naoGravada && <Badge size="xs" color="red" variant="light">não gravada</Badge>}
+                        {gravada && !rascunho && !naoGravada && <Badge size="xs" color="green" variant="light">gravada</Badge>}
+                        {rascunho && !naoGravada && <Badge size="xs" color="gray" variant="light">pendente</Badge>}
+                      </Group>
+                      <SeletorMaterialAtividade
+                        atividade={atividade!}
+                        selecao={rascunho ? undefined : gravada}
+                        pendente={rascunho as unknown as SelecaoPendente | undefined}
+                        rotuloPendente="Será gravado ao salvar o plano"
+                        erro={errosSel[chave] ?? null}
+                        itemPuxado={puxado}
+                        ocupado={false}
+                        disabled={salvando}
+                        onEscolher={(escolha) => escolherMaterial(marcada.acabamentoId, escolha)}
+                        onLimpar={() => limparMaterial(marcada.acabamentoId)}
+                      />
+                    </Stack>
+                  </Paper>
+                )
+              })}
+            </Stack>
+          )}
+
+          {falhasSel.length > 0 && (
+            <Alert
+              color="red"
+              variant="light"
+              icon={<IconAlertTriangle size={16} />}
+              title={falhasSel.length === 1
+                ? 'O plano foi salvo, mas 1 escolha de material não foi gravada'
+                : `O plano foi salvo, mas ${falhasSel.length} escolhas de material não foram gravadas`}
+            >
+              <Stack gap={4}>
+                {falhasSel.map(f => (
+                  <Text key={f.chave} size="xs">
+                    <b>{f.atividadeNome}</b>: {f.mensagem}
+                  </Text>
+                ))}
+                <Text size="xs" c="dimmed">Use "Tentar novamente" para reenviar sem criar outro plano.</Text>
+              </Stack>
+            </Alert>
           )}
 
           <Select
@@ -956,6 +1413,20 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
               min={0}
               max={2000}
             />
+            {!!produtoGraficoId && (
+              <NumberInput
+                label="Preço do papel"
+                description={textoAvisoPreco ?? 'Opcional (R$/kg). Vazio usa o preço do item.'}
+                placeholder="R$/kg"
+                prefix="R$ "
+                suffix="/kg"
+                decimalScale={4}
+                value={form.precoKg}
+                onChange={(v) => { marcarTocado('precoKg'); setForm(f => ({ ...f, precoKg: typeof v === 'number' ? v : '' })) }}
+                min={0}
+                styles={textoAvisoPreco ? { description: { color: 'var(--mantine-color-yellow-light-color)' } } : undefined}
+              />
+            )}
             <NumberInput
               label="Montagem (linhas)"
               placeholder="Opcional"
@@ -995,11 +1466,11 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
           )}
 
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setModalAberto(false)} disabled={salvando}>
-              Cancelar
+            <Button variant="default" onClick={fecharModal} disabled={salvando}>
+              {falhasSel.length > 0 ? 'Fechar' : 'Cancelar'}
             </Button>
             <Button onClick={salvar} loading={salvando}>
-              {editando ? 'Salvar plano' : 'Adicionar plano'}
+              {falhasSel.length > 0 ? 'Tentar novamente' : editando ? 'Salvar plano' : 'Adicionar plano'}
             </Button>
           </Group>
         </Stack>

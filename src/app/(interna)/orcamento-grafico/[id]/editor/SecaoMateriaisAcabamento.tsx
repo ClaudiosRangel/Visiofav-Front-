@@ -18,9 +18,10 @@ import { useMemo } from 'react'
 import { Badge, Group, Paper, Stack, Table, Text } from '@mantine/core'
 
 import type { WizardFormData } from '../../novo/page'
-import StepAcabamentos from '../../novo/StepAcabamentos'
+import StepAcabamentos, { type AcabamentoCadastro } from '../../novo/StepAcabamentos'
 import type { CatalogoDoItem } from './catalogo/catalogo.types'
 import type { ControleSelecao } from './catalogo/useSelecaoMaterial'
+import type { AcabamentoCarregado } from './useTodosAcabamentos'
 
 interface Props {
   formData: WizardFormData
@@ -29,12 +30,14 @@ interface Props {
   catalogo?: CatalogoDoItem | null
   /** Seleções gravadas do item (ligam a linha à atividade). */
   selecao?: ControleSelecao
+  /** Lista de acabamentos já carregada pelo editor (evita uma segunda carga no StepAcabamentos). */
+  acabamentosExternos?: ReadonlyArray<AcabamentoCarregado> | null
 }
 
 const moeda = (v: number | null | undefined) =>
   (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
-export default function SecaoMateriaisAcabamento({ formData, updateForm, catalogo, selecao }: Props) {
+export default function SecaoMateriaisAcabamento({ formData, updateForm, catalogo, selecao, acabamentosExternos }: Props) {
   const linhasSelecao = (formData.materiaisAcabamento ?? []).filter((l) => l.origem === 'SELECAO')
 
   // atividade (nome) por id de seleção: seleção → acabamentoId → nome no catálogo.
@@ -98,7 +101,12 @@ export default function SecaoMateriaisAcabamento({ formData, updateForm, catalog
         </Paper>
       )}
 
-      <StepAcabamentos formData={formData} updateForm={updateForm} mostrar="materiais" />
+      <StepAcabamentos
+        formData={formData}
+        updateForm={updateForm}
+        mostrar="materiais"
+        acabamentosExternos={acabamentosExternos as unknown as ReadonlyArray<AcabamentoCadastro> | null | undefined}
+      />
     </Stack>
   )
 }

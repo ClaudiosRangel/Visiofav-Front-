@@ -28,6 +28,7 @@
 import { Paper, Stack, Table, Text, ScrollArea } from '@mantine/core'
 
 import type { CatalogoDoItem } from './catalogo/catalogo.types'
+import type { UseCatalogoItemResultado } from './catalogo/useCatalogoItem'
 
 /**
  * Shape tolerante de um plano recebido por prop. Todos os campos são opcionais
@@ -50,6 +51,12 @@ interface Props {
   planos?: Array<PlanoApresentacao | unknown> | null
   /** Catálogo do produto do item (null = sem produto). Usado na tarefa 4.10 (coluna "Tipo de plano"). */
   catalogo?: CatalogoDoItem | null
+  /**
+   * Fase 3 (14.6) — instância ÚNICA de `useCatalogoItem` do editor. É a que o `PlanosDoItem`
+   * recebe em `catalogoCompartilhado`, para o modal de plano não criar uma segunda consulta.
+   * Hoje esta seção é só leitura e usa a instância para resolver o nome do tipo de plano.
+   */
+  catalogoCompartilhado?: UseCatalogoItemResultado
 }
 
 /** Texto de célula tolerante: normaliza vazio/nulo para "—". */
@@ -59,7 +66,9 @@ function celula(valor: unknown): string {
   return texto.length > 0 ? texto : '—'
 }
 
-export default function SecaoPlanos({ planos, catalogo }: Props) {
+export default function SecaoPlanos({ planos, catalogo: catalogoProp, catalogoCompartilhado }: Props) {
+  const catalogo = catalogoProp ?? catalogoCompartilhado?.catalogo ?? null
+
   // Defensivo (Req 5.2): sem planos, não renderiza nada. A ocultação da
   // seção+âncora já é decidida por `montarAncoras` no EditorItem.
   if (!planos || planos.length === 0) return null

@@ -19,8 +19,8 @@
  * aqui).
  */
 
-import { Stack, Divider, Paper, Group, Image, ThemeIcon, Text, Badge } from '@mantine/core'
-import { IconPackage } from '@tabler/icons-react'
+import { Stack, Divider, Paper, Group, Image, ThemeIcon, Text, Badge, Tooltip } from '@mantine/core'
+import { IconPackage, IconInfoCircle, IconAlertTriangle } from '@tabler/icons-react'
 
 import type { WizardFormData } from '../../novo/page'
 import StepTipo from '../../novo/StepTipo'
@@ -29,6 +29,19 @@ import StepPapel from '../../novo/StepPapel'
 import type { CampoCondicional } from './campos-por-linha'
 import SeletorProdutoGrafico, { type ProdutoEscolhido } from './catalogo/SeletorProdutoGrafico'
 import type { UseCatalogoItemResultado } from './catalogo/useCatalogoItem'
+import type { UseSugestoesProdutoResultado } from './useSugestoesProduto'
+
+/** Aviso discreto (ícone + texto xs + tooltip), sem modal. */
+function AvisoDiscreto({ texto, detalhe }: { texto: string; detalhe?: string }) {
+  return (
+    <Tooltip label={detalhe ?? texto} multiline maw={320} withArrow>
+      <Group gap={4} wrap="nowrap" align="flex-start">
+        <IconAlertTriangle size={14} color="var(--mantine-color-yellow-6)" style={{ flexShrink: 0, marginTop: 2 }} />
+        <Text size="xs" c="dimmed">{texto}</Text>
+      </Group>
+    </Tooltip>
+  )
+}
 
 interface Props {
   formData: WizardFormData
@@ -39,6 +52,8 @@ interface Props {
   catalogoItem?: UseCatalogoItemResultado
   /** Escolha/limpeza do Produto Gráfico; o EditorItem aplica defaults e guarda o id. */
   onProdutoChange?: (produto: ProdutoEscolhido | null) => void
+  /** Sugestões do produto (origem do tipo e avisos); ausente = nada é exibido. */
+  sugestoes?: UseSugestoesProdutoResultado
   /**
    * Campos condicionais por Linha de Produto a exibir. Recebido do EditorItem
    * para consistência de assinatura; a ocultação de campos condicionais da
@@ -55,7 +70,17 @@ export default function SecaoProduto({
   linhaProdutoId,
   catalogoItem,
   onProdutoChange,
+  sugestoes,
 }: Props) {
+  const avisos = sugestoes?.avisos
+  const tipoPreenchido = !!formData.tipoEmbalagemId
+  const precoPreenchido = Number(formData.precoKg ?? 0) > 0
+  const mensagemPreco =
+    avisos?.preco === 'SEM_PAPEL'
+      ? 'Preço não encontrado'
+      : avisos?.preco === 'MAIS_DE_UM'
+        ? 'Mais de um papel encontrado'
+        : null
   // Resumo do produto/embalagem selecionado (informação do produto no topo da
   // seção — Req 4). Usa o tipo de embalagem escolhido + nome/foto do produto
   // cadastrado quando houver. Estado vazio quando nada foi selecionado ainda.
@@ -111,11 +136,42 @@ export default function SecaoProduto({
         )}
       </Paper>
 
-      <StepTipo formData={formData} updateForm={updateForm} />
+      <Stack gap={6}>
+        <StepTipo formData={formData} updateForm={updateForm} />
+        {sugestoes?.origemTipoEmbalagem === 'PRODUTO' && (
+          <Group gap={4} wrap="nowrap">
+            <IconInfoCircle size={14} color="var(--mantine-color-blue-6)" />
+            <Text size="xs" c="dimmed">sugerido pelo produto</Text>
+          </Group>
+        )}
+        {avisos?.tipoInativo && !tipoPreenchido && (
+          <AvisoDiscreto
+            texto="Tipo de embalagem do produto está inativo"
+            detalhe="O tipo de embalagem vinculado ao produto está inativo e não foi preenchido. Escolha o tipo manualmente."
+          />
+        )}
+      </Stack>
       <Divider label="Medidas" labelPosition="center" />
       <StepMedidas formData={formData} updateForm={updateForm} />
       <Divider label="Papel / Cartão" labelPosition="center" />
       <StepPapel formData={formData} updateForm={updateForm} />
+      {(avisos?.falhas?.length ?? 0) > 0 && (
+        <Stack gap={4}>
+          {avisos!.falhas.map((f) => (
+            <AvisoDiscreto key={f} texto={f} />
+          ))}
+        </Stack>
+      )}
+      {mensagemPreco && !precoPreenchido && (
+        <AvisoDiscreto
+          texto={mensagemPreco}
+          detalhe={
+            avisos?.preco === 'SEM_PAPEL'
+              ? 'Nenhum papel com preço foi encontrado para o suporte e a gramatura. Informe o preço por kg.'
+              : 'Há mais de um papel com esse suporte e gramatura. Escolha o papel ou informe o preço por kg.'
+          }
+        />
+      )}
     </Stack>
   )
 }

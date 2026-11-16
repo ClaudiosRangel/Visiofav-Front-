@@ -1,9 +1,9 @@
 'use client'
 
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Stack, Text, Checkbox, Paper, NumberInput, SimpleGrid, Group, Collapse, Badge,
-  Loader, Center, TextInput, Alert, Select, ActionIcon, Tooltip, Box, SegmentedControl, Anchor,
+  Loader, Center, TextInput, Alert, Button, Select, ActionIcon, Tooltip, Box, SegmentedControl, Anchor,
 } from '@mantine/core'
 import { IconSettings, IconAlertCircle, IconTrash, IconPlus } from '@tabler/icons-react'
 import { api } from '@/lib/api'
@@ -44,9 +44,18 @@ interface Props {
    *     blocos empilhados; não-regressão do fluxo /novo).
    */
   mostrar?: 'acabamentos' | 'materiais' | 'ambos'
+  /**
+   * Lista de acabamentos já carregada pelo pai. Quando informada (mesmo vazia), a
+   * carga própria do componente é ignorada. Ausente = comportamento atual idêntico.
+   */
+  acabamentosExternos?: ReadonlyArray<AcabamentoCadastro> | null
+  /** Aviso de falha ao carregar a lista; exibe "A lista de acabamentos pode estar incompleta.". */
+  avisoLista?: string | null
+  /** Ação do botão "Tentar novamente" do aviso (o botão só aparece se informada). */
+  onTentarNovamente?: () => void
 }
 
-interface AcabamentoCadastro {
+export interface AcabamentoCadastro {
   id: string
   codigo: string
   nome: string
@@ -86,14 +95,37 @@ const naturezaBadge: Record<string, { label: string; color: string }> = {
   CUSTO_FIXO: { label: 'Custo fixo', color: 'grape' },
 }
 
-export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos', catalogo = null, selecao }: Props) {
+// Os campos numéricos vêm como STRING do backend (Decimal do Prisma); o schema Zod do
+// /calcular espera number — por isso convertemos aqui.
+function normalizarAcabamento(a: any): AcabamentoCadastro {
+  const num = (v: unknown): number | null => (v == null || v === '' ? null : Number(v))
+  return {
+    ...a,
+    precoUnitario: num(a.precoUnitario),
+    custoHora: num(a.custoHora),
+    producaoHora: num(a.producaoHora),
+    quantAcertos: num(a.quantAcertos),
+    tempoPorAcertoMin: num(a.tempoPorAcertoMin),
+    tempoPrimeiroAcertoMin: num(a.tempoPrimeiroAcertoMin),
+    exigeRestricao: !!a.exigeRestricao,
+    // P16 — materiais informativos (lista de nomes) e restrições (nomes).
+    materiais: Array.isArray(a.materiais) ? a.materiais : [],
+    restricoes: Array.isArray(a.restricoes) ? a.restricoes : [],
+  }
+}
+
+export default function StepAcabamentos({
+  formData, updateForm, mostrar = 'ambos', catalogo = null, selecao,
+  acabamentosExternos, avisoLista, onTentarNovamente,
+}: Props) {
   const mostrarAcabamentos = mostrar === 'ambos' || mostrar === 'acabamentos'
   // Fase 2 — "Ver lista geral" permite marcar algo fora do catálogo do produto.
   const [listaGeral, setListaGeral] = useState(false)
   const preMarcadoRef = useRef(false)
   const mostrarMateriais = mostrar === 'ambos' || mostrar === 'materiais'
-  const [cadastro, setCadastro] = useState<AcabamentoCadastro[]>([])
-  const [loading, setLoading] = useState(true)
+  const temExternos = acabamentosExternos != null
+  const [cadastroProprio, setCadastroProprio] = useState<AcabamentoCadastro[]>([])
+  const [loadingProprio, setLoadingProprio] = useState(true)
   const [busca, setBusca] = useState('')
   // R6.2 — filtro por CATEGORIA (natureza de custo). Puramente de apresentação:
   // restringe o que entra em `filtrados` em conjunto com a busca de texto; não
@@ -131,6 +163,8 @@ export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos
   }, [])
 
   useEffect(() => {
+    // Lista externa informada: a carga própria é ignorada.
+    if (temExternos) return
     // limit máx do backend é 100 (Zod). 200 fazia o Zod rejeitar (400) e a lista
     // ficava vazia ("Nenhum acabamento cadastrado"). A Wega tem ~67 acabamentos,
     // então 100 cobre tudo numa página.
@@ -139,26 +173,19 @@ export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos
         // Os campos numéricos vêm como STRING do backend (Decimal do Prisma).
         // O schema Zod do /calcular espera number — por isso convertemos aqui,
         // senão o cálculo falha com "Expected number, received string".
-        const num = (v: unknown): number | null =>
-          v == null || v === '' ? null : Number(v)
-        const items = (data.data || data || []).map((a: any) => ({
-          ...a,
-          precoUnitario: num(a.precoUnitario),
-          custoHora: num(a.custoHora),
-          producaoHora: num(a.producaoHora),
-          quantAcertos: num(a.quantAcertos),
-          tempoPorAcertoMin: num(a.tempoPorAcertoMin),
-          tempoPrimeiroAcertoMin: num(a.tempoPrimeiroAcertoMin),
-          exigeRestricao: !!a.exigeRestricao,
-          // P16 — materiais informativos (lista de nomes) e restrições (nomes).
-          materiais: Array.isArray(a.materiais) ? a.materiais : [],
-          restricoes: Array.isArray(a.restricoes) ? a.restricoes : [],
-        }))
-        setCadastro(items)
+        setCadastroProprio((data.data || data || []).map(normalizarAcabamento))
       })
-      .catch(() => setCadastro([]))
-      .finally(() => setLoading(false))
-  }, [])
+      .catch(() => setCadastroProprio([]))
+      .finally(() => setLoadingProprio(false))
+  }, [temExternos]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Com `acabamentosExternos`, a lista vem do pai (mesma normalização numérica).
+  const externosNormalizados = useMemo(
+    () => (acabamentosExternos ? acabamentosExternos.map(normalizarAcabamento) : null),
+    [acabamentosExternos],
+  )
+  const cadastro = externosNormalizados ?? cadastroProprio
+  const loading = temExternos ? false : loadingProprio
 
   const selecionados = formData.acabamentosRicos
   const selById = new Map(selecionados.map((s) => [s.acabamentoId, s]))
@@ -456,6 +483,17 @@ export default function StepAcabamentos({ formData, updateForm, mostrar = 'ambos
       <Text size="sm" c="dimmed">
         Selecione os acabamentos do orçamento e informe os consumos/tempos. A lista vem do cadastro de Acabamentos.
       </Text>
+
+      {avisoLista && (
+        <Alert icon={<IconAlertCircle size={16} />} color="yellow" title="A lista de acabamentos pode estar incompleta.">
+          <Group gap="sm" justify="space-between" wrap="nowrap">
+            <Text size="sm">{avisoLista}</Text>
+            {onTentarNovamente && (
+              <Button size="xs" variant="light" onClick={onTentarNovamente}>Tentar novamente</Button>
+            )}
+          </Group>
+        </Alert>
+      )}
 
       {cadastro.length === 0 && (
         <Alert icon={<IconAlertCircle size={16} />} color="yellow">

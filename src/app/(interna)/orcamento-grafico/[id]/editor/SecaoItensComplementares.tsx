@@ -13,8 +13,11 @@
  * fica a cargo do `EditorItem` (não é repetido aqui).
  */
 
+import { Text } from '@mantine/core'
+
 import type { WizardFormData } from '../../novo/page'
 import StepItensDiversos from '../../novo/StepItensDiversos'
+import type { OpcaoSugerida } from './campos-livres-puro'
 import type { CatalogoDoItem } from './catalogo/catalogo.types'
 import SugestaoItensDiversos from './catalogo/SugestaoItensDiversos'
 
@@ -23,9 +26,17 @@ interface Props {
   updateForm: (partial: Partial<WizardFormData>) => void
   /** Catálogo do produto do item (null = sem produto). Usado na tarefa 4.11 (itens sugeridos). */
   catalogo?: CatalogoDoItem | null
+  /** Sugestões de campos livres (hook do editor). Ausentes = campos livres como hoje. */
+  sugestoesRotulos?: ReadonlyArray<string>
+  opcoesPorRotulo?: Readonly<Record<string, ReadonlyArray<OpcaoSugerida>>>
+  obrigatorios?: ReadonlySet<string>
+  /** Falha ao carregar os campos livres cadastrados; não bloqueia o salvamento. */
+  avisoCamposLivres?: string | null
 }
 
-export default function SecaoItensComplementares({ formData, updateForm, catalogo }: Props) {
+export default function SecaoItensComplementares({
+  formData, updateForm, catalogo, sugestoesRotulos, opcoesPorRotulo, obrigatorios, avisoCamposLivres,
+}: Props) {
   return (
     <>
       <SugestaoItensDiversos
@@ -35,7 +46,19 @@ export default function SecaoItensComplementares({ formData, updateForm, catalog
           updateForm({ itensDiversos: [...(formData.itensDiversos ?? []), ...novos] })
         }
       />
-      <StepItensDiversos formData={formData} updateForm={updateForm} />
+      {avisoCamposLivres && (
+        <Text size="xs" c="dimmed" mb="xs" data-testid="aviso-campos-livres">
+          Não foi possível carregar as sugestões de campos livres ({avisoCamposLivres}). Você pode digitar os
+          campos normalmente.
+        </Text>
+      )}
+      <StepItensDiversos
+        formData={formData}
+        updateForm={updateForm}
+        sugestoesRotulos={sugestoesRotulos}
+        opcoesPorRotulo={opcoesPorRotulo}
+        obrigatorios={obrigatorios}
+      />
     </>
   )
 }

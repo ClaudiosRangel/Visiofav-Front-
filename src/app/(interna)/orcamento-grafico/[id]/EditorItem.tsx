@@ -64,8 +64,14 @@ import SecaoMateriaisAcabamento from './editor/SecaoMateriaisAcabamento'
 import SecaoItensComplementares from './editor/SecaoItensComplementares'
 import SecaoEstruturaCusto from './editor/SecaoEstruturaCusto'
 import SecaoFechamento from './editor/SecaoFechamento'
+import { useSugestoesProduto } from './editor/useSugestoesProduto'
+import { validarObrigatoriosParaSalvar } from './editor/validacao-obrigatorios'
 import { useCatalogoItem } from './editor/catalogo/useCatalogoItem'
 import { useSelecaoMaterial } from './editor/catalogo/useSelecaoMaterial'
+import PainelSelecoesNaoGravadas from './editor/catalogo/PainelSelecoesNaoGravadas'
+import { decidirModoSalvar, registrarItemCriado } from './editor/modo-salvar-puro'
+import { AVISO_LISTA_INCOMPLETA, useTodosAcabamentos } from './editor/useTodosAcabamentos'
+import { useCamposLivresSugestao } from './editor/useCamposLivresSugestao'
 import type { ProdutoEscolhido } from './editor/catalogo/SeletorProdutoGrafico'
 import {
   aplicarDefaultsEmVazios,
@@ -184,7 +190,11 @@ export default function EditorItem({
   onSaved,
   onCancel,
 }: Props) {
-  const isEditing = !!item
+  // Id do item criado por este editor no primeiro "Adicionar Item". Fica guardado logo após o
+  // POST, antes do passe de seleções: se o passe falhar, todo "Salvar" ou "Tentar novamente"
+  // seguinte faz PUT neste id e nunca cria um segundo item (Req 10.3).
+  const [itemIdCriado, setItemIdCriado] = useState<string | null>(null)
+  const { isEditing, itemId: itemIdAtual } = decidirModoSalvar(item?.id, itemIdCriado)
 
   // Painel lateral de preview 2D — retrátil (Req 5). Começa aberto; recolher
   // mantém o estado do form intacto (só esconde a coluna de preview).
@@ -212,6 +222,8 @@ export default function EditorItem({
   // Estado do form — MESMO shape/hidratação do wizard (itemFormShared).
   const [formData, setFormData] = useState<WizardFormData>(INITIAL_ITEM)
   const [saving, setSaving] = useState(false)
+  // Mensagem de salvamento recusado (campos obrigatórios faltando ou 400 da API).
+  const [avisoSalvar, setAvisoSalvar] = useState<string | null>(null)
 
   // Ficha Master do orçamento (dados técnicos de origem). Carregada ao montar e
   // quando o `orcamentoId` muda. Erro tratado em silêncio (null) — o editor
@@ -289,16 +301,48 @@ export default function EditorItem({
   const catalogoItem = useCatalogoItem(formData.produtoGraficoId)
   const catalogo = catalogoItem.catalogo
 
+  // Sugestões do produto (Fase 3): tipo de embalagem, suporte, gramatura e preço por kg,
+  // só em item NOVO e só em campos vazios. Origem e avisos ficam em estado local.
+  const sugestoesProduto = useSugestoesProduto({
+    produtoGraficoId: formData.produtoGraficoId,
+    catalogo,
+    catalogoCarregando: catalogoItem.carregando,
+    catalogoErro: catalogoItem.erro,
+    item,
+    formData,
+    setFormData,
+  })
+
   // Escolha de material por atividade (item salvo: PUT/DELETE imediatos; item novo:
   // pendentes aplicados no passe de seleções ao salvar).
   const selecao = useSelecaoMaterial({
-    itemId: isEditing ? item!.id : null,
+    itemId: itemIdAtual,
     itemPuxado: !!item?.calculoGraficoOrigemId,
     formData,
     updateForm,
     catalogo,
   })
   const [confirmarSaida, setConfirmarSaida] = useState(false)
+  // Retentativa do passe de seleções em andamento (botão do painel de não gravadas).
+  const [tentandoNovamente, setTentandoNovamente] = useState(false)
+
+  // Lista completa de acabamentos (todas as páginas + atividades do catálogo ausentes).
+  // Só o editor usa; o wizard /novo e o ItemWizardModal seguem com a carga própria.
+  const idsAtividadesCatalogo = useMemo(
+    () => [
+      ...(catalogo?.produto.atividades ?? []).map((a) => a.id),
+      ...(catalogo?.produto.acondicionamento ?? []).map((a) => a.id),
+    ],
+    [catalogo],
+  )
+  const todosAcabamentos = useTodosAcabamentos(idsAtividadesCatalogo)
+  const avisoListaAcabamentos = todosAcabamentos.erro
+    ? `${AVISO_LISTA_INCOMPLETA} ${todosAcabamentos.erro}`
+    : null
+
+  // Sugestões de campos livres cadastrados (rótulos, opções e obrigatórios). Não altera o
+  // payload de cálculo nem o resultado: só ajuda a preencher os pares do item.
+  const camposLivresSugestao = useCamposLivresSugestao(formData.camposLivres)
 
   // Escolha/limpeza do produto no seletor. Limpar um produto já gravado envia `null`
   // (limpa no back); sem produto gravado volta a `undefined` (não envia nada).
@@ -372,7 +416,7 @@ export default function EditorItem({
   // os cards não começarem vazios na edição.
   const { kpis, loading: recalculando, erros } = useCalculoAoVivo(formData, {
     orcamentoId,
-    itemId: isEditing ? item!.id : null,
+    itemId: itemIdAtual,
   })
   // Fallback inicial dos KPIs a partir do resultado já persistido (edição).
   const resultadoPersistido = (item?.resultadoCalculo ?? null) as Record<string, unknown> | null
@@ -472,14 +516,26 @@ export default function EditorItem({
               linhaProdutoId={linhaProdutoId}
               catalogoItem={catalogoItem}
               onProdutoChange={trocarProduto}
+              sugestoes={sugestoesProduto}
             />
           )
         case 'planos':
-          return <SecaoPlanos planos={item?.planos ?? null} catalogo={catalogo} />
+          return <SecaoPlanos planos={item?.planos ?? null} catalogo={catalogo} catalogoCompartilhado={catalogoItem} />
         case 'dados-tecnicos':
           return <SecaoDadosTecnicos formData={formData} updateForm={updateForm} mostrarCampo={mostrarCampo} />
         case 'acabamentos':
-          return <SecaoAcabamentos formData={formData} updateForm={updateForm} catalogo={catalogo} selecao={selecao} />
+          return (
+            <SecaoAcabamentos
+              formData={formData}
+              updateForm={updateForm}
+              catalogo={catalogo}
+              selecao={selecao}
+              acabamentosExternos={todosAcabamentos.acabamentos}
+              avisoLista={avisoListaAcabamentos}
+              onTentarNovamente={todosAcabamentos.tentarNovamente}
+              carregandoLista={todosAcabamentos.carregando}
+            />
+          )
         case 'materiais-acabamento':
           return (
             <SecaoMateriaisAcabamento
@@ -487,10 +543,21 @@ export default function EditorItem({
               updateForm={updateForm}
               catalogo={catalogo}
               selecao={selecao}
+              acabamentosExternos={todosAcabamentos.acabamentos}
             />
           )
         case 'itens-complementares':
-          return <SecaoItensComplementares formData={formData} updateForm={updateForm} catalogo={catalogo} />
+          return (
+            <SecaoItensComplementares
+              formData={formData}
+              updateForm={updateForm}
+              catalogo={catalogo}
+              sugestoesRotulos={camposLivresSugestao.rotulos}
+              opcoesPorRotulo={camposLivresSugestao.opcoesPorRotulo}
+              obrigatorios={camposLivresSugestao.obrigatorios}
+              avisoCamposLivres={camposLivresSugestao.aviso}
+            />
+          )
         case 'estrutura':
           return <SecaoEstruturaCusto resultadoCalculo={item?.resultadoCalculo ?? null} />
         case 'fechamento':
@@ -509,7 +576,8 @@ export default function EditorItem({
     },
     [
       formData, updateForm, item?.planos, item?.resultadoCalculo, baseCusto, cevPct, margemAtualPct,
-      mostrarCampo, linhaProdutoId, catalogoItem, catalogo, trocarProduto, selecao,
+      mostrarCampo, linhaProdutoId, catalogoItem, catalogo, trocarProduto, selecao, sugestoesProduto,
+      todosAcabamentos, avisoListaAcabamentos, camposLivresSugestao,
     ],
   )
 
@@ -517,51 +585,111 @@ export default function EditorItem({
   // pendentes/remoções com o id devolvido; 3) regrava o item com as linhas SELECAO
   // mescladas para recalcular. Sem pendentes, é a mesma chamada única de antes.
   const salvar = async () => {
+    // Validação prévia (Req 4.8): lista não vazia não envia e mantém o formulário.
+    const faltam = validarObrigatoriosParaSalvar(formData)
+    if (faltam.length > 0) {
+      setAvisoSalvar(`Faltam: ${faltam.join(', ')}.`)
+      return
+    }
+    setAvisoSalvar(null)
     setSaving(true)
     try {
-      const salvo = await salvarItem(orcamentoId, formData, isEditing ? item!.id : null)
-      const itemId = isEditing ? item!.id : (salvo?.id as string | undefined)
-      let falhasSelecao = 0
+      // PUT quando o item já existe (da página ou criado antes por este editor); POST só na 1ª vez.
+      const modo = decidirModoSalvar(item?.id, itemIdCriado)
+      const salvo = await salvarItem(orcamentoId, formData, modo.itemId)
+      const itemId = modo.itemId ?? (salvo?.id as string | undefined) ?? null
+      // Guarda o id ANTES do passe de seleções: se o passe falhar, a próxima tentativa faz PUT.
+      if (!modo.itemId && itemId) setItemIdCriado((atual) => registrarItemCriado(atual, itemId))
+
+      let podeRecalcular = true
+      let naoGravadas = 0
       if (itemId && (formData._selecoesPendentes?.length ?? 0) > 0) {
-        const passe = await selecao.aplicarPendentes(itemId)
-        falhasSelecao = passe.falhas
-        if (passe.linhas) {
+        const passe = await selecao.aplicarPendentes(itemId, { timeoutMs: 30_000 })
+        podeRecalcular = passe.podeRecalcular
+        naoGravadas = passe.resultado.falhas.length
+        // Com alguma seleção não gravada não há passe de recálculo: o editor segue aberto.
+        if (podeRecalcular && passe.linhas) {
           await salvarItem(orcamentoId, { ...formData, materiaisAcabamento: passe.linhas }, itemId)
         }
       }
+
+      if (!podeRecalcular) {
+        notifications.show({
+          title: 'Item salvo, mas há escolhas de material não gravadas',
+          message: `${naoGravadas} escolha${naoGravadas > 1 ? 's' : ''} de material não ${
+            naoGravadas > 1 ? 'foram gravadas' : 'foi gravada'
+          }. Use "Tentar novamente" no aviso abaixo; o item não será criado de novo.`,
+          color: 'yellow',
+        })
+        return
+      }
+
       selecao.zerarSujo()
       notifications.show(
-        isEditing
+        modo.isEditing
           ? { title: 'Item atualizado', message: 'Item recalculado e salvo.', color: 'green' }
           : { title: 'Item adicionado', message: 'Novo item calculado e salvo.', color: 'green' },
       )
-      if (falhasSelecao > 0) {
-        notifications.show({
-          title: 'Escolhas de material não aplicadas',
-          message: `Item salvo, mas ${falhasSelecao} escolha${falhasSelecao > 1 ? 's' : ''} de material não ${
-            falhasSelecao > 1 ? 'foram aplicadas' : 'foi aplicada'
-          }. Reabra o item e escolha o material de novo.`,
-          color: 'yellow',
-        })
-      }
       onSaved?.()
     } catch (err: any) {
-      notifications.show({
-        title: 'Erro ao salvar item',
-        message: err?.response?.data?.message || 'Falha ao salvar o item do orçamento.',
-        color: 'red',
-      })
+      const apiMsg = err?.response?.data?.message
+      const mensagem =
+        typeof apiMsg === 'string' && apiMsg.trim()
+          ? apiMsg
+          : err?.response?.status === 400
+            ? 'Não foi possível salvar o item. Confira o Tipo de Embalagem, a Gramatura e o Preço por kg e tente novamente.'
+            : 'Falha ao salvar o item do orçamento.'
+      // Editor continua aberto com o formulário preservado; a mensagem fica visível ao lado do botão.
+      if (err?.response?.status === 400) setAvisoSalvar(mensagem)
+      notifications.show({ title: 'Erro ao salvar item', message: mensagem, color: 'red' })
     } finally {
       setSaving(false)
     }
   }
 
-  // Cancelar: se há escolhas de material já gravadas que ainda não entraram no preço,
-  // pergunta se o usuário quer salvar o item antes de sair.
+  // "Tentar novamente" do painel: reenvia só as seleções não gravadas. Se todas passarem,
+  // recalcula (PUT no item já criado, nunca POST) e fecha como no fluxo normal.
+  const tentarNovamentePasse = async () => {
+    if (!itemIdAtual) return
+    setTentandoNovamente(true)
+    try {
+      const passe = await selecao.tentarNovamente(itemIdAtual, { timeoutMs: 30_000 })
+      if (!passe.podeRecalcular) {
+        const n = passe.resultado.falhas.length
+        notifications.show({
+          title: 'Ainda há escolhas não gravadas',
+          message: `${n} escolha${n > 1 ? 's' : ''} de material continua${n > 1 ? 'm' : ''} sem gravar. Confira as mensagens no aviso.`,
+          color: 'yellow',
+        })
+        return
+      }
+      await salvarItem(
+        orcamentoId,
+        { ...formData, materiaisAcabamento: passe.linhas ?? formData.materiaisAcabamento },
+        itemIdAtual,
+      )
+      selecao.zerarSujo()
+      notifications.show({ title: 'Item atualizado', message: 'Escolhas gravadas, item recalculado e salvo.', color: 'green' })
+      onSaved?.()
+    } catch (err: any) {
+      const apiMsg = err?.response?.data?.message
+      notifications.show({
+        title: 'Erro ao salvar item',
+        message: typeof apiMsg === 'string' && apiMsg.trim() ? apiMsg : 'Falha ao salvar o item do orçamento.',
+        color: 'red',
+      })
+    } finally {
+      setTentandoNovamente(false)
+    }
+  }
+
+  // Cancelar: com escolhas não gravadas, avisa que o item já foi salvo; sem elas, se há
+  // escolhas já gravadas que ainda não entraram no preço, pergunta se quer salvar o item.
   const cancelar = () => {
-    if (selecao.sujo) setConfirmarSaida(true)
+    if (selecao.totalNaoGravadas > 0 || selecao.sujo) setConfirmarSaida(true)
     else onCancel?.()
   }
+  const saidaComNaoGravadas = selecao.totalNaoGravadas > 0
 
   return (
     <Box pos="relative">
@@ -570,36 +698,62 @@ export default function EditorItem({
       <Modal
         opened={confirmarSaida}
         onClose={() => setConfirmarSaida(false)}
-        title="Salvar o item?"
+        title={saidaComNaoGravadas ? 'Fechar o editor?' : 'Salvar o item?'}
         centered
         size="md"
       >
-        <Text size="sm">
-          As escolhas de material já foram gravadas, mas ainda não entraram no preço do item. Salve o item para
-          aplicá-las ao preço.
-        </Text>
-        <Group justify="flex-end" mt="md">
-          <Button variant="subtle" onClick={() => setConfirmarSaida(false)}>
-            Continuar editando
-          </Button>
-          <Button
-            variant="default"
-            onClick={() => {
-              setConfirmarSaida(false)
-              onCancel?.()
-            }}
-          >
-            Sair sem salvar
-          </Button>
-          <Button
-            onClick={() => {
-              setConfirmarSaida(false)
-              void salvar()
-            }}
-          >
-            Salvar item
-          </Button>
-        </Group>
+        {saidaComNaoGravadas ? (
+          <>
+            <Text size="sm">
+              O item foi salvo e {selecao.totalNaoGravadas} escolha{selecao.totalNaoGravadas > 1 ? 's' : ''} de
+              material não {selecao.totalNaoGravadas > 1 ? 'foram gravadas' : 'foi gravada'}. Se fechar agora, o
+              item continua salvo (não será excluído), mas sem {selecao.totalNaoGravadas > 1 ? 'essas escolhas' : 'essa escolha'}.
+            </Text>
+            <Group justify="flex-end" mt="md">
+              <Button variant="subtle" onClick={() => setConfirmarSaida(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => {
+                  setConfirmarSaida(false)
+                  // O item já foi salvo: recarrega a página do orçamento ao fechar.
+                  onSaved?.()
+                }}
+              >
+                Confirmar
+              </Button>
+            </Group>
+          </>
+        ) : (
+          <>
+            <Text size="sm">
+              As escolhas de material já foram gravadas, mas ainda não entraram no preço do item. Salve o item para
+              aplicá-las ao preço.
+            </Text>
+            <Group justify="flex-end" mt="md">
+              <Button variant="subtle" onClick={() => setConfirmarSaida(false)}>
+                Continuar editando
+              </Button>
+              <Button
+                variant="default"
+                onClick={() => {
+                  setConfirmarSaida(false)
+                  onCancel?.()
+                }}
+              >
+                Sair sem salvar
+              </Button>
+              <Button
+                onClick={() => {
+                  setConfirmarSaida(false)
+                  void salvar()
+                }}
+              >
+                Salvar item
+              </Button>
+            </Group>
+          </>
+        )}
       </Modal>
 
       {/* Sticky Summary Bar — KPIs em tempo real (Req 3). Fica colada no topo do
@@ -717,6 +871,36 @@ export default function EditorItem({
           </Grid.Col>
         )}
       </Grid>
+
+      {avisoSalvar && (
+        <Alert
+          variant="light"
+          color="red"
+          icon={<IconAlertCircle size={18} />}
+          mt="lg"
+          withCloseButton
+          onClose={() => setAvisoSalvar(null)}
+        >
+          {avisoSalvar}
+        </Alert>
+      )}
+
+      {/* Escolhas de material não gravadas no passe após salvar (Req 10.2/10.4). O item já
+          existe; "Tentar novamente" reenvia só as não gravadas e nunca cria outro item. */}
+      {selecao.falhasPasse.length > 0 && (
+        <Box mt="lg">
+          <PainelSelecoesNaoGravadas
+            falhas={selecao.falhasPasse}
+            carregando={tentandoNovamente}
+            onTentarNovamente={() => void tentarNovamentePasse()}
+            onTrocar={() => irPara('acabamentos')}
+            onRemover={(chave) => {
+              const [acabamentoId, planoId] = chave.split('|')
+              void selecao.limpar(acabamentoId, planoId || null)
+            }}
+          />
+        </Box>
+      )}
 
       {/* Rodapé de ações — Cancelar / Salvar Item (reaproveita `salvar()`). */}
       <Group justify="flex-end" mt="lg" pb="md">

@@ -15,10 +15,13 @@
  * fica a cargo do `EditorItem` (não é repetido aqui).
  */
 
+import { Group, Loader, Text } from '@mantine/core'
+
 import type { WizardFormData } from '../../novo/page'
-import StepAcabamentos from '../../novo/StepAcabamentos'
+import StepAcabamentos, { type AcabamentoCadastro } from '../../novo/StepAcabamentos'
 import type { CatalogoDoItem } from './catalogo/catalogo.types'
 import type { ControleSelecao } from './catalogo/useSelecaoMaterial'
+import type { AcabamentoCarregado } from './useTodosAcabamentos'
 
 interface Props {
   formData: WizardFormData
@@ -27,9 +30,27 @@ interface Props {
   catalogo?: CatalogoDoItem | null
   /** Controle da escolha de material por atividade (só com catálogo). */
   selecao?: ControleSelecao
+  /** Lista completa de acabamentos carregada pelo editor (ausente = carga própria, como no wizard). */
+  acabamentosExternos?: ReadonlyArray<AcabamentoCarregado> | null
+  /** Aviso de lista incompleta (falha de página ou de busca por ids). */
+  avisoLista?: string | null
+  onTentarNovamente?: () => void
+  /** A lista completa ainda está sendo carregada pela primeira vez. */
+  carregandoLista?: boolean
 }
 
-export default function SecaoAcabamentos({ formData, updateForm, catalogo, selecao }: Props) {
+export default function SecaoAcabamentos({
+  formData, updateForm, catalogo, selecao, acabamentosExternos, avisoLista, onTentarNovamente, carregandoLista,
+}: Props) {
+  // Primeira carga da lista completa: evita mostrar "nenhum acabamento" antes da resposta.
+  if (carregandoLista && (acabamentosExternos?.length ?? 0) === 0) {
+    return (
+      <Group gap="xs">
+        <Loader size="xs" />
+        <Text size="sm" c="dimmed">Carregando acabamentos…</Text>
+      </Group>
+    )
+  }
   return (
     <StepAcabamentos
       formData={formData}
@@ -37,6 +58,9 @@ export default function SecaoAcabamentos({ formData, updateForm, catalogo, selec
       mostrar="acabamentos"
       catalogo={catalogo ?? null}
       selecao={catalogo ? selecao : undefined}
+      acabamentosExternos={acabamentosExternos as unknown as ReadonlyArray<AcabamentoCadastro> | null | undefined}
+      avisoLista={avisoLista}
+      onTentarNovamente={onTentarNovamente}
     />
   )
 }

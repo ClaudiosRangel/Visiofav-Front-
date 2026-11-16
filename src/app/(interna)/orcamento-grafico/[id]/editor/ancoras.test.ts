@@ -8,7 +8,8 @@
  *
  * Contrato de `montarAncoras(item)`:
  *  - Sempre contém as âncoras fixas: 'produto', 'dados-tecnicos',
- *    'acabamentos', 'estrutura', 'fechamento'.
+ *    'acabamentos', 'materiais-acabamento', 'itens-complementares',
+ *    'estrutura', 'fechamento'.
  *  - Contém 'planos' SE E SOMENTE SE `item.planos?.length > 0`, posicionada
  *    logo após 'produto'.
  *
@@ -28,6 +29,8 @@ const ANCORAS_FIXAS: readonly AncoraId[] = [
   'produto',
   'dados-tecnicos',
   'acabamentos',
+  'materiais-acabamento',
+  'itens-complementares',
   'estrutura',
   'fechamento',
 ] as const
@@ -72,6 +75,8 @@ describe('montarAncoras (Property 5)', () => {
           ...(temPlanos ? (['planos'] as const) : []),
           'dados-tecnicos',
           'acabamentos',
+          'materiais-acabamento',
+          'itens-complementares',
           'estrutura',
           'fechamento',
         ]

@@ -48,6 +48,8 @@ export interface ProdutoGrafico {
   exibeRestricoes: boolean
   exibeInformacoesComplementares: boolean
   semImpressao: boolean
+  /** Vínculo opcional com o Tipo de Embalagem (null = sem vínculo). */
+  tipoEmbalagemId?: string | null
   criadoEm?: string
   atualizadoEm?: string
 }
