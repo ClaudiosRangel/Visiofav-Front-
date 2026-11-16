@@ -1637,8 +1637,9 @@ export default function ProgramacaoPage() {
   async function reextrairPdf(opId: string, opNumero: string | number) {
     try {
       const res = await api.post('/pcp/programacao/reextrair-pdf', { opId })
-      const { matriz, formato, tipoOp, materiaisAtualizados, totalMateriais, avisos } = res.data
+      const { matriz, formato, tipoOp, materiaisAtualizados, totalMateriais, avisos, aguardandoCartao } = res.data
       const partes = [
+        aguardandoCartao && 'Material encomendado: OS enviada para Aguardando Cartão',
         tipoOp && `Tipo: ${tipoOp}`,
         matriz && `Matriz: ${matriz}`,
         formato && `Formato: ${formato}`,
@@ -1652,9 +1653,15 @@ export default function ProgramacaoPage() {
       if (avisos?.length > 0) {
         notifications.show({ title: 'Atenção', message: avisos.join(' '), color: 'yellow' })
       }
-      // Não faz carregar() — mantém a ordem das OPs na tela (mesmo
-      // comportamento do iniciar). Os dados extraídos são metadados
-      // (tipo, matriz, formato, materiais) que não afetam a fila.
+      // Normalmente não faz carregar() — mantém a ordem das OPs na tela. Exceção:
+      // quando o PDF revelou material ENCOMENDADO, a OS muda de lugar (vai para
+      // "Aguardando Cartão"), então recarrega o painel em segundo plano.
+      if (aguardandoCartao) {
+        try {
+          const { data } = await api.get('/pcp/programacao/painel')
+          setPainel(data)
+        } catch { /* aparece na próxima atualização */ }
+      }
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao re-extrair PDF', color: 'red' })
     }
@@ -1663,8 +1670,15 @@ export default function ProgramacaoPage() {
   async function liberarProducao(opId: string) {
     try {
       // Marca material como recebido — remove "encomendado" das observações da OP
+      // e grava a marca [CartaoRecebido], para o Re-extrair do PDF não reabrir
+      // o "Aguardando Cartão" desta OP depois.
+      const obsSemEncomenda = painel.aguardandoCartao
+        ?.find((i: any) => i.opId === opId)
+        ?.observacoes?.replace(/\[Bobina\].*encomendad[oa].*\n?/gi, '')
       await api.patch(`/ordens-producao/${opId}`, {
-        observacoes: painel.aguardandoCartao?.find((i: any) => i.opId === opId)?.observacoes?.replace(/\[Bobina\].*encomendad[oa].*\n?/gi, '') || undefined,
+        observacoes: obsSemEncomenda != null
+          ? (/\[CartaoRecebido\]/i.test(obsSemEncomenda) ? obsSemEncomenda : `${obsSemEncomenda.trim()}\n[CartaoRecebido]`)
+          : undefined,
       })
       notifications.show({ title: 'Material recebido', message: 'Cartão recebido — OS liberada do aguardo', color: 'green' })
       // Atualização otimista: remove do quadro "Aguardando Cartão" sem
