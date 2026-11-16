@@ -1639,7 +1639,7 @@ export default function ProgramacaoPage() {
       const res = await api.post('/pcp/programacao/reextrair-pdf', { opId })
       const { matriz, formato, tipoOp, materiaisAtualizados, totalMateriais, avisos, aguardandoCartao } = res.data
       const partes = [
-        aguardandoCartao && 'Material encomendado: OS enviada para Aguardando Cartão',
+        aguardandoCartao && 'Material encomendado: OS enviada para Aguardando Cartão (aba Cortadeira)',
         tipoOp && `Tipo: ${tipoOp}`,
         matriz && `Matriz: ${matriz}`,
         formato && `Formato: ${formato}`,
@@ -1656,10 +1656,41 @@ export default function ProgramacaoPage() {
       // Normalmente não faz carregar() — mantém a ordem das OPs na tela. Exceção:
       // quando o PDF revelou material ENCOMENDADO, a OS muda de lugar (vai para
       // "Aguardando Cartão"), então recarrega o painel em segundo plano.
+      // Atualização SILENCIOSA e cirúrgica: NÃO substitui o painel (isso
+      // remontava a tela e podia mudar a ordem das OPs). Só (1) tira as etapas
+      // desta OP dos centros e (2) acrescenta o item em "Aguardando Cartão".
+      // Ordem dos centros e das demais OPs permanece exatamente como está.
       if (aguardandoCartao) {
         try {
           const { data } = await api.get('/pcp/programacao/painel')
-          setPainel(data)
+          const item = (data?.aguardandoCartao || []).find((i: any) => i.opId === opId)
+          if (item) {
+            setPainel((prev: any) => {
+              if (!prev) return prev
+              // Retenção total → a OP some dos centros. Liberação parcial → continua
+              // produzindo no centro, só aparece também em "Aguardando Cartão".
+              const retencaoTotal = !item.liberacaoParcial
+              const centros = retencaoTotal
+                ? (prev.centros || []).map((c: any) => {
+                    const etapas = (c.etapas || []).filter((e: any) => e.opId !== opId)
+                    const removidas = (c.etapas || []).length - etapas.length
+                    if (removidas === 0) return c
+                    return {
+                      ...c,
+                      etapas,
+                      resumo: c.resumo && typeof c.resumo.total === 'number'
+                        ? { ...c.resumo, total: Math.max(0, c.resumo.total - removidas) }
+                        : c.resumo,
+                    }
+                  })
+                : prev.centros
+              return {
+                ...prev,
+                centros,
+                aguardandoCartao: [...(prev.aguardandoCartao || []).filter((i: any) => i.opId !== opId), item],
+              }
+            })
+          }
         } catch { /* aparece na próxima atualização */ }
       }
     } catch (err: any) {
