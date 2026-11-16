@@ -2395,7 +2395,9 @@ export default function ProgramacaoPage() {
         <Button size="xs" variant="light" leftSection={<IconPrinter size={14} />} onClick={() => imprimirRelatorio()} className="no-print">
           Imprimir
         </Button>
-        {minhasPermissoes.isAdmin && (
+        {(minhasPermissoes.isAdmin
+          || minhasPermissoes.podeRetornarEtapa === true
+          || Object.values(minhasPermissoes.permissoesPorProcesso ?? {}).some((p: any) => p?.podeRetornarEtapa === true)) && (
         <Button
           size="xs"
           variant={mostrarConcluidas ? 'filled' : 'light'}

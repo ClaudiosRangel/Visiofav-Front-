@@ -10,6 +10,7 @@ import {
   IconSearch, IconTimeline, IconRefresh, IconLock, IconLockOpen,
   IconCalendar, IconZoomIn, IconZoomOut, IconPalette,
   IconFilterOff, IconFocus2, IconArrowsLeftRight, IconArrowsSort, IconInfoCircle,
+  IconCheck,
 } from '@tabler/icons-react'
 import { Menu } from '@mantine/core'
 import { api } from '@/lib/api'
@@ -490,6 +491,31 @@ export default function GanttProducaoPage() {
       notifications.show({ title: 'Não foi possível agendar', message: e?.response?.data?.message || 'Falha ao travar a etapa.', color: 'red' })
       // Reverte o deslocamento otimista (Req 3.5).
       setOffsetMin((p) => { const n = { ...p }; delete n[etapaId]; return n })
+    } finally {
+      setSalvandoAgenda(false)
+    }
+  }
+
+  /**
+   * Encerra (conclui) o split/etapa direto do Gantt. Usa a mesma rota da
+   * Programação (`PATCH /pcp/etapas/:id/concluir`), que exige a permissão
+   * `podeFinalizar` e só aceita etapas EM_ANDAMENTO/PAUSADA. Se for a última
+   * etapa da OP, a OP é concluída e a entrada de produção é gerada no WMS —
+   * por isso a confirmação explícita.
+   */
+  async function encerrarEtapa(bar: { etapaId: string; opNumero: string; descricao: string }) {
+    const ok = window.confirm(
+      `Encerrar a etapa "${rotuloPlano(bar.descricao)}" da OP ${bar.opNumero}?\n\n` +
+      'Se for a última etapa da OP, a OP será concluída e a entrada de produção será gerada.',
+    )
+    if (!ok) return
+    setSalvandoAgenda(true)
+    try {
+      await api.patch(`/pcp/etapas/${bar.etapaId}/concluir`, {})
+      notifications.show({ title: 'Etapa encerrada', message: `OP ${bar.opNumero} — etapa concluída.`, color: 'green' })
+      await carregar()
+    } catch (e: any) {
+      notifications.show({ title: 'Não foi possível encerrar', message: e?.response?.data?.message || 'Falha ao encerrar a etapa.', color: 'red' })
     } finally {
       setSalvandoAgenda(false)
     }
@@ -1685,6 +1711,14 @@ export default function GanttProducaoPage() {
                             Travar nesta data
                           </Menu.Item>
                         )}
+                        <Menu.Item
+                          leftSection={<IconCheck size={14} />}
+                          color="green"
+                          disabled={salvandoAgenda || !(bar.status === 'EM_ANDAMENTO' || bar.status === 'PAUSADA')}
+                          onClick={() => encerrarEtapa(bar)}
+                        >
+                          Encerrar este split
+                        </Menu.Item>
                         <Menu.Divider />
                         {/* Editor de cor/status por OP (spec pcp-gantt-melhorias, Req 3) */}
                         <Menu.Item
