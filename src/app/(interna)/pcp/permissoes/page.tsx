@@ -128,7 +128,11 @@ export default function PermissoesPcpPage() {
             {tiposProcesso.map((tp: any) => {
               const tpKey = tp.id
               const permsProcesso = formPermissoes.permissoesPorProcesso?.[tpKey] || {}
-              const getVal = (campo: string) => permsProcesso[campo] ?? true
+              // Permissões que o backend trata como DESLIGADAS por padrão (precisam
+              // ser marcadas explicitamente): voltar etapa e travar sequência.
+              // Exibir "marcado" aqui enganava o admin (parecia liberado, mas não era).
+              const PADRAO_DESLIGADO = ['podeRetornarEtapa', 'podeTravarSequencia']
+              const getVal = (campo: string) => permsProcesso[campo] ?? !PADRAO_DESLIGADO.includes(campo)
 
               function setVal(campo: string, valor: boolean) {
                 setFormPermissoes((p: any) => ({
@@ -155,6 +159,7 @@ export default function PermissoesPcpPage() {
                     <Checkbox size="xs" label="Postergar" checked={getVal('podePostergarEntrega')} onChange={(e) => setVal('podePostergarEntrega', e.currentTarget.checked)} />
                     <Checkbox size="xs" label="Acomp." checked={getVal('podeEditarObservacao')} onChange={(e) => setVal('podeEditarObservacao', e.currentTarget.checked)} />
                     <Checkbox size="xs" label="Voltar etapa" checked={getVal('podeRetornarEtapa')} onChange={(e) => setVal('podeRetornarEtapa', e.currentTarget.checked)} />
+                    <Checkbox size="xs" label="Travar sequência" checked={getVal('podeTravarSequencia')} onChange={(e) => setVal('podeTravarSequencia', e.currentTarget.checked)} />
                   </Group>
                 </Card>
               )

@@ -4,13 +4,13 @@ import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import {
   Title, Stack, Group, Text, Loader, Center, Badge, Paper, Box,
   Tooltip, TextInput, SegmentedControl, ActionIcon, Button,
-  Modal, ColorInput, MultiSelect, Select,
+  Modal, ColorInput, MultiSelect, Select, NumberInput,
 } from '@mantine/core'
 import {
   IconSearch, IconTimeline, IconRefresh, IconLock, IconLockOpen,
   IconCalendar, IconZoomIn, IconZoomOut, IconPalette,
   IconFilterOff, IconFocus2, IconArrowsLeftRight, IconArrowsSort, IconInfoCircle,
-  IconCheck,
+  IconCheck, IconAnchor, IconAnchorOff,
 } from '@tabler/icons-react'
 import { Menu } from '@mantine/core'
 import { api } from '@/lib/api'
@@ -60,6 +60,11 @@ interface EtapaTimeline {
   desvioPercent: number
   agendaTravada?: boolean
   inicioAgendadoManual?: string | null
+  // Trava de SEQUÊNCIA (spec gantt-travar-sequencia).
+  sequenciaTravada?: boolean
+  sequenciaTravadaEm?: string | null
+  sequenciaTravadaPorNome?: string | null
+  posicaoFila?: number | null
   turno?: { horaInicio: string; horaFim: string; diasSemana: number[] } | null
   paradas: Array<{ motivo: string; duracaoMinutos: number; observacao: string | null }>
 }
@@ -118,6 +123,11 @@ interface GanttBar {
   // Âncora de agenda (spec pcp-gantt-travar-mover).
   agendaTravada: boolean
   inicioAgendadoManual: string | null
+  // Trava de SEQUÊNCIA (posição fixa na fila da máquina).
+  sequenciaTravada: boolean
+  sequenciaTravadaEm: string | null
+  sequenciaTravadaPorNome: string | null
+  posicaoFila: number | null
   // Turno do centro — usado para segmentar a barra por janelas de trabalho.
   turno: { horaInicio: string; horaFim: string; diasSemana: number[] } | null
   // Id do centro — chave para buscar as exceções de calendário na segmentação.
@@ -503,19 +513,78 @@ export default function GanttProducaoPage() {
    * etapa da OP, a OP é concluída e a entrada de produção é gerada no WMS —
    * por isso a confirmação explícita.
    */
-  async function encerrarEtapa(bar: { etapaId: string; opNumero: string; descricao: string }) {
-    const ok = window.confirm(
-      `Encerrar a etapa "${rotuloPlano(bar.descricao)}" da OP ${bar.opNumero}?\n\n` +
-      'Se for a última etapa da OP, a OP será concluída e a entrada de produção será gerada.',
-    )
-    if (!ok) return
+  // Modal de encerramento (substitui o confirm simples): para split PENDENTE
+  // pede a quantidade produzida (aceita zero); para split já iniciado, só confirma.
+  const [encerrando, setEncerrando] = useState<{
+    etapaId: string; opNumero: string; descricao: string; status: string
+  } | null>(null)
+  const [qtdEncerrar, setQtdEncerrar] = useState<number | string>(0)
+
+  function abrirEncerrar(bar: { etapaId: string; opNumero: string; descricao: string; status: string }) {
+    setQtdEncerrar(0)
+    setEncerrando({ etapaId: bar.etapaId, opNumero: bar.opNumero, descricao: bar.descricao, status: bar.status })
+  }
+
+  async function confirmarEncerrar() {
+    if (!encerrando) return
+    const bar = encerrando
+    const semInicio = bar.status === 'PENDENTE'
     setSalvandoAgenda(true)
     try {
-      await api.patch(`/pcp/etapas/${bar.etapaId}/concluir`, {})
+      await api.patch(
+        `/pcp/etapas/${bar.etapaId}/concluir`,
+        semInicio ? { encerrarSemInicio: true, quantidadeProduzida: Number(qtdEncerrar) || 0 } : {},
+      )
       notifications.show({ title: 'Etapa encerrada', message: `OP ${bar.opNumero} — etapa concluída.`, color: 'green' })
+      setEncerrando(null)
       await carregar()
     } catch (e: any) {
       notifications.show({ title: 'Não foi possível encerrar', message: e?.response?.data?.message || 'Falha ao encerrar a etapa.', color: 'red' })
+    } finally {
+      setSalvandoAgenda(false)
+    }
+  }
+
+  // ── Trava de SEQUÊNCIA (spec gantt-travar-sequencia) ──
+  // Permissão efetiva do usuário (admin, global ou em algum processo). O backend
+  // é a autoridade final (responde 403); aqui só evitamos oferecer ação inútil.
+  const [podeTravarSeq, setPodeTravarSeq] = useState(false)
+  const podeTravarSeqRef = useRef(false)
+  podeTravarSeqRef.current = podeTravarSeq
+  useEffect(() => {
+    api.get('/pcp/permissoes/minha')
+      .then(({ data }) => {
+        const porProcesso = Object.values(data?.permissoesPorProcesso ?? {}) as any[]
+        setPodeTravarSeq(
+          data?.isAdmin === true ||
+          data?.podeTravarSequencia === true ||
+          porProcesso.some((p) => p?.podeTravarSequencia === true),
+        )
+      })
+      .catch(() => setPodeTravarSeq(false))
+  }, [])
+
+  async function travarSequencia(etapaId: string) {
+    setSalvandoAgenda(true)
+    try {
+      await api.patch(`/pcp/etapas/${etapaId}/travar-sequencia`, {})
+      notifications.show({ title: 'Sequência travada', message: 'A posição na fila da máquina foi fixada.', color: 'green' })
+      await carregar()
+    } catch (e: any) {
+      notifications.show({ title: 'Não foi possível travar a sequência', message: e?.response?.data?.message || 'Falha ao travar a sequência.', color: 'red' })
+    } finally {
+      setSalvandoAgenda(false)
+    }
+  }
+
+  async function destravarSequencia(etapaId: string) {
+    setSalvandoAgenda(true)
+    try {
+      await api.patch(`/pcp/etapas/${etapaId}/destravar-sequencia`, {})
+      notifications.show({ title: 'Sequência destravada', message: 'A etapa voltou a seguir a fila normal.', color: 'blue' })
+      await carregar()
+    } catch (e: any) {
+      notifications.show({ title: 'Não foi possível destravar', message: e?.response?.data?.message || 'Falha ao destravar a sequência.', color: 'red' })
     } finally {
       setSalvandoAgenda(false)
     }
@@ -551,11 +620,17 @@ export default function GanttProducaoPage() {
       notifications.show({ title: 'Fila reordenada', message: 'Nova ordem da máquina aplicada.', color: 'green' })
       await carregar()
     } catch (e: any) {
+      const travadas: Array<{ descricao: string }> = e?.response?.data?.etapasTravadas ?? []
+      const detalhe = travadas.length > 0
+        ? ` Blocos travados: ${travadas.map((t) => rotuloPlano(t.descricao)).join(', ')}.`
+        : ''
       notifications.show({
         title: 'Não foi possível reordenar',
-        message: e?.response?.data?.message || 'Falha ao reordenar a fila da máquina.',
+        message: (e?.response?.data?.message || 'Falha ao reordenar a fila da máquina.') + detalhe,
         color: 'red',
       })
+      // Restaura a ordem anterior na tela.
+      await carregar()
     } finally {
       setReordenandoFila(false)
     }
@@ -662,6 +737,15 @@ export default function GanttProducaoPage() {
     // Só botão esquerdo; ignora se já salvando.
     if (e.button !== 0) return
     e.preventDefault()
+    // Modo "Reordenar fila": bloco com sequência travada só se move com permissão.
+    if (modoRef.current === 'reordenar' && bar.sequenciaTravada && !podeTravarSeqRef.current) {
+      notifications.show({
+        title: 'Sequência travada',
+        message: 'Este bloco está com a sequência travada. Só quem tem a permissão "Travar sequência" pode movê-lo.',
+        color: 'orange',
+      })
+      return
+    }
     // Fila visual da raia = barras ordenadas por inicioMs (mesma ordem exibida).
     const filaRaia = [...barrasDaRaia]
       .sort((a, b) => a.inicioMs - b.inicioMs)
@@ -842,6 +926,10 @@ export default function GanttProducaoPage() {
           passada: 1,
           agendaTravada: Boolean(etapa.agendaTravada),
           inicioAgendadoManual: etapa.inicioAgendadoManual ?? null,
+          sequenciaTravada: Boolean(etapa.sequenciaTravada),
+          sequenciaTravadaEm: etapa.sequenciaTravadaEm ?? null,
+          sequenciaTravadaPorNome: etapa.sequenciaTravadaPorNome ?? null,
+          posicaoFila: etapa.posicaoFila ?? null,
           turno: etapa.turno ?? null,
           centroProducaoId: etapa.centroProducaoId ?? null,
           corGantt: op.corGantt ?? null,
@@ -1581,6 +1669,13 @@ export default function GanttProducaoPage() {
                           <Text size="xs" c="dimmed">Previsto: {formatHora(bar.inicioMs)} → {formatHora(bar.fimMs)}</Text>
                           {bar.statusObs && <Text size="xs" c="cyan">📌 {bar.statusObs}</Text>}
                           {bar.agendaTravada && <Text size="xs" c="yellow.4">🔒 Travado{bar.inicioAgendadoManual ? ` em ${formatHora(new Date(bar.inicioAgendadoManual).getTime())}` : ''}</Text>}
+                          {bar.sequenciaTravada && (
+                            <Text size="xs" c="cyan.4">
+                              ⚓ Sequência travada{bar.posicaoFila != null ? ` · posição ${bar.posicaoFila}` : ''}
+                              {bar.sequenciaTravadaPorNome ? ` · por ${bar.sequenciaTravadaPorNome}` : ''}
+                              {bar.sequenciaTravadaEm ? ` em ${formatHora(new Date(bar.sequenciaTravadaEm).getTime())}` : ''}
+                            </Text>
+                          )}
                           {bar.tempoRealMinutos !== null && <Text size="xs" c="dimmed">Real: {formatMinutos(bar.tempoRealMinutos)}</Text>}
                           {bar.dataEntrega && <Text size="xs" c={bar.riscoEntrega ? 'red' : 'green'}>Entrega: {new Date(bar.dataEntrega).toLocaleDateString('pt-BR')}{bar.riscoEntrega ? ' ⚠️ RISCO' : ' ✓'}</Text>}
                         </div>
@@ -1679,6 +1774,17 @@ export default function GanttProducaoPage() {
                             <IconLock size={9} color={borderColor} />
                           </div>
                         )}
+                        {/* Âncora quando a SEQUÊNCIA está travada (distinta do cadeado de data) */}
+                        {bar.sequenciaTravada && (
+                          <div style={{
+                            position: 'absolute', bottom: -3, left: -3, zIndex: 3,
+                            background: 'var(--mantine-color-body)', borderRadius: 7, width: 14, height: 14,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            border: `1.5px solid ${borderColor}`,
+                          }}>
+                            <IconAnchor size={9} color={borderColor} />
+                          </div>
+                        )}
                         {/* Seta de dependência (da etapa anterior) */}
                         {bar.opEtapaAnteriorCentro && bar.opEtapaAnteriorCentro !== bar.centroProducao && (
                           <div style={{
@@ -1711,11 +1817,29 @@ export default function GanttProducaoPage() {
                             Travar nesta data
                           </Menu.Item>
                         )}
+                        {/* Trava de SEQUÊNCIA (spec gantt-travar-sequencia) */}
+                        {bar.sequenciaTravada ? (
+                          <Menu.Item
+                            leftSection={<IconAnchorOff size={14} />}
+                            disabled={salvandoAgenda || !podeTravarSeq}
+                            onClick={() => destravarSequencia(bar.etapaId)}
+                          >
+                            Destravar sequência{!podeTravarSeq ? ' (sem permissão)' : ''}
+                          </Menu.Item>
+                        ) : (
+                          <Menu.Item
+                            leftSection={<IconAnchor size={14} />}
+                            disabled={salvandoAgenda || !podeEditar || !podeTravarSeq}
+                            onClick={() => travarSequencia(bar.etapaId)}
+                          >
+                            Travar sequência na fila{!podeTravarSeq ? ' (sem permissão)' : ''}
+                          </Menu.Item>
+                        )}
                         <Menu.Item
                           leftSection={<IconCheck size={14} />}
                           color="green"
-                          disabled={salvandoAgenda || !(bar.status === 'EM_ANDAMENTO' || bar.status === 'PAUSADA')}
-                          onClick={() => encerrarEtapa(bar)}
+                          disabled={salvandoAgenda || !podeEditar}
+                          onClick={() => abrirEncerrar(bar)}
                         >
                           Encerrar este split
                         </Menu.Item>
@@ -1744,6 +1868,44 @@ export default function GanttProducaoPage() {
           </div>
         </div>
       </Paper>
+
+      {/* Encerrar split: pede a quantidade quando o split nunca foi iniciado */}
+      <Modal
+        opened={!!encerrando}
+        onClose={() => setEncerrando(null)}
+        title={encerrando ? `Encerrar split — OP ${encerrando.opNumero}` : 'Encerrar split'}
+        centered
+      >
+        {encerrando && (
+          <Stack gap="sm">
+            <Text size="sm">{rotuloPlano(encerrando.descricao)}</Text>
+            {encerrando.status === 'PENDENTE' ? (
+              <>
+                <Text size="xs" c="dimmed">
+                  Este split ainda não foi iniciado. Informe a quantidade produzida (pode ser zero). O saldo restante é descartado.
+                </Text>
+                <NumberInput
+                  label="Quantidade produzida"
+                  min={0}
+                  value={qtdEncerrar}
+                  onChange={setQtdEncerrar}
+                  thousandSeparator="."
+                  decimalSeparator=","
+                />
+              </>
+            ) : (
+              <Text size="xs" c="dimmed">O split será concluído com o que já foi apontado.</Text>
+            )}
+            <Text size="xs" c="orange">
+              Se for a última etapa da OP, a OP será concluída e a entrada de produção será gerada.
+            </Text>
+            <Group justify="flex-end" mt="xs">
+              <Button variant="default" onClick={() => setEncerrando(null)}>Cancelar</Button>
+              <Button color="green" loading={salvandoAgenda} onClick={confirmarEncerrar}>Encerrar</Button>
+            </Group>
+          </Stack>
+        )}
+      </Modal>
 
       {/* Editor de cor/status por OP (spec pcp-gantt-melhorias, Req 3) */}
       <Modal
