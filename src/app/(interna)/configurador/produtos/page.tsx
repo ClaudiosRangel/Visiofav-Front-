@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, Card, Group, Text, TextInput, Table, Badge, ActionIcon, Tooltip, LoadingOverlay, Drawer } from '@mantine/core'
-import { IconPlus, IconSearch, IconEdit, IconTrash, IconRefresh, IconBarcode, IconPackage, IconChartBar } from '@tabler/icons-react'
+import { Button, Card, Group, Text, TextInput, Table, Badge, ActionIcon, Tooltip, LoadingOverlay, Drawer, Pagination, UnstyledButton } from '@mantine/core'
+import { IconPlus, IconSearch, IconEdit, IconTrash, IconRefresh, IconBarcode, IconPackage, IconChartBar, IconChevronUp, IconChevronDown, IconSelector } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { useProdutos, useExcluirProduto } from '@/data/hooks/useProduto'
 import { api } from '@/lib/api'
@@ -12,6 +12,9 @@ import FiltroCascataHierarquia, { type FiltroHierarquiaValor } from '@/component
 
 const abcColor: Record<string, string> = { A: 'green', B: 'yellow', C: 'red' }
 
+const LIMITE_PAGINA = 50
+type SortField = 'codigo' | 'nome' | 'cEAN' | 'unidade' | 'curvaAbc' | 'status'
+
 export default function ProdutosPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editItem, setEditItem] = useState<Record<string, any> | null>(null)
@@ -19,13 +22,51 @@ export default function ProdutosPage() {
   const [skuDrawer, setSkuDrawer] = useState<{ id: string; nome: string } | null>(null)
   const [recalculando, setRecalculando] = useState(false)
   const [filtroHierarquia, setFiltroHierarquia] = useState<FiltroHierarquiaValor>({ nivelId: null, semHierarquia: false })
+  const [page, setPage] = useState(1)
+  const [sortField, setSortField] = useState<SortField>('codigo')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
 
   const { data: response, isLoading, refetch } = useProdutos({
+    page,
+    limit: LIMITE_PAGINA,
+    sortField,
+    sortOrder,
     search: search || undefined,
     nivelId: filtroHierarquia.nivelId || undefined,
     semHierarquia: filtroHierarquia.semHierarquia || undefined,
   })
   const excluir = useExcluirProduto()
+
+  // Clique no cabeçalho: alterna asc/desc na mesma coluna, ou troca de coluna
+  // (começando em asc). Qualquer ordenação volta para a 1ª página.
+  function handleSort(field: SortField) {
+    if (sortField === field) {
+      setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortOrder('asc')
+    }
+    setPage(1)
+  }
+
+  // Busca/filtro também resetam a paginação.
+  function handleSearch(value: string) { setSearch(value); setPage(1) }
+  function handleFiltroHierarquia(v: FiltroHierarquiaValor) { setFiltroHierarquia(v); setPage(1) }
+
+  function Th({ field, children, w }: { field: SortField; children: React.ReactNode; w?: string }) {
+    const ativo = sortField === field
+    const Icon = !ativo ? IconSelector : sortOrder === 'asc' ? IconChevronUp : IconChevronDown
+    return (
+      <Table.Th className={w}>
+        <UnstyledButton onClick={() => handleSort(field)} className="w-full">
+          <Group gap={4} wrap="nowrap">
+            <Text size="sm" fw={600}>{children}</Text>
+            <Icon size={14} className={ativo ? 'text-blue-500' : 'text-zinc-400'} />
+          </Group>
+        </UnstyledButton>
+      </Table.Th>
+    )
+  }
 
   function handleNew() { setEditItem(null); setModalOpen(true) }
   function handleEdit(item: any) { setEditItem(item); setModalOpen(true) }
@@ -58,6 +99,10 @@ export default function ProdutosPage() {
   }
 
   const items = response?.data || []
+  const total = response?.total || 0
+  const totalPages = response?.totalPages || 1
+  const inicio = total === 0 ? 0 : (page - 1) * LIMITE_PAGINA + 1
+  const fim = Math.min(page * LIMITE_PAGINA, total)
 
   return (
     <div>
@@ -66,7 +111,7 @@ export default function ProdutosPage() {
       <Card pos="relative">
         <LoadingOverlay visible={isLoading} />
         <Group justify="space-between" mb="md" align="flex-start">
-          <TextInput placeholder="Pesquisar por descrição ou código de barras..." leftSection={<IconSearch size={16} />} value={search} onChange={(e) => setSearch(e.currentTarget.value)} className="w-96" />
+          <TextInput placeholder="Pesquisar por descrição ou código de barras..." leftSection={<IconSearch size={16} />} value={search} onChange={(e) => handleSearch(e.currentTarget.value)} className="w-96" />
           <Group>
             <Button variant="default" leftSection={<IconChartBar size={16} />} onClick={handleRecalcularCurvaAbc} loading={recalculando}>Recalcular Curva ABC</Button>
             <Button variant="default" leftSection={<IconRefresh size={16} />} onClick={() => refetch()}>Atualizar</Button>
@@ -74,12 +119,18 @@ export default function ProdutosPage() {
           </Group>
         </Group>
         <div className="mb-4">
-          <FiltroCascataHierarquia value={filtroHierarquia} onChange={setFiltroHierarquia} />
+          <FiltroCascataHierarquia value={filtroHierarquia} onChange={handleFiltroHierarquia} />
         </div>
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Código</Table.Th><Table.Th>Descrição</Table.Th><Table.Th>Cód. Barras</Table.Th><Table.Th>Unidade</Table.Th><Table.Th>Curva ABC</Table.Th><Table.Th>Status</Table.Th><Table.Th className="w-24">Ações</Table.Th>
+              <Th field="codigo">Código</Th>
+              <Th field="nome">Descrição</Th>
+              <Th field="cEAN">Cód. Barras</Th>
+              <Th field="unidade">Unidade</Th>
+              <Th field="curvaAbc">Curva ABC</Th>
+              <Th field="status">Status</Th>
+              <Table.Th className="w-24">Ações</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -105,6 +156,14 @@ export default function ProdutosPage() {
             )}
           </Table.Tbody>
         </Table>
+        {total > 0 && (
+          <Group justify="space-between" mt="md">
+            <Text size="sm" c="dimmed">Exibindo {inicio}–{fim} de {total}</Text>
+            {totalPages > 1 && (
+              <Pagination value={page} onChange={setPage} total={totalPages} withEdges />
+            )}
+          </Group>
+        )}
       </Card>
       <ProdutoModal opened={modalOpen} onClose={() => { setModalOpen(false); setEditItem(null) }} editData={editItem} />
       <Drawer opened={!!skuDrawer} onClose={() => setSkuDrawer(null)} title="SKUs / Embalagens" position="right" size="xl">
