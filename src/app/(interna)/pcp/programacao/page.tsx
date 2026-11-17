@@ -2211,20 +2211,25 @@ export default function ProgramacaoPage() {
       produto: { header: 'Produto', render: (e) => `<td>${e.produtoNome || '—'}</td>` },
       tipoOp: { header: 'Tipo OP', render: (e) => `<td>${e.tipoOp || '—'}</td>` },
       quantidade: { header: 'Qtd', align: 'right', render: (e) => `<td class="right">${e.quantidade?.toLocaleString('pt-BR') || '—'}</td>` },
-      tiragem: { header: 'Tiragem', align: 'right', render: (e) => `<td class="right">${e.tiragem ? e.tiragem.toLocaleString('pt-BR') : '—'}</td>` },
+      // Mesma regra da tela: o plano (frente/costa, componente) tem prioridade.
+      tiragem: { header: 'Tiragem', align: 'right', render: (e) => { const t = e.plano?.tiragem ?? e.tiragem; return `<td class="right">${t ? t.toLocaleString('pt-BR') : '—'}</td>` } },
+      produzida: { header: 'Produzida', align: 'right', render: (e) => `<td class="right">${e.quantidadeProduzida > 0 ? e.quantidadeProduzida.toLocaleString('pt-BR') : '—'}</td>` },
+      previsaoConclusao: { header: 'Prev. Conclusão', render: (e) => `<td>${e.dataPrevisaoConclusao ? new Date(e.dataPrevisaoConclusao).toLocaleDateString('pt-BR') : '—'}</td>` },
+      tipoColagem: { header: 'Tipo Colagem', render: (e) => `<td>${e.tipoColagem || '—'}</td>` },
+      enviado: { header: 'Enviado', render: (e) => `<td>${e.enviado?.display || '—'}</td>` },
       entrega: { header: 'Entrega', render: (e) => `<td>${e.dataEntrega ? new Date(e.dataEntrega).toLocaleDateString('pt-BR') : '—'}</td>` },
       // ACOPLAGEM: exibe o MICRO (material/formato/gramatura do microondulado),
       // não o cartão — pedido do Caio. `_acoplagem` é marcado por etapa abaixo.
       // Fallback ao cartão quando a OP não tem item de micro.
-      material: { header: 'Material/Cartão', render: (e) => `<td>${(e._acoplagem && e.materialMicro) || e.materialPrincipal || '—'}</td>` },
-      gramatura: { header: 'Gramatura', render: (e) => `<td>${(e._acoplagem && e.gramaturaMicro) || e.gramatura || '—'}</td>` },
-      formato: { header: 'Formato', render: (e) => `<td>${(e._acoplagem && e.formatoMicro) || e.formato || '—'}</td>` },
+      material: { header: 'Material/Cartão', render: (e) => `<td>${(e._acoplagem && e.materialMicro) || e.plano?.material || e.materialPrincipal || '—'}</td>` },
+      gramatura: { header: 'Gramatura', render: (e) => `<td>${(e._acoplagem && e.gramaturaMicro) || e.plano?.gramatura || e.gramatura || '—'}</td>` },
+      formato: { header: 'Formato', render: (e) => `<td>${(e._acoplagem && e.formatoMicro) || e.plano?.formato || e.formato || '—'}</td>` },
       matriz: { header: 'Matriz', render: (e) => `<td>${e.matriz || '—'}</td>` },
       cores: { header: 'Cores', align: 'center', render: (e) => `<td class="center">${e.qtdCores || '—'}</td>` },
       pantone01: { header: 'Pantone 1', render: (e) => `<td>${e.pantone01 || '—'}</td>` },
       pantone02: { header: 'Pantone 2', render: (e) => `<td>${e.pantone02 || '—'}</td>` },
       pantone03: { header: 'Pantone 3', render: (e) => `<td>${e.pantone03 || '—'}</td>` },
-      kg: { header: 'KG', align: 'right', render: (e) => `<td class="right">${e.pesoKg ? e.pesoKg.toLocaleString('pt-BR') : '—'}</td>` },
+      kg: { header: 'KG', align: 'right', render: (e) => { const k = e.plano?.pesoKg ?? e.pesoKg; return `<td class="right">${k ? k.toLocaleString('pt-BR') : '—'}</td>` } },
       prioridade: { header: 'Prioridade', render: (e) => `<td>${e.prioridade || '—'}</td>` },
       observacao: { header: 'Acompanhamento', render: (e) => `<td>${e.observacaoOperador || '—'}</td>` },
     }
@@ -2265,7 +2270,7 @@ export default function ProgramacaoPage() {
 
       let totalTiragem = 0
       for (const e of centro.etapas) {
-        totalTiragem += (e.tiragem || 0)
+        totalTiragem += (e.plano?.tiragem ?? e.tiragem ?? 0)
         html += `<tr>`
         for (const colId of colunas) {
           const def = colDefs[colId]
