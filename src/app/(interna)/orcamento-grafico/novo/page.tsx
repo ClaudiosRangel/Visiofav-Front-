@@ -113,6 +113,8 @@ export interface WizardFormData {
   // Step 4 — Papel (paridade Calcgraf: Suporte → Preço do papel/gramatura)
   suporteId: string | null
   suporteNome?: string
+  /** Suporte de produção do item (só edição de item existente; opcional no wizard). */
+  suporteProducaoId?: string | null
   papelId: string | null
   papelDescricao: string
   gramatura: number

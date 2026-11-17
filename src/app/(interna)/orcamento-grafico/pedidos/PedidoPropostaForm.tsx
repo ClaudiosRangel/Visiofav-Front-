@@ -332,7 +332,7 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
           variacoesArte: f.variacoesArte || c.cores || f.variacoesArte,
         }))
         if (c.temCalculo) {
-          notifications.show({ title: 'Características', message: 'Dados do cálculo (Calcgraf) preenchidos nos campos vazios.', color: 'green' })
+          notifications.show({ title: 'Características', message: 'Dados do cálculo de origem preenchidos nos campos vazios.', color: 'green' })
         }
       }
     } catch { /* sem características — mantém o que já está */ }

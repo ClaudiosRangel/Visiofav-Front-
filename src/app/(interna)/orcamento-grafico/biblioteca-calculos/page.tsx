@@ -242,7 +242,7 @@ function formatCurrency(val: number | string | null | undefined): string {
 }
 
 function rotuloCalcgraf(n: number | null | undefined): string {
-  return n != null ? `Calcgraf ${n}` : '—'
+  return n != null ? `Origem ${n}` : '—'
 }
 
 // Converte valor (número ou string) para número finito, ou null.
@@ -270,7 +270,7 @@ function rotuloCor(cor: CorCalculo): string {
 }
 
 function BadgeOrigem({ origem }: { origem: string | null | undefined }) {
-  if (origem === 'MIGRADO_CALCGRAF') return <Badge color="gray">Calcgraf</Badge>
+  if (origem === 'MIGRADO_CALCGRAF') return <Badge color="gray">Migrado</Badge>
   if (origem === 'VIZOR') return <Badge color="blue">Vizor</Badge>
   return <Badge color="gray" variant="light">—</Badge>
 }
@@ -331,7 +331,7 @@ function FotoRicaView({ foto }: { foto: FotoRica }) {
     <Stack gap="md">
       {/* Cabeçalho da foto */}
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-        <Text size="sm"><strong>Nº Calcgraf:</strong> {formatNum(cab.numeroCalcgraf)}</Text>
+        <Text size="sm"><strong>Nº de origem:</strong> {formatNum(cab.numeroCalcgraf)}</Text>
         <Text size="sm"><strong>Tiragem:</strong> {formatNum(cab.tiragem)}</Text>
         <Text size="sm"><strong>Cliente:</strong> {texto(cab.cliente)}</Text>
         <Text size="sm"><strong>Linha de Produto:</strong> {texto(cab.linhaProduto)}</Text>
@@ -937,7 +937,7 @@ export default function BibliotecaCalculosPage() {
             w={140}
           />
           <NumberInput
-            label="Nº Calcgraf"
+            label="Nº de origem"
             value={numeroCalcgraf}
             onChange={(v) => setNumeroCalcgraf(typeof v === 'number' ? v : '')}
             allowDecimal={false}
@@ -964,7 +964,7 @@ export default function BibliotecaCalculosPage() {
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Nº Vizor</Table.Th>
-                <Table.Th>Nº Calcgraf</Table.Th>
+                <Table.Th>Nº de origem</Table.Th>
                 <Table.Th>Cliente</Table.Th>
                 <Table.Th>Produto/Descrição</Table.Th>
                 <Table.Th>Linha</Table.Th>
@@ -1044,10 +1044,10 @@ export default function BibliotecaCalculosPage() {
                   <Alert
                     icon={<IconAlertTriangle size={16} />}
                     color="yellow"
-                    title={migrado ? 'Foto do Calcgraf — valores originais' : 'Foto arquivada'}
+                    title={migrado ? 'Foto original — valores originais' : 'Foto arquivada'}
                   >
                     {migrado
-                      ? 'Foto do Calcgraf — valores originais. Não recalcular.'
+                      ? 'Foto original — valores originais. Não recalcular.'
                       : 'Foto arquivada — não recalcular.'}
                   </Alert>
 
@@ -1083,7 +1083,7 @@ export default function BibliotecaCalculosPage() {
                 {/* Cabeçalho */}
                 <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
                   <Text size="sm"><strong>Nº Vizor:</strong> {detalhe.numero ?? '—'}</Text>
-                  <Text size="sm"><strong>Nº Calcgraf:</strong> {rotuloCalcgraf(detalhe.numeroCalcgraf)}</Text>
+                  <Text size="sm"><strong>Nº de origem:</strong> {rotuloCalcgraf(detalhe.numeroCalcgraf)}</Text>
                   <Text size="sm"><strong>Cliente:</strong> {detalhe.clienteNome || '—'}</Text>
                   <Text size="sm"><strong>Linha de Produto:</strong> {detalhe.linhaProduto || '—'}</Text>
                   <Text size="sm"><strong>Produto:</strong> {detalhe.produto || '—'}</Text>

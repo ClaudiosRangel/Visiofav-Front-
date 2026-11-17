@@ -23,7 +23,8 @@ import EditorItem from './EditorItem'
 import type { ItemParaEditar as ItemParaEditorPagina } from './itemFormShared'
 import BuscaCalculoModal from './BuscaCalculoModal'
 import RelatorioItem from './RelatorioItem'
-import PlanosDoItem, { type PlanoCalculo } from './PlanosDoItem'
+import { type PlanoCalculo } from './PlanosDoItem'
+import PlanosDoItemComCatalogo from './PlanosDoItemComCatalogo'
 import AmostrasModal from './AmostrasModal'
 import EncaixeArquivoModal from './EncaixeArquivoModal'
 import EditarCabecalhoModal from './EditarCabecalhoModal'
@@ -142,6 +143,7 @@ interface ItemOrcamento {
   fabricante?: string | null
   microondulado?: boolean | null
   materialMicroonduladoId?: string | null
+  suporteProducaoId?: string | null
   fornecido?: boolean | null
   qtdModelos?: number | string | null
   arte?: string | null
@@ -941,6 +943,7 @@ export default function OrcamentoDetalhePage() {
       fabricante: item.fabricante ?? null,
       microondulado: item.microondulado ?? null,
       materialMicroonduladoId: item.materialMicroonduladoId ?? null,
+      suporteProducaoId: item.suporteProducaoId ?? null,
       fornecido: item.fornecido ?? null,
       qtdModelos: item.qtdModelos ?? null,
       arte: item.arte ?? null,
@@ -1484,7 +1487,7 @@ export default function OrcamentoDetalhePage() {
                                 Planos do cálculo — item #{item.sequencia}
                               </Text>
                             </Group>
-                            <PlanosDoItem
+                            <PlanosDoItemComCatalogo
                               orcamentoId={id}
                               itemId={item.id}
                               planosIniciais={Array.isArray(item.planos) ? item.planos : null}

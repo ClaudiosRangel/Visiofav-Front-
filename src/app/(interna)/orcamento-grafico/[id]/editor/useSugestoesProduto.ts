@@ -24,6 +24,7 @@ import {
   type MotivoAvisoPreco,
   type PapelComPreco,
 } from './sugestoes'
+import { buscarPapeisComPreco } from './sugestoes-api'
 
 export interface AvisosSugestao {
   /** O tipo de embalagem do produto está inativo (não foi preenchido). */
@@ -160,10 +161,10 @@ export function useSugestoesProduto({
       const suporteBusca = formRef.current.suporteId || planoFixo?.suportePadraoId || null
       if (catalogoDoProduto && suporteBusca && numeroPositivoOuNulo(formRef.current.precoKg) === null) {
         try {
-          const { data } = await api.get('/orcamento-grafico/precos-mp', {
-            params: { tipo: 'PAPEL', suporteId: suporteBusca, comPreco: 'true', limit: 100 },
-          })
-          papeis = Array.isArray(data) ? data : data?.data ?? []
+          // Gramatura (se já conhecida) filtra no servidor; pagina até o fim, sem truncar.
+          const gramaturaBusca =
+            numeroPositivoOuNulo(formRef.current.gramatura) ?? planoFixo?.gramaturaPadrao ?? null
+          papeis = await buscarPapeisComPreco({ suporteId: suporteBusca, gramatura: gramaturaBusca })
         } catch {
           falhas.push('Não foi possível consultar o preço do papel. Informe o preço por kg.')
         }

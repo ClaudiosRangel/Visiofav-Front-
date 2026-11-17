@@ -58,13 +58,13 @@ function formatarData(dateStr: string | null): string {
 }
 
 function BadgeOrigem({ origem }: { origem: string | null }) {
-  if (origem === 'MIGRADO_CALCGRAF') return <Badge color="gray">Calcgraf</Badge>
+  if (origem === 'MIGRADO_CALCGRAF') return <Badge color="gray">Migrado</Badge>
   if (origem === 'VIZOR') return <Badge color="blue">Vizor</Badge>
   return <Badge color="gray" variant="light">—</Badge>
 }
 
 function rotuloCalcgraf(n: number | null): string {
-  return n != null ? `Calcgraf ${n}` : '—'
+  return n != null ? `Origem ${n}` : '—'
 }
 
 // ============================================================================
@@ -222,7 +222,7 @@ export default function BuscaCalculoModal({
               w={120}
             />
             <NumberInput
-              label="Nº Calcgraf"
+              label="Nº de origem"
               value={numeroCalcgraf}
               onChange={(v) => setNumeroCalcgraf(typeof v === 'number' ? v : '')}
               allowDecimal={false}
@@ -262,7 +262,7 @@ export default function BuscaCalculoModal({
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Nº Vizor</Table.Th>
-                  <Table.Th>Nº Calcgraf</Table.Th>
+                  <Table.Th>Nº de origem</Table.Th>
                   <Table.Th>Cliente</Table.Th>
                   <Table.Th>Produto/Descrição</Table.Th>
                   <Table.Th>Linha</Table.Th>

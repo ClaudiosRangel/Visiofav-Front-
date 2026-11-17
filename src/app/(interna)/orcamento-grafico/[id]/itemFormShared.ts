@@ -150,6 +150,8 @@ export interface ItemParaEditar {
   fabricante?: string | null
   microondulado?: boolean | null
   materialMicroonduladoId?: string | null
+  /** Suporte de produção do item (troca de suporte). Reenviado ao salvar só quando definido. */
+  suporteProducaoId?: string | null
   fornecido?: boolean | null
   qtdModelos?: number | string | null
   arte?: string | null
@@ -228,6 +230,7 @@ export function itemParaForm(
     tipoEmbalagem: item.tipoEmbalagem ?? null,
     medidas: item.medidas ?? {},
     suporteId: item.suporteId ?? null,
+    suporteProducaoId: item.suporteProducaoId ?? null,
     papelId: item.papelId ?? null,
     papelDescricao: item.papelDescricao ?? '',
     gramatura: item.gramatura ? Number(item.gramatura) : 0,
@@ -329,6 +332,9 @@ export function montarPayloadItem(formData: WizardFormData): Record<string, unkn
     tipoEmbalagemId: formData.tipoEmbalagemId,
     medidas: formData.medidas,
     suporteId: formData.suporteId || undefined,
+    // Suporte de produção: só reenvia quando há valor (null/ausente não é enviado,
+    // o back preserva o gravado).
+    ...(formData.suporteProducaoId ? { suporteProducaoId: formData.suporteProducaoId } : {}),
     papelId: formData.papelId || undefined,
     papelDescricao: formData.papelDescricao || undefined,
     gramatura: formData.gramatura,

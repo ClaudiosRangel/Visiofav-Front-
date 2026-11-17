@@ -25,11 +25,11 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import {
   Stack, Group, Button, Text, Table, Modal, TextInput, NumberInput, Select,
-  Loader, ActionIcon, Tooltip, ScrollArea, Badge, Paper, SimpleGrid, Collapse, Alert,
+  Loader, ActionIcon, Tooltip, ScrollArea, Badge, Paper, SimpleGrid, Collapse, Alert, Checkbox,
 } from '@mantine/core'
 import {
   IconPlus, IconEdit, IconTrash, IconCalculator, IconArrowRight, IconHistory,
-  IconChevronDown, IconChevronRight, IconX, IconAlertTriangle,
+  IconChevronDown, IconChevronRight, IconAlertTriangle,
 } from '@tabler/icons-react'
 import { useDebouncedValue } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
@@ -41,6 +41,9 @@ import {
 } from './editor/catalogo/catalogo-puro'
 import SeletorMaterialAtividade from './editor/catalogo/SeletorMaterialAtividade'
 import {
+  alternarAtividadeMarcada, escolhaPadraoDaAtividade, montarAcabamentosRicosDoPlano,
+} from './editor/catalogo/atividades-do-plano-puro'
+import {
   deveExibirSeletorNoPlano, mesclarSelecoesPorPlano, type SelecaoDoPlano,
 } from './editor/catalogo/selecoes-por-plano-puro'
 import { executarPasse, type FalhaSelecao, type ItemDoPasse } from './editor/catalogo/passe-selecao-puro'
@@ -49,6 +52,7 @@ import {
   sugerirSuporteGramatura, sugerirPrecoKg, filtrarCandidatosPapel,
   type MotivoAvisoPreco, type PapelComPreco,
 } from './editor/sugestoes'
+import { buscarPapeisComPreco } from './editor/sugestoes-api'
 import { selecaoMaterialApi, mensagemErroApi } from '../cadastros/_shared/cadastros-graficos.api'
 import type { CatalogoPlano, SelecaoMaterial } from '../cadastros/_shared/cadastros-graficos.types'
 
@@ -93,7 +97,7 @@ export interface TrocaSuporte {
   trocadoEm: string
 }
 
-interface Props {
+export interface PlanosDoItemProps {
   orcamentoId: string
   itemId: string
   /** Planos vindos do GET do orçamento (quando disponível). Semeia o estado. */
@@ -108,8 +112,11 @@ interface Props {
    */
   produtoGraficoId?: string | null
   /**
-   * Fase 3 — catálogo já carregado pelo editor (uma instância de `useCatalogoItem` por sessão).
-   * Sem ele o componente cria o seu, como antes.
+   * Fase 3 (14.6) — catálogo já carregado por quem renderiza (uma instância de `useCatalogoItem`
+   * por item, mantida por `PlanosDoItemComCatalogo` na página do orçamento). Todas as aberturas do
+   * modal de plano deste item reutilizam essa instância: produto e tipos de plano ficam em cache e
+   * não geram nova chamada de rede. Sem ele o componente cria o seu, como antes.
+   * Obs.: o `EditorItem` (outra tela) mantém a própria instância; o cache não é compartilhado entre telas.
    */
   catalogoCompartilhado?: UseCatalogoItemResultado
   /** Item puxado do acervo: seleção de material é só informativa e não sugere suporte/preço. */
@@ -187,7 +194,7 @@ function formatDateTime(dateStr: string | null | undefined): string {
 /** Id provisório do plano ainda não salvo (chave das escolhas de material pendentes). */
 const PLANO_TEMP = '__plano-novo__'
 
-export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, suporteProducaoItemInicial, rotuloTrocaItemInicial, produtoGraficoId, catalogoCompartilhado, itemPuxado, podeEditar, onChanged }: Props) {
+export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, suporteProducaoItemInicial, rotuloTrocaItemInicial, produtoGraficoId, catalogoCompartilhado, itemPuxado, podeEditar, onChanged }: PlanosDoItemProps) {
   const [planos, setPlanos] = useState<PlanoCalculo[]>(planosIniciais ?? [])
 
   // ----- Fase 2/3: catálogo do Produto Gráfico (sem produto = nenhuma chamada, modal como antes) -----
@@ -569,25 +576,13 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
     }
 
     ;(async () => {
-      let papeis = papeisPorSuporteRef.current.get(suporteId)
+      const chaveCache = `${suporteId}|${Number(gramatura)}`
+      let papeis = papeisPorSuporteRef.current.get(chaveCache)
       if (!papeis) {
         try {
-          const coletados: PapelComPreco[] = []
-          for (let pagina = 1; pagina <= 5; pagina += 1) {
-            const { data } = await api.get('/orcamento-grafico/precos-mp', {
-              params: { tipo: 'PAPEL', suporteId, comPreco: 'true', limit: 100, page: pagina },
-            })
-            const lista: any[] = Array.isArray(data) ? data : data?.data || []
-            coletados.push(...lista.map((m: any) => ({
-              id: m.id,
-              suporteId: m.suporteId ?? suporteId,
-              gramatura: m.gramatura,
-              precoUnitario: m.precoUnitario,
-            })))
-            if (Array.isArray(data) || pagina >= (data?.totalPages ?? 1)) break
-          }
-          papeis = coletados
-          papeisPorSuporteRef.current.set(suporteId, papeis)
+          const lista = await buscarPapeisComPreco({ suporteId, gramatura: Number(gramatura) })
+          papeis = lista.map((m): PapelComPreco => ({ ...m, suporteId: m.suporteId ?? suporteId }))
+          papeisPorSuporteRef.current.set(chaveCache, papeis)
         } catch {
           if (token !== precoTokenRef.current) return
           limparSugestaoAntiga()
@@ -643,6 +638,22 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
       }))
   }, [produtoGraficoId, catalogoPlanoAtual, catalogoItem.erro, form.atividadesPreMarcadas, ehPlanoFixo])
 
+  /** Atividades do catálogo do tipo + as já marcadas que o catálogo não prevê (para poder desmarcar). */
+  const listaAtividades = useMemo(() => {
+    const doCatalogo = (catalogoPlanoAtual?.atividades ?? []).map(a => ({
+      id: a.id,
+      nome: a.nome,
+      natureza: a.naturezaCusto,
+      materiais: a.materiais,
+      foraCatalogo: false,
+    }))
+    const ids = new Set(doCatalogo.map(a => a.id))
+    const extras = form.atividadesPreMarcadas
+      .filter(m => !ids.has(m.acabamentoId))
+      .map(m => ({ id: m.acabamentoId, nome: m.nome, natureza: null as string | null, materiais: undefined, foraCatalogo: true }))
+    return [...doCatalogo, ...extras]
+  }, [catalogoPlanoAtual, form.atividadesPreMarcadas])
+
   const puxado = itemPuxado ?? gravadasPlano.some(s => s.aplicaNoPreco === false)
 
   const nomeDaAtividade = (acabamentoId: string): string =>
@@ -676,15 +687,31 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
     esquecerFalha(chaveSelecao(acabamentoId, planoChave))
   }
 
-  const desmarcarAtividade = (acabamentoId: string) => {
+  /**
+   * Marca ou desmarca uma atividade do catálogo do plano. Marcar pré-seleciona o material padrão
+   * (ou o único permitido), exceto em item puxado (seleção só informativa), plano fixo (seletor
+   * atual) e atividade que já tem seleção gravada. Desmarcar descarta a escolha pendente; a
+   * seleção já gravada é removida ao salvar o plano.
+   */
+  const alternarAtividade = (
+    atividade: { id: string; nome: string; materiais?: Parameters<typeof escolhaPadraoDaAtividade>[0]['materiais'] },
+    marcar: boolean,
+  ) => {
     marcarTocado('atividadesPreMarcadas')
     if (editando) marcadasAlteradasRef.current = true
     setForm(f => ({
       ...f,
-      atividadesPreMarcadas: f.atividadesPreMarcadas.filter(x => x.acabamentoId !== acabamentoId),
+      atividadesPreMarcadas: alternarAtividadeMarcada(f.atividadesPreMarcadas, atividade, marcar),
     }))
-    setEscolhas(prev => mesclarSelecoesPorPlano(prev, { tipo: 'desmarcar', acabamentoId, planoId: planoChave }))
-    esquecerFalha(chaveSelecao(acabamentoId, planoChave))
+    if (!marcar) {
+      setEscolhas(prev => mesclarSelecoesPorPlano(prev, { tipo: 'desmarcar', acabamentoId: atividade.id, planoId: planoChave }))
+      esquecerFalha(chaveSelecao(atividade.id, planoChave))
+      return
+    }
+    if (itemPuxado || ehPlanoFixo) return
+    if (gravadasPlano.some(s => s.acabamentoId === atividade.id)) return
+    const padrao = escolhaPadraoDaAtividade(atividade)
+    if (padrao) escolherMaterial(atividade.id, padrao)
   }
 
   // ----- Montagem do payload (planoBodySchema) -----
@@ -704,19 +731,14 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
     return {
       // Fase 2: só viaja com produto + catálogo com tipos; sem eles o payload é o de sempre.
       ...(usaTipoPlano ? { tipoPlanoId: form.tipoPlanoId } : {}),
-      // Atividades pré-marcadas do tipo: só em plano novo.
+      // Atividades marcadas (pré-marcadas do tipo + as marcadas pelo usuário): plano novo.
       ...(usaTipoPlano && !editando && form.atividadesPreMarcadas.length > 0
-        ? { acabamentosRicos: form.atividadesPreMarcadas }
+        ? { acabamentosRicos: montarAcabamentosRicosDoPlano(form.atividadesPreMarcadas, null) }
         : {}),
-      // Plano existente: só reenvia a lista quando o usuário desmarcou alguma atividade
-      // (reaproveita as linhas gravadas, sem inventar campos).
+      // Plano existente: só reenvia a lista quando o usuário marcou/desmarcou alguma atividade
+      // (reaproveita as linhas já gravadas; as novas levam só acabamentoId e nome).
       ...(usaTipoPlano && editando && marcadasAlteradasRef.current
-        ? {
-            acabamentosRicos: (editando.acabamentosRicos ?? []).filter(
-              a => typeof a?.acabamentoId === 'string'
-                && form.atividadesPreMarcadas.some(m => m.acabamentoId === a.acabamentoId),
-            ),
-          }
+        ? { acabamentosRicos: montarAcabamentosRicosDoPlano(form.atividadesPreMarcadas, editando.acabamentosRicos) }
         : {}),
       nome: form.nome.trim(),
       suporteId: form.suporteId || undefined,
@@ -1261,32 +1283,36 @@ export default function PlanosDoItem({ orcamentoId, itemId, planosIniciais, supo
             maxLength={60}
           />
 
-          {usaTipoPlano && form.atividadesPreMarcadas.length > 0 && (
+          {usaTipoPlano && (carregandoTipo || listaAtividades.length > 0 || (!!form.tipoPlanoId && !!catalogoPlanoAtual)) && (
             <Stack gap={4}>
-              <Text size="sm" fw={500}>
-                {editando ? 'Atividades do plano' : 'Atividades do tipo (pré-marcadas)'}
+              <Text size="sm" fw={500}>Atividades do plano</Text>
+              <Text size="xs" c="dimmed">
+                Marque as atividades deste plano. Ao marcar, o material padrão é pré-selecionado quando houver.
               </Text>
-              <Group gap={6}>
-                {form.atividadesPreMarcadas.map(a => (
-                  <Badge
-                    key={a.acabamentoId}
-                    variant="light"
-                    rightSection={
-                      <ActionIcon
-                        size="xs"
-                        variant="transparent"
-                        aria-label={`Remover ${a.nome}`}
-                        disabled={salvando}
-                        onClick={() => desmarcarAtividade(a.acabamentoId)}
-                      >
-                        <IconX size={10} />
-                      </ActionIcon>
-                    }
-                  >
-                    {a.nome}
-                  </Badge>
-                ))}
-              </Group>
+              {carregandoTipo ? (
+                <Group gap="xs"><Loader size={12} /><Text size="xs" c="dimmed">Carregando atividades do tipo...</Text></Group>
+              ) : listaAtividades.length === 0 ? (
+                <Text size="xs" c="dimmed">Este tipo de plano não tem atividades cadastradas.</Text>
+              ) : (
+                <ScrollArea.Autosize mah={220} type="auto">
+                  <Stack gap={6} pr="xs">
+                    {listaAtividades.map(a => {
+                      const marcada = form.atividadesPreMarcadas.some(m => m.acabamentoId === a.id)
+                      return (
+                        <Checkbox
+                          key={a.id}
+                          size="sm"
+                          label={a.nome}
+                          description={a.foraCatalogo ? 'Fora do catálogo deste tipo' : (a.natureza || undefined)}
+                          checked={marcada}
+                          disabled={salvando}
+                          onChange={(e) => alternarAtividade(a, e.currentTarget.checked)}
+                        />
+                      )
+                    })}
+                  </Stack>
+                </ScrollArea.Autosize>
+              )}
             </Stack>
           )}
 

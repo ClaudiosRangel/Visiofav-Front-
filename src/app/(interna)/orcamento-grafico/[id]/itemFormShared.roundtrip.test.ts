@@ -57,6 +57,7 @@ const itemArb = fc.record({
   numeros: fc.record(Object.fromEntries(CAMPOS_NUMERO.map((c) => [c, numero]))),
   microondulado: fc.boolean(),
   materialId: fc.oneof(fc.constant(null), fc.uuid()),
+  suporteProducaoId: fc.oneof(fc.constant(null), fc.uuid()),
   fornecido: fc.boolean(),
   fibra: fc.boolean(),
   acond: fc.array(
@@ -76,8 +77,9 @@ describe('Feature: orcamento-grafico-fase3-produto-embalagem, Property 18: Campo
           ...g.textos,
           ...g.numeros,
           microondulado: g.microondulado,
-          // o payload só carrega o material quando microondulado = true (regra existente)
-          materialMicroonduladoId: g.microondulado ? g.materialId : null,
+          // material preservado independente do flag (inclusive microondulado = false)
+          materialMicroonduladoId: g.materialId,
+          suporteProducaoId: g.suporteProducaoId,
           fornecido: g.fornecido,
           fibra: g.fibra,
           acondicionamento: g.acond.map((descricao) => ({ descricao })),
@@ -93,10 +95,33 @@ describe('Feature: orcamento-grafico-fase3-produto-embalagem, Property 18: Campo
         expect(p.fornecido ?? false).toBe(item.fornecido)
         expect(p.fibra ?? false).toBe(item.fibra)
         expect(p.materialMicroonduladoId ?? null).toBe(item.materialMicroonduladoId)
+        expect(p.suporteProducaoId ?? null).toBe(item.suporteProducaoId)
         expect(p.acondicionamento ?? []).toStrictEqual(item.acondicionamento)
       }),
       { numRuns: 200 },
     )
+  })
+
+  it('material gravado com microondulado=false e suporteProducaoId são reenviados', () => {
+    const p = montarPayloadItem(
+      itemParaForm({
+        id: 'i1',
+        tipoEmbalagemId: 't1',
+        quantidade: 1,
+        microondulado: false,
+        materialMicroonduladoId: 'mat-1',
+        suporteProducaoId: 'sup-1',
+      }),
+    ) as Record<string, unknown>
+    expect(p.materialMicroonduladoId).toBe('mat-1')
+    expect(p.suporteProducaoId).toBe('sup-1')
+  })
+
+  it('suporteProducaoId null não é enviado (permanece null no back)', () => {
+    const p = montarPayloadItem(
+      itemParaForm({ id: 'i1', tipoEmbalagemId: 't1', quantidade: 1, suporteProducaoId: null }),
+    ) as Record<string, unknown>
+    expect('suporteProducaoId' in p).toBe(false)
   })
 
   it('item totalmente nulo: nenhum Campo_Tecnico vira texto vazio ou zero no payload', () => {
