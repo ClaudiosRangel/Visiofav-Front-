@@ -1,195 +1,70 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef, Fragment } from 'react'
+/**
+ * Tela_Orcamento — nível 1 da hierarquia Orçamento → Item → Plano.
+ *
+ * Cabeçalho (título "Orçamento {número}", Preview da ficha master e ações do orçamento), grid de
+ * itens + painel "Dados do item" e abas Fechamento / Comissões (sempre montadas). Os dados do
+ * item e do plano NÃO são editados aqui: duplo clique ou "Abrir item" levam para
+ * `/orcamento-grafico/:id/itens/:itemId`.
+ */
+
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
-  Title, Stack, Group, Button, Text, Loader, Center, Paper, SimpleGrid,
-  Badge, Divider, Progress, Table, Modal, Textarea, Alert, ScrollArea,
-  ActionIcon, Tooltip, Collapse, Checkbox, TextInput, NumberInput, Menu, Select,
-  Image,
+  Alert, Badge, Center, Grid, Group, Loader, Modal, Paper, Stack, Tabs, Text, Button,
 } from '@mantine/core'
-import {
-  IconArrowLeft, IconEdit, IconCopy, IconSend, IconCheck, IconX,
-  IconChartPie, IconAlertCircle, IconAlertTriangle, IconFileText, IconPlus, IconTrash,
-  IconChevronDown, IconChevronRight, IconStack2, IconFileInvoice,
-  IconReportAnalytics, IconRepeat, IconSearch, IconShoppingCartPlus,
-  IconPhoto, IconGridDots, IconFileTypePdf, IconMail,
-} from '@tabler/icons-react'
-import { api } from '@/lib/api'
-import { getAuthToken } from '@/lib/authStorage'
+import { IconAlertCircle, IconAlertTriangle, IconSearch, IconX } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
+
+import { api } from '@/lib/api'
 import { StatusBadge } from '../page'
-import EditorItem from './EditorItem'
-import type { ItemParaEditar as ItemParaEditorPagina } from './itemFormShared'
 import BuscaCalculoModal from './BuscaCalculoModal'
 import RelatorioItem from './RelatorioItem'
-import { type PlanoCalculo } from './PlanosDoItem'
-import PlanosDoItemComCatalogo from './PlanosDoItemComCatalogo'
-import AmostrasModal from './AmostrasModal'
 import EncaixeArquivoModal from './EncaixeArquivoModal'
 import EditarCabecalhoModal from './EditarCabecalhoModal'
 import FechamentoOrcamento from './FechamentoOrcamento'
+import { OpModalOpcoes, useEmissaoOp, type OpcoesEmissaoOp } from './EmitirOp'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
-import {
-  BadgeOp, OpModalOpcoes, useEmissaoOp, carregarStatusOpItem,
-  type StatusOpItem, type OpcoesEmissaoOp,
-} from './EmitirOp'
-
-// Flag para ocultar a tela de Comparação de Versões (ponto 11 dos ajustes de Caio).
-// O recurso será substituído pelo conceito de várias tiragens por item; o código
-// do bloco é preservado para reexibição futura — basta voltar esta flag para true.
-const MOSTRAR_COMPARACAO_VERSOES = false
+import { useOrcamentoHierarquia } from './_hooks/useOrcamentoHierarquia'
+import { useFechamentoTotalizador } from './_hooks/useFechamentoTotalizador'
+import { useComissoes } from './_hooks/useComissoes'
+import { useDadosItem } from './_hooks/useDadosItem'
+import { EVENTO_ITEM_ALTERADO, consumirAlteracaoItem } from './_hooks/sinal-alteracao-item'
+import type { ItemResumoDTO } from './_hooks/hierarquia.types'
+import CabecalhoOrcamento from './_orcamento/CabecalhoOrcamento'
+import GridItens from './_orcamento/GridItens'
+import PainelDadosItem from './_orcamento/PainelDadosItem'
+import AbaFechamento from './_orcamento/AbaFechamento'
+import AbaComissoes from './_orcamento/AbaComissoes'
+import PreviewFichaMaster from './_orcamento/PreviewFichaMaster'
+import AcoesOrcamento, { ExigeAmostraOrcamento } from './_orcamento/AcoesOrcamento'
+import DetalheLegadoOrcamento from './_orcamento/DetalheLegadoOrcamento'
+import { formatarMoeda } from './_orcamento/formatadores'
 
 // ============================================================================
-// Tipos
+// Tipos (apenas o que a Tela_Orcamento lê do GET /:id)
 // ============================================================================
-
-interface CorDetalhe {
-  nome: string
-  tipo: string
-  coberturaPercent: number
-  precoKg?: number
-  rendimentoM2Kg?: number
-}
-
-interface AcabamentoDetalhe {
-  tipo: string
-  custoHora?: number
-  velocidade?: number
-  custoMaterialM2?: number
-}
-
-interface ResultadoCalculo {
-  papel?: { pesoKg: number; custo: number }
-  tinta?: { custoTotal: number; detalhePorCor?: Array<{ cor: string; consumoKg: number; custo: number }> }
-  maquinas?: { custoTotal: number; detalhePorEtapa?: Array<{ etapa: string; tempoMin: number; custo: number }> }
-  acabamentos?: { custoTotal: number; detalhePorAcabamento?: Array<{ tipo: string; custo: number }> }
-  custoTotal?: number
-  precoVenda?: number
-  precoUnitario?: number
-  margemReal?: number
-  breakdown?: { papel: number; tinta: number; maquina: number; acabamento: number; overhead: number }
-  // Paridade Calcgraf (decomposição estilo memória de cálculo)
-  materialDireto?: number
-  custoTransformacao?: number
-  servicoExterno?: number
-  custoProducao?: number
-  cevPerc?: number
-  cevValor?: number
-  contribuicaoMarginalValor?: number
-  contribuicaoMarginalPerc?: number
-  // Decomposição do CEV e da margem (Fechamento — B9 Fase 1)
-  cev?: { icms?: number; juros?: number; pisCofins?: number; comissoes?: number }
-  margem?: { impostos?: number; comissao?: number; despAdm?: number; markup?: number }
-  creditosFiscais?: number
-  encargoFinanceiroPerc?: number
-}
-
-// Item de orçamento (multi-item). Reflete o GET /:id → itens[].
-interface ItemOrcamento {
-  id: string
-  sequencia: number
-  tipoEmbalagemId: string
-  descricao?: string | null
-  medidas?: Record<string, number> | null
-  papelId?: string | null
-  papelDescricao?: string | null
-  suporteId?: string | null
-  gramatura?: number | string | null
-  numCores: number
-  cores?: CorDetalhe[] | null
-  maquinaId?: string | null
-  // Matriz de impressão (clichê): quantidade e preço unitário que entram no MD.
-  // Preenchidos ao puxar cálculo (Req 3.1/3.3). Exibidos no detalhe do item.
-  matrizQuantidade?: number | string | null
-  matrizPrecoUnitario?: number | string | null
-  acabamentosRicos?: any[] | null
-  modeloFacaId?: string | null
-  itensDiversos?: any[] | null
-  itensFornecidos?: any[] | null
-  camposLivres?: any[] | null
-  quantidade: number
-  resultadoCalculo?: ResultadoCalculo | null
-  margemSelecionada?: number | string | null
-  custoProducao?: number | string | null
-  valorTotal?: number | string | null
-  pendente?: boolean
-  // Origem (repetição): cálculo da biblioteca de onde o item foi copiado.
-  // Habilita a ancoragem/conferência no StepRevisao ao editar.
-  calculoGraficoOrigemId?: string | null
-  // Suporte de produção no nível do item (Task 18). Usado quando o item não
-  // tem planos — o Select/badge de troca aparecem no PlanosDoItem.
-  suporteProducaoId?: string | null
-  rotuloTrocaSuporte?: string | null
-  // Planos do cálculo (Task 11). O GET /:id ainda não os retorna; quando passar
-  // a retornar, semeiam o editor PlanosDoItem (senão parte de estado vazio).
-  // Fase 2: cada plano pode trazer `tipoPlanoId` (catálogo).
-  planos?: PlanoCalculo[] | null
-  // Fase 2 — Produto Gráfico do catálogo (null = item sem produto, comportamento atual).
-  produtoGraficoId?: string | null
-  // Fase 2 — linhas de material (manuais e `origem: 'SELECAO'`). O GET /:id só as devolve
-  // quando o select de itens inclui `materiaisAcabamento` (ver registro no handoff).
-  materiaisAcabamento?: ItemParaEditorPagina['materiaisAcabamento']
-  // Fase 3 (Req 9) — Campos_Tecnicos que o GET /:id já devolve e que o
-  // `abrirEditorPagina` precisa repassar ao editor (senão o PUT os regrava vazios).
-  aproveitamentoManual?: number | null
-  tintaModo?: 'COBERTURA' | 'CONSUMO_DIRETO' | null
-  tintaConsumoKg?: number | string | null
-  siglaAcabado?: string | null
-  tributacao?: string | null
-  processoImpressao?: string | null
-  coberturaTintaTexto?: string | null
-  fabricante?: string | null
-  microondulado?: boolean | null
-  materialMicroonduladoId?: string | null
-  suporteProducaoId?: string | null
-  fornecido?: boolean | null
-  qtdModelos?: number | string | null
-  arte?: string | null
-  observacao?: string | null
-  observacaoAreasOp?: string | null
-  conteudoVolume?: number | string | null
-  acondicionamento?: Array<{ descricao: string }> | null
-  comprimentoMm?: number | string | null
-  larguraMm?: number | string | null
-  alturaMm?: number | string | null
-  abaColaMm?: number | string | null
-  abaFechamentoMm?: number | string | null
-  fibra?: boolean | null
-  montagemLinhas?: number | string | null
-  montagemColunas?: number | string | null
-  formatoSupLarguraMm?: number | string | null
-  formatoSupAlturaMm?: number | string | null
-  formatoCorteLarguraMm?: number | string | null
-  formatoCorteAlturaMm?: number | string | null
-  ajusteCorteMicroMm?: number | string | null
-}
 
 interface OrcamentoDetalhe {
   id: string
   numero: number
   versao: number
   serie?: string | null
-  tipo?: string | null // NOVO | REPETICAO (spec orcamento-repeticao-engenharia-completa)
+  tipo?: string | null // NOVO | REPETICAO
   dataOrcamento?: string | null
   clienteId?: string | null
   clienteNome?: string | null
   vendedorId?: string | null
-  tipoEmbalagemId: string
   tipoEmbalagem?: { codigo: string; descricao: string } | null
   medidas?: Record<string, number>
-  resultadoCalculo?: ResultadoCalculo | null
-  papelId?: string | null
+  resultadoCalculo?: any
   papelDescricao?: string | null
   gramatura?: number | null
   numCores: number
-  cores?: CorDetalhe[] | null
-  acabamentos?: AcabamentoDetalhe[] | null
+  cores?: any[] | null
+  acabamentos?: any[] | null
   quantidade: number
-  custoMaterial?: number | string | null
-  custoMaquina?: number | string | null
-  custoAcabamento?: number | string | null
   custoTotal?: number | string | null
   precoVenda?: number | string | null
   precoUnitario?: number | string | null
@@ -202,53 +77,13 @@ interface OrcamentoDetalhe {
   variacoes?: Array<{ quantidade: number; precoUnitario: number; precoTotal: number }> | null
   observacoes?: string | null
   produtoNome?: string | null
-  // Linha de Produto selecionada no cabeçalho (1ª escolha do fluxo de criação).
-  // Usada para derivar os campos condicionais por linha no editor de item.
-  linhaProdutoId?: string | null
-  // Observação cadastrada no Cliente (GET /:id resolve `clienteObservacao`).
-  // Exibida como Alert de atenção no topo do orçamento (não-bloqueante).
   clienteObservacao?: string | null
-  // Imagem da faca do produto (dataURL/base64), transferida do RFQ ou enviada
-  // direto no orçamento. Exibida no card Produto/Especificação.
-  imagemFaca?: string | null
-  // Foto do produto cadastrado (URL), resolvida pelo backend no GET /:id.
-  imagemProdutoUrl?: string | null
   criadoEm: string
   atualizadoEm: string
-  // Multi-item (spec multi-item-gcad)
-  itens?: ItemOrcamento[] | null
+  itens?: Array<{ id: string }> | null
   custoProducaoConsolidado?: number | string | null
   valorTotalConsolidado?: number | string | null
-  // Cálculo da biblioteca que originou o orçamento (repetição / "Puxar Cálculo")
   calculoOrigem?: { id: string; numero: number | null; numeroCalcgraf: number | null } | null
-}
-
-interface VersaoResumida {
-  id: string
-  numero: number
-  versao: number
-  status: string
-  precoVenda?: number | string | null
-  quantidade: number
-  criadoEm: string
-}
-
-// ============================================================================
-// Formatadores
-// ============================================================================
-
-function formatCurrency(val: number | string | null | undefined): string {
-  if (val == null) return '—'
-  const num = typeof val === 'string' ? parseFloat(val) : val
-  if (isNaN(num)) return '—'
-  return `R$ ${num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
-function formatPercent(val: number | string | null | undefined): string {
-  if (val == null) return '—'
-  const num = typeof val === 'string' ? parseFloat(val) : val
-  if (isNaN(num)) return '—'
-  return `${num.toFixed(1)}%`
 }
 
 function formatDate(dateStr: string | null | undefined): string {
@@ -261,192 +96,8 @@ function formatDateTime(dateStr: string | null | undefined): string {
   return new Date(dateStr).toLocaleString('pt-BR')
 }
 
-// ============================================================================
-// Breakdown Bar (reutilizado do StepRevisao)
-// ============================================================================
-
-function BreakdownBar({ breakdown }: { breakdown: { papel: number; tinta: number; maquina: number; acabamento: number; overhead: number } }) {
-  const b = breakdown || ({} as Partial<typeof breakdown>)
-  const n = (v: unknown) => (typeof v === 'number' && !isNaN(v) ? v : 0)
-  const papel = n(b.papel), tinta = n(b.tinta), maquina = n(b.maquina),
-        acabamento = n(b.acabamento), overhead = n(b.overhead)
-  const total = papel + tinta + maquina + acabamento + overhead
-  if (total <= 0) return null
-
-  const items = [
-    { label: 'Papel', value: papel, color: 'blue' },
-    { label: 'Tinta', value: tinta, color: 'grape' },
-    { label: 'Máquina', value: maquina, color: 'orange' },
-    { label: 'Acabamento', value: acabamento, color: 'teal' },
-    { label: 'Overhead', value: overhead, color: 'gray' },
-  ]
-
-  const sections = items
-    .filter(i => i.value > 0)
-    .map(i => ({
-      value: (i.value / total) * 100,
-      color: i.color,
-      tooltip: `${i.label}: ${((i.value / total) * 100).toFixed(1)}%`,
-    }))
-
-  return (
-    <Stack gap="xs">
-      <Progress.Root size={24}>
-        {sections.map((s, i) => (
-          <Progress.Section key={i} value={s.value} color={s.color}>
-            <Progress.Label>{s.tooltip}</Progress.Label>
-          </Progress.Section>
-        ))}
-      </Progress.Root>
-      <Group gap="md">
-        {items.filter(i => i.value > 0).map((item) => (
-          <Group key={item.label} gap={4}>
-            <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: `var(--mantine-color-${item.color}-5)` }} />
-            <Text size="xs">{item.label}: {((item.value / total) * 100).toFixed(1)}%</Text>
-          </Group>
-        ))}
-      </Group>
-    </Stack>
-  )
-}
-
-// ============================================================================
-// Bloco "Produto / Especificação" (melhoria da tela de detalhe — pedido do
-// usuário). Consolida num card as informações técnicas do produto que antes só
-// apareciam ao expandir o item: produto, tipo de embalagem, medidas, cartão/
-// gramatura, nº de cores. Busca primeiro no cabeçalho do orçamento; quando o
-// cabeçalho não tem o dado (orçamentos antigos / vindos do RFQ com engenharia só
-// no item), cai no 1º item. Extrai "Produto" das observações quando o cabeçalho
-// não traz produtoNome (as observações do encaminhamento gravam "Produto: ...").
-// ============================================================================
-
-function extrairTagObs(obs: string | null | undefined, tag: string): string | null {
-  if (!obs) return null
-  const re = new RegExp(`${tag}\\s*:?\\s*(.+)`, 'i')
-  for (const linha of obs.split('\n')) {
-    const m = linha.match(re)
-    if (m && m[1]?.trim()) return m[1].trim()
-  }
-  return null
-}
-
-function formatarMedidas(medidas: Record<string, number> | null | undefined): string {
-  if (!medidas) return '—'
-  // Prioriza comprimento/largura/altura; cai em P/L/A. Mostra só os > 0.
-  const C = medidas.comprimento ?? medidas.P ?? medidas.C
-  const L = medidas.largura ?? medidas.L
-  const A = medidas.altura ?? medidas.A
-  const partes = [C, L, A].filter((n) => typeof n === 'number' && n > 0).map((n) => `${n}`)
-  return partes.length ? `${partes.join(' × ')} mm` : '—'
-}
-
-function ProdutoEspecificacao({
-  orcamento,
-  itens,
-  podeEditar,
-  onImagemFaca,
-  onAmpliar,
-}: {
-  orcamento: OrcamentoDetalhe
-  itens: ItemOrcamento[]
-  podeEditar: boolean
-  onImagemFaca: (dataUrl: string | null) => void
-  onAmpliar: (src: string) => void
-}) {
-  const item0 = itens[0]
-  const facaRef = useRef<HTMLInputElement>(null)
-  const produto =
-    orcamento.produtoNome ||
-    extrairTagObs(orcamento.observacoes, 'Produto') ||
-    item0?.descricao ||
-    null
-  const tipoEmb = orcamento.tipoEmbalagem
-    ? `${orcamento.tipoEmbalagem.codigo} — ${orcamento.tipoEmbalagem.descricao}`
-    : null
-  const medidas = formatarMedidas(orcamento.medidas ?? item0?.medidas ?? null)
-  const cartao = orcamento.papelDescricao || item0?.papelDescricao || null
-  const gramatura = orcamento.gramatura ?? (item0?.gramatura != null ? Number(item0.gramatura) : null)
-  const numCores = orcamento.numCores || item0?.numCores || 0
-  const cores = (orcamento.cores ?? item0?.cores ?? []) as CorDetalhe[]
-  const faca = orcamento.imagemFaca || null
-
-  function lerFaca(file: File) {
-    if (!file.type.startsWith('image/')) {
-      notifications.show({ message: 'Selecione um arquivo de imagem.', color: 'red' })
-      return
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      notifications.show({ message: 'Imagem da faca acima de 5MB.', color: 'red' })
-      return
-    }
-    const reader = new FileReader()
-    reader.onload = () => onImagemFaca(String(reader.result || ''))
-    reader.onerror = () => notifications.show({ message: 'Falha ao ler a imagem.', color: 'red' })
-    reader.readAsDataURL(file)
-  }
-
-  return (
-    <Paper p="md" withBorder>
-      <Text fw={600} size="sm" mb="xs">Produto / Especificação</Text>
-      <Stack gap={4}>
-        <Text size="sm"><strong>Produto:</strong> {produto || '—'}</Text>
-        {tipoEmb && <Text size="sm"><strong>Tipo:</strong> {tipoEmb}</Text>}
-        <Text size="sm"><strong>Medidas:</strong> {medidas}</Text>
-        <Text size="sm">
-          <strong>Cartão:</strong> {cartao || '—'}
-          {gramatura ? ` · ${gramatura} g/m²` : ''}
-        </Text>
-        <Group gap={6} align="center">
-          <Text size="sm"><strong>Cores:</strong></Text>
-          {numCores > 0 ? <Badge size="sm" variant="light">{numCores}</Badge> : <Text size="sm">—</Text>}
-          {cores.slice(0, 4).map((c, i) => (
-            <Badge key={i} size="xs" variant="outline" color={c.tipo === 'CMYK' ? 'blue' : 'grape'}>
-              {c.nome}
-            </Badge>
-          ))}
-          {cores.length > 4 && <Text size="xs" c="dimmed">+{cores.length - 4}</Text>}
-        </Group>
-
-        {/* Imagem da faca — informação técnica do produto. Vem do RFQ ou é
-            enviada direto aqui (quando o orçamento está em RASCUNHO). */}
-        <Divider my={6} label="Imagem da faca" labelPosition="left" />
-        {faca ? (
-          <Image
-            src={faca}
-            alt="Imagem da faca"
-            radius="sm"
-            h={140}
-            fit="contain"
-            style={{ cursor: 'zoom-in', border: '1px solid var(--mantine-color-default-border)' }}
-            onClick={() => onAmpliar(faca)}
-          />
-        ) : (
-          <Text size="xs" c="dimmed">Sem imagem da faca.</Text>
-        )}
-        {podeEditar && (
-          <Group gap="xs" mt={4}>
-            <Button size="xs" variant="light" leftSection={<IconPhoto size={14} />}
-              onClick={() => facaRef.current?.click()}>
-              {faca ? 'Trocar' : 'Enviar faca'}
-            </Button>
-            {faca && (
-              <Button size="xs" variant="light" color="red" leftSection={<IconTrash size={14} />}
-                onClick={() => onImagemFaca(null)}>
-                Remover
-              </Button>
-            )}
-            <input ref={facaRef} type="file" accept="image/*" style={{ display: 'none' }}
-              onChange={(e) => { const f = e.currentTarget.files?.[0]; if (f) lerFaca(f); e.currentTarget.value = '' }} />
-          </Group>
-        )}
-      </Stack>
-    </Paper>
-  )
-}
-
-// ============================================================================
-// Página de Detalhe do Orçamento — cabeçalho + Itens do Orçamento (multi-item)
-// ============================================================================
+// Intervalo mínimo entre atualizações disparadas por foco/visibilidade da janela.
+const INTERVALO_MIN_ATUALIZACAO_MS = 1500
 
 export default function OrcamentoDetalhePage() {
   const params = useParams()
@@ -455,596 +106,193 @@ export default function OrcamentoDetalhePage() {
   const id = params.id as string
 
   const [orcamento, setOrcamento] = useState<OrcamentoDetalhe | null>(null)
-  const [versoes, setVersoes] = useState<VersaoResumida[]>([])
   const [loading, setLoading] = useState(true)
-  // Linhas de Produto (todas) para traduzir o `linhaProdutoId` do orçamento no
-  // CÓDIGO da linha, que o editor de item usa para decidir os campos
-  // condicionais (campos-por-linha). Carregadas uma vez.
-  const [linhasProduto, setLinhasProduto] = useState<Array<{ id: string; codigo: string }>>([])
-  const [actionLoading, setActionLoading] = useState(false)
 
-  // Modal de recusa
-  const [recusaModalOpen, setRecusaModalOpen] = useState(false)
-  const [motivoRecusa, setMotivoRecusa] = useState('')
+  // Seleção no grid de itens (alimenta o painel "Dados do item").
+  const [selecionadoId, setSelecionadoId] = useState<string | null>(null)
 
-  // Fechamento do orçamento (B9 — 4 abas)
-  const [fechamentoOpen, setFechamentoOpen] = useState(false)
-
-  // Ver proposta de origem (RFQ) — spec comercial-pedido-proposta
-  const [propostaOpen, setPropostaOpen] = useState(false)
-  const [proposta, setProposta] = useState<any | null>(null)
-  const [propostaLoading, setPropostaLoading] = useState(false)
-  const [propostaBuscada, setPropostaBuscada] = useState(false)
-
-  // Proposta PDF + templates (B1 task 8)
-  const [templates, setTemplates] = useState<Array<{ id: string; nome: string; isDefault: boolean }>>([])
-  const [templateId, setTemplateId] = useState<string | null>(null)
-  const [emailModalOpen, setEmailModalOpen] = useState(false)
-  const [emailDestino, setEmailDestino] = useState('')
-  const [emailMensagem, setEmailMensagem] = useState('')
-  const [enviandoEmail, setEnviandoEmail] = useState(false)
-
-  // Modal de reaproveitar cálculo (repetição — paridade Calcgraf)
-  const [reaproveitarOpen, setReaproveitarOpen] = useState(false)
-  const [reapClienteNome, setReapClienteNome] = useState('')
-  const [reapQuantidade, setReapQuantidade] = useState<number | ''>('')
-  const [reapObs, setReapObs] = useState('')
-  const [reaproveitando, setReaproveitando] = useState(false)
-
-  // Editor de item em PÁGINA ÚNICA com âncoras — editor único de item do
-  // orçamento. Aberto num modal full-screen a partir do grid de itens
-  // ("Novo Item" / "Editar item"). `itemEditorPagina === null` ⇒ item novo.
-  const [editorPaginaOpen, setEditorPaginaOpen] = useState(false)
-  const [itemEditorPagina, setItemEditorPagina] = useState<ItemParaEditorPagina | null>(null)
-
-  // Modal enxuto "Editar Cabeçalho" (Ponto 10 / Req 7) — cliente + vendedor
+  // Modais por item: relatório, encaixe e emissão de OP.
   const [editarCabecalhoOpen, setEditarCabecalhoOpen] = useState(false)
-
-  // Busca de cálculo da biblioteca (Task 12.1) — cria item a partir de um cálculo
   const [buscaCalcOpen, setBuscaCalcOpen] = useState(false)
-
-  // Confirmação de remoção de item
-  const [itemParaRemover, setItemParaRemover] = useState<ItemOrcamento | null>(null)
-  const [removendo, setRemovendo] = useState(false)
-
-  // Relatório fiel por item (Task 30): item cujo relatório está aberto no modal.
-  const [itemRelatorio, setItemRelatorio] = useState<ItemOrcamento | null>(null)
-
-  // Expansão da seção "Planos do Cálculo" por item (Task 11)
-  const [itensExpandidos, setItensExpandidos] = useState<Record<string, boolean>>({})
-  const toggleExpandir = (itemId: string) =>
-    setItensExpandidos((prev) => ({ ...prev, [itemId]: !prev[itemId] }))
-
-  // ---------------------------------------------------------------------------
-  // Emissão de OP (Task 24): status por item (badge), seleção para lote e modal
-  // de opções compartilhado entre emissão por item e em lote.
-  // ---------------------------------------------------------------------------
-  const [statusOp, setStatusOp] = useState<Record<string, StatusOpItem>>({})
-  const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
+  const [itemRelatorio, setItemRelatorio] = useState<ItemResumoDTO | null>(null)
+  const [encaixeItem, setEncaixeItem] = useState<ItemResumoDTO | null>(null)
   const [opModalOpen, setOpModalOpen] = useState(false)
-  // Alvo da emissão: um itemId específico, ou 'lote' para os selecionados.
-  const [opAlvo, setOpAlvo] = useState<string | 'lote' | null>(null)
-  const { emitindo, emitirItem, emitirLote } = useEmissaoOp(id)
+  const [opAlvo, setOpAlvo] = useState<string | null>(null)
+  const { emitindo, emitirItem } = useEmissaoOp(id)
 
-  // Hand-off comercial: amostras + conversão em pedido
-  const [amostrasOpen, setAmostrasOpen] = useState(false)
-  // Upload/visualização do arquivo de encaixe (gerado por app externo)
-  const [encaixeItem, setEncaixeItem] = useState<{ id: string; descricao?: string | null } | null>(null)
-  // Imagem ampliada (faca/foto) em modal
-  const [imgAmpliada, setImgAmpliada] = useState<string | null>(null)
+  const hierarquia = useOrcamentoHierarquia(id)
+  const fechamento = useFechamentoTotalizador(id)
+  const comissoes = useComissoes(id)
+  const dadosItem = useDadosItem(id, selecionadoId)
 
   useEffect(() => { document.title = 'Detalhe do Orçamento' }, [])
 
-  const carregar = useCallback(async () => {
-    setLoading(true)
+  // Guarda de 404: volta para a lista com a notificação, uma única vez.
+  const redirecionouRef = useRef(false)
+  const voltarNaoEncontrado = useCallback(() => {
+    if (redirecionouRef.current) return
+    redirecionouRef.current = true
+    notifications.show({ title: 'Erro', message: 'Registro não encontrado.', color: 'red' })
+    router.replace('/orcamento-grafico')
+  }, [router])
+
+  // `silencioso` recarrega sem trocar a tela por "carregando" (voltar da tela do item, foco da janela).
+  const carregar = useCallback(async (silencioso = false) => {
+    if (!silencioso) setLoading(true)
     try {
       const res = await api.get(`/orcamento-grafico/${id}`)
       setOrcamento(res.data)
-
-      // Buscar outras versões do mesmo número
-      if (res.data.numero) {
-        try {
-          const versoesRes = await api.get('/orcamento-grafico', {
-            params: { numero: res.data.numero, limit: 50 },
-          })
-          const todasVersoes: VersaoResumida[] = (versoesRes.data.data || [])
-            .filter((v: any) => v.id !== id)
-            .map((v: any) => ({
-              id: v.id,
-              numero: v.numero,
-              versao: v.versao,
-              status: v.status,
-              precoVenda: v.precoVenda,
-              quantidade: v.quantidade,
-              criadoEm: v.criadoEm,
-            }))
-          setVersoes(todasVersoes)
-        } catch {
-          setVersoes([])
-        }
-      }
     } catch (err: any) {
+      if (err?.response?.status === 404) {
+        voltarNaoEncontrado()
+        return
+      }
       notifications.show({
         title: 'Erro ao carregar',
         message: err?.response?.data?.message || 'Falha ao buscar orçamento',
         color: 'red',
       })
     } finally {
-      setLoading(false)
+      if (!silencioso) setLoading(false)
     }
-  }, [id])
+  }, [id, voltarNaoEncontrado])
 
   useEffect(() => { carregar() }, [carregar])
 
-  // Carrega TODAS as linhas de produto (situacao=todas) para traduzir o
-  // `linhaProdutoId` do orçamento → código mesmo quando a linha está inativa.
-  // Lista vazia/erro não quebra: o editor cai no conjunto padrão de campos.
   useEffect(() => {
-    api.get('/orcamento-grafico/linhas-produto', { params: { situacao: 'todas' } })
-      .then(({ data }) => setLinhasProduto(Array.isArray(data) ? data : data?.data ?? []))
-      .catch(() => setLinhasProduto([]))
-  }, [])
+    if (hierarquia.naoEncontrado || fechamento.naoEncontrado || comissoes.naoEncontrado) voltarNaoEncontrado()
+  }, [hierarquia.naoEncontrado, fechamento.naoEncontrado, comissoes.naoEncontrado, voltarNaoEncontrado])
 
-  // Código da linha do orçamento (para os campos condicionais do editor de item).
-  const linhaProdutoCodigo =
-    linhasProduto.find((l) => l.id === orcamento?.linhaProdutoId)?.codigo ?? null
+  // Recarrega orçamento + leituras da tela (itens, fechamento, comissões, dados do item).
+  const recargas = useRef({
+    itens: hierarquia.recarregar,
+    fechamento: fechamento.notificarAlteracaoItem,
+    comissoes: comissoes.recarregar,
+    dadosItem: dadosItem.recarregar,
+  })
+  recargas.current = {
+    itens: hierarquia.recarregar,
+    fechamento: fechamento.notificarAlteracaoItem,
+    comissoes: comissoes.recarregar,
+    dadosItem: dadosItem.recarregar,
+  }
 
-  // Abertura automática do Editor de página única quando vier de "Novo Orçamento"
-  // (query `?novoItem=1`). Abre UMA vez (item novo) e limpa o query param para
-  // não reabrir em refresh/navegação. Aguarda o orçamento ter carregado.
-  const [novoItemTratado, setNovoItemTratado] = useState(false)
+  const atualizarTudo = useCallback(async () => {
+    recargas.current.itens()
+    recargas.current.fechamento()
+    recargas.current.comissoes()
+    recargas.current.dadosItem()
+    await carregar(true)
+  }, [carregar])
+
+  // Item salvo na Tela_Item: sinal guardado (tela desmontada) ou evento (tela montada) → o
+  // Fechamento recarrega pelo `notificarAlteracaoItem()` do hook.
   useEffect(() => {
-    if (novoItemTratado || loading || !orcamento) return
-    if (searchParams.get('novoItem') === '1') {
-      setItemEditorPagina(null)
-      setEditorPaginaOpen(true)
-      setNovoItemTratado(true)
-      router.replace(`/orcamento-grafico/${id}`)
+    if (consumirAlteracaoItem(id)) recargas.current.fechamento()
+    const aoAlterar = (e: Event) => {
+      const alvo = (e as CustomEvent<{ orcamentoId?: string }>).detail?.orcamentoId
+      if (alvo === id && consumirAlteracaoItem(id)) recargas.current.fechamento()
     }
-  }, [searchParams, loading, orcamento, novoItemTratado, router, id])
-
-  // Troca da Linha de Produto pelo seletor fixo do editor: persiste no cabeçalho
-  // (PUT /:id) e recarrega para atualizar o `linhaProdutoCodigo` (campos
-  // condicionais). Preserva o restante do cabeçalho (o PUT não recalcula).
-  const handleLinhaProdutoChange = useCallback(
-    async (novaLinhaId: string | null) => {
-      try {
-        await api.put(`/orcamento-grafico/${id}`, { linhaProdutoId: novaLinhaId })
-        await carregar()
-      } catch (err: any) {
-        notifications.show({
-          title: 'Erro',
-          message: err?.response?.data?.message || 'Falha ao atualizar a linha de produto.',
-          color: 'red',
-        })
-      }
-    },
-    [id],
-  )
-
-  // Carrega o status de OP de cada item (badge "OP: N") ao montar/atualizar a
-  // lista. Faz uma requisição por item (lazy por lista) — a ausência de badge é
-  // o estado seguro em caso de falha (ver carregarStatusOpItem).
-  const carregarStatusOps = useCallback(async (itemIds: string[]) => {
-    if (!itemIds.length) {
-      setStatusOp({})
-      return
-    }
-    const resultados = await Promise.all(
-      itemIds.map(async (itemId) => [itemId, await carregarStatusOpItem(id, itemId)] as const),
-    )
-    setStatusOp(Object.fromEntries(resultados))
+    window.addEventListener(EVENTO_ITEM_ALTERADO, aoAlterar)
+    return () => window.removeEventListener(EVENTO_ITEM_ALTERADO, aoAlterar)
   }, [id])
 
+  // Ao voltar da tela do item (janela volta a ficar visível/focada), as leituras são refeitas.
+  const ultimaAtualizacaoRef = useRef(Date.now())
   useEffect(() => {
-    const ids = (Array.isArray(orcamento?.itens) ? orcamento!.itens : []).map((i) => i.id)
-    carregarStatusOps(ids)
-  }, [orcamento?.itens, carregarStatusOps])
-
-  // ============================================================================
-  // Ações do cabeçalho (preservadas)
-  // ============================================================================
-
-  const handleCopiar = async () => {
-    setActionLoading(true)
-    try {
-      const { data } = await api.post(`/orcamento-grafico/${id}/copiar`)
-      notifications.show({ title: 'Copiado', message: `Nova versão V${data.versao} criada.`, color: 'green' })
-      router.push(`/orcamento-grafico/${data.id}`)
-    } catch (err: any) {
-      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao copiar', color: 'red' })
-    } finally {
-      setActionLoading(false)
+    const aoVoltar = () => {
+      if (document.visibilityState === 'hidden') return
+      const agora = Date.now()
+      if (agora - ultimaAtualizacaoRef.current < INTERVALO_MIN_ATUALIZACAO_MS) return
+      ultimaAtualizacaoRef.current = agora
+      void atualizarTudo()
     }
-  }
-
-  // Abre o modal de reaproveitamento pré-preenchido com os dados atuais.
-  const abrirReaproveitar = () => {
-    setReapClienteNome(orcamento?.clienteNome ?? '')
-    setReapQuantidade(orcamento?.quantidade ?? '')
-    setReapObs('')
-    setReaproveitarOpen(true)
-  }
-
-  // Reaproveita o cálculo deste orçamento num NOVO orçamento (repetição):
-  // clona cabeçalho + itens (+ planos) e recalcula para a nova tiragem/cliente.
-  const handleReaproveitar = async () => {
-    setReaproveitando(true)
-    try {
-      const payload: Record<string, unknown> = {}
-      if (reapClienteNome.trim() && reapClienteNome.trim() !== (orcamento?.clienteNome ?? '')) {
-        payload.clienteNome = reapClienteNome.trim()
-        // Novo cliente por nome livre → desvincula o clienteId antigo.
-        payload.clienteId = null
-      }
-      if (typeof reapQuantidade === 'number' && reapQuantidade > 0) {
-        payload.quantidade = reapQuantidade
-      }
-      if (reapObs.trim()) payload.observacoes = reapObs.trim()
-
-      const { data } = await api.post(`/orcamento-grafico/${id}/reaproveitar`, payload)
-      const avisos: string[] = Array.isArray(data?.avisos) ? data.avisos : []
-      notifications.show({
-        title: 'Cálculo reaproveitado',
-        message: `Novo orçamento #${data.numero} criado${avisos.length ? ' (com avisos)' : ''}.`,
-        color: 'green',
-      })
-      if (avisos.length) {
-        notifications.show({
-          title: 'Avisos do reaproveitamento',
-          message: avisos.join('\n'),
-          color: 'yellow',
-          autoClose: 9000,
-        })
-      }
-      setReaproveitarOpen(false)
-      router.push(`/orcamento-grafico/${data.id}`)
-    } catch (err: any) {
-      notifications.show({
-        title: 'Erro',
-        message: err?.response?.data?.message || 'Falha ao reaproveitar o cálculo.',
-        color: 'red',
-      })
-    } finally {
-      setReaproveitando(false)
+    window.addEventListener('focus', aoVoltar)
+    document.addEventListener('visibilitychange', aoVoltar)
+    return () => {
+      window.removeEventListener('focus', aoVoltar)
+      document.removeEventListener('visibilitychange', aoVoltar)
     }
-  }
+  }, [atualizarTudo])
 
-  // Carrega os templates de proposta (para o seletor). Default pré-selecionado.
+  // `?novoItem=1` (vindo de "Novo Orçamento") abre a inclusão de item na tela do item.
+  const novoItemTratadoRef = useRef(false)
   useEffect(() => {
-    api.get('/orcamento-grafico/templates-proposta')
-      .then(({ data }) => {
-        const lista = Array.isArray(data) ? data : []
-        setTemplates(lista)
-        const def = lista.find((t: { isDefault: boolean }) => t.isDefault)
-        if (def) setTemplateId(def.id)
-      })
-      .catch(() => setTemplates([]))
-  }, [])
-
-  // Baixa a proposta comercial (PDF) com o template escolhido.
-  const handleBaixarProposta = async () => {
-    setActionLoading(true)
-    try {
-      const { data } = await api.get(`/orcamento-grafico/${id}/proposta-pdf`, {
-        responseType: 'blob',
-        params: templateId ? { templateId } : {},
-      })
-      const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }))
-      window.open(url, '_blank')
-      setTimeout(() => URL.revokeObjectURL(url), 60000)
-    } catch (err: any) {
-      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao gerar proposta', color: 'red' })
-    } finally {
-      setActionLoading(false)
+    if (novoItemTratadoRef.current || loading || !orcamento) return
+    if (searchParams.get('novoItem') === '1') {
+      novoItemTratadoRef.current = true
+      router.replace(`/orcamento-grafico/${id}/itens/novo`)
     }
-  }
+  }, [searchParams, loading, orcamento, router, id])
 
-  // Envia a proposta por e-mail (template escolhido).
-  const handleEnviarEmailProposta = async () => {
-    if (!emailDestino.trim()) {
-      notifications.show({ message: 'Informe o e-mail de destino.', color: 'red' })
+  const podeEditarItens = orcamento?.status === 'RASCUNHO'
+
+  const avisarSoRascunho = (acao: string) =>
+    notifications.show({ title: 'Ação indisponível', message: `${acao} só é possível com o orçamento em rascunho.`, color: 'orange' })
+
+  // ---------------------------------------------------------------------------
+  // Handlers do grid de itens
+  // ---------------------------------------------------------------------------
+
+  const incluirItem = () => {
+    if (!podeEditarItens) {
+      avisarSoRascunho('Incluir item')
       return
     }
-    setEnviandoEmail(true)
-    try {
-      const { data } = await api.post(`/orcamento-grafico/${id}/enviar-email`, {
-        destinatario: emailDestino.trim(),
-        mensagem: emailMensagem.trim() || undefined,
-        templateId: templateId || undefined,
-      })
-      notifications.show({ title: 'Proposta', message: data?.message || 'Proposta enviada.', color: 'green' })
-      setEmailModalOpen(false)
-      setEmailMensagem('')
-    } catch (err: any) {
-      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao enviar e-mail', color: 'red' })
-    } finally {
-      setEnviandoEmail(false)
-    }
+    router.push(`/orcamento-grafico/${id}/itens/novo`)
   }
 
-  // Abre o painel "Ver proposta": carrega a proposta de origem (RFQ) vinculada.
-  const abrirProposta = async () => {
-    setPropostaOpen(true)
-    if (propostaBuscada) return
-    setPropostaLoading(true)
-    try {
-      const { data } = await api.get(`/orcamento-grafico/pedidos-proposta/por-orcamento/${id}`)
-      setProposta(data?.proposta ?? null)
-    } catch {
-      setProposta(null)
-    } finally {
-      setPropostaBuscada(true)
-      setPropostaLoading(false)
+  const copiarItem = async (item: ItemResumoDTO) => {
+    if (!podeEditarItens) {
+      avisarSoRascunho('Copiar item')
+      throw new Error('somente-rascunho')
     }
-  }
-
-  // Abre o relatório (PDF) no layout do pré-cálculo Calcgraf em nova aba.
-  const handleRelatorio = async () => {
-    setActionLoading(true)
     try {
-      const { data } = await api.get(`/orcamento-grafico/${id}/relatorio.pdf`, { responseType: 'blob' })
-      const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }))
-      window.open(url, '_blank')
-      setTimeout(() => URL.revokeObjectURL(url), 60000)
-    } catch (err: any) {
-      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao gerar relatório', color: 'red' })
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  const handleEnviar = async () => {
-    setActionLoading(true)
-    try {
-      await api.post(`/orcamento-grafico/${id}/enviar`)
-      notifications.show({ title: 'Enviado', message: 'Proposta enviada com sucesso!', color: 'green' })
-      carregar()
-    } catch (err: any) {
-      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao enviar', color: 'red' })
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  const handleAprovar = async () => {
-    setActionLoading(true)
-    try {
-      await api.post(`/orcamento-grafico/${id}/aprovar`)
-      notifications.show({ title: 'Aprovado', message: 'Orçamento aprovado com sucesso!', color: 'green' })
-      carregar()
-    } catch (err: any) {
-      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao aprovar', color: 'red' })
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  const handleRecusar = async () => {
-    if (!motivoRecusa.trim()) {
-      notifications.show({ title: 'Erro', message: 'Informe o motivo da recusa.', color: 'red' })
-      return
-    }
-    setActionLoading(true)
-    try {
-      await api.post(`/orcamento-grafico/${id}/recusar`, { motivoRecusa: motivoRecusa.trim() })
-      notifications.show({ title: 'Recusado', message: 'Orçamento recusado.', color: 'orange' })
-      setRecusaModalOpen(false)
-      setMotivoRecusa('')
-      carregar()
-    } catch (err: any) {
-      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao recusar', color: 'red' })
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  // Hand-off comercial: converter orçamento APROVADO em pedido completo.
-  const handleConverter = async () => {
-    setActionLoading(true)
-    try {
-      const { data } = await api.post(`/orcamento-grafico/${id}/converter`)
+      const { data } = await api.post(`/orcamento-grafico/${id}/itens/${item.id}/copiar`)
       notifications.show({
-        title: 'Convertido em pedido',
-        message: `Pedido ${data?.numeroPedido ?? ''} gerado com ${data?.itensCriados ?? 0} item(ns).`,
+        title: 'Item copiado',
+        message: `Item ${data?.sequencia ?? ''} criado com ${data?.planosCopiados ?? 0} plano(s).`,
         color: 'green',
       })
-      carregar()
     } catch (err: any) {
-      const code = err?.response?.data?.code
-      const msg =
-        code === 'AMOSTRA_PENDENTE' ? 'Amostra exigida e ainda não aprovada. Aprove a amostra antes de converter.'
-        : code === 'MARGEM_PENDENTE' ? 'Desconto acima da alçada — aprovação necessária.'
-        : code === 'JA_CONVERTIDO' ? 'Este orçamento já foi convertido em pedido.'
-        : err?.response?.data?.message || 'Falha ao converter'
-      notifications.show({ title: 'Não foi possível converter', message: msg, color: 'red' })
-    } finally {
-      setActionLoading(false)
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao copiar o item', color: 'red' })
+      throw err
     }
+    await atualizarTudo()
   }
 
-  // Define/limpa a imagem da faca do produto (PATCH /:id/imagem-faca).
-  const handleImagemFaca = async (dataUrl: string | null) => {
-    try {
-      await api.patch(`/orcamento-grafico/${id}/imagem-faca`, { imagemFaca: dataUrl })
-      notifications.show({
-        title: 'Imagem da faca',
-        message: dataUrl ? 'Imagem atualizada.' : 'Imagem removida.',
-        color: dataUrl ? 'green' : 'orange',
-      })
-      // Atualização otimista local (evita refetch do orçamento inteiro).
-      setOrcamento((o) => (o ? { ...o, imagemFaca: dataUrl } : o))
-    } catch (err: any) {
-      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao salvar a imagem da faca.', color: 'red' })
+  const excluirItem = async (item: ItemResumoDTO) => {
+    if (!podeEditarItens) {
+      avisarSoRascunho('Excluir item')
+      throw new Error('somente-rascunho')
     }
-  }
-
-  // Marca/desmarca exigência de amostra por orçamento (override do padrão).
-  const handleToggleExigeAmostra = async (valor: boolean) => {
     try {
-      await api.patch(`/orcamento-grafico/${id}/exige-amostra`, { exigeAmostra: valor })
-      notifications.show({ title: 'Atualizado', message: valor ? 'Amostra passou a ser exigida.' : 'Amostra não exigida.', color: 'blue' })
-      carregar()
-    } catch (err: any) {
-      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao atualizar', color: 'red' })
-    }
-  }
-
-  // Abre o modal de encaixe (upload + visualização do arquivo gerado por app
-  // externo). Substitui o antigo download do desenho gerado internamente.
-  const abrirEncaixe = (item: { id: string; descricao?: string | null }) => {
-    setEncaixeItem({ id: item.id, descricao: item.descricao })
-  }
-
-  // ============================================================================
-  // Ações de item (multi-item)
-  // ============================================================================
-
-  // "Novo Item" abre o Editor de Orçamento (página única) com item novo.
-  const abrirNovoItem = () => {
-    setItemEditorPagina(null)
-    setEditorPaginaOpen(true)
-  }
-
-  // "Editar" passou a abrir o Editor de Orçamento (página única), que agora é o
-  // único editor de item. O wizard linear foi descontinuado da UI.
-  const abrirEdicaoItem = (item: ItemOrcamento) => {
-    abrirEditorPagina(item)
-  }
-
-  /**
-   * Abre o Editor de Item em PÁGINA ÚNICA para o item. Passa o shape completo
-   * esperado por `EditorItem`/`itemFormShared` (inclui os campos técnicos,
-   * planos e resultadoCalculo).
-   */
-  const abrirEditorPagina = (item: ItemOrcamento) => {
-    setItemEditorPagina({
-      id: item.id,
-      tipoEmbalagemId: item.tipoEmbalagemId,
-      tipoEmbalagem: orcamento?.tipoEmbalagem ?? null,
-      medidas: item.medidas ?? null,
-      papelId: item.papelId ?? null,
-      papelDescricao: item.papelDescricao ?? null,
-      suporteId: item.suporteId ?? null,
-      gramatura: item.gramatura ?? null,
-      numCores: item.numCores,
-      cores: item.cores ?? null,
-      acabamentosRicos: item.acabamentosRicos ?? null,
-      maquinaId: item.maquinaId ?? null,
-      modeloFacaId: item.modeloFacaId ?? null,
-      aproveitamentoManual: item.aproveitamentoManual ?? null,
-      tintaModo: item.tintaModo ?? null,
-      tintaConsumoKg: item.tintaConsumoKg ?? null,
-      // Fase 3 (Req 9) — Campos_Tecnicos: null permanece null (o `itemParaForm` normaliza).
-      siglaAcabado: item.siglaAcabado ?? null,
-      tributacao: item.tributacao ?? null,
-      processoImpressao: item.processoImpressao ?? null,
-      coberturaTintaTexto: item.coberturaTintaTexto ?? null,
-      fabricante: item.fabricante ?? null,
-      microondulado: item.microondulado ?? null,
-      materialMicroonduladoId: item.materialMicroonduladoId ?? null,
-      suporteProducaoId: item.suporteProducaoId ?? null,
-      fornecido: item.fornecido ?? null,
-      qtdModelos: item.qtdModelos ?? null,
-      arte: item.arte ?? null,
-      observacao: item.observacao ?? null,
-      observacaoAreasOp: item.observacaoAreasOp ?? null,
-      conteudoVolume: item.conteudoVolume ?? null,
-      acondicionamento: Array.isArray(item.acondicionamento) ? item.acondicionamento : null,
-      comprimentoMm: item.comprimentoMm ?? null,
-      larguraMm: item.larguraMm ?? null,
-      alturaMm: item.alturaMm ?? null,
-      abaColaMm: item.abaColaMm ?? null,
-      abaFechamentoMm: item.abaFechamentoMm ?? null,
-      fibra: item.fibra ?? null,
-      montagemLinhas: item.montagemLinhas ?? null,
-      montagemColunas: item.montagemColunas ?? null,
-      formatoSupLarguraMm: item.formatoSupLarguraMm ?? null,
-      formatoSupAlturaMm: item.formatoSupAlturaMm ?? null,
-      formatoCorteLarguraMm: item.formatoCorteLarguraMm ?? null,
-      formatoCorteAlturaMm: item.formatoCorteAlturaMm ?? null,
-      ajusteCorteMicroMm: item.ajusteCorteMicroMm ?? null,
-      matrizQuantidade: item.matrizQuantidade ?? null,
-      matrizPrecoUnitario: item.matrizPrecoUnitario ?? null,
-      itensDiversos: (item.itensDiversos as any) ?? null,
-      itensFornecidos: (item.itensFornecidos as any) ?? null,
-      camposLivres: (item.camposLivres as any) ?? null,
-      quantidade: item.quantidade,
-      resultadoCalculo: item.resultadoCalculo ?? null,
-      calculoGraficoOrigemId: item.calculoGraficoOrigemId ?? null,
-      // Fase 2 — vínculo com o catálogo e seleções de material.
-      produtoGraficoId: item.produtoGraficoId ?? null,
-      materiaisAcabamento: Array.isArray(item.materiaisAcabamento) ? item.materiaisAcabamento : null,
-      // `tipoPlanoId` de cada plano segue junto (o item de plano já vem do GET com o campo).
-      planos: Array.isArray(item.planos)
-        ? item.planos.map((p) => ({ ...p, tipoPlanoId: p.tipoPlanoId ?? null }))
-        : null,
-    })
-    setEditorPaginaOpen(true)
-  }
-
-  const confirmarRemocaoItem = async () => {
-    if (!itemParaRemover) return
-    setRemovendo(true)
-    try {
-      await api.delete(`/orcamento-grafico/${id}/itens/${itemParaRemover.id}`)
-      notifications.show({ title: 'Item removido', message: `Item #${itemParaRemover.sequencia} removido.`, color: 'orange' })
-      setItemParaRemover(null)
-      await carregar()
+      await api.delete(`/orcamento-grafico/${id}/itens/${item.id}`)
+      notifications.show({ title: 'Item removido', message: `Item #${item.sequencia} removido.`, color: 'orange' })
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao remover item', color: 'red' })
-    } finally {
-      setRemovendo(false)
+      throw err
     }
+    await atualizarTudo()
   }
 
-  // ============================================================================
-  // Ações de emissão de OP (Task 24)
-  // ============================================================================
-
-  const abrirEmitirItem = (itemId: string) => {
-    setOpAlvo(itemId)
+  const abrirEmitirItem = (item: ItemResumoDTO) => {
+    setOpAlvo(item.id)
     setOpModalOpen(true)
   }
-
-  const abrirEmitirLote = () => {
-    if (selecionados.size === 0) return
-    setOpAlvo('lote')
-    setOpModalOpen(true)
-  }
-
-  const toggleSelecionado = (itemId: string) =>
-    setSelecionados((prev) => {
-      const prox = new Set(prev)
-      if (prox.has(itemId)) prox.delete(itemId)
-      else prox.add(itemId)
-      return prox
-    })
-
-  const toggleSelecionarTodos = (itemIds: string[], marcar: boolean) =>
-    setSelecionados(marcar ? new Set(itemIds) : new Set())
 
   const confirmarEmissaoOp = async (opcoes: OpcoesEmissaoOp, emails: string[]) => {
-    if (opAlvo === 'lote') {
-      const itemIds = Array.from(selecionados)
-      const resultados = await emitirLote(itemIds, opcoes, emails)
-      if (resultados) {
-        setOpModalOpen(false)
-        setSelecionados(new Set())
-        await carregar()
-      }
-    } else if (opAlvo) {
-      const ok = await emitirItem(opAlvo, opcoes, emails)
-      if (ok) {
-        setOpModalOpen(false)
-        await carregar()
-      }
+    if (!opAlvo) return
+    const ok = await emitirItem(opAlvo, opcoes, emails)
+    if (ok) {
+      setOpModalOpen(false)
+      await atualizarTudo()
     }
   }
 
-  // ============================================================================
+  // ---------------------------------------------------------------------------
   // Render
-  // ============================================================================
+  // ---------------------------------------------------------------------------
 
   if (loading) {
     return <Center py="xl"><Loader size="lg" /></Center>
@@ -1060,226 +308,47 @@ export default function OrcamentoDetalhePage() {
     )
   }
 
-  const resultado = orcamento.resultadoCalculo
-  const itens = Array.isArray(orcamento.itens) ? orcamento.itens : []
-  const temItens = itens.length > 0
-  const podeEditarItens = orcamento.status === 'RASCUNHO'
+  const semItens = !Array.isArray(orcamento.itens) || orcamento.itens.length === 0
 
   return (
     <Stack gap="md">
-      {/* Header */}
-      <Group justify="space-between" align="flex-start">
-        <Group>
-          <Button
-            variant="subtle"
-            leftSection={<IconArrowLeft size={16} />}
-            onClick={() => router.push('/orcamento-grafico')}
-          >
-            Voltar
-          </Button>
-          <div>
-            <Group gap="sm">
-              <Title order={3}>Orçamento #{orcamento.numero}</Title>
-              {orcamento.serie && <Badge variant="light" size="lg">Série {orcamento.serie}</Badge>}
-              <Badge variant="outline" size="lg">V{orcamento.versao}</Badge>
-              {orcamento.tipo === 'REPETICAO' && (
-                <Badge color="violet" variant="light" size="lg">Repetição</Badge>
-              )}
+      <CabecalhoOrcamento
+        numero={orcamento.numero}
+        serie={orcamento.serie}
+        dataOrcamento={orcamento.dataOrcamento}
+        clienteNome={orcamento.clienteNome}
+        onEditarCliente={podeEditarItens ? () => setEditarCabecalhoOpen(true) : undefined}
+        acoes={
+          <>
+            <PreviewFichaMaster orcamentoId={id} />
+            {podeEditarItens && (
+              <Button variant="light" leftSection={<IconSearch size={16} />} onClick={() => setBuscaCalcOpen(true)}>
+                Localizar Cálculo
+              </Button>
+            )}
+            <AcoesOrcamento orcamento={orcamento} onRecarregar={atualizarTudo} />
+          </>
+        }
+      />
+
+      {/* Situação do orçamento e totais consolidados */}
+      <Paper withBorder p="md" radius="md">
+        <Group justify="space-between" align="flex-start" wrap="wrap" gap="lg">
+          <Stack gap={4}>
+            <Group gap="xs">
               <StatusBadge status={orcamento.status} />
+              <Badge variant="outline">V{orcamento.versao}</Badge>
+              {orcamento.tipo === 'REPETICAO' && <Badge color="violet" variant="light">Repetição</Badge>}
             </Group>
-            <Text size="sm" c="dimmed">
-              {orcamento.dataOrcamento && <>Data {formatDate(orcamento.dataOrcamento)} · </>}
+            <Text size="xs" c="dimmed">
               Criado em {formatDateTime(orcamento.criadoEm)} · Atualizado em {formatDateTime(orcamento.atualizadoEm)}
             </Text>
-          </div>
-        </Group>
-
-        {/* Action buttons (preservadas) */}
-        <Group gap="xs">
-          {orcamento.status === 'RASCUNHO' && (
-            <Button
-              variant="outline"
-              leftSection={<IconEdit size={16} />}
-              onClick={() => setEditarCabecalhoOpen(true)}
-              disabled={actionLoading}
-            >
-              Editar Cabeçalho
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            leftSection={<IconCopy size={16} />}
-            onClick={handleCopiar}
-            loading={actionLoading}
-          >
-            Copiar
-          </Button>
-          <Button
-            variant="light"
-            color="grape"
-            leftSection={<IconRepeat size={16} />}
-            onClick={abrirReaproveitar}
-            disabled={actionLoading}
-          >
-            Reaproveitar cálculo
-          </Button>
-          <Button
-            variant="outline"
-            leftSection={<IconFileText size={16} />}
-            onClick={handleRelatorio}
-            loading={actionLoading}
-          >
-            Relatório
-          </Button>
-          <Button
-            variant="outline"
-            leftSection={<IconPhoto size={16} />}
-            onClick={abrirProposta}
-          >
-            Ver proposta
-          </Button>
-          <Button
-            variant="outline"
-            leftSection={<IconReportAnalytics size={16} />}
-            onClick={() => setFechamentoOpen(true)}
-          >
-            Fechamento
-          </Button>
-          <Menu shadow="md" position="bottom-end">
-            <Menu.Target>
-              <Button variant="outline" leftSection={<IconFileTypePdf size={16} />} rightSection={<IconChevronDown size={14} />}>
-                Proposta
-              </Button>
-            </Menu.Target>
-            <Menu.Dropdown>
-              {templates.length > 0 && (
-                <>
-                  <Menu.Label>Template</Menu.Label>
-                  <div style={{ padding: '4px 12px' }}>
-                    <Select
-                      size="xs"
-                      data={templates.map((t) => ({ value: t.id, label: t.nome + (t.isDefault ? ' (padrão)' : '') }))}
-                      value={templateId}
-                      onChange={setTemplateId}
-                      allowDeselect={false}
-                      comboboxProps={{ withinPortal: true }}
-                    />
-                  </div>
-                  <Menu.Divider />
-                </>
-              )}
-              <Menu.Item leftSection={<IconFileTypePdf size={16} />} onClick={handleBaixarProposta}>
-                Baixar PDF
-              </Menu.Item>
-              <Menu.Item leftSection={<IconMail size={16} />} onClick={() => setEmailModalOpen(true)}>
-                Enviar por e-mail
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-          {orcamento.status === 'RASCUNHO' && (
-            <Button
-              leftSection={<IconSend size={16} />}
-              onClick={handleEnviar}
-              loading={actionLoading}
-            >
-              Enviar Proposta
-            </Button>
-          )}
-          {orcamento.status === 'ENVIADO' && (
-            <>
-              <Button
-                color="green"
-                leftSection={<IconCheck size={16} />}
-                onClick={handleAprovar}
-                loading={actionLoading}
-              >
-                Aprovar
-              </Button>
-              <Button
-                color="red"
-                variant="outline"
-                leftSection={<IconX size={16} />}
-                onClick={() => setRecusaModalOpen(true)}
-                disabled={actionLoading}
-              >
-                Recusar
-              </Button>
-            </>
-          )}
-          {/* Hand-off comercial: amostras (sempre disponível) */}
-          <Button
-            variant="light"
-            leftSection={<IconPhoto size={16} />}
-            onClick={() => setAmostrasOpen(true)}
-          >
-            Amostras
-          </Button>
-          {orcamento.status === 'APROVADO' && (
-            <Button
-              color="teal"
-              leftSection={<IconShoppingCartPlus size={16} />}
-              onClick={handleConverter}
-              loading={actionLoading}
-            >
-              Converter em pedido
-            </Button>
-          )}
-          {orcamento.status === 'CONVERTIDO' && (
-            <Badge color="teal" variant="light" size="lg">Convertido em pedido</Badge>
-          )}
-        </Group>
-      </Group>
-
-      {/* Hand-off comercial: override de exigência de amostra */}
-      {['ENVIADO', 'APROVADO'].includes(orcamento.status) && (
-        <Checkbox
-          label="Exigir aprovação de amostra antes de produzir"
-          checked={orcamento.exigeAmostra === true}
-          onChange={(e) => handleToggleExigeAmostra(e.currentTarget.checked)}
-        />
-      )}
-
-      {/* Motivo de recusa (se recusado) */}
-      {orcamento.status === 'RECUSADO' && orcamento.motivoRecusa && (
-        <Alert icon={<IconX size={16} />} color="red" title="Motivo da Recusa">
-          {orcamento.motivoRecusa}
-        </Alert>
-      )}
-
-      {/* Observação do cliente — alerta destacado de ATENÇÃO no topo do conteúdo.
-          Não-bloqueante (só informa). Renderizado apenas quando há texto. */}
-      {orcamento.clienteObservacao?.trim() && (
-        <Alert
-          icon={<IconAlertTriangle size={18} />}
-          color="orange"
-          variant="light"
-          title="Observação do cliente"
-        >
-          <Text size="sm" style={{ whiteSpace: 'pre-line' }}>
-            {orcamento.clienteObservacao}
-          </Text>
-        </Alert>
-      )}
-
-      {/* Cabeçalho comercial — 3 blocos: Dados Comerciais, Produto/Especificação,
-          Totais. O bloco de Produto consolida as informações técnicas que antes
-          só apareciam ao expandir o item (pedido do usuário: "melhore essa tela").
-          Os dados vêm do cabeçalho do orçamento (preenchidos ao encaminhar o RFQ);
-          quando ausentes, caem no 1º item. */}
-      <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
-        <Paper p="md" withBorder>
-          <Text fw={600} size="sm" mb="xs">Dados Comerciais</Text>
-          <Stack gap={4}>
-            <Text size="sm"><strong>Cliente:</strong> {orcamento.clienteNome || '—'}</Text>
-            <Text size="sm"><strong>Série:</strong> {orcamento.serie || '—'}</Text>
             {orcamento.calculoOrigem && (
               <Text size="sm">
                 <strong>Cálculo utilizado:</strong>{' '}
                 nº {orcamento.calculoOrigem.numeroCalcgraf ?? orcamento.calculoOrigem.numero}
               </Text>
             )}
-            <Text size="sm"><strong>Data:</strong> {formatDate(orcamento.dataOrcamento)}</Text>
-            <Text size="sm"><strong>Status:</strong> <StatusBadge status={orcamento.status} /></Text>
             {orcamento.validadeAte && (
               <Text size="sm"><strong>Validade:</strong> {formatDate(orcamento.validadeAte)}</Text>
             )}
@@ -1287,481 +356,102 @@ export default function OrcamentoDetalhePage() {
               <Text size="sm"><strong>Aprovado em:</strong> {formatDateTime(orcamento.aprovadoEm)}</Text>
             )}
           </Stack>
-        </Paper>
-
-        <ProdutoEspecificacao
-          orcamento={orcamento}
-          itens={itens}
-          podeEditar={orcamento.status === 'RASCUNHO'}
-          onImagemFaca={handleImagemFaca}
-          onAmpliar={(src) => setImgAmpliada(src)}
-        />
-
-        <Paper p="md" withBorder>
-          <Text fw={600} size="sm" mb="xs">Totais Consolidados</Text>
-          <Stack gap={4}>
-            <Group justify="space-between">
-              <Text size="sm">Custo de Produção consolidado</Text>
-              <Text size="sm" fw={600} c="red">{formatCurrency(orcamento.custoProducaoConsolidado)}</Text>
-            </Group>
-            <Group justify="space-between">
-              <Text size="sm">Valor Total consolidado</Text>
-              <Text size="lg" fw={700} c="green">{formatCurrency(orcamento.valorTotalConsolidado)}</Text>
-            </Group>
-            <Text size="xs" c="dimmed">
-              {itens.length} {itens.length === 1 ? 'item' : 'itens'} no orçamento
-            </Text>
+          <Stack gap={2} align="flex-end">
+            <Text size="xs" c="dimmed">Custo de produção consolidado</Text>
+            <Text size="sm" fw={600} c="red">{formatarMoeda(Number(orcamento.custoProducaoConsolidado ?? NaN))}</Text>
+            <Text size="xs" c="dimmed">Valor total consolidado</Text>
+            <Text size="lg" fw={700} c="green">{formatarMoeda(Number(orcamento.valorTotalConsolidado ?? NaN))}</Text>
           </Stack>
-        </Paper>
-      </SimpleGrid>
-
-      {/* ===================================================================== */}
-      {/* ITENS DO ORÇAMENTO (multi-item) */}
-      {/* ===================================================================== */}
-      <Paper p="md" withBorder>
-        <Group justify="space-between" mb="sm">
-          <Text fw={600}>Itens do Orçamento</Text>
-          <Group gap="xs">
-            {temItens && (
-              <Button
-                size="xs"
-                variant="light"
-                color="green"
-                leftSection={<IconFileInvoice size={14} />}
-                onClick={abrirEmitirLote}
-                disabled={selecionados.size === 0 || emitindo}
-              >
-                Emitir OP em lote{selecionados.size > 0 ? ` (${selecionados.size})` : ''}
-              </Button>
-            )}
-            {podeEditarItens && (
-              <>
-                <Button
-                  size="xs"
-                  variant="light"
-                  leftSection={<IconSearch size={14} />}
-                  onClick={() => setBuscaCalcOpen(true)}
-                >
-                  Localizar Cálculo
-                </Button>
-                <Button size="xs" leftSection={<IconPlus size={14} />} onClick={abrirNovoItem}>
-                  Novo Item
-                </Button>
-              </>
-            )}
-          </Group>
         </Group>
-
-        <ScrollArea>
-          <Table striped highlightOnHover withTableBorder>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th w={40} ta="center">
-                  <Checkbox
-                    aria-label="Selecionar todos os itens"
-                    checked={temItens && selecionados.size === itens.length}
-                    indeterminate={selecionados.size > 0 && selecionados.size < itens.length}
-                    onChange={(e) => toggleSelecionarTodos(itens.map((i) => i.id), e.currentTarget.checked)}
-                  />
-                </Table.Th>
-                <Table.Th w={40}></Table.Th>
-                <Table.Th w={60}>Seq.</Table.Th>
-                <Table.Th>Linha de Produto</Table.Th>
-                <Table.Th>Descrição</Table.Th>
-                <Table.Th ta="right">Tiragem</Table.Th>
-                <Table.Th ta="right">Custo Produção</Table.Th>
-                <Table.Th ta="right">Valor Total</Table.Th>
-                <Table.Th w={150} ta="center">Ações</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {itens.map((item) => {
-                const expandido = !!itensExpandidos[item.id]
-                return (
-                  <Fragment key={item.id}>
-                    <Table.Tr>
-                      <Table.Td ta="center">
-                        <Checkbox
-                          aria-label={`Selecionar item ${item.sequencia}`}
-                          checked={selecionados.has(item.id)}
-                          onChange={() => toggleSelecionado(item.id)}
-                        />
-                      </Table.Td>
-                      <Table.Td>
-                        <Tooltip label={expandido ? 'Ocultar planos' : 'Ver planos do cálculo'}>
-                          <ActionIcon variant="subtle" color="gray" onClick={() => toggleExpandir(item.id)}>
-                            {expandido ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
-                          </ActionIcon>
-                        </Tooltip>
-                      </Table.Td>
-                      <Table.Td fw={600}>{item.sequencia}</Table.Td>
-                      <Table.Td>
-                        <Group gap={6}>
-                          <Text size="sm">{orcamento.tipoEmbalagem?.descricao || item.tipoEmbalagemId}</Text>
-                          {item.pendente && (
-                            <Badge size="xs" color="orange" variant="light">Pendente</Badge>
-                          )}
-                          <BadgeOp label={statusOp[item.id]?.label} />
-                        </Group>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="sm" c="dimmed">{item.descricao || '—'}</Text>
-                      </Table.Td>
-                      <Table.Td ta="right">{item.quantidade?.toLocaleString('pt-BR')}</Table.Td>
-                      <Table.Td ta="right">{formatCurrency(item.custoProducao)}</Table.Td>
-                      <Table.Td ta="right" fw={600}>{formatCurrency(item.valorTotal)}</Table.Td>
-                      <Table.Td>
-                        <Group gap={4} justify="center">
-                          <Tooltip label="Relatório do item (pré-cálculo)">
-                            <ActionIcon
-                              variant="subtle"
-                              color="grape"
-                              onClick={() => setItemRelatorio(item)}
-                            >
-                              <IconReportAnalytics size={16} />
-                            </ActionIcon>
-                          </Tooltip>
-                          <Tooltip label="Emitir OP para este item">
-                            <ActionIcon
-                              variant="subtle"
-                              color="green"
-                              onClick={() => abrirEmitirItem(item.id)}
-                              disabled={emitindo}
-                            >
-                              <IconFileInvoice size={16} />
-                            </ActionIcon>
-                          </Tooltip>
-                          <Tooltip label="Encaixe / imposição (enviar e visualizar)">
-                            <ActionIcon
-                              variant="subtle"
-                              color="grape"
-                              onClick={() => abrirEncaixe(item)}
-                            >
-                              <IconGridDots size={16} />
-                            </ActionIcon>
-                          </Tooltip>
-                          <Tooltip label={podeEditarItens ? 'Editar item' : 'Edição só em rascunho'}>
-                            <ActionIcon
-                              variant="subtle"
-                              color="blue"
-                              onClick={() => abrirEdicaoItem(item)}
-                              disabled={!podeEditarItens}
-                            >
-                              <IconEdit size={16} />
-                            </ActionIcon>
-                          </Tooltip>
-                          <Tooltip label={podeEditarItens ? 'Remover item' : 'Remoção só em rascunho'}>
-                            <ActionIcon
-                              variant="subtle"
-                              color="red"
-                              onClick={() => setItemParaRemover(item)}
-                              disabled={!podeEditarItens}
-                            >
-                              <IconTrash size={16} />
-                            </ActionIcon>
-                          </Tooltip>
-                        </Group>
-                      </Table.Td>
-                    </Table.Tr>
-                    <Table.Tr>
-                      <Table.Td colSpan={9} p={0} style={{ borderBottom: 0 }}>
-                        <Collapse in={expandido}>
-                          <Paper p="md" bg="var(--mantine-color-gray-light)" radius={0}>
-                            {/* Matriz de impressão (Req 3.3): só quando há matriz
-                                preenchida no item (puxada do cálculo de origem). */}
-                            {Number(item.matrizQuantidade ?? 0) > 0 && (
-                              <Group gap="xl" mb="sm">
-                                <Text size="sm">
-                                  <strong>Qtd. de matrizes:</strong>{' '}
-                                  {Number(item.matrizQuantidade).toLocaleString('pt-BR')}
-                                </Text>
-                                <Text size="sm">
-                                  <strong>Preço unitário da matriz:</strong>{' '}
-                                  {formatCurrency(item.matrizPrecoUnitario)}
-                                </Text>
-                              </Group>
-                            )}
-                            <Group gap={6} mb="xs">
-                              <IconStack2 size={16} />
-                              <Text size="sm" fw={600}>
-                                Planos do cálculo — item #{item.sequencia}
-                              </Text>
-                            </Group>
-                            <PlanosDoItemComCatalogo
-                              orcamentoId={id}
-                              itemId={item.id}
-                              planosIniciais={Array.isArray(item.planos) ? item.planos : null}
-                              suporteProducaoItemInicial={item.suporteProducaoId ?? null}
-                              rotuloTrocaItemInicial={item.rotuloTrocaSuporte ?? null}
-                              produtoGraficoId={item.produtoGraficoId ?? null}
-                              itemPuxado={!!item.calculoGraficoOrigemId}
-                              podeEditar={podeEditarItens}
-                              onChanged={carregar}
-                            />
-                          </Paper>
-                        </Collapse>
-                      </Table.Td>
-                    </Table.Tr>
-                  </Fragment>
-                )
-              })}
-              {!temItens && (
-                <Table.Tr>
-                  <Table.Td colSpan={9}>
-                    <Text ta="center" c="dimmed" py="md">
-                      Nenhum item neste orçamento.{podeEditarItens ? ' Use "Novo Item" para adicionar.' : ''}
-                    </Text>
-                  </Table.Td>
-                </Table.Tr>
-              )}
-            </Table.Tbody>
-            {temItens && (
-              <Table.Tfoot>
-                <Table.Tr>
-                  <Table.Td colSpan={6} ta="right" fw={700}>Total consolidado</Table.Td>
-                  <Table.Td ta="right" fw={700} c="red">{formatCurrency(orcamento.custoProducaoConsolidado)}</Table.Td>
-                  <Table.Td ta="right" fw={700} c="green">{formatCurrency(orcamento.valorTotalConsolidado)}</Table.Td>
-                  <Table.Td />
-                </Table.Tr>
-              </Table.Tfoot>
-            )}
-          </Table>
-        </ScrollArea>
       </Paper>
 
-      {/* ===================================================================== */}
-      {/* DETALHE LEGADO DO ITEM ÚNICO (fallback de compatibilidade) */}
-      {/* Mantido para orçamentos antigos cujos dados de cálculo vivem no        */}
-      {/* cabeçalho. Exibido apenas quando NÃO há itens multi-item.              */}
-      {/* ===================================================================== */}
-      {!temItens && (
-        <>
-          <Divider label="Detalhe do Item (compatibilidade)" labelPosition="left" />
+      <ExigeAmostraOrcamento orcamento={orcamento} onRecarregar={atualizarTudo} />
 
-          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-            <Paper p="md" withBorder>
-              <Text fw={600} size="sm" mb="xs">Produto</Text>
-              <Stack gap={4}>
-                <Text size="sm"><strong>Tipo de Embalagem:</strong> {orcamento.tipoEmbalagem?.descricao || '—'}</Text>
-                {orcamento.produtoNome && (
-                  <Text size="sm"><strong>Produto (repetição):</strong> {orcamento.produtoNome}</Text>
-                )}
-                <Text size="sm"><strong>Quantidade:</strong> {orcamento.quantidade?.toLocaleString('pt-BR')}</Text>
-              </Stack>
-            </Paper>
-
-            <Paper p="md" withBorder>
-              <Text fw={600} size="sm" mb="xs">Material / Papel</Text>
-              <Stack gap={4}>
-                <Text size="sm"><strong>Papel:</strong> {orcamento.papelDescricao || '—'}</Text>
-                <Text size="sm"><strong>Gramatura:</strong> {orcamento.gramatura ? `${orcamento.gramatura} g/m²` : '—'}</Text>
-                <Text size="sm"><strong>Nº Cores:</strong> {orcamento.numCores}</Text>
-              </Stack>
-            </Paper>
-          </SimpleGrid>
-
-          {/* Medidas */}
-          {orcamento.medidas && typeof orcamento.medidas === 'object' &&
-           Object.keys(orcamento.medidas).length > 0 && (
-            <Paper p="md" withBorder>
-              <Text fw={600} size="sm" mb="xs">Medidas</Text>
-              <Group gap="lg">
-                {Object.entries(orcamento.medidas).map(([key, val]) => (
-                  <Text key={key} size="sm">
-                    <strong>{key}:</strong>{' '}
-                    {val != null && typeof val !== 'object' ? String(val) : '—'} mm
-                  </Text>
-                ))}
-              </Group>
-            </Paper>
-          )}
-
-          {/* Cores */}
-          {Array.isArray(orcamento.cores) && orcamento.cores.length > 0 && (
-            <Paper p="md" withBorder>
-              <Text fw={600} size="sm" mb="xs">Cores</Text>
-              <Group gap="xs">
-                {orcamento.cores.map((cor, i) => (
-                  <Badge key={i} variant="light" color={cor?.tipo === 'CMYK' ? 'blue' : 'grape'}>
-                    {cor?.nome ?? '—'} ({cor?.coberturaPercent ?? 0}%)
-                  </Badge>
-                ))}
-              </Group>
-            </Paper>
-          )}
-
-          {/* Acabamentos */}
-          {Array.isArray(orcamento.acabamentos) && orcamento.acabamentos.length > 0 && (
-            <Paper p="md" withBorder>
-              <Text fw={600} size="sm" mb="xs">Acabamentos</Text>
-              <Group gap="xs">
-                {orcamento.acabamentos.map((acab, i) => (
-                  <Badge key={i} variant="light" color="teal">{acab?.tipo ?? '—'}</Badge>
-                ))}
-              </Group>
-            </Paper>
-          )}
-
-          {/* Resultado do cálculo */}
-          {resultado && (
-            <>
-              <Divider label="Resultado do Cálculo" labelPosition="left" />
-
-              {/* Resumo principal */}
-              <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
-                <Paper p="md" withBorder ta="center">
-                  <Text size="xs" c="dimmed" tt="uppercase">Custo Total</Text>
-                  <Text fw={700} size="lg" c="red">{formatCurrency(resultado.custoTotal ?? orcamento.custoTotal)}</Text>
-                </Paper>
-                <Paper p="md" withBorder ta="center">
-                  <Text size="xs" c="dimmed" tt="uppercase">Preço Venda</Text>
-                  <Text fw={700} size="lg" c="green">{formatCurrency(resultado.precoVenda ?? orcamento.precoVenda)}</Text>
-                </Paper>
-                <Paper p="md" withBorder ta="center">
-                  <Text size="xs" c="dimmed" tt="uppercase">Preço Unitário</Text>
-                  <Text fw={700} size="lg">{formatCurrency(resultado.precoUnitario ?? orcamento.precoUnitario)}</Text>
-                </Paper>
-                <Paper p="md" withBorder ta="center">
-                  <Text size="xs" c="dimmed" tt="uppercase">Margem</Text>
-                  <Text fw={700} size="lg" c="blue">{formatPercent(resultado.margemReal ?? orcamento.margemReal)}</Text>
-                </Paper>
-              </SimpleGrid>
-
-              {/* Decomposição estilo Calcgraf (paridade) */}
-              {resultado.custoProducao != null && (
-                <Paper p="md" withBorder>
-                  <Text fw={500} size="sm" mb="sm">Decomposição do Custo</Text>
-                  <Table>
-                    <Table.Tbody>
-                      <Table.Tr>
-                        <Table.Td>Material Direto (MD)</Table.Td>
-                        <Table.Td ta="right">{formatCurrency(resultado.materialDireto)}</Table.Td>
-                      </Table.Tr>
-                      <Table.Tr>
-                        <Table.Td>Custo de Transformação (CT)</Table.Td>
-                        <Table.Td ta="right">{formatCurrency(resultado.custoTransformacao)}</Table.Td>
-                      </Table.Tr>
-                      {(resultado.servicoExterno ?? 0) > 0 && (
-                        <Table.Tr>
-                          <Table.Td>Serviço Externo (SE)</Table.Td>
-                          <Table.Td ta="right">{formatCurrency(resultado.servicoExterno)}</Table.Td>
-                        </Table.Tr>
-                      )}
-                      <Table.Tr>
-                        <Table.Td fw={600}>Custo de Produção (MD + CT + SE)</Table.Td>
-                        <Table.Td ta="right" fw={600}>{formatCurrency(resultado.custoProducao)}</Table.Td>
-                      </Table.Tr>
-                      <Table.Tr>
-                        <Table.Td>CEV (custos de venda)</Table.Td>
-                        <Table.Td ta="right">{formatPercent(resultado.cevPerc)} = {formatCurrency(resultado.cevValor)}</Table.Td>
-                      </Table.Tr>
-                      <Table.Tr>
-                        <Table.Td fw={600} c="teal">Contribuição Marginal</Table.Td>
-                        <Table.Td ta="right" fw={600} c="teal">
-                          {formatPercent(resultado.contribuicaoMarginalPerc)} = {formatCurrency(resultado.contribuicaoMarginalValor)}
-                        </Table.Td>
-                      </Table.Tr>
-                    </Table.Tbody>
-                  </Table>
-                </Paper>
-              )}
-
-              {/* Breakdown visual */}
-              {resultado.breakdown && (
-                <Paper p="md" withBorder>
-                  <Group gap="xs" mb="sm">
-                    <IconChartPie size={18} />
-                    <Text fw={500} size="sm">Composição do Custo</Text>
-                  </Group>
-                  <BreakdownBar breakdown={resultado.breakdown} />
-                </Paper>
-              )}
-
-              {/* Detalhamento */}
-              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-                <Paper p="md" withBorder>
-                  <Text fw={500} size="sm" mb="xs">Papel</Text>
-                  <Text size="sm">Peso: {resultado.papel?.pesoKg?.toFixed(2) || '—'} kg</Text>
-                  <Text size="sm" c="dimmed">Custo: {formatCurrency(resultado.papel?.custo)}</Text>
-                </Paper>
-                <Paper p="md" withBorder>
-                  <Text fw={500} size="sm" mb="xs">Tinta</Text>
-                  <Text size="sm" c="dimmed">Custo: {formatCurrency(resultado.tinta?.custoTotal)}</Text>
-                  {(Array.isArray(resultado.tinta?.detalhePorCor) ? resultado.tinta!.detalhePorCor : []).map((c, i) => (
-                    <Text key={i} size="xs" c="dimmed">{c?.cor ?? '—'}: {c?.consumoKg?.toFixed(3) ?? '—'} kg = {formatCurrency(c?.custo)}</Text>
-                  ))}
-                </Paper>
-                <Paper p="md" withBorder>
-                  <Text fw={500} size="sm" mb="xs">Máquinas</Text>
-                  <Text size="sm" c="dimmed">Custo: {formatCurrency(resultado.maquinas?.custoTotal)}</Text>
-                  {(Array.isArray(resultado.maquinas?.detalhePorEtapa) ? resultado.maquinas!.detalhePorEtapa : []).map((e, i) => (
-                    <Text key={i} size="xs" c="dimmed">{e?.etapa ?? '—'}: {e?.tempoMin?.toFixed(0) ?? '—'} min = {formatCurrency(e?.custo)}</Text>
-                  ))}
-                </Paper>
-                <Paper p="md" withBorder>
-                  <Text fw={500} size="sm" mb="xs">Acabamentos</Text>
-                  <Text size="sm" c="dimmed">Custo: {formatCurrency(resultado.acabamentos?.custoTotal)}</Text>
-                  {(Array.isArray(resultado.acabamentos?.detalhePorAcabamento) ? resultado.acabamentos!.detalhePorAcabamento : []).map((a, i) => (
-                    <Text key={i} size="xs" c="dimmed">{a?.tipo ?? '—'}: {formatCurrency(a?.custo)}</Text>
-                  ))}
-                </Paper>
-              </SimpleGrid>
-            </>
-          )}
-
-          {/* Se não tem resultado de cálculo, mostra valores do orçamento */}
-          {!resultado && (orcamento.custoTotal || orcamento.precoVenda) && (
-            <>
-              <Divider label="Valores" labelPosition="left" />
-              <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
-                <Paper p="md" withBorder ta="center">
-                  <Text size="xs" c="dimmed" tt="uppercase">Custo Total</Text>
-                  <Text fw={700} size="lg" c="red">{formatCurrency(orcamento.custoTotal)}</Text>
-                </Paper>
-                <Paper p="md" withBorder ta="center">
-                  <Text size="xs" c="dimmed" tt="uppercase">Preço Venda</Text>
-                  <Text fw={700} size="lg" c="green">{formatCurrency(orcamento.precoVenda)}</Text>
-                </Paper>
-                <Paper p="md" withBorder ta="center">
-                  <Text size="xs" c="dimmed" tt="uppercase">Preço Unitário</Text>
-                  <Text fw={700} size="lg">{formatCurrency(orcamento.precoUnitario)}</Text>
-                </Paper>
-                <Paper p="md" withBorder ta="center">
-                  <Text size="xs" c="dimmed" tt="uppercase">Margem</Text>
-                  <Text fw={700} size="lg" c="blue">{formatPercent(orcamento.margemReal)}</Text>
-                </Paper>
-              </SimpleGrid>
-            </>
-          )}
-
-          {/* Variações de tiragem */}
-          {Array.isArray(orcamento.variacoes) && orcamento.variacoes.length > 0 && (
-            <>
-              <Divider label="Variações de Tiragem" labelPosition="left" />
-              <Table striped highlightOnHover withTableBorder withColumnBorders>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Quantidade</Table.Th>
-                    <Table.Th ta="right">Preço Unitário</Table.Th>
-                    <Table.Th ta="right">Preço Total</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {orcamento.variacoes.map((v, i) => (
-                    <Table.Tr key={i}>
-                      <Table.Td>{v.quantidade?.toLocaleString('pt-BR')}</Table.Td>
-                      <Table.Td ta="right">{formatCurrency(v.precoUnitario)}</Table.Td>
-                      <Table.Td ta="right">{formatCurrency(v.precoTotal)}</Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </>
-          )}
-        </>
+      {orcamento.status === 'RECUSADO' && orcamento.motivoRecusa && (
+        <Alert icon={<IconX size={16} />} color="red" title="Motivo da Recusa">
+          {orcamento.motivoRecusa}
+        </Alert>
       )}
 
-      {/* Observações */}
+      {/* Observação do cliente — alerta de atenção, não-bloqueante. */}
+      {orcamento.clienteObservacao?.trim() && (
+        <Alert icon={<IconAlertTriangle size={18} />} color="orange" variant="light" title="Observação do cliente">
+          <Text size="sm" style={{ whiteSpace: 'pre-line' }}>{orcamento.clienteObservacao}</Text>
+        </Alert>
+      )}
+
+      {/* Grid de itens + painel "Dados do item" */}
+      <Grid gutter="md">
+        <Grid.Col span={{ base: 12, lg: 8 }}>
+          <Paper withBorder p="md" radius="md">
+            <GridItens
+              orcamentoId={id}
+              itens={hierarquia.dados}
+              carregando={hierarquia.carregando}
+              erroCarga={hierarquia.erro}
+              onTentarNovamente={hierarquia.recarregar}
+              selecionadoId={selecionadoId}
+              onSelecionar={setSelecionadoId}
+              onIncluir={incluirItem}
+              onCopiar={copiarItem}
+              onExcluir={excluirItem}
+              onRelatorio={(item) => setItemRelatorio(item)}
+              onEncaixe={(item) => setEncaixeItem(item)}
+              onEmitirOp={abrirEmitirItem}
+            />
+          </Paper>
+        </Grid.Col>
+        <Grid.Col span={{ base: 12, lg: 4 }}>
+          <PainelDadosItem
+            itemId={selecionadoId}
+            dados={dadosItem.dados}
+            carregando={dadosItem.carregando}
+            erro={dadosItem.erro}
+            onTentarNovamente={dadosItem.recarregar}
+          />
+        </Grid.Col>
+      </Grid>
+
+      {/* Fechamento e Comissões — as duas abas ficam sempre montadas. */}
+      <Paper withBorder p="md" radius="md">
+        <Tabs defaultValue="fechamento" keepMounted>
+          <Tabs.List>
+            <Tabs.Tab value="fechamento">Fechamento</Tabs.Tab>
+            <Tabs.Tab value="comissoes">Comissões</Tabs.Tab>
+          </Tabs.List>
+          <Tabs.Panel value="fechamento" pt="md">
+            <AbaFechamento
+              dados={fechamento.dados}
+              carregando={fechamento.carregando}
+              erro={fechamento.erro}
+              onTentarNovamente={fechamento.recarregar}
+              detalhe={
+                <FechamentoOrcamento
+                  orcamentoId={id}
+                  resultado={orcamento.resultadoCalculo}
+                  quantidade={orcamento.quantidade}
+                  precoVendaConsolidado={orcamento.valorTotalConsolidado != null ? Number(orcamento.valorTotalConsolidado) : null}
+                  custoProducaoConsolidado={orcamento.custoProducaoConsolidado != null ? Number(orcamento.custoProducaoConsolidado) : null}
+                  podeEditar={['RASCUNHO', 'ENVIADO', 'APROVADO'].includes(orcamento.status)}
+                  onRecalculado={() => { void atualizarTudo() }}
+                />
+              }
+            />
+          </Tabs.Panel>
+          <Tabs.Panel value="comissoes" pt="md">
+            <AbaComissoes
+              dados={comissoes.dados}
+              carregando={comissoes.carregando}
+              erro={comissoes.erro}
+              onTentarNovamente={comissoes.recarregar}
+            />
+          </Tabs.Panel>
+        </Tabs>
+      </Paper>
+
+      {/* Orçamentos antigos sem itens: o detalhe do item único fica no cabeçalho. */}
+      {semItens && <DetalheLegadoOrcamento orcamento={orcamento} />}
+
       {orcamento.observacoes && (
         <Paper p="md" withBorder>
           <Text fw={600} size="sm" mb="xs">Observações</Text>
@@ -1769,300 +459,7 @@ export default function OrcamentoDetalhePage() {
         </Paper>
       )}
 
-      {/* Comparação de Versões */}
-      {MOSTRAR_COMPARACAO_VERSOES && versoes.length > 0 && (
-        <>
-          <Divider label="Outras Versões" labelPosition="left" />
-          <Paper p="md" withBorder>
-            <Text fw={600} size="sm" mb="sm">
-              Comparação de Versões (Orçamento #{orcamento.numero})
-            </Text>
-            <ScrollArea>
-              <Table striped highlightOnHover withTableBorder withColumnBorders>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Versão</Table.Th>
-                    <Table.Th>Status</Table.Th>
-                    <Table.Th ta="right">Quantidade</Table.Th>
-                    <Table.Th ta="right">Preço Venda</Table.Th>
-                    <Table.Th>Criado em</Table.Th>
-                    <Table.Th></Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {/* Versão atual destacada */}
-                  <Table.Tr bg="var(--mantine-color-blue-light)">
-                    <Table.Td fw={600}>V{orcamento.versao} (atual)</Table.Td>
-                    <Table.Td><StatusBadge status={orcamento.status} /></Table.Td>
-                    <Table.Td ta="right">{orcamento.quantidade?.toLocaleString('pt-BR')}</Table.Td>
-                    <Table.Td ta="right">{formatCurrency(orcamento.precoVenda)}</Table.Td>
-                    <Table.Td>{formatDate(orcamento.criadoEm)}</Table.Td>
-                    <Table.Td></Table.Td>
-                  </Table.Tr>
-                  {/* Outras versões */}
-                  {versoes.map((v) => (
-                    <Table.Tr key={v.id}>
-                      <Table.Td>V{v.versao}</Table.Td>
-                      <Table.Td><StatusBadge status={v.status} /></Table.Td>
-                      <Table.Td ta="right">{v.quantidade?.toLocaleString('pt-BR')}</Table.Td>
-                      <Table.Td ta="right">{formatCurrency(v.precoVenda)}</Table.Td>
-                      <Table.Td>{formatDate(v.criadoEm)}</Table.Td>
-                      <Table.Td>
-                        <Button
-                          variant="subtle"
-                          size="xs"
-                          onClick={() => router.push(`/orcamento-grafico/${v.id}`)}
-                        >
-                          Ver
-                        </Button>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </ScrollArea>
-          </Paper>
-        </>
-      )}
-
-      {/* Modal de Recusa */}
-      <Modal
-        opened={recusaModalOpen}
-        onClose={() => setRecusaModalOpen(false)}
-        title="Recusar Orçamento"
-        centered
-      >
-        <Stack gap="md">
-          <Textarea
-            label="Motivo da Recusa"
-            placeholder="Informe o motivo da recusa..."
-            value={motivoRecusa}
-            onChange={(e) => setMotivoRecusa(e.currentTarget.value)}
-            required
-            minRows={3}
-          />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setRecusaModalOpen(false)}>
-              Cancelar
-            </Button>
-            <Button color="red" onClick={handleRecusar} loading={actionLoading}>
-              Confirmar Recusa
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-
-      {/* Modal de envio de proposta por e-mail (B1 task 8) */}
-      <Modal
-        opened={emailModalOpen}
-        onClose={() => setEmailModalOpen(false)}
-        title="Enviar proposta por e-mail"
-        centered
-      >
-        <Stack gap="md">
-          {templates.length > 0 && (
-            <Select
-              label="Template"
-              data={templates.map((t) => ({ value: t.id, label: t.nome + (t.isDefault ? ' (padrão)' : '') }))}
-              value={templateId}
-              onChange={setTemplateId}
-              allowDeselect={false}
-            />
-          )}
-          <TextInput
-            label="E-mail de destino"
-            placeholder="cliente@empresa.com"
-            type="email"
-            value={emailDestino}
-            onChange={(e) => setEmailDestino(e.currentTarget.value)}
-            required
-          />
-          <Textarea
-            label="Mensagem (opcional)"
-            placeholder="Mensagem que acompanha a proposta..."
-            value={emailMensagem}
-            onChange={(e) => setEmailMensagem(e.currentTarget.value)}
-            autosize
-            minRows={2}
-          />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setEmailModalOpen(false)}>Cancelar</Button>
-            <Button leftSection={<IconMail size={16} />} onClick={handleEnviarEmailProposta} loading={enviandoEmail}>
-              Enviar
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-
-      {/* Modal de Fechamento do orçamento (B9 — 4 abas, Fase 1 leitura) */}
-      <Modal
-        opened={fechamentoOpen}
-        onClose={() => setFechamentoOpen(false)}
-        title={`Fechamento do Orçamento ${orcamento.numero}`}
-        size="lg"
-        centered
-      >
-        <FechamentoOrcamento
-          orcamentoId={id}
-          resultado={orcamento.resultadoCalculo}
-          quantidade={orcamento.quantidade}
-          precoVendaConsolidado={orcamento.valorTotalConsolidado != null ? Number(orcamento.valorTotalConsolidado) : null}
-          custoProducaoConsolidado={orcamento.custoProducaoConsolidado != null ? Number(orcamento.custoProducaoConsolidado) : null}
-          podeEditar={['RASCUNHO', 'ENVIADO', 'APROVADO'].includes(orcamento.status)}
-          onRecalculado={() => { setFechamentoOpen(false); carregar() }}
-        />
-      </Modal>
-
-      {/* Modal — Ver proposta de origem (RFQ) — somente leitura + galeria */}
-      <Modal
-        opened={propostaOpen}
-        onClose={() => setPropostaOpen(false)}
-        title="Proposta de origem (setor Pedidos/Propostas)"
-        size="lg"
-        centered
-      >
-        {propostaLoading ? (
-          <Center py="md"><Loader /></Center>
-        ) : !proposta ? (
-          <Text c="dimmed" py="md">Este orçamento não tem um Pedido/Proposta de origem vinculado.</Text>
-        ) : (
-          <Stack gap="sm">
-            <Group gap="xs">
-              <Badge>Nº {proposta.numero}</Badge>
-              <Badge variant="light" color="teal">{proposta.origem}</Badge>
-              <Badge variant="light" color="grape">{proposta.tipoPedido}</Badge>
-              <Badge variant="light" color="blue">{proposta.estado}</Badge>
-            </Group>
-            <SimpleGrid cols={2} spacing="xs">
-              {[
-                ['Cliente', proposta.clienteNome], ['CNPJ', proposta.clienteCpfCnpj],
-                ['Mercado', proposta.mercado], ['UF / Cidade', [proposta.ufOrigem, proposta.cidade].filter(Boolean).join(' / ')],
-                ['Entrega', proposta.tipoEntrega], ['Fracionada (dias)', proposta.entregaFracionadaDias],
-                ['Prazo pagamento', proposta.prazoPagamento], ['Produto', proposta.produtoNome],
-                ['Tipo embalagem', proposta.tipoEmbalagem], ['Quantidade', proposta.quantidade],
-                ['Cartão', proposta.cartao], ['Gramatura', proposta.gramatura],
-                ['Medidas', proposta.medidasTexto], ['Variações de arte', proposta.variacoesArte],
-                ['Exportação', proposta.exportacao], ['Matriz', proposta.matriz],
-                ['Qtd. por volume', proposta.quantidadePorVolume], ['Validade', proposta.dataValidade],
-                ['FSC', proposta.cartaoFsc ? 'Sim' : 'Não'], ['Corte interno', proposta.corteInternoVerso ? 'Sim' : 'Não'],
-                ['Passtime', proposta.passtime ? 'Sim' : 'Não'], ['Acabamento manual', proposta.acabamentoManual ? 'Sim' : 'Não'],
-              ].map(([rotulo, valor]) => (
-                <div key={rotulo as string}>
-                  <Text size="xs" c="dimmed">{rotulo as string}</Text>
-                  <Text size="sm">{valor != null && valor !== '' ? String(valor) : '—'}</Text>
-                </div>
-              ))}
-            </SimpleGrid>
-            {Array.isArray(proposta.acabamentosSelecionados) && proposta.acabamentosSelecionados.filter((a: any) => a?.marcado).length > 0 && (
-              <div>
-                <Text size="xs" c="dimmed">Acabamentos marcados</Text>
-                <Stack gap={2}>
-                  {proposta.acabamentosSelecionados.filter((a: any) => a?.marcado).map((a: any, i: number) => (
-                    <Text key={i} size="sm">• {a.nome}{a.detalhe ? ` — ${a.detalhe}` : ''}</Text>
-                  ))}
-                </Stack>
-              </div>
-            )}
-            {proposta.acabamentos && (
-              <div><Text size="xs" c="dimmed">Acabamentos (texto)</Text><Text size="sm">{proposta.acabamentos}</Text></div>
-            )}
-            {proposta.discriminacao && (
-              <div><Text size="xs" c="dimmed">Discriminação</Text><Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{proposta.discriminacao}</Text></div>
-            )}
-            {proposta.observacoes && (
-              <div><Text size="xs" c="dimmed">Observações</Text><Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{proposta.observacoes}</Text></div>
-            )}
-            {Array.isArray(proposta.anexos) && proposta.anexos.length > 0 && (
-              <>
-                <Text size="sm" fw={600} mt="xs">Imagens</Text>
-                <SimpleGrid cols={{ base: 2, sm: 4 }}>
-                  {proposta.anexos.map((a: { id: string; nome: string }) => {
-                    const token = getAuthToken()
-                    const src = `${API_BASE}/orcamento-grafico/pedidos-proposta/${proposta.id}/anexos/${a.id}?token=${token ?? ''}`
-                    return (
-                      <a key={a.id} href={src} target="_blank" rel="noreferrer">
-                        <img src={src} alt={a.nome} style={{ width: '100%', height: 110, objectFit: 'cover', borderRadius: 6 }} />
-                      </a>
-                    )
-                  })}
-                </SimpleGrid>
-              </>
-            )}
-          </Stack>
-        )}
-      </Modal>
-
-      {/* Modal de Reaproveitar cálculo (repetição — paridade Calcgraf) */}
-      <Modal
-        opened={reaproveitarOpen}
-        onClose={() => setReaproveitarOpen(false)}
-        title="Reaproveitar cálculo"
-        centered
-      >
-        <Stack gap="md">
-          <Text size="sm" c="dimmed">
-            Cria um orçamento NOVO (número novo) a partir deste, copiando todos os
-            itens e planos e recalculando. O orçamento atual fica intacto. Ajuste
-            o que muda na repetição:
-          </Text>
-          <TextInput
-            label="Cliente"
-            description="Deixe como está para manter o mesmo cliente"
-            value={reapClienteNome}
-            onChange={(e) => setReapClienteNome(e.currentTarget.value)}
-          />
-          <NumberInput
-            label="Nova tiragem (quantidade)"
-            description="Aplicada a todos os itens. Vazio = mantém a tiragem atual de cada item"
-            value={reapQuantidade}
-            onChange={(v) => setReapQuantidade(typeof v === 'number' ? v : '')}
-            min={1}
-            thousandSeparator="."
-            decimalSeparator=","
-            allowDecimal={false}
-          />
-          <Textarea
-            label="Observações (opcional)"
-            placeholder="Ex.: repetição do pedido anterior, nova tiragem..."
-            value={reapObs}
-            onChange={(e) => setReapObs(e.currentTarget.value)}
-            minRows={2}
-          />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setReaproveitarOpen(false)} disabled={reaproveitando}>
-              Cancelar
-            </Button>
-            <Button color="grape" leftSection={<IconRepeat size={16} />} onClick={handleReaproveitar} loading={reaproveitando}>
-              Reaproveitar
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-
-      {/* Confirmação de remoção de item */}
-      <Modal
-        opened={!!itemParaRemover}
-        onClose={() => setItemParaRemover(null)}
-        title="Remover Item"
-        centered
-      >
-        <Stack gap="md">
-          <Text size="sm">
-            Remover o item #{itemParaRemover?.sequencia} ({itemParaRemover?.quantidade?.toLocaleString('pt-BR')} un)?
-            Os totais do orçamento serão recalculados.
-          </Text>
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setItemParaRemover(null)} disabled={removendo}>
-              Cancelar
-            </Button>
-            <Button color="red" onClick={confirmarRemocaoItem} loading={removendo}>
-              Remover
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-
-      {/* Modal enxuto "Editar Cabeçalho" (Ponto 10 / Req 7) — cliente + vendedor */}
+      {/* Edição de cliente + vendedor (modal enxuto existente) */}
       <EditarCabecalhoModal
         opened={editarCabecalhoOpen}
         onClose={() => setEditarCabecalhoOpen(false)}
@@ -2070,58 +467,18 @@ export default function OrcamentoDetalhePage() {
         clienteId={orcamento.clienteId}
         clienteNome={orcamento.clienteNome}
         vendedorId={orcamento.vendedorId}
-        onSalvo={carregar}
+        onSalvo={atualizarTudo}
       />
 
-      {/* Editor de item em PÁGINA ÚNICA com âncoras — editor único de item,
-          aberto full-screen a partir do grid ("Novo Item" / "Editar item").
-          Com `itemEditorPagina === null`, edita um item novo. */}
-      <Modal
-        opened={editorPaginaOpen}
-        onClose={() => setEditorPaginaOpen(false)}
-        fullScreen
-        title={itemEditorPagina ? 'Editar Item do Orçamento' : 'Novo Item do Orçamento'}
-        // body sem padding próprio: o EditorItem controla o espaçamento. Assim a
-        // barra de KPIs (sticky top:0) gruda logo abaixo do HEADER do modal, sem
-        // o padding do body cortar os cards ao rolar.
-        styles={{ body: { padding: 0, height: 'calc(100vh - 60px)', overflowY: 'auto' } }}
-      >
-        {editorPaginaOpen && (
-          <EditorItem
-            orcamentoId={id}
-            item={itemEditorPagina}
-            linhaProdutoCodigo={linhaProdutoCodigo}
-            linhaProdutoId={orcamento?.linhaProdutoId ?? null}
-            onLinhaProdutoChange={handleLinhaProdutoChange}
-            observacoesOrcamento={orcamento?.observacoes ?? null}
-            imagemFacaOrcamento={orcamento?.imagemFaca ?? null}
-            imagemProdutoOrcamento={orcamento?.imagemProdutoUrl ?? null}
-            onSaved={() => {
-              setEditorPaginaOpen(false)
-              carregar()
-            }}
-            onCancel={() => setEditorPaginaOpen(false)}
-          />
-        )}
-      </Modal>
-
-      {/* Busca de cálculo da biblioteca → cria item a partir do cálculo (Task 12.1) */}
+      {/* Busca de cálculo da biblioteca → cria item a partir do cálculo */}
       <BuscaCalculoModal
         opened={buscaCalcOpen}
         onClose={() => setBuscaCalcOpen(false)}
         orcamentoId={id}
-        onUsado={carregar}
+        onUsado={atualizarTudo}
       />
 
-      {/* Hand-off comercial: aprovação de amostra/modelo */}
-      <AmostrasModal
-        opened={amostrasOpen}
-        onClose={() => setAmostrasOpen(false)}
-        orcamentoId={id}
-        onMudou={carregar}
-      />
-
-      {/* Upload + visualização do arquivo de encaixe (app externo) — R11 */}
+      {/* Upload + visualização do arquivo de encaixe (app externo) */}
       <EncaixeArquivoModal
         opened={!!encaixeItem}
         onClose={() => setEncaixeItem(null)}
@@ -2130,21 +487,17 @@ export default function OrcamentoDetalhePage() {
         itemDescricao={encaixeItem?.descricao}
       />
 
-      {/* Modal de opções de emissão de OP (item único e em lote — Task 24) */}
+      {/* Modal de opções de emissão de OP */}
       <OpModalOpcoes
         opened={opModalOpen}
         onClose={() => setOpModalOpen(false)}
-        titulo={opAlvo === 'lote' ? 'Emitir OP em lote' : 'Emitir OP'}
-        descricao={
-          opAlvo === 'lote'
-            ? `Emitir Ordens de Produção para ${selecionados.size} ${selecionados.size === 1 ? 'item selecionado' : 'itens selecionados'}.`
-            : 'Emitir a Ordem de Produção para este item.'
-        }
+        titulo="Emitir OP"
+        descricao="Emitir a Ordem de Produção para este item."
         loading={emitindo}
         onConfirmar={confirmarEmissaoOp}
       />
 
-      {/* Relatório fiel do item (pré-cálculo Calcgraf) — Task 30 */}
+      {/* Relatório do item (pré-cálculo) */}
       <Modal
         opened={!!itemRelatorio}
         onClose={() => setItemRelatorio(null)}
@@ -2155,14 +508,7 @@ export default function OrcamentoDetalhePage() {
         }
         size="xl"
       >
-        {itemRelatorio && (
-          <RelatorioItem orcamentoId={id} itemId={itemRelatorio.id} />
-        )}
-      </Modal>
-
-      {/* Imagem ampliada (faca / foto do produto) */}
-      <Modal opened={!!imgAmpliada} onClose={() => setImgAmpliada(null)} size="xl" centered title="Imagem">
-        {imgAmpliada && <Image src={imgAmpliada} alt="Imagem ampliada" fit="contain" mah="75vh" />}
+        {itemRelatorio && <RelatorioItem orcamentoId={id} itemId={itemRelatorio.id} />}
       </Modal>
     </Stack>
   )

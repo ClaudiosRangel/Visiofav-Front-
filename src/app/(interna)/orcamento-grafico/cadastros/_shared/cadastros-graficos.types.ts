@@ -50,6 +50,8 @@ export interface ProdutoGrafico {
   semImpressao: boolean
   /** Vínculo opcional com o Tipo de Embalagem (null = sem vínculo). */
   tipoEmbalagemId?: string | null
+  /** Tri-estado: true = o produto tem Altura da Tampa; false/null = não tem (campo oculto). */
+  possuiAlturaTampa?: boolean | null
   criadoEm?: string
   atualizadoEm?: string
 }
@@ -97,6 +99,11 @@ export interface TipoPlanoGrafico {
   margem1Mm: Decimal
   margem2Mm: Decimal
   formato: string | null
+  /** Blocos previstos pelo tipo de plano. Tri-estado: null/ausente = mostrar; só `false` oculta. */
+  prevCapaExterna?: boolean | null
+  prevMicroondulado?: boolean | null
+  prevCapaInterna?: boolean | null
+  prevFibra?: boolean | null
   criadoEm?: string
   atualizadoEm?: string
 }
@@ -444,6 +451,23 @@ export interface AtividadeCatalogoPlano extends AtividadeCatalogo {
   preMarcada: boolean
   restricoes: Array<{ id: string; nome: string; [outros: string]: unknown }>
   materiais: Array<MaterialCatalogo & { ordem: number | null; padrao: boolean }>
+}
+
+/** Restrição de uma atividade (filha de `RestricaoAcabamento`). */
+export interface RestricaoAtividade {
+  id: string
+  nome: string
+  [outros: string]: unknown
+}
+
+/** Material de uma atividade, com a ordem/padrão da relação ATIVIDADE → MATERIAL. */
+export type MaterialAtividade = MaterialCatalogo & { ordem: number | null; padrao: boolean }
+
+/** Resposta de `GET /cadastros/catalogo/atividade/:id` (atividade fora do catálogo do plano). */
+export interface CatalogoAtividadeDetalhe {
+  atividade: AtividadeCatalogo
+  restricoes: RestricaoAtividade[]
+  materiais: MaterialAtividade[]
 }
 
 export interface CatalogoPlano {

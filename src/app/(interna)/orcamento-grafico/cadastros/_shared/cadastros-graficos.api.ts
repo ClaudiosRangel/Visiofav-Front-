@@ -4,6 +4,7 @@ import type {
   AjusteProdutividadeInput,
   CampoLivre,
   CampoLivreInput,
+  CatalogoAtividadeDetalhe,
   CatalogoPlano,
   CatalogoProduto,
   DefaultProdutoPlano,
@@ -184,6 +185,11 @@ export const parametrosApi = {
 export const catalogoApi = {
   produto: (produtoId: string) =>
     api.get<CatalogoProduto>(`${BASE}/catalogo/produto/${produtoId}`).then((r) => r.data),
+  /** Restrições e materiais de uma atividade avulsa (fora do catálogo do plano). 404 = não encontrada. */
+  atividade: (atividadeId: string, signal?: AbortSignal) =>
+    api
+      .get<CatalogoAtividadeDetalhe>(`${BASE}/catalogo/atividade/${atividadeId}`, { signal })
+      .then((r) => r.data),
   plano: (tipoPlanoId: string, produtoId?: string) =>
     api
       .get<CatalogoPlano>(`${BASE}/catalogo/plano/${tipoPlanoId}`, { params: { produtoId } })

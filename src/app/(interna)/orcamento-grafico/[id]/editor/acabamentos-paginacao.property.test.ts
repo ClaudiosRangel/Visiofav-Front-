@@ -38,7 +38,8 @@ describe('Property 21: carga paginada traz todos os acabamentos uma vez', () => 
         expect(r.completo).toBe(true)
         expect(r.itens.map((i) => i.id)).toEqual(todos.map((i) => i.id))
         expect(new Set(r.itens.map((i) => i.id)).size).toBe(r.itens.length)
-        if (todos.length <= TAMANHO_PAGINA) expect(chamadas).toEqual([1])
+        // Página cheia sem total: o carregador não sabe que acabou e pede a próxima (vazia).
+        if (todos.length < TAMANHO_PAGINA || (informarTotal && todos.length === TAMANHO_PAGINA)) expect(chamadas).toEqual([1])
         else if (informarTotal) expect(chamadas.length).toBe(Math.ceil(todos.length / TAMANHO_PAGINA))
         else expect(chamadas.length).toBe(Math.floor(todos.length / TAMANHO_PAGINA) + 1)
       }),
