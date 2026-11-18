@@ -271,3 +271,116 @@ export function xInicio(inicioMs: number, minTime: number, pixelsPorMinuto: numb
 export function xFim(fimMs: number, minTime: number, pixelsPorMinuto: number): number {
   return ((fimMs - minTime) / 60000) * pixelsPorMinuto
 }
+
+// ============================================================================
+// 4) ZOOM SEMÂNTICO — escala de tempo e nível de detalhe das barras
+// ============================================================================
+
+/**
+ * Marcador do eixo X. `forte` = virada de dia (linha sólida); `rotulo` já vem
+ * pronto para exibir (o passo da escala muda conforme o zoom).
+ */
+export type MarcadorEscala = { ms: number; rotulo: string; forte: boolean }
+
+/** Passos candidatos da escala, em minutos (do mais fino ao mais grosso). */
+const PASSOS_ESCALA_MIN = [60, 120, 180, 360, 720, 1440, 2880, 10080] as const
+
+/** Largura mínima (px) entre dois rótulos consecutivos do eixo. */
+const LARGURA_MIN_ROTULO_PX = 58
+
+/**
+ * Escolhe o MENOR passo da escala (1h, 2h, 3h, 6h, 12h, 1 dia, 2 dias, 1
+ * semana) em que dois marcadores consecutivos ficam separados por pelo menos
+ * `LARGURA_MIN_ROTULO_PX`. É o "zoom semântico": ao afastar, a escala deixa de
+ * mostrar horas e passa a mostrar dias/semanas, sem os rótulos se empilharem.
+ */
+export function escolherPassoEscalaMin(pixelsPorMinuto: number): number {
+  for (const passo of PASSOS_ESCALA_MIN) {
+    if (passo * pixelsPorMinuto >= LARGURA_MIN_ROTULO_PX) return passo
+  }
+  return PASSOS_ESCALA_MIN[PASSOS_ESCALA_MIN.length - 1]
+}
+
+const DIAS_ABREV = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
+
+function ddmm(d: Date): string {
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+/**
+ * Gera os marcadores do eixo X entre `minMs` e `maxMs` para o zoom atual.
+ *  - passo < 1 dia: marcadores nas horas cheias múltiplas do passo; a virada de
+ *    dia (00:00) é `forte` e mostra a data junto da hora;
+ *  - passo >= 1 dia: marcadores à meia-noite local ("seg 18/11"); passo de 2
+ *    dias alinha pelo dia do mês; passo de 1 semana alinha pela segunda-feira.
+ * Limite defensivo de marcadores para nunca travar a tela.
+ */
+export function gerarMarcadoresEscala(minMs: number, maxMs: number, pixelsPorMinuto: number): MarcadorEscala[] {
+  const passoMin = escolherPassoEscalaMin(pixelsPorMinuto)
+  const marcadores: MarcadorEscala[] = []
+  if (!Number.isFinite(minMs) || !Number.isFinite(maxMs) || maxMs <= minMs) return marcadores
+
+  if (passoMin < 1440) {
+    const passoH = passoMin / 60
+    const d = new Date(minMs)
+    d.setMinutes(0, 0, 0)
+    // Alinha para o múltiplo do passo contado a partir da meia-noite local.
+    d.setHours(Math.floor(d.getHours() / passoH) * passoH)
+    let guard = 0
+    while (d.getTime() < maxMs && guard < 5000) {
+      guard++
+      if (d.getTime() >= minMs) {
+        const hora = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+        const viradaDia = d.getHours() === 0
+        marcadores.push({ ms: d.getTime(), rotulo: viradaDia ? `${ddmm(d)} ${hora}` : hora, forte: viradaDia })
+      }
+      // Avança por horas de relógio (robusto a horário de verão).
+      d.setHours(d.getHours() + passoH)
+    }
+    return marcadores
+  }
+
+  const d = new Date(minMs)
+  d.setHours(0, 0, 0, 0)
+  if (passoMin === 10080) {
+    // Retrocede até a segunda-feira (getDay: 0=dom ... 1=seg).
+    const dow = d.getDay()
+    d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1))
+  }
+  const passoDias = passoMin / 1440
+  let guard = 0
+  while (d.getTime() < maxMs && guard < 2000) {
+    guard++
+    if (d.getTime() >= minMs) {
+      const prefixo = passoMin === 10080 ? 'sem ' : `${DIAS_ABREV[d.getDay()]} `
+      marcadores.push({ ms: d.getTime(), rotulo: `${prefixo}${ddmm(d)}`, forte: true })
+    }
+    d.setDate(d.getDate() + passoDias)
+  }
+  return marcadores
+}
+
+/** Nível de detalhe das barras conforme o zoom (semantic zoom / LOD). */
+export type NivelDetalhe = 'completo' | 'compacto' | 'minimo'
+
+/** >= 0.35 px/min: texto em 2 linhas; >= 0.12: só OP; abaixo: só cor. */
+export function nivelDetalheBarra(pixelsPorMinuto: number): NivelDetalhe {
+  if (pixelsPorMinuto >= 0.35) return 'completo'
+  if (pixelsPorMinuto >= 0.12) return 'compacto'
+  return 'minimo'
+}
+
+/** Largura mínima (px) de uma barra por nível — evita barras "invisíveis" sem embolar. */
+export function larguraMinimaBarra(nivel: NivelDetalhe): number {
+  if (nivel === 'completo') return 20
+  if (nivel === 'compacto') return 8
+  return 3
+}
+
+/** Cor do nível de carga (mapa de carga): <70% verde, 70–100% âmbar, >100% vermelho. */
+export function faixaDeCarga(pct: number): 'livre' | 'normal' | 'atencao' | 'sobrecarga' {
+  if (pct > 100) return 'sobrecarga'
+  if (pct >= 70) return 'atencao'
+  if (pct > 0) return 'normal'
+  return 'livre'
+}

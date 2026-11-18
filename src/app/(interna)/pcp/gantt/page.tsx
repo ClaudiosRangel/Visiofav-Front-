@@ -16,7 +16,12 @@ import { Menu } from '@mantine/core'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
 import { rotuloPlano } from '@/lib/plano-rotulo'
-import { empilharBarras, xInicio, xFim, ocupacaoPorDia } from './gantt-layout'
+import {
+  empilharBarras, xInicio, xFim, ocupacaoPorDia,
+  gerarMarcadoresEscala, nivelDetalheBarra, larguraMinimaBarra, faixaDeCarga,
+  type OcupacaoDia,
+} from './gantt-layout'
+import { corDaLinha, COR_SEM_LINHA, type LinhaProdutoFront } from './gantt-linha'
 
 /**
  * Deriva o rótulo de face/plano a partir da descrição da etapa (Spec
@@ -88,6 +93,8 @@ interface OpTimeline {
   // (GET /pcp/timeline → corGantt/statusObs); null = usar COR_PADRAO / sem status.
   corGantt: string | null
   statusObs: string | null
+  // Linha de Produto (campo "Produto:" do PDF). null = OP sem a informação.
+  linhaProduto?: LinhaProdutoFront | null
   etapas: EtapaTimeline[]
 }
 
@@ -135,6 +142,9 @@ interface GanttBar {
   // Cor/status por OP (spec pcp-gantt-melhorias, Req 3) — propagados da OP.
   corGantt: string | null
   statusObs: string | null
+  // Linha de Produto da OP (cor da barra quando não há cor personalizada).
+  linhaCodigo: string | null
+  linhaRotulo: string | null
   // Indicador GERAL da OP (spec pcp-gantt-melhorias, Req 5.1 — filtro por
   // indicador). Propagado de op.indicadorGeral para filtrar as barras.
   indicadorGeral: string
@@ -330,9 +340,14 @@ function intervalosForaDoTurno(
     .filter((g) => g.fim > g.ini)
 }
 
-/** Cor efetiva da OP: a personalizada (corGantt) ou a cor única padrão. */
-function corDaOp(corGantt: string | null | undefined): string {
-  return corGantt || COR_PADRAO
+/**
+ * Cor efetiva da OP: a personalizada (corGantt) > a da Linha de Produto > a
+ * cor única padrão (OP sem linha identificada).
+ */
+function corDaOp(corGantt: string | null | undefined, linhaCodigo?: string | null): string {
+  if (corGantt) return corGantt
+  if (linhaCodigo) return corDaLinha(linhaCodigo)
+  return COR_PADRAO
 }
 
 // ============================================================================
@@ -354,6 +369,10 @@ export default function GanttProducaoPage() {
   const [filtroCentros, setFiltroCentros] = useState<string[]>([])
   const [filtroTipos, setFiltroTipos] = useState<string[]>([])
   const [filtroIndicador, setFiltroIndicador] = useState<string | null>(null)
+  // Filtro por Linha de Produto (clicando na legenda). Vazio = todas.
+  const [filtroLinhas, setFiltroLinhas] = useState<string[]>([])
+  // Modo de visualização: Gantt (barras) ou Mapa de carga (máquina × dia).
+  const [modoVisual, setModoVisual] = useState<'gantt' | 'carga'>('gantt')
   // ── Foco de uma OP (spec pcp-gantt-melhorias, Req 5.2/5.3) — realça a OP e
   // habilita as setas de dependência (overlay SVG). null = sem foco. ──
   const [opEmFoco, setOpEmFoco] = useState<string | null>(null)
@@ -841,7 +860,8 @@ export default function GanttProducaoPage() {
     busca.trim() !== '' ||
     filtroCentros.length > 0 ||
     filtroTipos.length > 0 ||
-    filtroIndicador !== null
+    filtroIndicador !== null ||
+    filtroLinhas.length > 0
 
   /** Zera busca + todos os filtros visuais (Req 5.1). */
   const limparFiltros = useCallback(() => {
@@ -849,6 +869,7 @@ export default function GanttProducaoPage() {
     setFiltroCentros([])
     setFiltroTipos([])
     setFiltroIndicador(null)
+    setFiltroLinhas([])
   }, [])
 
   // Transformar dados em raias
@@ -870,6 +891,8 @@ export default function GanttProducaoPage() {
       // Filtro por indicador (spec Req 5.1): se setado, só entram as OPs cujo
       // indicadorGeral bate. Combina com a busca textual acima (visual-only).
       if (filtroIndicador && op.indicadorGeral !== filtroIndicador) continue
+      // Filtro por Linha de Produto (legenda). OP sem linha cai em SEM_LINHA.
+      if (filtroLinhas.length > 0 && !filtroLinhas.includes(op.linhaProduto?.codigo ?? 'SEM_LINHA')) continue
 
       // Marcador de entrega
       if (op.dataEntrega) {
@@ -934,6 +957,8 @@ export default function GanttProducaoPage() {
           centroProducaoId: etapa.centroProducaoId ?? null,
           corGantt: op.corGantt ?? null,
           statusObs: op.statusObs ?? null,
+          linhaCodigo: op.linhaProduto?.codigo ?? null,
+          linhaRotulo: op.linhaProduto?.rotulo ?? null,
           indicadorGeral: op.indicadorGeral,
         })
 
@@ -972,25 +997,34 @@ export default function GanttProducaoPage() {
     const totalMin = (maxT - minT) / 60000
     const tw = totalMin * pixelsPorMinuto
 
-    // Hour markers
-    const markers: Array<{ ms: number; label: string; isNewDay: boolean }> = []
-    const startH = new Date(minT)
-    startH.setMinutes(0, 0, 0)
-    let cursor = startH.getTime()
-    while (cursor < maxT) {
-      if (cursor >= minT) {
-        const d = new Date(cursor)
-        markers.push({
-          ms: cursor,
-          label: d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-          isNewDay: d.getHours() === 0,
-        })
-      }
-      cursor += 60 * 60 * 1000
-    }
+    // Marcadores do eixo X com ZOOM SEMÂNTICO: o passo (1h, 2h, 6h, 12h, dia,
+    // semana) é escolhido pelo zoom para os rótulos nunca se empilharem.
+    const markers = gerarMarcadoresEscala(minT, maxT, pixelsPorMinuto)
+      .map((m) => ({ ms: m.ms, label: m.rotulo, isNewDay: m.forte }))
 
     return { raias: raiasArr, minTime: minT, maxTime: maxT, totalWidth: tw, hourMarkers: markers, entregaMarkers: entregasVisiveis }
-  }, [timeline, busca, pixelsPorMinuto, filtroCentros, filtroTipos, filtroIndicador])
+  }, [timeline, busca, pixelsPorMinuto, filtroCentros, filtroTipos, filtroIndicador, filtroLinhas])
+
+  // Legenda por Linha de Produto: linhas presentes nas OPs carregadas, com a
+  // quantidade de OPs. OPs sem a informação aparecem como "Sem linha".
+  const legendaLinhas = useMemo(() => {
+    const mapa = new Map<string, { codigo: string; rotulo: string; cor: string; qtd: number }>()
+    for (const op of timeline) {
+      const codigo = op.linhaProduto?.codigo ?? 'SEM_LINHA'
+      const atual = mapa.get(codigo)
+      if (atual) { atual.qtd++; continue }
+      mapa.set(codigo, {
+        codigo,
+        rotulo: op.linhaProduto?.rotulo ?? 'Sem linha',
+        cor: op.linhaProduto ? corDaLinha(codigo) : COR_SEM_LINHA,
+        qtd: 1,
+      })
+    }
+    return [...mapa.values()].sort((a, b) => (a.codigo === 'SEM_LINHA' ? 1 : b.codigo === 'SEM_LINHA' ? -1 : b.qtd - a.qtd))
+  }, [timeline])
+
+  // Nível de detalhe das barras conforme o zoom (zoom semântico).
+  const nivelDetalhe = nivelDetalheBarra(pixelsPorMinuto)
 
   // Agrupar raias por processo
   const gruposProcesso = useMemo(() => {
@@ -1088,6 +1122,46 @@ export default function GanttProducaoPage() {
     }
     return mapa
   }, [raias, diasVisiveis, excecoesPorCentro])
+
+  // ── Mapa de carga (máquina × dia) ──
+  // Visão geral sem embolar: uma linha por máquina e uma célula por dia com a
+  // ocupação (%) e a quantidade de OPs naquele dia. Reusa `ocupacaoPorDia`
+  // (mesma regra de turno/exceção da mini-faixa). Só calcula no modo 'carga'.
+  const mapaCarga = useMemo(() => {
+    if (modoVisual !== 'carga' || diasVisiveis.length === 0) return []
+    return raias.map((raia) => {
+      const turno = raia.barras[0]?.turno ?? null
+      const centroId = raia.barras.find((b) => b.centroProducaoId)?.centroProducaoId ?? null
+      const excecoes = (centroId && excecoesPorCentro[centroId]) || []
+      const ocup: OcupacaoDia[] = ocupacaoPorDia(raia.barras, turno, excecoes, diasVisiveis)
+      const celulas = ocup.map((o) => {
+        const fimDia = o.diaMs + 24 * 60 * 60000
+        const barrasDia = raia.barras.filter((b) => b.inicioMs < fimDia && b.fimMs > o.diaMs)
+        const ops = [...new Set(barrasDia.map((b) => b.opNumero))]
+        // Linha de produto predominante do dia (cor da faixa inferior da célula).
+        const contLinha = new Map<string, number>()
+        for (const b of barrasDia) {
+          const k = b.linhaCodigo ?? ''
+          contLinha.set(k, (contLinha.get(k) ?? 0) + 1)
+        }
+        const linhaTop = [...contLinha.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+        return { ...o, ops, linhaTop: linhaTop || null }
+      })
+      return { raia, celulas }
+    })
+  }, [modoVisual, raias, diasVisiveis, excecoesPorCentro])
+
+  /** Clique numa célula do mapa: volta ao Gantt já ampliado no dia escolhido. */
+  const abrirDiaNoGantt = useCallback((diaMs: number) => {
+    setModoVisual('gantt')
+    setVisao('24h')
+    setPixelsPorMinuto(PPM_PRESET['24h'])
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const el = ganttRef.current
+      if (!el || !Number.isFinite(minTime)) return
+      el.scrollLeft = Math.max(0, ((diaMs - minTime) / 60000) * PPM_PRESET['24h'])
+    }))
+  }, [minTime])
 
   // ── Pontos de cada etapa para as setas de dependência (spec pcp-gantt-
   // melhorias, Req 5.3) ──
@@ -1278,6 +1352,16 @@ export default function GanttProducaoPage() {
               />
             </Group>
           </Tooltip>
+          {/* Modo de visualização: Gantt (barras) ou Mapa de carga (visão geral). */}
+          <SegmentedControl
+            size="xs"
+            value={modoVisual}
+            onChange={(v) => setModoVisual(v as 'gantt' | 'carga')}
+            data={[
+              { value: 'gantt', label: 'Gantt' },
+              { value: 'carga', label: 'Mapa de carga' },
+            ]}
+          />
           <SegmentedControl
             size="xs"
             value={visao}
@@ -1383,18 +1467,25 @@ export default function GanttProducaoPage() {
         )}
       </Group>
 
-      {/* Legenda */}
+      {/* Legenda por Linha de Produto (cor de cada serviço). Clicar filtra a linha. */}
       <Group gap="xs">
-        {[...new Set(timeline.map(op => op.opId))].slice(0, 8).map(opId => {
-          const op = timeline.find(t => t.opId === opId)
-          if (!op) return null
+        <Text size="xs" c="dimmed" fw={600}>Linhas:</Text>
+        {legendaLinhas.map((l) => {
+          const ativa = filtroLinhas.includes(l.codigo)
+          const apagada = filtroLinhas.length > 0 && !ativa
           return (
-            <Badge key={opId} size="xs" variant="filled" style={{ background: corDaOp(op.corGantt) }}>
-              OP {op.opNumero} - {(op.produtoNome || '').slice(0, 20)}
+            <Badge
+              key={l.codigo}
+              size="sm"
+              variant="filled"
+              style={{ background: l.cor, cursor: 'pointer', opacity: apagada ? 0.35 : 1, outline: ativa ? '2px solid var(--mantine-color-text)' : undefined }}
+              onClick={() => setFiltroLinhas((prev) => prev.includes(l.codigo) ? prev.filter((c) => c !== l.codigo) : [...prev, l.codigo])}
+            >
+              {l.rotulo} ({l.qtd})
             </Badge>
           )
         })}
-        {timeline.length > 8 && <Text size="xs" c="dimmed">+{timeline.length - 8} OPs</Text>}
+        {legendaLinhas.length === 0 && <Text size="xs" c="dimmed">nenhuma OP com linha identificada</Text>}
       </Group>
 
       {/* Alertas de Conflitos */}
@@ -1439,6 +1530,105 @@ export default function GanttProducaoPage() {
 
       {/* Gantt Container */}
       <Paper withBorder radius="md" style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+        {/* ═══ MAPA DE CARGA (visão geral): sobrepõe o Gantt, que segue montado
+            por baixo para não perder scroll/zoom ao voltar. ═══ */}
+        {modoVisual === 'carga' && (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 40, overflow: 'auto', background: 'var(--mantine-color-body)' }}>
+            <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: 11 }}>
+              <thead>
+                <tr>
+                  <th style={{ position: 'sticky', left: 0, top: 0, zIndex: 3, background: 'var(--mantine-color-body)', minWidth: LABEL_WIDTH, textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid var(--mantine-color-default-border)', borderRight: '2px solid var(--mantine-color-default-border)' }}>
+                    <Text size="xs" fw={600} c="dimmed">Máquina / Dia</Text>
+                  </th>
+                  {diasVisiveis.map((d) => {
+                    const dt = new Date(d)
+                    const ehHoje = dt.toDateString() === new Date().toDateString()
+                    return (
+                      <th key={d} style={{ position: 'sticky', top: 0, zIndex: 2, background: ehHoje ? 'var(--mantine-color-red-light)' : 'var(--mantine-color-body)', minWidth: 64, padding: '4px 2px', borderBottom: '1px solid var(--mantine-color-default-border)' }}>
+                        <Text size="10px" fw={700} c={ehHoje ? 'red.7' : undefined}>{dt.toLocaleDateString('pt-BR', { weekday: 'short' })}</Text>
+                        <Text size="10px" c="dimmed">{dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</Text>
+                      </th>
+                    )
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {mapaCarga.map(({ raia, celulas }, ri) => {
+                  const novoGrupo = ri === 0 || mapaCarga[ri - 1].raia.tipoProcesso !== raia.tipoProcesso
+                  return [
+                    novoGrupo ? (
+                      <tr key={`g-${ri}`}>
+                        <td colSpan={diasVisiveis.length + 1} style={{ position: 'sticky', left: 0, background: 'var(--mantine-color-default)', padding: '4px 8px', borderBottom: '1px solid var(--mantine-color-default-border)' }}>
+                          <Text size="10px" fw={700} tt="uppercase">{raia.tipoProcesso}</Text>
+                        </td>
+                      </tr>
+                    ) : null,
+                    <tr key={`r-${ri}`}>
+                      <td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--mantine-color-body)', padding: '4px 8px', borderBottom: '1px solid var(--mantine-color-default-border)', borderRight: '2px solid var(--mantine-color-default-border)' }}>
+                        <Text size="xs" lineClamp={1}>{raia.centroProducao}</Text>
+                      </td>
+                      {celulas.map((c) => {
+                        const faixa = faixaDeCarga(c.ocupacaoPct)
+                        const semTurno = c.minutosUteis === 0
+                        const fundo = semTurno && c.ops.length === 0
+                          ? 'transparent'
+                          : faixa === 'sobrecarga' ? 'var(--mantine-color-red-light)'
+                          : faixa === 'atencao' ? 'var(--mantine-color-yellow-light)'
+                          : faixa === 'normal' ? 'var(--mantine-color-green-light)'
+                          : 'transparent'
+                        const corTexto = faixa === 'sobrecarga' ? 'red.7' : faixa === 'atencao' ? 'yellow.8' : faixa === 'normal' ? 'green.8' : 'dimmed'
+                        return (
+                          <td key={c.diaMs} style={{ padding: 2, borderBottom: '1px solid var(--mantine-color-default-border)', borderRight: '1px solid var(--mantine-color-default-border)' }}>
+                            <Tooltip
+                              withinPortal
+                              multiline
+                              w={240}
+                              label={
+                                <div>
+                                  <Text size="xs" fw={700}>{raia.centroProducao} — {new Date(c.diaMs).toLocaleDateString('pt-BR')}</Text>
+                                  <Text size="xs">Ocupação: {Math.round(c.ocupacaoPct)}%{semTurno ? ' (sem turno)' : ''}</Text>
+                                  <Text size="xs">{c.ops.length} OP(s){c.ops.length ? `: ${c.ops.slice(0, 8).join(', ')}${c.ops.length > 8 ? '…' : ''}` : ''}</Text>
+                                  <Text size="xs" c="dimmed">Clique para abrir o dia no Gantt</Text>
+                                </div>
+                              }
+                            >
+                              <div
+                                onClick={() => abrirDiaNoGantt(c.diaMs)}
+                                style={{ cursor: 'pointer', borderRadius: 4, background: fundo, minHeight: 34, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}
+                              >
+                                {c.ops.length > 0 || c.ocupacaoPct > 0 ? (
+                                  <>
+                                    <Text size="11px" fw={700} c={corTexto}>{Math.round(c.ocupacaoPct)}%</Text>
+                                    <Text size="9px" c="dimmed">{c.ops.length} OP</Text>
+                                  </>
+                                ) : (
+                                  <Text size="10px" c="dimmed">{semTurno ? '·' : '—'}</Text>
+                                )}
+                                {c.linhaTop && (
+                                  <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, background: corDaLinha(c.linhaTop) }} />
+                                )}
+                              </div>
+                            </Tooltip>
+                          </td>
+                        )
+                      })}
+                    </tr>,
+                  ]
+                })}
+              </tbody>
+            </table>
+            {mapaCarga.length === 0 && (
+              <Center h={200}><Text size="sm" c="dimmed">Nenhuma máquina com etapas no período/filtros.</Text></Center>
+            )}
+            <Group gap="md" p="xs">
+              <Text size="xs" c="dimmed">Ocupação:</Text>
+              <Badge size="xs" color="green" variant="light">até 70%</Badge>
+              <Badge size="xs" color="yellow" variant="light">70–100%</Badge>
+              <Badge size="xs" color="red" variant="light">acima de 100%</Badge>
+              <Text size="xs" c="dimmed">· filete inferior = linha de produto predominante no dia</Text>
+            </Group>
+          </div>
+        )}
         {/* ═══ COLUNA FIXA (absolute, nunca se move horizontalmente) ═══ */}
         <div
           ref={labelsRef}
@@ -1518,12 +1708,26 @@ export default function GanttProducaoPage() {
                   borderLeft: `1px ${m.isNewDay ? 'solid' : 'dashed'} var(--mantine-color-gray-${m.isNewDay ? '4' : '3'})`,
                   paddingLeft: 4, display: 'flex', alignItems: 'center',
                 }}>
-                  <Text size="10px" c="dimmed" fw={m.isNewDay ? 700 : 400}>
-                    {m.isNewDay ? new Date(m.ms).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' : ''}{m.label}
+                  <Text size="10px" c="dimmed" fw={m.isNewDay ? 700 : 400} style={{ whiteSpace: 'nowrap' }}>
+                    {m.label}
                   </Text>
                 </div>
               ))}
             </div>
+
+            {/* Faixas alternadas por dia: no zoom afastado ajudam a ler "em que
+                dia" cada barra está, sem precisar de linhas de hora. */}
+            {diasVisiveis.map((d, i) => i % 2 === 1 ? (
+              <div key={`dia${i}`} style={{
+                position: 'absolute',
+                left: ((d - minTime) / 60000) * pixelsPorMinuto,
+                width: 1440 * pixelsPorMinuto,
+                top: 32, height: totalContentHeight,
+                background: 'var(--mantine-color-default-hover)',
+                opacity: 0.5,
+                pointerEvents: 'none',
+              }} />
+            ) : null)}
 
             {/* Grid lines */}
             {hourMarkers.map((m, i) => (
@@ -1640,9 +1844,12 @@ export default function GanttProducaoPage() {
                   const barTop = raiaTop + subLinha * SUBLINHA_H + (SUBLINHA_GAP / 2)
                   const offMin = offsetMin[bar.etapaId] || 0
                   const barLeft = ((bar.inicioMs - minTime) / 60000) * pixelsPorMinuto + offMin * pixelsPorMinuto
-                  const barWidth = Math.max(20, ((bar.fimMs - bar.inicioMs) / 60000) * pixelsPorMinuto)
-                  const setupWidth = bar.tempoSetupMinutos > 0 ? Math.max(4, bar.tempoSetupMinutos * pixelsPorMinuto) : 0
-                  const color = corDaOp(bar.corGantt)
+                  // Zoom semântico: no zoom afastado a barra deixa de ter largura
+                  // mínima de 20px (que fazia as barras se sobreporem) e o bloco de
+                  // setup some (vira ruído quando a barra tem poucos pixels).
+                  const barWidth = Math.max(larguraMinimaBarra(nivelDetalhe), ((bar.fimMs - bar.inicioMs) / 60000) * pixelsPorMinuto)
+                  const setupWidth = nivelDetalhe === 'completo' && bar.tempoSetupMinutos > 0 ? Math.max(4, bar.tempoSetupMinutos * pixelsPorMinuto) : 0
+                  const color = corDaOp(bar.corGantt, bar.linhaCodigo)
                   const borderColor = STATUS_BORDER[bar.indicador] || '#9e9e9e'
                   const isActive = bar.status === 'EM_ANDAMENTO'
                   const podeEditar = bar.status !== 'CONCLUIDO' && bar.status !== 'CONCLUIDA'
@@ -1707,22 +1914,33 @@ export default function GanttProducaoPage() {
                           width: barWidth - setupWidth, height: '100%',
                           background: bar.indicador === 'AGUARDANDO' ? `${color}55` : color,
                           borderRadius: setupWidth > 0 ? '0 4px 4px 0' : 4,
-                          border: emFoco ? `3px solid #fff` : `2px solid ${borderColor}`,
+                          border: emFoco ? `3px solid #fff` : nivelDetalhe === 'minimo' ? 'none' : `2px solid ${borderColor}`,
+                          // No nível mínimo o status (RAG) vira um filete no topo.
+                          borderTop: nivelDetalhe === 'minimo' && !emFoco ? `3px solid ${borderColor}` : undefined,
                           cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', padding: '0 6px',
+                          display: 'flex', alignItems: 'center', padding: nivelDetalhe === 'completo' ? '0 6px' : '0 2px',
                           overflow: 'hidden',
                           boxShadow: isActive ? `0 0 8px ${color}` : undefined,
                           animation: isActive ? 'pulse-gantt 2s infinite' : undefined,
                         }}>
-                          <div style={{ overflow: 'hidden', width: '100%' }}>
-                            <Text size="9px" c="white" fw={700} lineClamp={1}>
-                              OP{bar.opNumero}{bar.faceLabel ? ` · ${bar.faceLabel}` : (bar.produtoNome ? ` - ${bar.produtoNome.slice(0, 22)}` : '')}
-                              {bar.statusObs ? ' 📌' : ''}
+                          {/* Texto conforme o zoom: completo (2 linhas), compacto (só a
+                              OP, se couber) ou nenhum (só a cor; detalhes no tooltip). */}
+                          {nivelDetalhe === 'completo' && (
+                            <div style={{ overflow: 'hidden', width: '100%' }}>
+                              <Text size="9px" c="white" fw={700} lineClamp={1}>
+                                OP{bar.opNumero}{bar.faceLabel ? ` · ${bar.faceLabel}` : (bar.produtoNome ? ` - ${bar.produtoNome.slice(0, 22)}` : '')}
+                                {bar.statusObs ? ' 📌' : ''}
+                              </Text>
+                              <Text size="8px" c="rgba(255,255,255,0.8)" lineClamp={1}>
+                                {bar.passada > 1 ? `${bar.passada}ª passada · ` : ''}x{bar.quantidade.toLocaleString('pt-BR')} | {formatMinutos(bar.tempoTotalPrevisto)}
+                              </Text>
+                            </div>
+                          )}
+                          {nivelDetalhe === 'compacto' && barWidth >= 34 && (
+                            <Text size="9px" c="white" fw={700} lineClamp={1} style={{ whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                              {bar.opNumero}
                             </Text>
-                            <Text size="8px" c="rgba(255,255,255,0.8)" lineClamp={1}>
-                              {bar.passada > 1 ? `${bar.passada}ª passada · ` : ''}x{bar.quantidade.toLocaleString('pt-BR')} | {formatMinutos(bar.tempoTotalPrevisto)}
-                            </Text>
-                          </div>
+                          )}
                         </div>
                         {/* Indicador visual mínimo de status (spec pcp-gantt-melhorias,
                             Req 3.6): um dot discreto no canto; o texto fica no tooltip
@@ -1737,7 +1955,7 @@ export default function GanttProducaoPage() {
                         )}
                         {/* Vãos fora do turno (noite/fim de semana): overlays que
                             "segmentam" a barra, mostrando só o tempo útil (padrão APS). */}
-                        {intervalosForaDoTurno(bar.inicioMs, bar.fimMs, bar.turno, bar.centroProducaoId ? (excecoesPorCentro[bar.centroProducaoId] || []) : []).map((g, idx) => {
+                        {nivelDetalhe !== 'minimo' && intervalosForaDoTurno(bar.inicioMs, bar.fimMs, bar.turno, bar.centroProducaoId ? (excecoesPorCentro[bar.centroProducaoId] || []) : []).map((g, idx) => {
                           const left = ((g.ini - bar.inicioMs) / 60000) * pixelsPorMinuto
                           const w = ((g.fim - g.ini) / 60000) * pixelsPorMinuto
                           if (w < 1) return null
@@ -1752,7 +1970,7 @@ export default function GanttProducaoPage() {
                           )
                         })}
                         {/* Marca de 2ª+ passada da mesma OP no mesmo centro (Req 3.5) */}
-                        {bar.passada > 1 && (
+                        {bar.passada > 1 && nivelDetalhe === 'completo' && (
                           <div style={{
                             position: 'absolute', top: -3, right: -3, zIndex: 2,
                             background: 'var(--mantine-color-body)', color: borderColor,
@@ -1764,7 +1982,7 @@ export default function GanttProducaoPage() {
                           </div>
                         )}
                         {/* Cadeado quando a etapa está travada (Req 5.1) */}
-                        {bar.agendaTravada && (
+                        {bar.agendaTravada && nivelDetalhe !== 'minimo' && (
                           <div style={{
                             position: 'absolute', top: -3, left: -3, zIndex: 3,
                             background: 'var(--mantine-color-body)', borderRadius: 7, width: 14, height: 14,
@@ -1775,7 +1993,7 @@ export default function GanttProducaoPage() {
                           </div>
                         )}
                         {/* Âncora quando a SEQUÊNCIA está travada (distinta do cadeado de data) */}
-                        {bar.sequenciaTravada && (
+                        {bar.sequenciaTravada && nivelDetalhe !== 'minimo' && (
                           <div style={{
                             position: 'absolute', bottom: -3, left: -3, zIndex: 3,
                             background: 'var(--mantine-color-body)', borderRadius: 7, width: 14, height: 14,
@@ -1786,7 +2004,7 @@ export default function GanttProducaoPage() {
                           </div>
                         )}
                         {/* Seta de dependência (da etapa anterior) */}
-                        {bar.opEtapaAnteriorCentro && bar.opEtapaAnteriorCentro !== bar.centroProducao && (
+                        {nivelDetalhe === 'completo' && bar.opEtapaAnteriorCentro && bar.opEtapaAnteriorCentro !== bar.centroProducao && (
                           <div style={{
                             position: 'absolute', left: -12, top: '50%', transform: 'translateY(-50%)',
                             width: 0, height: 0,

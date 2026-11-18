@@ -629,8 +629,8 @@ function NavLink({ item, pathname, collapsed }: { item: NavItem; pathname: strin
     collapsed ? 'justify-center w-11 h-11 mx-auto' : 'gap-3 px-3 py-2'
   } ${
     isActive
-      ? 'bg-teal-50 text-teal-700 font-medium'
-      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+      ? 'bg-teal-50 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 font-medium'
+      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 hover:text-gray-800 dark:hover:text-white'
   }`
 
   const content = (
@@ -682,7 +682,9 @@ function NavGroupComponent({ group, pathname, collapsed }: { group: NavGroup; pa
         <Menu.Target>
           <UnstyledButton
             className={`flex items-center justify-center w-11 h-11 mx-auto rounded-md transition-colors ${
-              hasActiveChild ? 'bg-teal-50 text-teal-700' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+              hasActiveChild
+                ? 'bg-teal-50 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300'
+                : 'text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 hover:text-gray-700 dark:hover:text-white'
             }`}
           >
             <Tooltip label={group.label} position="right" withArrow>
@@ -713,7 +715,9 @@ function NavGroupComponent({ group, pathname, collapsed }: { group: NavGroup; pa
       <UnstyledButton
         onClick={() => setOpened(!opened)}
         className={`flex items-center justify-between w-full px-3 py-2 rounded-md transition-colors text-sm ${
-          hasActiveChild ? 'text-teal-700 font-medium' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+          hasActiveChild
+            ? 'text-teal-700 dark:text-teal-300 font-medium'
+            : 'text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 hover:text-gray-700 dark:hover:text-white'
         }`}
       >
         <div className="flex items-center gap-3">
@@ -912,7 +916,7 @@ export default function ModuleSidebar() {
         <Tooltip label="Módulos" position="right" withArrow>
           <UnstyledButton
             onClick={() => { if (confirmarNavegacaoOuBloquear()) voltarParaModulos(router) }}
-            className="flex items-center justify-center w-11 h-11 mx-auto mb-2 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors rounded-md"
+            className="flex items-center justify-center w-11 h-11 mx-auto mb-2 text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 hover:text-gray-700 dark:hover:text-white transition-colors rounded-md"
           >
             <IconArrowLeft size={18} />
           </UnstyledButton>
@@ -920,7 +924,7 @@ export default function ModuleSidebar() {
       ) : (
         <UnstyledButton
           onClick={() => { if (confirmarNavegacaoOuBloquear()) voltarParaModulos(router) }}
-          className="flex items-center gap-2 px-4 py-2 mb-2 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 mb-2 text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/10 hover:text-gray-700 dark:hover:text-white transition-colors"
         >
           <IconArrowLeft size={18} />
           <Text size="sm">Módulos</Text>
