@@ -9,8 +9,9 @@
  *    Acabamento do plano (BlocoAcabamento), Produto final (AcabamentosDeProduto,
  *    AcondicionamentoBloco, ComplementosDoItem, MargemDoItem), Estrutura de custo e o aviso de
  *    planos legados;
- *  - multi-plano: os mesmos sem os blocos do plano; no lugar deles, "Tipos de Plano" somente
- *    leitura (o grid editável chega na Fase 3).
+ *  - multi-plano: os mesmos sem os blocos do plano; no lugar deles, o Grid de Planos
+ *    ("Tipos de Plano": incluir, copiar, excluir, reordenar, desfazer). Item novo: aviso para
+ *    salvar antes.
  *
  * Gravação e cálculo seguem o editor atual, sem mudar o custo:
  *  - Salvar: `montarPayloadItem` (itemFormShared, sem alteração) + campos informativos por fora
@@ -43,7 +44,6 @@ import { useTiposProduto } from '../../../_hooks/useOpcoesBlocoComum'
 import { notificarAlteracaoItem } from '../../../_hooks/sinal-alteracao-item'
 import { reaplicarLayoutAoTrocarProduto } from '../../../_layout/reaplicar-layout'
 import PreviewFichaMaster from '../../../_orcamento/PreviewFichaMaster'
-import SecaoPlanos from '../../../editor/SecaoPlanos'
 import { useCatalogoItem } from '../../../editor/catalogo/useCatalogoItem'
 import { useSelecaoMaterial } from '../../../editor/catalogo/useSelecaoMaterial'
 import PainelSelecoesNaoGravadas from '../../../editor/catalogo/PainelSelecoesNaoGravadas'
@@ -64,6 +64,7 @@ import BlocoComum from './BlocoComum'
 import BlocoEstruturaCusto from './BlocoEstruturaCusto'
 import BlocoFormato from './BlocoFormato'
 import BlocoPlanoUnico from './BlocoPlanoUnico'
+import GridPlanos from './GridPlanos'
 import ComplementosDoItem, { type ValorComplementosItem } from './ComplementosDoItem'
 import MargemDoItem from './MargemDoItem'
 import { aplicarPreMarcadas, type AtividadeCadastro } from './acabamento-item'
@@ -644,24 +645,27 @@ export default function TelaItem({ orcamentoId, itemId }: TelaItemProps) {
       </>
     ) : estrutura === 'MULTI_PLANO' ? (
       <Paper withBorder radius="md" p="lg" shadow="xs" data-testid="tipos-de-plano">
-        <Stack gap="md">
-          <Group gap="sm" wrap="nowrap">
-            <ThemeIcon variant="light" color="indigo" size={32} radius="md">
-              <IconLayoutList size={18} stroke={1.5} />
-            </ThemeIcon>
-            <Title order={5}>Tipos de Plano</Title>
-          </Group>
-          {planosPersistidos > 0 ? (
-            <SecaoPlanos planos={itemCarregado?.planos ?? null} catalogo={catalogo} catalogoCompartilhado={catalogoItem} />
-          ) : (
-            <Text size="sm" c="dimmed">
-              Nenhum plano gravado neste item.
+        {idItemAtual ? (
+          <GridPlanos
+            orcamentoId={orcamentoId}
+            itemId={idItemAtual}
+            navegar={guarda.navegar}
+            onAlterado={() => notificarAlteracaoItem(orcamentoId)}
+            disabled={ocupado}
+          />
+        ) : (
+          <Stack gap="md">
+            <Group gap="sm" wrap="nowrap">
+              <ThemeIcon variant="light" color="indigo" size={32} radius="md">
+                <IconLayoutList size={18} stroke={1.5} />
+              </ThemeIcon>
+              <Title order={5}>Tipos de Plano</Title>
+            </Group>
+            <Text size="sm" c="dimmed" data-testid="tipos-de-plano-item-novo">
+              Salve o item para incluir planos.
             </Text>
-          )}
-          <Text size="xs" c="dimmed">
-            Somente leitura. Incluir, copiar, excluir e reordenar planos chega na próxima fase.
-          </Text>
-        </Stack>
+          </Stack>
+        )}
       </Paper>
     ) : layoutItem.carregando ? (
       <Skeleton height={120} radius="md" />

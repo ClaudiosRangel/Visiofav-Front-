@@ -1,7 +1,7 @@
 /**
  * sugestoes-api — consulta reutilizável dos papéis com preço (Fase 3, Req 4).
  *
- * Usada pelo editor do item (`useSugestoesProduto`) e pelo modal de plano (PlanosDoItem).
+ * Usada pelo editor do item (`useSugestoesProduto`); era usada também pelo modal de plano antigo (removido).
  * Filtra por suporte e gramatura no servidor (quando a gramatura é conhecida) e pagina
  * até o fim (100 por página), para nunca truncar o resultado quando o suporte tem mais
  * de 100 papéis.
