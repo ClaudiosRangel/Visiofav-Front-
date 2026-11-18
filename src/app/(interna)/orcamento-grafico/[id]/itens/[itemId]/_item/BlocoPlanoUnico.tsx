@@ -11,7 +11,8 @@
  *
  * Componente CONTROLADO (`value`/`onChange`, valores como texto): não grava, não recalcula e nunca
  * cria plano. O Suporte (papel, gramatura e preço por kg, que formam o custo) é o seletor de papel
- * já existente, passado em `suporte`; o botão NC só entra na Fase 4.
+ * já existente, passado em `suporte`; o botão NC (Suporte não cadastrado) aparece ao lado quando
+ * `onSuporteNcCriado` é informado.
  *
  * Botões do Processo (a spec não define o efeito; comportamento adotado):
  * - Pré: aplica o processo padrão do cadastro do produto (`processoPre`); fica desabilitado sem padrão.
@@ -25,6 +26,8 @@ import { IconLock, IconLockOpen, IconPrinter } from '@tabler/icons-react'
 import type { LayoutItem } from '../../../_layout/resolver-layout-item'
 import { useCoberturasTinta, useProcessosImpressao } from '../../../_hooks/useOpcoesPlanoUnico'
 import BotaoPropriedades from './BotaoPropriedades'
+import BotaoSuporteNc from './BotaoSuporteNc'
+import type { SuporteNcCriadoInfo } from './SuporteNcModal'
 import {
   MAX_COBERTURA,
   MAX_FABRICANTE,
@@ -48,6 +51,8 @@ export interface BlocoPlanoUnicoProps {
   processoPre?: string | null
   /** Orçamento do item: habilita o botão "Propriedades/Preview". */
   orcamentoId?: string
+  /** Suporte criado pelo botão NC; o pai o seleciona no formulário. Sem esta prop o botão não aparece. */
+  onSuporteNcCriado?: (r: SuporteNcCriadoInfo) => void
   disabled?: boolean
 }
 
@@ -60,6 +65,7 @@ export default function BlocoPlanoUnico({
   suporte,
   processoPre,
   orcamentoId,
+  onSuporteNcCriado,
   disabled,
 }: BlocoPlanoUnicoProps) {
   const [processoTravado, setProcessoTravado] = useState(false)
@@ -163,7 +169,12 @@ export default function BlocoPlanoUnico({
           )}
         </SimpleGrid>
 
-        {mostra('suporte') && suporte && <div data-testid="bloco-plano-unico-suporte">{suporte}</div>}
+        {mostra('suporte') && suporte && (
+          <Group gap={6} align="flex-end" wrap="nowrap" data-testid="bloco-plano-unico-suporte">
+            <div style={{ flex: 1, minWidth: 0 }}>{suporte}</div>
+            {onSuporteNcCriado && <BotaoSuporteNc onCriado={onSuporteNcCriado} disabled={disabled} />}
+          </Group>
+        )}
 
         <Group gap="xl">
           {mostra('fornecido') && (

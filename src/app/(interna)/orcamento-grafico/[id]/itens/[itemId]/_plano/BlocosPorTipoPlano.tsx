@@ -20,6 +20,7 @@ import { ActionIcon, Autocomplete, Button, Group, Paper, SimpleGrid, Stack, Swit
 import { IconLock, IconLockOpen } from '@tabler/icons-react'
 
 import BotaoPropriedades from '../_item/BotaoPropriedades'
+import BotaoSuporteNc from '../_item/BotaoSuporteNc'
 import SeletorSuportePlano, { type OpcaoSuporte } from './SeletorSuportePlano'
 import { MAX_PROCESSO_PLANO, MAX_TEXTO_CURTO, type BlocoSuporteForm, type BlocosTelaPlano, type ErrosTelaPlano, type EstadoTelaPlano } from './tela-plano'
 
@@ -145,6 +146,13 @@ function CamposSuporte({
   suportesPermitidos?: ReadonlyArray<OpcaoSuporte>
   disabled?: boolean
 }) {
+  // Suportes criados pelo NC nesta tela: entram nas opções quando há lista restrita (`permitidos`).
+  const [criadosNc, setCriadosNc] = useState<OpcaoSuporte[]>([])
+  const permitidosEfetivos =
+    suportesPermitidos && suportesPermitidos.length > 0
+      ? [...suportesPermitidos, ...criadosNc.filter((c) => !suportesPermitidos.some((p) => p.value === c.value))]
+      : suportesPermitidos
+
   return (
     <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md" data-testid={`campos-suporte-${bloco}`}>
       <TextInput
@@ -155,16 +163,27 @@ function CamposSuporte({
         onChange={(e) => onChange({ fabricante: e.currentTarget.value }, ['fabricante'])}
         disabled={disabled}
       />
-      <SeletorSuportePlano
-        label={rotuloSuporte}
-        value={valor.suporteId}
-        nomeAtual={valor.suporteNome}
-        onChange={(id, nome) => onChange({ suporteId: id, suporteNome: nome }, ['suporteId'])}
-        permitidos={suportesPermitidos}
-        error={erro}
-        disabled={disabled}
-        required
-      />
+      <Group gap={6} align="flex-end" wrap="nowrap">
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <SeletorSuportePlano
+            label={rotuloSuporte}
+            value={valor.suporteId}
+            nomeAtual={valor.suporteNome}
+            onChange={(id, nome) => onChange({ suporteId: id, suporteNome: nome }, ['suporteId'])}
+            permitidos={permitidosEfetivos}
+            error={erro}
+            disabled={disabled}
+            required
+          />
+        </div>
+        <BotaoSuporteNc
+          disabled={disabled}
+          onCriado={(r) => {
+            setCriadosNc((l) => [...l, { value: r.suporteId, label: r.nome }])
+            onChange({ suporteId: r.suporteId, suporteNome: r.nome }, ['suporteId'])
+          }}
+        />
+      </Group>
       <Switch
         label="Fornecido"
         checked={valor.fornecido}

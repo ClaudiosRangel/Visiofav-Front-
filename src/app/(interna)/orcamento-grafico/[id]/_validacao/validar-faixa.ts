@@ -106,6 +106,10 @@ export const NC_CUSTO_KG: EspecFaixa = { min: 0.01, max: 999_999.99, casas: 2 }
 export const NC_FRETE_KG: EspecFaixa = { min: 0, max: 999_999.99, casas: 2 }
 export const NC_CREDITO_PERC: EspecFaixa = { min: 0, max: 100, casas: 2 }
 export const NC_ESPESSURA_MICRAS: EspecFaixa = { min: 0, max: 10_000, casas: 2 }
+/** Espessura G/ (back: 0 a 999.999). */
+export const NC_ESPESSURA_GM: EspecFaixa = { min: 0, max: 999_999, casas: 2 }
+/** Pacotes com (back: inteiro de 0 a 1.000.000). */
+export const NC_PACOTES_COM: EspecFaixa = { min: 0, max: 1_000_000, casas: 0 }
 
 // ============================================================================
 // Cores "NxM" (R10.3)

@@ -7,7 +7,8 @@
  * os mesmos que a coluna `suporteId` do plano grava) e, quando o tipo de plano define suportes no
  * catálogo, restringe a lista a eles.
  *
- * O botão NC (Suporte Não Cadastrado) entra na Fase 4; aqui não aparece.
+ * O botão NC (Suporte Não Cadastrado) fica ao lado do seletor, em BlocosPorTipoPlano. Quando o
+ * `value` não está nas opções (lista server-side ou `permitidos`), o campo mostra `nomeAtual`.
  */
 
 import { useEffect, useMemo, useState } from 'react'

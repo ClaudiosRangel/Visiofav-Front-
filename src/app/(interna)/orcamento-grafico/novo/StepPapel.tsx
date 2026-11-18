@@ -49,6 +49,43 @@ interface MaterialPapel {
   gramatura?: number
 }
 
+/** Atualização do formData ao escolher um suporte (zera o papel vinculado). Função pura, usada pelo StepPapel e pelo botão NC. */
+export function aplicarSuporteSelecionado(
+  suporte: { id: string; descricao: string } | null,
+): Partial<WizardFormData> {
+  return suporte
+    ? { suporteId: suporte.id, suporteNome: suporte.descricao, papelId: null, papelDescricao: '' }
+    : { suporteId: null, suporteNome: '', papelId: null, papelDescricao: '' }
+}
+
+/** Atualização do formData ao escolher o preço do papel/gramatura. Função pura, usada pelo StepPapel e pelo botão NC. */
+export function aplicarPapelSelecionado(
+  papel: { id: string; descricao: string; precoUnitario: number; gramatura?: number } | null,
+): Partial<WizardFormData> {
+  if (!papel) return { papelId: null }
+  return {
+    papelId: papel.id,
+    papelDescricao: papel.descricao,
+    precoKg: papel.precoUnitario,
+    // gramatura do registro quando vier; senão não sobrescreve
+    ...(papel.gramatura && papel.gramatura > 0 ? { gramatura: papel.gramatura } : {}),
+  }
+}
+
+/** Suporte criado pelo botão NC: seleciona suporte e preço do papel exatamente como o StepPapel faria em duas escolhas seguidas. */
+export function aplicarSuporteNcCriado(r: {
+  suporteId: string
+  precoId: string
+  nome: string
+  gramatura: number
+  custoKg: number
+}): Partial<WizardFormData> {
+  return {
+    ...aplicarSuporteSelecionado({ id: r.suporteId, descricao: r.nome }),
+    ...aplicarPapelSelecionado({ id: r.precoId, descricao: r.nome, precoUnitario: r.custoKg, gramatura: r.gramatura }),
+  }
+}
+
 export default function StepPapel({ formData, updateForm }: Props) {
   // ------------------------------------------------------------------
   // Nível 1 — Suporte (Papel/Cartão) — paridade Calcgraf. O suporte carrega o
@@ -228,33 +265,14 @@ export default function StepPapel({ formData, updateForm }: Props) {
 
   const handleSelectSuporte = (suporteId: string | null) => {
     const found = suportes.find(s => s.id === suporteId)
-    if (found) {
-      // Troca de suporte zera o papel vinculado (os preços são re-buscados).
-      updateForm({
-        suporteId: found.id,
-        suporteNome: found.descricao,
-        papelId: null,
-        papelDescricao: '',
-      })
-    } else {
-      updateForm({ suporteId: null, suporteNome: '', papelId: null, papelDescricao: '' })
-    }
+    // Troca de suporte zera o papel vinculado (os preços são re-buscados).
+    updateForm(aplicarSuporteSelecionado(found ?? null))
     setBuscouPrecos(false)
   }
 
   const handleSelect = (papelId: string | null) => {
     const found = materiais.find(m => m.id === papelId)
-    if (found) {
-      updateForm({
-        papelId: found.id,
-        papelDescricao: found.descricao,
-        precoKg: found.precoUnitario,
-        // gramatura do registro quando vier; senão não sobrescreve
-        ...(found.gramatura && found.gramatura > 0 ? { gramatura: found.gramatura } : {}),
-      })
-    } else {
-      updateForm({ papelId: null })
-    }
+    updateForm(aplicarPapelSelecionado(found ?? null))
   }
 
   // ------------------------------------------------------------------

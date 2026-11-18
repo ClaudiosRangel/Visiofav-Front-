@@ -37,7 +37,7 @@ import { notifications } from '@mantine/notifications'
 import { api } from '@/lib/api'
 import type { WizardFormData } from '../../../../novo/page'
 import StepMedidas from '../../../../novo/StepMedidas'
-import StepPapel from '../../../../novo/StepPapel'
+import StepPapel, { aplicarSuporteNcCriado } from '../../../../novo/StepPapel'
 import { INITIAL_ITEM } from '../../../itemFormShared'
 import { useLayoutItem } from '../../../_hooks/useLayoutItem'
 import { useTiposProduto } from '../../../_hooks/useOpcoesBlocoComum'
@@ -627,6 +627,7 @@ export default function TelaItem({ orcamentoId, itemId }: TelaItemProps) {
           suporte={<StepPapel formData={form} updateForm={atualizarForm} />}
           processoPre={processoPre}
           orcamentoId={orcamentoId}
+          onSuporteNcCriado={(r) => atualizarForm(aplicarSuporteNcCriado(r))}
           disabled={ocupado}
         />
         <BlocoAcabamento
