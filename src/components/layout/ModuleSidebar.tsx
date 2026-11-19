@@ -503,6 +503,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
           { icon: IconChartBar, label: 'Quebras', href: '/orcamento-grafico/cadastros/quebras' },
           { icon: IconAssembly, label: 'Limites de Montagem', href: '/orcamento-grafico/cadastros/limites-montagem' },
           { icon: IconSettings, label: 'Parâmetros do Orçamento', href: '/orcamento-grafico/cadastros/parametros-orcamento' },
+          { icon: IconListDetails, label: 'Séries', href: '/orcamento-grafico/cadastros/series' },
           { icon: IconPackage, label: 'Tipos de Embalagem', href: '/orcamento-grafico/cadastros/tipos-embalagem' },
           { icon: IconCash, label: 'Preços Materiais', href: '/orcamento-grafico/cadastros/precos-materiais' },
           { icon: IconPalette, label: 'Suportes', href: '/orcamento-grafico/cadastros/suportes' },

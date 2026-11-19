@@ -19,7 +19,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  Alert, Anchor, Breadcrumbs, Button, Center, Group, Loader, Paper, SimpleGrid, Stack, Table, Text, TextInput, Title,
+  Alert, Anchor, Breadcrumbs, Button, Center, Group, Loader, Paper, Select, SimpleGrid, Stack, Table, Text, TextInput, Title,
 } from '@mantine/core'
 import { IconAlertCircle, IconDeviceFloppy, IconExternalLink, IconPlus, IconSearch } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
@@ -29,10 +29,7 @@ import { useEmpresa } from '@/providers/EmpresaProvider'
 import ClientePrincipalBusca, { type ClientePrincipal } from '../[id]/_orcamento/ClientePrincipalBusca'
 import DialogoLinhaProduto, { type LinhaProdutoSelecionada } from '../DialogoLinhaProduto'
 import SeletorCalculoPadrao from '../_calculo-padrao/SeletorCalculoPadrao'
-
-const MAX_SERIE = 10
-// Valor inicial da série: o comportamento atual não define origem (campo livre, vazio = sem série).
-const SERIE_INICIAL = ''
+import { SERIES_ENDPOINT, nomeSerieExibicao, type SerieDocumento } from '../cadastros/_shared/series'
 
 /** Data corrente no fuso America/Sao_Paulo, no formato AAAA-MM-DD. */
 function hojeSaoPaulo(): string {
@@ -68,7 +65,10 @@ function NovoOrcamentoConteudo() {
   const router = useRouter()
   useEffect(() => { document.title = 'Novo Orçamento' }, [])
 
-  const [serie, setSerie] = useState(SERIE_INICIAL)
+  // Série: só as ATIVAS do cadastro, pré-selecionando a padrão. O Nº sai da série.
+  const [series, setSeries] = useState<SerieDocumento[]>([])
+  const [carregandoSeries, setCarregandoSeries] = useState(true)
+  const [serieId, setSerieId] = useState<string | null>(null)
   const [cliente, setCliente] = useState<ClientePrincipal | null>(null)
   const dataHoje = useMemo(() => hojeSaoPaulo(), [])
 
@@ -79,20 +79,37 @@ function NovoOrcamentoConteudo() {
   const [dialogoLinhaAberto, setDialogoLinhaAberto] = useState(false)
   const [seletorAberto, setSeletorAberto] = useState(false)
 
-  const serieInvalida = serie.trim().length > MAX_SERIE
+  useEffect(() => {
+    let ativo = true
+    api
+      .get(SERIES_ENDPOINT, { params: { origem: 'ORCAMENTO', situacao: 'ativa' } })
+      .then(({ data }) => {
+        if (!ativo) return
+        const lista: SerieDocumento[] = Array.isArray(data) ? data : []
+        setSeries(lista)
+        setSerieId((atual) => atual ?? lista.find((s) => s.padrao)?.id ?? lista[0]?.id ?? null)
+      })
+      .catch(() => {
+        // Sem a lista, o cabeçalho usa a série padrão da empresa no servidor.
+        if (ativo) setSeries([])
+      })
+      .finally(() => { if (ativo) setCarregandoSeries(false) })
+    return () => { ativo = false }
+  }, [])
+
+  const opcoesSerie = useMemo(
+    () => series.map((s) => ({ value: s.id, label: `${nomeSerieExibicao(s.nome)}${s.padrao ? ' — padrão' : ''}` })),
+    [series],
+  )
 
   /** Cria o cabeçalho. Devolve o orçamento criado, ou null em falha (cabeçalho digitado é mantido). */
   const criarOrcamento = async (): Promise<OrcamentoCriado | null> => {
     if (criado) return criado
-    if (serieInvalida) {
-      setErro(`O orçamento não foi criado: a série deve ter de 1 a ${MAX_SERIE} caracteres.`)
-      return null
-    }
     setCriando(true)
     setErro(null)
     try {
       const payload: Record<string, unknown> = { dataOrcamento: dataHoje }
-      if (serie.trim()) payload.serie = serie.trim()
+      if (serieId) payload.serieId = serieId
       if (cliente) {
         payload.clienteId = cliente.id
         payload.clienteNome = cliente.nome
@@ -187,13 +204,15 @@ function NovoOrcamentoConteudo() {
 
       <Paper withBorder p="md" radius="md">
         <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
-          <TextInput
+          <Select
             label="Série"
-            value={serie}
-            maxLength={MAX_SERIE}
-            onChange={(e) => setSerie(e.currentTarget.value)}
-            disabled={!!criado}
-            error={serieInvalida ? `De 1 a ${MAX_SERIE} caracteres` : undefined}
+            data={opcoesSerie}
+            value={serieId}
+            onChange={setSerieId}
+            allowDeselect={false}
+            disabled={!!criado || carregandoSeries}
+            placeholder={carregandoSeries ? 'Carregando…' : 'Série padrão'}
+            nothingFoundMessage="Nenhuma série ativa"
           />
           <TextInput label="Nº" value={criado ? String(criado.numero) : 'auto'} readOnly />
           <TextInput label="Data" value={formatarDataBr(dataHoje)} readOnly />

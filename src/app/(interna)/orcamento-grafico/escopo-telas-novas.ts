@@ -19,6 +19,9 @@ export const PADROES_ESCOPO_NOVO: RegExp[] = [
   /^_calculo-padrao\//,
   /^biblioteca-calculos\//,
   /^\[id\]\/page\.tsx$/,
+  // Cadastro de Séries de numeração
+  /^cadastros\/series\//,
+  /^cadastros\/_shared\/series\.ts$/,
 ]
 
 export function ehEscopoNovo(caminhoRelativo: string): boolean {

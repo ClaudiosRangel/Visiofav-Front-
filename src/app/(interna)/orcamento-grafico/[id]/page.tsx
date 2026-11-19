@@ -57,6 +57,7 @@ interface OrcamentoDetalhe {
   numero: number
   versao: number
   serie?: string | null
+  serieId?: string | null
   tipo?: string | null // NOVO | REPETICAO
   dataOrcamento?: string | null
   clienteId?: string | null
@@ -381,6 +382,7 @@ function OrcamentoDetalheConteudo() {
       <CabecalhoOrcamento
         numero={orcamento.numero}
         serie={orcamento.serie}
+        serieId={orcamento.serieId}
         dataOrcamento={orcamento.dataOrcamento}
         clienteNome={orcamento.clienteNome}
         onEditarCliente={podeEditarItens ? () => setEditarCabecalhoOpen(true) : undefined}

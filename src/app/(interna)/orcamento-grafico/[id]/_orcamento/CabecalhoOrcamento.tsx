@@ -13,10 +13,13 @@ import { ActionIcon, Anchor, Breadcrumbs, Checkbox, Group, Paper, SimpleGrid, St
 import { IconSearch } from '@tabler/icons-react'
 
 import { formatarData } from './formatadores'
+import { rotuloSerieCabecalho } from '../../cadastros/_shared/series'
 
 export interface CabecalhoOrcamentoProps {
   numero: number
+  /** Nome da série (cópia gravada no orçamento). Vazio com `serieId` = série padrão sem nome. */
   serie?: string | null
+  serieId?: string | null
   /** Data do orçamento (ISO); exibida como dd/mm/aaaa. */
   dataOrcamento?: string | null
   clienteCodigo?: string | null
@@ -36,6 +39,7 @@ export interface CabecalhoOrcamentoProps {
 export default function CabecalhoOrcamento({
   numero,
   serie,
+  serieId,
   dataOrcamento,
   clienteCodigo,
   clienteNome,
@@ -61,7 +65,12 @@ export default function CabecalhoOrcamento({
 
       <Paper withBorder p="md" radius="md">
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
-          <TextInput label="Série" value={serie ?? ''} readOnly placeholder="—" />
+          <TextInput
+            label="Série"
+            value={serie?.trim() ? serie : serieId ? rotuloSerieCabecalho(serie) : ''}
+            readOnly
+            placeholder="—"
+          />
           <TextInput label="Número do orçamento" value={String(numero)} readOnly />
           <TextInput label="Data" value={dataOrcamento ? formatarData(dataOrcamento) : ''} readOnly placeholder="—" />
           <Checkbox
