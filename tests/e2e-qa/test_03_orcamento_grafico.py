@@ -3,9 +3,12 @@ TEST SUITE 03 — Orçamento Gráfico
 ==================================
 Testa:
 - Listagem de orçamentos e entradas "Novo Orçamento" / "Puxar Cálculo"
-- Fluxo novo (paridade com o legado): Orçamento em branco → Cliente Principal →
-  Incluir item → linha de produto → Seletor de Cálculo Padrão → Usar →
-  grade de itens (item 1 selecionado), painel "Dados do item" e aba Fechamento
+- Fluxo novo (paridade com o legado):
+  * Incluir item → linha de produto → Confirmar → tela do ITEM EM BRANCO
+    (título = nome da linha, combobox Produto visível e habilitado); Cancelar só fecha.
+  * Localizar Cálculo (ação separada) → Seletor de Cálculo Padrão sem filtro de
+    linha → Usar → grade de itens (item 1 selecionado), painel "Dados do item" e
+    aba Fechamento
 - Wizard completo (7 steps) em /orcamento-grafico/novo (ainda existente)
 
 Testes do fluxo novo que dependem de dados da empresa demo (linhas de produto,
@@ -61,7 +64,7 @@ class TestOrcamentoGraficoListagem:
 
 
 # ════════════════════════════════════════════════════════════════════
-# FLUXO NOVO — Orçamento em branco → Incluir item → Seletor → Usar
+# FLUXO NOVO — Incluir item → item em branco; Localizar Cálculo → Seletor → Usar
 # ════════════════════════════════════════════════════════════════════
 
 SERIE_QA = "QA-E2E"
@@ -176,36 +179,25 @@ class TestOrcamentoGraficoFluxoNovo:
         dialogo.locator("label").first.click()
         expect(dialogo.get_by_role("button", name="Confirmar")).to_be_enabled()
 
-    def test_cancelar_dialogo_abre_seletor_sem_linha(self, page_auth: Page):
-        """Cancelar no diálogo de linha abre o Seletor SEM o filtro 'Linha de Produto'."""
+    def test_cancelar_dialogo_so_fecha(self, page_auth: Page):
+        """Cancelar no diálogo de linha só fecha: não abre o Seletor e não cria item."""
         _abrir_novo_orcamento(page_auth)
         dialogo = _abrir_dialogo_linha(page_auth)
 
         dialogo.get_by_role("button", name="Cancelar").click()
+        expect(page_auth.get_by_role("dialog")).to_have_count(0, timeout=10000)
 
-        seletor = page_auth.get_by_role("dialog")
-        expect(seletor).to_contain_text(TITULO_SELETOR, timeout=10000)
-        expect(seletor.get_by_label("Linha de Produto")).to_have_value("")
-        expect(seletor).to_contain_text("Quantidade de cálculos: 0")
-        expect(seletor.get_by_role("button", name="Usar")).to_be_disabled()
-
-        # Sair fecha o seletor e o orçamento (já criado ao incluir item) permanece aberto na tela.
-        seletor.get_by_role("button", name="Sair").click()
-        expect(seletor).to_be_hidden()
+        # O orçamento (já criado ao incluir item) permanece aberto na tela.
+        assert "novo-orcamento" in page_auth.url
         expect(page_auth.get_by_role("button", name="Abrir orçamento")).to_be_visible()
 
-    def test_fluxo_completo_incluir_item_usar_calculo_padrao(self, page_auth: Page):
+    def test_confirmar_linha_abre_item_em_branco(self, page_auth: Page):
         """
-        Orçamento em branco → Cliente Principal → Incluir item → linha de produto →
-        Seletor de Cálculo Padrão → Usar → grade (item 1 selecionado), painel
-        'Dados do item' e aba Fechamento.
+        Incluir item → linha de produto → Confirmar abre a tela do item em branco
+        (itens/novo?linha=...), com o título = nome da linha e o combobox de
+        Produto visível e habilitado.
         """
         _abrir_novo_orcamento(page_auth)
-
-        # ── Cliente Principal (opcional para o fluxo: segue sem cliente se não houver) ──
-        cliente_ok = _buscar_cliente_principal(page_auth)
-
-        # ── Incluir item → diálogo de linha de produto ──
         dialogo = _abrir_dialogo_linha(page_auth)
         time.sleep(1.5)
         if dialogo.get_by_text("Não há linhas de produto ativas.").count() > 0:
@@ -218,10 +210,48 @@ class TestOrcamentoGraficoFluxoNovo:
         dialogo.locator("label").first.click()
         dialogo.get_by_role("button", name="Confirmar").click()
 
-        # ── Seletor de Cálculo Padrão com a linha pré-preenchida ──
+        page_auth.wait_for_url("**/itens/novo?linha=*", timeout=30000)
+        aguardar_carregamento(page_auth)
+        assert pagina_carregou_sem_erro(page_auth)
+
+        expect(page_auth.get_by_test_id("tela-item-titulo")).to_have_text(rotulo_linha, timeout=20000)
+        produto = page_auth.get_by_label("Produto Gráfico")
+        expect(produto).to_be_visible(timeout=15000)
+        expect(produto).to_be_enabled()
+        screenshot_com_nome(page_auth, "orcamento_item_em_branco")
+
+    def test_localizar_calculo_abre_seletor_sem_linha(self, page_auth: Page):
+        """'Localizar Cálculo' cria o cabeçalho e abre o Seletor SEM filtro de linha."""
+        _abrir_novo_orcamento(page_auth)
+        page_auth.get_by_label("Série").fill(SERIE_QA)
+        page_auth.get_by_role("button", name="Localizar Cálculo").click()
+
         seletor = page_auth.get_by_role("dialog")
-        expect(seletor).to_contain_text(TITULO_SELETOR, timeout=10000)
-        expect(seletor.get_by_label("Linha de Produto")).to_have_value(rotulo_linha)
+        expect(seletor).to_contain_text(TITULO_SELETOR, timeout=15000)
+        expect(seletor.get_by_label("Linha de Produto")).to_have_value("")
+        expect(seletor).to_contain_text("Quantidade de cálculos: 0")
+        expect(seletor.get_by_role("button", name="Usar")).to_be_disabled()
+
+        seletor.get_by_role("button", name="Sair").click()
+        expect(seletor).to_be_hidden()
+        expect(page_auth.get_by_role("button", name="Abrir orçamento")).to_be_visible()
+
+    def test_fluxo_completo_localizar_calculo_usar(self, page_auth: Page):
+        """
+        Orçamento em branco → Cliente Principal → Localizar Cálculo →
+        Seletor de Cálculo Padrão → Usar → grade (item 1 selecionado), painel
+        'Dados do item' e aba Fechamento.
+        """
+        _abrir_novo_orcamento(page_auth)
+
+        # ── Cliente Principal (opcional para o fluxo: segue sem cliente se não houver) ──
+        cliente_ok = _buscar_cliente_principal(page_auth)
+
+        # ── Localizar Cálculo → Seletor de Cálculo Padrão (sem filtro de linha) ──
+        page_auth.get_by_label("Série").fill(SERIE_QA)
+        page_auth.get_by_role("button", name="Localizar Cálculo").click()
+        seletor = page_auth.get_by_role("dialog")
+        expect(seletor).to_contain_text(TITULO_SELETOR, timeout=15000)
         expect(seletor.get_by_role("button", name="Usar")).to_be_disabled()
 
         seletor.get_by_role("button", name="Pesquisar").click()
@@ -232,9 +262,7 @@ class TestOrcamentoGraficoFluxoNovo:
         sem_resultado = seletor.get_by_text("Nenhum cálculo encontrado")
         if sem_resultado.count() > 0 and sem_resultado.first.is_visible():
             screenshot_com_nome(page_auth, "orcamento_fluxo_novo_sem_calculo")
-            pytest.skip(
-                f"Empresa demo sem cálculo padrão cadastrado para a linha '{rotulo_linha}'"
-            )
+            pytest.skip("Empresa demo sem cálculo padrão cadastrado")
         if linhas_calculo.count() == 0:
             pytest.skip("Pesquisa de cálculo padrão não retornou linhas (erro ou ambiente sem acervo)")
 

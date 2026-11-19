@@ -22,7 +22,10 @@
  *  - Erro de validação ou do servidor: nada é gravado e os valores digitados ficam na tela, com a
  *    mensagem "campo: motivo".
  *
- * `itemId = 'novo'`: o primeiro Salvar cria o item (POST) e a tela passa para a URL do id criado.
+ * `itemId = 'novo'`: item em branco. A Linha de Produto escolhida em "Incluir item" (`?linha=`,
+ * prop `linhaProdutoIdNovo`) filtra o combobox de Produto, que já vem aberto, e dá o título da tela.
+ * Escolhido o Produto, os blocos são montados pelo cadastro (`useLayoutItem`). O primeiro Salvar
+ * cria o item (POST) e a tela passa para a URL do id criado.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -100,6 +103,11 @@ interface OrcamentoParaItem {
 export interface TelaItemProps {
   orcamentoId: string
   itemId: string
+  /**
+   * Item novo: Linha de Produto escolhida no diálogo "Incluir item" (`?linha=`). Filtra o combobox
+   * de Produto (no lugar da linha do orçamento) e dá o título da tela. Ignorada em item existente.
+   */
+  linhaProdutoIdNovo?: string | null
 }
 
 function numero(v: unknown): number | null {
@@ -135,7 +143,7 @@ function formatoComTexto(form: Record<string, unknown>, base: ValorFormato): Val
   return saida as ValorFormato
 }
 
-export default function TelaItem({ orcamentoId, itemId }: TelaItemProps) {
+export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = null }: TelaItemProps) {
   const routerInstavel = useRouter()
   // Referência estável: a identidade do router não pode refazer a carga do item.
   const routerRef = useRef(routerInstavel)
@@ -148,6 +156,29 @@ export default function TelaItem({ orcamentoId, itemId }: TelaItemProps) {
     [],
   )
   const novo = itemId === ID_ITEM_NOVO
+  const linhaNovo = novo ? linhaProdutoIdNovo : null
+
+  // Nome da Linha de Produto do item novo (título da tela), pela mesma rota do diálogo de linha.
+  const [linhaNovoNome, setLinhaNovoNome] = useState<string | null>(null)
+  useEffect(() => {
+    setLinhaNovoNome(null)
+    if (!linhaNovo) return
+    let cancelado = false
+    api
+      .get('/orcamento-grafico/linhas-produto')
+      .then(({ data }) => {
+        if (cancelado) return
+        const lista: Array<{ id?: unknown; nome?: unknown }> = Array.isArray(data) ? data : data?.data ?? []
+        const achada = lista.find((l) => String(l.id) === linhaNovo)
+        setLinhaNovoNome(achada?.nome ? String(achada.nome) : null)
+      })
+      .catch(() => {
+        // Sem o nome, o título fica o padrão do item novo.
+      })
+    return () => {
+      cancelado = true
+    }
+  }, [linhaNovo])
 
   const [orcamento, setOrcamento] = useState<OrcamentoParaItem | null>(null)
   const [itemCarregado, setItemCarregado] = useState<ItemParaEditarHierarquia | null>(null)
@@ -407,7 +438,7 @@ export default function TelaItem({ orcamentoId, itemId }: TelaItemProps) {
     orcamento?.produtoNome ||
     orcamento?.tipoEmbalagem?.descricao ||
     null
-  const titulo = novo && !itemIdCriado ? 'Novo item' : `Item — ${produtoNome ?? '—'}`
+  const titulo = novo && !itemIdCriado ? linhaNovoNome ?? 'Novo item' : `Item — ${produtoNome ?? '—'}`
   useEffect(() => {
     document.title = titulo
   }, [titulo])
@@ -699,8 +730,9 @@ export default function TelaItem({ orcamentoId, itemId }: TelaItemProps) {
 
       {!produtoGraficoId && (
         <Alert color="yellow" variant="light" icon={<IconInfoCircle size={16} />} data-testid="tela-item-sem-produto">
-          Este item não tem produto do cadastro. Use &quot;Trocar produto&quot; para escolher; os campos do formato e do
-          plano dependem dele.
+          {novo
+            ? 'Escolha o Produto; os campos do formato, do plano e dos acabamentos são montados pelo cadastro dele.'
+            : 'Este item não tem produto do cadastro. Use "Trocar produto" para escolher; os campos do formato e do plano dependem dele.'}
         </Alert>
       )}
 
@@ -716,9 +748,11 @@ export default function TelaItem({ orcamentoId, itemId }: TelaItemProps) {
         produtoNome={produtoNome}
         trocaProduto={{
           produtoGraficoId: form.produtoGraficoId,
-          linhaProdutoId: orcamento.linhaProdutoId ?? null,
+          linhaProdutoId: linhaNovo ?? orcamento.linhaProdutoId ?? null,
           catalogo: catalogoItem,
           onChange: trocarProduto,
+          // Item novo: o combobox de Produto já vem aberto (é o primeiro passo do item em branco).
+          abertoInicial: novo,
         }}
         validarVazios={validarVazios}
         disabled={ocupado}

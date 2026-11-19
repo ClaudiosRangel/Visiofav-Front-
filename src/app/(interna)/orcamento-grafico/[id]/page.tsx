@@ -7,6 +7,10 @@
  * itens + painel "Dados do item" e abas Fechamento / Comissões (sempre montadas). Os dados do
  * item e do plano NÃO são editados aqui: duplo clique ou "Abrir item" levam para
  * `/orcamento-grafico/:id/itens/:itemId`.
+ *
+ * "Incluir item": DialogoLinhaProduto → Confirmar abre o item em branco
+ * (`itens/novo?linha=<linhaProdutoId>`); Cancelar só fecha. "Localizar Cálculo" é a ação separada
+ * que abre o SeletorCalculoPadrao sem filtro de linha.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -130,7 +134,6 @@ function OrcamentoDetalheConteudo() {
   const [editarCabecalhoOpen, setEditarCabecalhoOpen] = useState(false)
   const [buscaCalcOpen, setBuscaCalcOpen] = useState(false)
   const [dialogoLinhaAberto, setDialogoLinhaAberto] = useState(false)
-  const [linhaEscolhida, setLinhaEscolhida] = useState<string | null>(null)
   const [itemRelatorio, setItemRelatorio] = useState<ItemResumoDTO | null>(null)
   const [encaixeItem, setEncaixeItem] = useState<ItemResumoDTO | null>(null)
   const [opModalOpen, setOpModalOpen] = useState(false)
@@ -256,7 +259,8 @@ function OrcamentoDetalheConteudo() {
     }
   }, [atualizarTudo])
 
-  // `?novoItem=1` (vindo de "Novo Orçamento") abre a inclusão de item na tela do item.
+  // Compatibilidade: `?novoItem=1` abre o item em branco sem linha (o Produto usa a linha do
+  // orçamento). O fluxo atual de "Incluir item" navega direto para `itens/novo?linha=...`.
   const novoItemTratadoRef = useRef(false)
   useEffect(() => {
     if (novoItemTratadoRef.current || loading || !orcamento) return
@@ -283,10 +287,10 @@ function OrcamentoDetalheConteudo() {
     setDialogoLinhaAberto(true)
   }
 
-  const abrirSeletorComLinha = (linha: string | null) => {
-    setLinhaEscolhida(linha)
+  /** Linha escolhida → tela do item em branco, com o Produto filtrado pela linha. */
+  const abrirItemNovoComLinha = (linha: LinhaProdutoSelecionada) => {
     setDialogoLinhaAberto(false)
-    setBuscaCalcOpen(true)
+    router.push(`/orcamento-grafico/${id}/itens/novo?linha=${encodeURIComponent(linha.id)}`)
   }
 
   const copiarItem = async (item: ItemResumoDTO) => {
@@ -384,7 +388,7 @@ function OrcamentoDetalheConteudo() {
           <>
             <PreviewFichaMaster orcamentoId={id} />
             {podeEditarItens && (
-              <Button variant="light" leftSection={<IconSearch size={16} />} onClick={() => { setLinhaEscolhida(null); setBuscaCalcOpen(true) }}>
+              <Button variant="light" leftSection={<IconSearch size={16} />} onClick={() => setBuscaCalcOpen(true)}>
                 Localizar Cálculo
               </Button>
             )}
@@ -538,15 +542,15 @@ function OrcamentoDetalheConteudo() {
         opened={buscaCalcOpen}
         onClose={() => setBuscaCalcOpen(false)}
         orcamentoId={id}
-        linhaInicial={linhaEscolhida}
+        linhaInicial={null}
         onUsado={atualizarTudo}
       />
 
-      {/* "Incluir item": escolha da linha → seletor de cálculo padrão */}
+      {/* "Incluir item": escolha da linha → tela do item em branco (Cancelar só fecha) */}
       <DialogoLinhaProduto
         opened={dialogoLinhaAberto}
-        onConfirmar={(linha: LinhaProdutoSelecionada) => abrirSeletorComLinha(linha.nome)}
-        onCancelar={() => abrirSeletorComLinha(null)}
+        onConfirmar={abrirItemNovoComLinha}
+        onCancelar={() => setDialogoLinhaAberto(false)}
       />
 
       {/* Upload + visualização do arquivo de encaixe (app externo) */}

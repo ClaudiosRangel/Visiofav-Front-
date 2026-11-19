@@ -11,8 +11,10 @@ import { api } from '@/lib/api'
 // Lista as linhas ATIVAS da empresa (rota sem parâmetros devolve só as ativas),
 // em ordem alfabética (pt-BR), com o nome exatamente como no cadastro. Nenhuma
 // linha vem pré-selecionada. O diálogo NÃO cria item:
-//  - Confirmar -> onConfirmar(linha): quem chama abre o seletor com o filtro Linha.
-//  - Cancelar  -> onCancelar(): quem chama abre o seletor SEM filtro de linha.
+//  - Confirmar -> onConfirmar(linha): quem chama abre a tela do ITEM EM BRANCO
+//    (`/orcamento-grafico/:id/itens/novo?linha=<linha.id>`), com o Produto filtrado pela linha.
+//  - Cancelar  -> onCancelar(): só fecha o diálogo.
+// A busca de cálculo é uma ação separada ("Localizar Cálculo").
 // ============================================================================
 
 export interface LinhaProdutoSelecionada {

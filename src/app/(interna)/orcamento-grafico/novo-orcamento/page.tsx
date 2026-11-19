@@ -8,7 +8,11 @@
  * Sair da tela antes disso descarta o rascunho (estado local, nenhuma chamada de API).
  *
  * Fluxo de "Incluir item": cria o cabeçalho (se ainda não existir) → DialogoLinhaProduto →
- * SeletorCalculoPadrao (Confirmar: com a linha; Cancelar: sem linha) → "Usar" abre o orçamento.
+ * Confirmar abre a tela do item em branco do orçamento criado (`itens/novo?linha=<linhaProdutoId>`);
+ * Cancelar só fecha o diálogo.
+ *
+ * "Localizar Cálculo" é a ação separada: cria o cabeçalho (se preciso) e abre o
+ * SeletorCalculoPadrao sem filtro de linha; "Usar" abre o orçamento.
  */
 
 import { useEffect, useMemo, useState } from 'react'
@@ -17,7 +21,7 @@ import { useRouter } from 'next/navigation'
 import {
   Alert, Anchor, Breadcrumbs, Button, Center, Group, Loader, Paper, SimpleGrid, Stack, Table, Text, TextInput, Title,
 } from '@mantine/core'
-import { IconAlertCircle, IconDeviceFloppy, IconExternalLink, IconPlus } from '@tabler/icons-react'
+import { IconAlertCircle, IconDeviceFloppy, IconExternalLink, IconPlus, IconSearch } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 
 import { api } from '@/lib/api'
@@ -74,7 +78,6 @@ function NovoOrcamentoConteudo() {
 
   const [dialogoLinhaAberto, setDialogoLinhaAberto] = useState(false)
   const [seletorAberto, setSeletorAberto] = useState(false)
-  const [linhaEscolhida, setLinhaEscolhida] = useState<string | null>(null)
 
   const serieInvalida = serie.trim().length > MAX_SERIE
 
@@ -119,10 +122,15 @@ function NovoOrcamentoConteudo() {
     if (novo) setDialogoLinhaAberto(true)
   }
 
-  const abrirSeletor = (linha: string | null) => {
-    setLinhaEscolhida(linha)
+  /** Linha escolhida → tela do item em branco do orçamento criado. */
+  const abrirItemNovo = (linha: LinhaProdutoSelecionada) => {
     setDialogoLinhaAberto(false)
-    setSeletorAberto(true)
+    if (criado) router.push(`/orcamento-grafico/${criado.id}/itens/novo?linha=${encodeURIComponent(linha.id)}`)
+  }
+
+  const localizarCalculo = async () => {
+    const novo = await criarOrcamento()
+    if (novo) setSeletorAberto(true)
   }
 
   const irParaOrcamento = () => {
@@ -159,6 +167,14 @@ function NovoOrcamentoConteudo() {
             disabled={criando}
           >
             Incluir item
+          </Button>
+          <Button
+            variant="light"
+            leftSection={<IconSearch size={16} />}
+            onClick={() => void localizarCalculo()}
+            disabled={criando}
+          >
+            Localizar Cálculo
           </Button>
         </Group>
       </Group>
@@ -213,8 +229,8 @@ function NovoOrcamentoConteudo() {
 
       <DialogoLinhaProduto
         opened={dialogoLinhaAberto}
-        onConfirmar={(linha: LinhaProdutoSelecionada) => abrirSeletor(linha.nome)}
-        onCancelar={() => abrirSeletor(null)}
+        onConfirmar={abrirItemNovo}
+        onCancelar={() => setDialogoLinhaAberto(false)}
       />
 
       {criado && (
@@ -222,7 +238,7 @@ function NovoOrcamentoConteudo() {
           opened={seletorAberto}
           onClose={() => setSeletorAberto(false)}
           orcamentoId={criado.id}
-          linhaInicial={linhaEscolhida}
+          linhaInicial={null}
           onUsado={irParaOrcamento}
         />
       )}

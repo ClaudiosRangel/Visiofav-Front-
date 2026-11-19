@@ -9,7 +9,8 @@
  *
  * Componente CONTROLADO: o estado vive no pai (`value`/`onChange`), não grava nada e não chama o
  * motor. A leitura das listas de apoio vem de hooks. A troca de Produto (R7.8) reaproveita o
- * `SeletorProdutoGrafico` existente e só aparece quando o pai informa `trocaProduto`.
+ * `SeletorProdutoGrafico` existente e só aparece quando o pai informa `trocaProduto`; com
+ * `trocaProduto.abertoInicial` (item novo) o seletor já vem aberto e habilitado.
  */
 
 import { useMemo, useState } from 'react'
@@ -30,6 +31,8 @@ export interface TrocaProduto {
   catalogo?: UseCatalogoItemResultado
   /** Escolha/limpeza do produto; o pai reaplica o layout e os padrões. */
   onChange: (produto: ProdutoEscolhido | null) => void
+  /** Abre o seletor de Produto já na montagem (item novo: escolher o produto é o primeiro passo). */
+  abertoInicial?: boolean
 }
 
 export interface BlocoComumProps {
@@ -52,7 +55,7 @@ function Rotulo({ children }: { children: string }) {
 }
 
 export default function BlocoComum({ value, onChange, produtoNome, trocaProduto, validarVazios, disabled }: BlocoComumProps) {
-  const [trocaAberta, setTrocaAberta] = useState(false)
+  const [trocaAberta, setTrocaAberta] = useState(() => !!trocaProduto?.abertoInicial)
   const tipos = useTiposProduto()
   const siglas = useSiglasAcabado()
 
