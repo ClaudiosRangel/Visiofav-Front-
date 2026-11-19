@@ -369,6 +369,8 @@ export default function GridItens({
             rowStyle={(record) => ({
               cursor: 'pointer',
               backgroundColor: record.id === selecionadoId ? 'var(--mantine-color-blue-light)' : undefined,
+              fontWeight: record.id === selecionadoId ? 600 : undefined,
+              boxShadow: record.id === selecionadoId ? 'inset 3px 0 0 var(--mantine-color-blue-filled)' : undefined,
             })}
           />
         </Stack>

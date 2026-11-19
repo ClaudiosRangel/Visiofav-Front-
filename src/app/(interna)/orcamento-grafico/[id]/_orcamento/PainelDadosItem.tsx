@@ -17,6 +17,8 @@ import type { DadosItemDTO } from '../_hooks/hierarquia.types'
 export interface PainelDadosItemProps {
   /** Item selecionado no grid; `null` ⇒ mensagem de orientação. */
   itemId: string | null
+  /** Tipo de produto do item selecionado; vira o título do painel quando informado. */
+  tituloItem?: string | null
   dados: DadosItemDTO | null
   carregando?: boolean
   erro?: string | null
@@ -28,7 +30,7 @@ const ROTULO_ESTRUTURA: Record<DadosItemDTO['estrutura'], string> = {
   MULTI_PLANO: 'Vários planos',
 }
 
-export default function PainelDadosItem({ itemId, dados, carregando = false, erro, onTentarNovamente }: PainelDadosItemProps) {
+export default function PainelDadosItem({ itemId, tituloItem, dados, carregando = false, erro, onTentarNovamente }: PainelDadosItemProps) {
   // Dados de outro item (resposta atrasada) nunca são exibidos.
   const dadosDoItem = dados && dados.itemId === itemId ? dados : null
 
@@ -82,7 +84,7 @@ export default function PainelDadosItem({ itemId, dados, carregando = false, err
   return (
     <Paper withBorder p="md" radius="md">
       <Group justify="space-between" mb="sm">
-        <Text fw={600}>Dados do item</Text>
+        <Text fw={600}>{itemId && tituloItem ? `Dados do item — ${tituloItem}` : 'Dados do item'}</Text>
         {dadosDoItem && !erro && (
           <Badge variant="light" color="blue">{ROTULO_ESTRUTURA[dadosDoItem.estrutura]}</Badge>
         )}

@@ -167,12 +167,25 @@ describe('sem cores fixas nas telas novas (Req 18.1, 18.2)', () => {
       '[id]/itens/[itemId]/planos/[planoId]/page.tsx',
       '[id]/itens/[itemId]/_item/BlocoComum.tsx',
       '[id]/itens/[itemId]/_plano/pilha-desfazer.ts',
+      'novo-orcamento/page.tsx',
+      'DialogoLinhaProduto.tsx',
+      '_calculo-padrao/FiltrosCalculo.tsx',
+      '_calculo-padrao/ColunasCalculo.tsx',
+      '_calculo-padrao/SeletorCalculoPadrao.tsx',
+      '[id]/_orcamento/ClientePrincipalBusca.tsx',
+      '[id]/_orcamento/ObservacoesEmpresaModal.tsx',
+      '[id]/_orcamento/PainelDadosItem.tsx',
+      '[id]/_orcamento/AbaFechamento.tsx',
+      '[id]/_orcamento/AbaComissoes.tsx',
+      '[id]/_orcamento/fechamentoTotais.ts',
+      '[id]/_orcamento/formatacao.ts',
+      '[id]/page.tsx',
     ])('%s está no escopo', (c) => {
       expect(ehEscopoNovo(c)).toBe(true)
       expect(ehEscopoNovo(c.replace(/\//g, '\\'))).toBe(true)
     })
 
-    it.each(['[id]/page.tsx', '[id]/EditorItem.tsx', 'novo/StepCores.tsx', 'cadastros/produtos/page.tsx'])(
+    it.each(['[id]/EditorItem.tsx', '[id]/ItemWizardModal.tsx', 'novo/StepCores.tsx', 'cadastros/produtos/page.tsx', 'page.tsx'])(
       '%s (legado) fica fora do escopo',
       (c) => {
         expect(ehEscopoNovo(c)).toBe(false)

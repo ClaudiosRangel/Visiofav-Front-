@@ -155,6 +155,28 @@ describe('texto visível sem a marca do sistema legado (Req 16.2, 17.1-17.4)', (
     expect(acharMarcaLegada("const c = 'Cálculo gráfico e impressão'", 'b.ts')).toEqual([])
   })
 
+  it('a varredura cobre os arquivos novos da Fase 1 (tarefa 6.11)', () => {
+    const rel = listar(RAIZ).map((a) => relative(RAIZ, a).replace(/\\/g, '/'))
+    for (const esperado of [
+      'novo-orcamento/page.tsx',
+      'DialogoLinhaProduto.tsx',
+      '_calculo-padrao/FiltrosCalculo.tsx',
+      '_calculo-padrao/ColunasCalculo.tsx',
+      '_calculo-padrao/SeletorCalculoPadrao.tsx',
+      '[id]/_orcamento/ClientePrincipalBusca.tsx',
+      '[id]/_orcamento/ObservacoesEmpresaModal.tsx',
+      '[id]/_orcamento/GridItens.tsx',
+      '[id]/_orcamento/PainelDadosItem.tsx',
+      '[id]/_orcamento/AbaFechamento.tsx',
+      '[id]/_orcamento/AbaComissoes.tsx',
+      '[id]/_orcamento/fechamentoTotais.ts',
+      '[id]/_orcamento/formatacao.ts',
+      '[id]/page.tsx',
+    ]) {
+      expect(rel).toContain(esperado)
+    }
+  })
+
   it('nenhum arquivo do módulo exibe a marca legada', () => {
     const arquivos = listar(RAIZ)
     expect(arquivos.length).toBeGreaterThan(50)

@@ -488,7 +488,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
       {
         label: 'Orçamento', icon: IconCalculator, items: [
           { icon: IconListDetails, label: 'Orçamentos', href: '/orcamento-grafico' },
-          { icon: IconBook2, label: 'Biblioteca de Cálculos', href: '/orcamento-grafico/biblioteca-calculos' },
+          { icon: IconBook2, label: 'Cálculo Padrão', href: '/orcamento-grafico/biblioteca-calculos' },
         ],
       },
       { icon: IconLock, label: 'Permissões', href: '/orcamento-grafico/permissoes' },

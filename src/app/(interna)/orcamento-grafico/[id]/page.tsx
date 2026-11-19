@@ -18,8 +18,10 @@ import { IconAlertCircle, IconAlertTriangle, IconSearch, IconX } from '@tabler/i
 import { notifications } from '@mantine/notifications'
 
 import { api } from '@/lib/api'
+import { useEmpresa } from '@/providers/EmpresaProvider'
 import { StatusBadge } from '../page'
-import BuscaCalculoModal from './BuscaCalculoModal'
+import SeletorCalculoPadrao from '../_calculo-padrao/SeletorCalculoPadrao'
+import DialogoLinhaProduto, { type LinhaProdutoSelecionada } from '../DialogoLinhaProduto'
 import RelatorioItem from './RelatorioItem'
 import EncaixeArquivoModal from './EncaixeArquivoModal'
 import EditarCabecalhoModal from './EditarCabecalhoModal'
@@ -99,7 +101,18 @@ function formatDateTime(dateStr: string | null | undefined): string {
 // Intervalo mínimo entre atualizações disparadas por foco/visibilidade da janela.
 const INTERVALO_MIN_ATUALIZACAO_MS = 1500
 
+/**
+ * Troca de empresa (Req 16.4–16.8): o conteúdo é remontado quando a empresa ativa muda
+ * (`key`), o que zera todos os estados locais e refaz as leituras com o token novo.
+ * Token e empresa vêm só do `api`/`useEmpresa` (sessão da aba, via `authStorage`).
+ */
 export default function OrcamentoDetalhePage() {
+  const { empresa, loading } = useEmpresa()
+  if (loading) return <Center py="xl"><Loader size="lg" /></Center>
+  return <OrcamentoDetalheConteudo key={empresa?.id ?? 'sem-empresa'} />
+}
+
+function OrcamentoDetalheConteudo() {
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -107,6 +120,8 @@ export default function OrcamentoDetalhePage() {
 
   const [orcamento, setOrcamento] = useState<OrcamentoDetalhe | null>(null)
   const [loading, setLoading] = useState(true)
+  // Falha de carga do orçamento (não 404): limpa a tela e oferece "Tentar novamente".
+  const [erroCarga, setErroCarga] = useState<string | null>(null)
 
   // Seleção no grid de itens (alimenta o painel "Dados do item").
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null)
@@ -114,6 +129,8 @@ export default function OrcamentoDetalhePage() {
   // Modais por item: relatório, encaixe e emissão de OP.
   const [editarCabecalhoOpen, setEditarCabecalhoOpen] = useState(false)
   const [buscaCalcOpen, setBuscaCalcOpen] = useState(false)
+  const [dialogoLinhaAberto, setDialogoLinhaAberto] = useState(false)
+  const [linhaEscolhida, setLinhaEscolhida] = useState<string | null>(null)
   const [itemRelatorio, setItemRelatorio] = useState<ItemResumoDTO | null>(null)
   const [encaixeItem, setEncaixeItem] = useState<ItemResumoDTO | null>(null)
   const [opModalOpen, setOpModalOpen] = useState(false)
@@ -127,6 +144,23 @@ export default function OrcamentoDetalhePage() {
 
   useEffect(() => { document.title = 'Detalhe do Orçamento' }, [])
 
+  // Auto-seleção: ao passar de vazia para com itens, seleciona o item de menor número.
+  const tinhaItensRef = useRef<boolean | null>(null)
+  // Também cobre a exclusão: sem seleção válida e com itens restantes, seleciona o menor número.
+  useEffect(() => {
+    const lista = hierarquia.dados
+    if (!lista) return
+    const temItens = lista.length > 0
+    const selecaoValida = !!selecionadoId && lista.some((i) => i.id === selecionadoId)
+    if (temItens && !selecaoValida) {
+      const menor = lista.reduce((a, b) => (b.sequencia < a.sequencia ? b : a))
+      setSelecionadoId(menor.id)
+    }
+    tinhaItensRef.current = temItens
+  }, [hierarquia.dados, selecionadoId])
+
+  const itemSelecionado = hierarquia.dados?.find((i) => i.id === selecionadoId) ?? null
+
   // Guarda de 404: volta para a lista com a notificação, uma única vez.
   const redirecionouRef = useRef(false)
   const voltarNaoEncontrado = useCallback(() => {
@@ -138,20 +172,27 @@ export default function OrcamentoDetalhePage() {
 
   // `silencioso` recarrega sem trocar a tela por "carregando" (voltar da tela do item, foco da janela).
   const carregar = useCallback(async (silencioso = false) => {
-    if (!silencioso) setLoading(true)
+    if (!silencioso) {
+      setLoading(true)
+      setErroCarga(null)
+    }
     try {
       const res = await api.get(`/orcamento-grafico/${id}`)
       setOrcamento(res.data)
+      setErroCarga(null)
     } catch (err: any) {
       if (err?.response?.status === 404) {
         voltarNaoEncontrado()
         return
       }
-      notifications.show({
-        title: 'Erro ao carregar',
-        message: err?.response?.data?.message || 'Falha ao buscar orçamento',
-        color: 'red',
-      })
+      const mensagem = err?.response?.data?.message || 'Falha ao buscar orçamento'
+      if (!silencioso) {
+        // Carga inicial/recarga completa: não mantém dados anteriores na tela.
+        setOrcamento(null)
+        setErroCarga(mensagem)
+      } else {
+        notifications.show({ title: 'Erro ao carregar', message: mensagem, color: 'red' })
+      }
     } finally {
       if (!silencioso) setLoading(false)
     }
@@ -239,7 +280,13 @@ export default function OrcamentoDetalhePage() {
       avisarSoRascunho('Incluir item')
       return
     }
-    router.push(`/orcamento-grafico/${id}/itens/novo`)
+    setDialogoLinhaAberto(true)
+  }
+
+  const abrirSeletorComLinha = (linha: string | null) => {
+    setLinhaEscolhida(linha)
+    setDialogoLinhaAberto(false)
+    setBuscaCalcOpen(true)
   }
 
   const copiarItem = async (item: ItemResumoDTO) => {
@@ -269,6 +316,8 @@ export default function OrcamentoDetalhePage() {
     try {
       await api.delete(`/orcamento-grafico/${id}/itens/${item.id}`)
       notifications.show({ title: 'Item removido', message: `Item #${item.sequencia} removido.`, color: 'orange' })
+      // Limpa a seleção do item removido; o efeito de auto-seleção escolhe o menor restante.
+      if (selecionadoId === item.id) setSelecionadoId(null)
     } catch (err: any) {
       notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao remover item', color: 'red' })
       throw err
@@ -298,6 +347,19 @@ export default function OrcamentoDetalhePage() {
     return <Center py="xl"><Loader size="lg" /></Center>
   }
 
+  if (erroCarga) {
+    return (
+      <Center py="xl">
+        <Alert icon={<IconAlertCircle size={16} />} color="red" title="Erro ao carregar o orçamento">
+          <Stack gap="xs" align="flex-start">
+            <Text size="sm">{erroCarga}</Text>
+            <Button variant="light" onClick={() => { void carregar() }}>Tentar novamente</Button>
+          </Stack>
+        </Alert>
+      </Center>
+    )
+  }
+
   if (!orcamento) {
     return (
       <Center py="xl">
@@ -322,7 +384,7 @@ export default function OrcamentoDetalhePage() {
           <>
             <PreviewFichaMaster orcamentoId={id} />
             {podeEditarItens && (
-              <Button variant="light" leftSection={<IconSearch size={16} />} onClick={() => setBuscaCalcOpen(true)}>
+              <Button variant="light" leftSection={<IconSearch size={16} />} onClick={() => { setLinhaEscolhida(null); setBuscaCalcOpen(true) }}>
                 Localizar Cálculo
               </Button>
             )}
@@ -404,6 +466,7 @@ export default function OrcamentoDetalhePage() {
         <Grid.Col span={{ base: 12, lg: 4 }}>
           <PainelDadosItem
             itemId={selecionadoId}
+            tituloItem={itemSelecionado?.tipoProduto ?? null}
             dados={dadosItem.dados}
             carregando={dadosItem.carregando}
             erro={dadosItem.erro}
@@ -471,11 +534,19 @@ export default function OrcamentoDetalhePage() {
       />
 
       {/* Busca de cálculo da biblioteca → cria item a partir do cálculo */}
-      <BuscaCalculoModal
+      <SeletorCalculoPadrao
         opened={buscaCalcOpen}
         onClose={() => setBuscaCalcOpen(false)}
         orcamentoId={id}
+        linhaInicial={linhaEscolhida}
         onUsado={atualizarTudo}
+      />
+
+      {/* "Incluir item": escolha da linha → seletor de cálculo padrão */}
+      <DialogoLinhaProduto
+        opened={dialogoLinhaAberto}
+        onConfirmar={(linha: LinhaProdutoSelecionada) => abrirSeletorComLinha(linha.nome)}
+        onCancelar={() => abrirSeletorComLinha(null)}
       />
 
       {/* Upload + visualização do arquivo de encaixe (app externo) */}

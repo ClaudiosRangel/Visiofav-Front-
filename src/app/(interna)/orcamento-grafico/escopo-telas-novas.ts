@@ -13,6 +13,12 @@ export const PADROES_ESCOPO_NOVO: RegExp[] = [
   /(^|\/)\[id\]\/(_orcamento|_layout|_validacao|_hooks)\//,
   /(^|\/)\[id\]\/itens\//,
   /(^|\/)(_plano|_item)\//,
+  // Fase 1 (paridade com o fluxo legado, tarefa 6.11)
+  /^novo-orcamento\//,
+  /^DialogoLinhaProduto\.tsx$/,
+  /^_calculo-padrao\//,
+  /^biblioteca-calculos\//,
+  /^\[id\]\/page\.tsx$/,
 ]
 
 export function ehEscopoNovo(caminhoRelativo: string): boolean {

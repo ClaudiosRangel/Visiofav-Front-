@@ -14,8 +14,7 @@ import {
 } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
-import BuscaCalculoModal from './[id]/BuscaCalculoModal'
-import NovoOrcamentoModal from './NovoOrcamentoModal'
+import SeletorCalculoPadrao from './_calculo-padrao/SeletorCalculoPadrao'
 
 // ============================================================================
 // Tipos
@@ -131,8 +130,6 @@ export default function OrcamentosGraficoPage() {
 
   // Puxar Cálculo da Biblioteca (modo criação — sem orcamentoId)
   const [buscaCalcOpen, setBuscaCalcOpen] = useState(false)
-  // Novo Orçamento — modal enxuto (Cliente/Vendedor/Linha) → Editor página única.
-  const [novoOrcOpen, setNovoOrcOpen] = useState(false)
 
   const LIMIT = 50
 
@@ -294,7 +291,7 @@ export default function OrcamentosGraficoPage() {
           </Button>
           <Button
             leftSection={<IconPlus size={16} />}
-            onClick={() => setNovoOrcOpen(true)}
+            onClick={() => router.push('/orcamento-grafico/novo-orcamento')}
           >
             Novo Orçamento
           </Button>
@@ -614,18 +611,8 @@ export default function OrcamentosGraficoPage() {
         </Stack>
       </Modal>
 
-      {/* Novo Orçamento — cabeçalho enxuto → navega ao detalhe abrindo o editor */}
-      <NovoOrcamentoModal
-        opened={novoOrcOpen}
-        onClose={() => setNovoOrcOpen(false)}
-        onCriado={(id) => {
-          setNovoOrcOpen(false)
-          router.push('/orcamento-grafico/' + id + '?novoItem=1')
-        }}
-      />
-
       {/* Puxar Cálculo da Biblioteca — modo criação (sem orcamentoId) */}
-      <BuscaCalculoModal
+      <SeletorCalculoPadrao
         opened={buscaCalcOpen}
         onClose={() => setBuscaCalcOpen(false)}
         onCriado={(id) => {

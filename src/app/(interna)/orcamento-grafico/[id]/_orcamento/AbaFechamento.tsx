@@ -17,8 +17,12 @@ import { IconAlertCircle, IconAlertTriangle, IconChevronDown, IconChevronRight }
 
 import { DataTablePadrao, type DataTableColumn } from '@/components/ui/DataTablePadrao'
 
-import type { FechamentoLinhaDTO, FechamentoTotalizadorDTO } from '../_hooks/hierarquia.types'
+import type { FechamentoTotalizadorDTO } from '../_hooks/hierarquia.types'
+import { totalizarPorTiragem, type LinhaFechamentoExibicao } from './fechamentoTotais'
 import { formatarInteiro, formatarMoeda, formatarPercentual2, pluralizar } from './formatadores'
+import { formatarValorUnitario } from './formatacao'
+
+type FechamentoLinhaDTO = LinhaFechamentoExibicao
 
 export interface AbaFechamentoProps {
   dados: FechamentoTotalizadorDTO | null
@@ -39,7 +43,7 @@ const colunas: DataTableColumn<FechamentoLinhaDTO>[] = [
     textAlign: 'right',
     render: (l) => formatarPercentual2(l.contribuicaoMarginalPerc),
   },
-  { accessor: 'valorUnitario', title: 'Valor Unitário', textAlign: 'right', render: (l) => formatarMoeda(l.valorUnitario) },
+  { accessor: 'valorUnitario', title: 'Valor Unitário', textAlign: 'right', render: (l) => formatarValorUnitario(l.valorUnitario) },
   {
     accessor: 'valorTotal',
     title: 'Valor Total',
@@ -76,6 +80,7 @@ export default function AbaFechamento({ dados, carregando = false, erro, onTenta
     )
   } else if (dados) {
     const qtdSem = dados.quantidadeSemCalculo
+    const linhasExibicao = totalizarPorTiragem(dados.linhas)
     corpo = (
       <Stack gap="sm">
         {erro && (
@@ -102,11 +107,11 @@ export default function AbaFechamento({ dados, carregando = false, erro, onTenta
           </Alert>
         )}
 
-        {dados.linhas.length === 0 ? (
+        {linhasExibicao.length === 0 ? (
           <Text size="sm" c="dimmed" py="md" ta="center">Não há valores a totalizar neste orçamento.</Text>
         ) : (
           <DataTablePadrao<FechamentoLinhaDTO>
-            dados={dados.linhas}
+            dados={linhasExibicao}
             colunas={colunas}
             comBusca={false}
             idAccessor="tiragem"
