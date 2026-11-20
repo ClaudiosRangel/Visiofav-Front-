@@ -152,9 +152,9 @@ export default function BlocoComum({ value, onChange, produtoNome, trocaProduto,
             disabled={disabled}
           />
           <TextInput
-            label="Tiragem"
-            placeholder="Ex.: 4.000"
-            inputMode="numeric"
+            label="Tiragens"
+            placeholder="Ex.: 2.000, 4.000, 6.000"
+            description="Uma ou várias, separadas por vírgula (até 20). Valem para todos os planos."
             value={value.tiragem}
             onChange={(e) => onChange({ tiragem: e.currentTarget.value })}
             error={erros.tiragem}

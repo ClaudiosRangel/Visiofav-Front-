@@ -128,6 +128,11 @@ export interface WizardFormData {
   materiaisAcabamento?: MaterialAcabamentoItem[]
   // Step 7 — Revisão
   quantidade: number
+  /**
+   * Várias tiragens do item (valem para todos os planos). `undefined` = não altera as já gravadas;
+   * `[]` = remove (volta a uma tiragem só); com valores = a lista nova. `quantidade` acompanha a primeira.
+   */
+  tiragens?: number[] | null
   tabelaMargemId: string | null
   // Paridade Calcgraf: máquina de impressão escolhida + imposição real (peças/folha)
   maquinaId?: string | null

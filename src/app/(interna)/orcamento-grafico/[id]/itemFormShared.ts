@@ -173,6 +173,8 @@ export interface ItemParaEditar {
   formatoCorteAlturaMm?: number | string | null
   ajusteCorteMicroMm?: number | string | null
   quantidade: number
+  /** Linhas por tiragem do item (GET /:id); ausente/vazio = uma tiragem só. */
+  tiragens?: Array<{ quantidade: number }> | null
   /**
    * Resultado do cálculo persistido (shape tolerante). Usado por `itemParaForm`
    * (preço do papel) e pelas seções de leitura do Editor (Estrutura de Custo,
@@ -383,6 +385,8 @@ export function montarPayloadItem(formData: WizardFormData): Record<string, unkn
     // Fase 2 — Produto Gráfico: só envia quando definido (undefined não altera; null limpa).
     ...(formData.produtoGraficoId !== undefined ? { produtoGraficoId: formData.produtoGraficoId } : {}),
     quantidade: formData.quantidade,
+    // Várias tiragens: só envia quando a tela alterou a lista (undefined não altera; [] remove).
+    ...(formData.tiragens != null ? { tiragens: formData.tiragens } : {}),
     tabelaMargemId: formData.tabelaMargemId || undefined,
     maquinaId: formData.maquinaId || undefined,
     aproveitamentoManual: formData.aproveitamentoManual || undefined,
@@ -468,6 +472,8 @@ export function montarPayloadCalculo(formData: WizardFormData): Record<string, u
     acabamentos: acabamentosAtivos,
     acabamentosRicos: formData.acabamentosRicos?.length ? formData.acabamentosRicos : undefined,
     quantidade: formData.quantidade,
+    // Várias tiragens: só envia quando a tela alterou a lista (undefined não altera; [] remove).
+    ...(formData.tiragens != null ? { tiragens: formData.tiragens } : {}),
     tabelaMargemId: formData.tabelaMargemId || undefined,
     maquinaId: formData.maquinaId || undefined,
     aproveitamentoManual: formData.aproveitamentoManual || undefined,

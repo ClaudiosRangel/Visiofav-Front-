@@ -95,6 +95,7 @@ export function itemParaEditar(
     itensFornecidos: item.itensFornecidos ?? null,
     camposLivres: item.camposLivres ?? null,
     quantidade: item.quantidade,
+    tiragens: Array.isArray(item.tiragens) ? item.tiragens.map((t: { quantidade: number }) => ({ quantidade: Number(t.quantidade) })) : null,
     resultadoCalculo: item.resultadoCalculo ?? null,
     calculoGraficoOrigemId: item.calculoGraficoOrigemId ?? null,
     // Vínculo com o catálogo e seleções de material.

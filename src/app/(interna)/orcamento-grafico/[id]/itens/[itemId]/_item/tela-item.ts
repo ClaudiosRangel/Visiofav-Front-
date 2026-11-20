@@ -21,9 +21,8 @@ import type { WizardFormData } from '../../../../novo/page'
 import { INITIAL_ITEM, itemParaForm, montarPayloadCalculo, montarPayloadItem } from '../../../itemFormShared'
 import type { LayoutItem } from '../../../_layout/resolver-layout-item'
 import { camposParaGravar } from '../../../_layout/reaplicar-layout'
-import { TIRAGEM, validarFaixa } from '../../../_validacao/validar-faixa'
 import type { ItemParaEditarHierarquia } from '../itemParaEditar'
-import { comumDoItem, comumParaPayload, validarComum, type ValorComum } from './comum-item'
+import { comumDoItem, comumParaPayload, lerTiragens, validarComum, type ValorComum } from './comum-item'
 import { formatoDoItem, formatoParaPayload, validarFormato, type PayloadFormato, type ValorFormato } from './formato-item'
 import {
   coresDoValor,
@@ -156,8 +155,13 @@ export function formEfetivo(estado: EstadoTelaItem, inicial: EstadoTelaItem, lay
   if (c.siglaAcabado !== c0.siglaAcabado) f.siglaAcabado = c.siglaAcabado
   if (c.tributacao !== c0.tributacao) f.tributacao = c.tributacao
   if (estado.comum.tiragem !== inicial.comum.tiragem) {
-    const r = validarFaixa(estado.comum.tiragem, TIRAGEM)
-    if (r.ok) f.quantidade = r.valor
+    const r = lerTiragens(estado.comum.tiragem)
+    if (r.ok) {
+      // `quantidade` acompanha a primeira (referência). Uma tiragem só envia `[]` para remover
+      // linhas antigas de um item que tinha várias; a lista só vai quando o campo foi alterado.
+      f.quantidade = r.valores[0]
+      f.tiragens = r.valores.length > 1 ? r.valores : []
+    }
   }
   if (estado.comum.modelos !== inicial.comum.modelos) f.qtdModelos = c.qtdModelos
 
@@ -253,7 +257,7 @@ const ROTULO_COMUM: Record<string, string> = {
   descricao: 'Descrição',
   siglaAcabado: 'Sigla Acabado',
   tributacao: 'Tributação',
-  tiragem: 'Tiragem',
+  tiragem: 'Tiragens',
   modelos: 'Modelos',
 }
 

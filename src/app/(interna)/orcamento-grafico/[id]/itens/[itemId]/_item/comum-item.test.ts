@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { comumDoItem, comumParaPayload, comumVazio, modelosEfetivo, validarComum } from './comum-item'
+import {
+  comumDoItem,
+  comumParaPayload,
+  comumVazio,
+  lerTiragens,
+  modelosEfetivo,
+  tiragensDoComum,
+  validarComum,
+} from './comum-item'
 
 describe('comumDoItem', () => {
   it('item sem modelos assume o padrão 1', () => {
@@ -30,7 +38,8 @@ describe('validarComum', () => {
 
   it('tiragem: inteiro de 1 a 999.999.999', () => {
     for (const bom of ['1', '4000', '999999999']) expect(validarComum({ ...comumVazio(), tiragem: bom }).valido).toBe(true)
-    for (const ruim of ['0', '-5', '1000000000', '10,5', 'abc']) {
+    // "10,5" deixou de ser inválido: a vírgula separa tiragens (10 e 5), como no Calcgraf.
+    for (const ruim of ['0', '-5', '1000000000', '1.5', 'abc']) {
       expect(validarComum({ ...comumVazio(), tiragem: ruim }).erros.tiragem).toBeTruthy()
     }
   })
@@ -48,6 +57,54 @@ describe('validarComum', () => {
     expect(validarComum(comumVazio()).valido).toBe(true)
     const r = validarComum(comumVazio(), { validarVazios: true })
     expect(Object.keys(r.erros).sort()).toEqual(['tipoEmbalagemId', 'tiragem'])
+  })
+})
+
+describe('lerTiragens', () => {
+  it('aceita uma ou várias, com ponto de milhar, espaço e ponto e vírgula; devolve em ordem crescente', () => {
+    expect(lerTiragens('4000')).toEqual({ ok: true, valores: [4000] })
+    expect(lerTiragens('2.000,4.000,6.000,8.000,10.000,15.000')).toEqual({ ok: true, valores: [2000, 4000, 6000, 8000, 10000, 15000] })
+    expect(lerTiragens('6.000 ; 2.000, 4.000')).toEqual({ ok: true, valores: [2000, 4000, 6000] })
+    expect(lerTiragens('1000,,2000,')).toEqual({ ok: true, valores: [1000, 2000] })
+  })
+  it('recusa o campo inteiro se algum valor for inválido, citando o valor', () => {
+    for (const ruim of ['abc', '1000,abc', '0', '1000,0', '-5', '10,5x', '1000000000', '1.5', '1.5,2000']) {
+      const r = lerTiragens(ruim)
+      expect(r.ok, ruim).toBe(false)
+    }
+    const r = lerTiragens('1000,abc')
+    expect(r.ok === false && r.erro).toContain('abc')
+  })
+  it('recusa repetida e mais de 20', () => {
+    const rep = lerTiragens('1000,2000,1000')
+    expect(rep.ok === false && rep.erro).toContain('repetida')
+    expect(lerTiragens(Array.from({ length: 21 }, (_, i) => (i + 1) * 100).join(',')).ok).toBe(false)
+    expect(lerTiragens(Array.from({ length: 20 }, (_, i) => (i + 1) * 100).join(',')).ok).toBe(true)
+  })
+  it('vazio pede a tiragem', () => {
+    expect(lerTiragens('  ,  ').ok).toBe(false)
+  })
+})
+
+describe('tiragens no bloco comum', () => {
+  it('item com várias tiragens mostra a lista; com uma só, a quantidade', () => {
+    expect(comumDoItem({ quantidade: 2000, tiragens: [{ quantidade: 4000 }, { quantidade: 2000 }] }).tiragem).toBe('2000,4000')
+    expect(comumDoItem({ quantidade: 2000, tiragens: [{ quantidade: 2000 }] }).tiragem).toBe('2000')
+    expect(comumDoItem({ quantidade: 6000, tiragens: [] }).tiragem).toBe('6000')
+    expect(comumDoItem({ quantidade: 6000 }).tiragem).toBe('6000')
+  })
+  it('o payload usa a primeira tiragem como quantidade; tiragensDoComum devolve a lista válida', () => {
+    const v = { ...comumVazio(), tiragem: '6000, 2000' }
+    expect(comumParaPayload(v).quantidade).toBe(2000)
+    expect(tiragensDoComum(v)).toEqual([2000, 6000])
+    expect(tiragensDoComum({ tiragem: '' })).toBeNull()
+    expect(tiragensDoComum({ tiragem: 'x' })).toBeNull()
+  })
+  it('validarComum aponta o valor inválido na lista', () => {
+    const r = validarComum({ ...comumVazio(), tiragem: '1000,abc' })
+    expect(r.valido).toBe(false)
+    expect(r.erros.tiragem).toContain('abc')
+    expect(validarComum({ ...comumVazio(), tiragem: '1000,2000' }).valido).toBe(true)
   })
 })
 

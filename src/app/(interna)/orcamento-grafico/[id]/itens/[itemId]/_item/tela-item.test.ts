@@ -89,6 +89,42 @@ describe('tela-item', () => {
     expect(validarTelaItem(e0, lay, { exigirFormato: false })).toEqual([])
     expect(validarTelaItem(e0, lay, { exigirFormato: true }).length).toBeGreaterThan(0)
     const invalido = { ...e0, comum: { ...e0.comum, tiragem: 'abc' } }
-    expect(validarTelaItem(invalido, lay, { exigirFormato: false })[0]).toMatchObject({ campo: 'Tiragem' })
+    expect(validarTelaItem(invalido, lay, { exigirFormato: false })[0]).toMatchObject({ campo: 'Tiragens' })
+  })
+  it('várias tiragens: o campo mostra a lista; sem alterar o campo, o payload não leva `tiragens`', () => {
+    const bruto = { ...BRUTO, quantidade: 2000, tiragens: [{ quantidade: 6000 }, { quantidade: 2000 }, { quantidade: 4000 }] }
+    const e0 = estadoInicialTelaItem(itemParaEditar(bruto, null), { orcamentoId: 'orc-1' })
+    expect(e0.comum.tiragem).toBe('2000,4000,6000')
+    const lay = layout('TRES_DIMENSOES', true)
+    const payload = montarPayloadTelaItem(e0, e0, lay)
+    expect(payload).not.toHaveProperty('tiragens')
+    expect(payload.quantidade).toBe(2000)
+  })
+  it('digitar várias tiragens envia a lista e `quantidade` = a primeira', () => {
+    const e0 = inicial()
+    const editado = { ...e0, comum: { ...e0.comum, tiragem: '6.000, 2.000,4.000' } }
+    const f = formEfetivo(editado, e0, layout('TRES_DIMENSOES', true))
+    expect(f.tiragens).toEqual([2000, 4000, 6000])
+    expect(f.quantidade).toBe(2000)
+    const payload = montarPayloadTelaItem(editado, e0, layout('TRES_DIMENSOES', true))
+    expect(payload.tiragens).toEqual([2000, 4000, 6000])
+    expect(payload.quantidade).toBe(2000)
+  })
+  it('voltar a uma tiragem só envia `tiragens: []` para remover as linhas antigas', () => {
+    const bruto = { ...BRUTO, quantidade: 2000, tiragens: [{ quantidade: 2000 }, { quantidade: 4000 }] }
+    const e0 = estadoInicialTelaItem(itemParaEditar(bruto, null), { orcamentoId: 'orc-1' })
+    const editado = { ...e0, comum: { ...e0.comum, tiragem: '3000' } }
+    const f = formEfetivo(editado, e0, layout('TRES_DIMENSOES', true))
+    expect(f.tiragens).toEqual([])
+    expect(f.quantidade).toBe(3000)
+  })
+  it('lista inválida bloqueia a validação e não é enviada', () => {
+    const e0 = inicial()
+    const lay = layout('TRES_DIMENSOES', true)
+    for (const ruim of ['1000,abc', '1000,1000', '0,1000']) {
+      const editado = { ...e0, comum: { ...e0.comum, tiragem: ruim } }
+      expect(validarTelaItem(editado, lay, { exigirFormato: false })[0], ruim).toMatchObject({ campo: 'Tiragens' })
+      expect(formEfetivo(editado, e0, lay).tiragens).toBeUndefined()
+    }
   })
 })

@@ -236,10 +236,10 @@ describe('TelaItem — salvar', () => {
     await esperarTela()
     await waitFor(() => expect(screen.getByTestId('tela-item')).toHaveAttribute('data-estrutura', 'PLANO_UNICO'))
 
-    fireEvent.change(screen.getByLabelText('Tiragem'), { target: { value: '0' } })
+    fireEvent.change(screen.getByLabelText('Tiragens'), { target: { value: '0' } })
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }))
 
-    expect(await screen.findByTestId('tela-item-erro')).toHaveTextContent('Tiragem:')
+    expect(await screen.findByTestId('tela-item-erro')).toHaveTextContent('Tiragens:')
     expect(put).not.toHaveBeenCalled()
   })
 })
