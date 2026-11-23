@@ -32,6 +32,8 @@ export interface AbaFechamentoProps {
   onTentarNovamente?: () => void
   /** Conteúdo da seção recolhida "Detalhe do fechamento". */
   detalhe?: ReactNode
+  /** Edição das tiragens de um item (valor/margem por tiragem), abaixo do totalizador. */
+  edicao?: ReactNode
 }
 
 const colunas: DataTableColumn<FechamentoLinhaDTO>[] = [
@@ -52,7 +54,7 @@ const colunas: DataTableColumn<FechamentoLinhaDTO>[] = [
   },
 ]
 
-export default function AbaFechamento({ dados, carregando = false, erro, onTentarNovamente, detalhe }: AbaFechamentoProps) {
+export default function AbaFechamento({ dados, carregando = false, erro, onTentarNovamente, detalhe, edicao }: AbaFechamentoProps) {
   const [detalheAberto, setDetalheAberto] = useState(false)
 
   const botaoNovamente = onTentarNovamente && (
@@ -130,6 +132,7 @@ export default function AbaFechamento({ dados, carregando = false, erro, onTenta
   return (
     <Stack gap="md">
       {corpo}
+      {edicao}
       {detalhe && (
         <Stack gap="xs">
           <Button

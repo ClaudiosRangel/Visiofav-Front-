@@ -42,6 +42,7 @@ import CabecalhoOrcamento from './_orcamento/CabecalhoOrcamento'
 import GridItens from './_orcamento/GridItens'
 import PainelDadosItem from './_orcamento/PainelDadosItem'
 import AbaFechamento from './_orcamento/AbaFechamento'
+import TiragensItemEditaveis from './_orcamento/TiragensItemEditaveis'
 import AbaComissoes from './_orcamento/AbaComissoes'
 import PreviewFichaMaster from './_orcamento/PreviewFichaMaster'
 import AcoesOrcamento, { ExigeAmostraOrcamento } from './_orcamento/AcoesOrcamento'
@@ -494,6 +495,17 @@ function OrcamentoDetalheConteudo() {
               carregando={fechamento.carregando}
               erro={fechamento.erro}
               onTentarNovamente={fechamento.recarregar}
+              edicao={
+                (hierarquia.dados?.length ?? 0) > 0 ? (
+                  <TiragensItemEditaveis
+                    orcamentoId={id}
+                    itens={hierarquia.dados ?? []}
+                    itemInicialId={selecionadoId}
+                    podeEditar={['RASCUNHO', 'ENVIADO'].includes(orcamento.status)}
+                    onAlterado={() => { void atualizarTudo() }}
+                  />
+                ) : null
+              }
               detalhe={
                 <FechamentoOrcamento
                   orcamentoId={id}

@@ -346,11 +346,10 @@ export function validarTelaPlano(estado: EstadoTelaPlano, blocos: BlocosTelaPlan
 
   if (blocos.capaExterna && !estado.capaExterna.suporteId) erros['capaExterna.suporteId'] = OBRIGATORIO
   if (blocos.microondulado) {
-    if (!estado.microondulado.suporteId) erros['microondulado.suporteId'] = OBRIGATORIO
     checarFaixa(erros, 'microondulado.ajusteCorteMicro', estado.microondulado.ajusteCorteMicro, AJUSTE_MICRO_PLANO)
   }
-  if (blocos.capaInterna) {
-    if (!estado.capaInterna.suporteId) erros['capaInterna.suporteId'] = OBRIGATORIO
+  // Microondulado e capa interna sao opcionais: so valida a capa interna quando ha suporte informado.
+  if (blocos.capaInterna && estado.capaInterna.suporteId) {
     checarCores(erros, 'capaInterna.cores', estado.capaInterna.cores)
     if (!estado.capaInterna.processoImpressao.trim()) erros['capaInterna.processoImpressao'] = OBRIGATORIO
     checarFaixa(erros, 'capaInterna.coberturaTinta', estado.capaInterna.coberturaTinta, COBERTURA_PERC)

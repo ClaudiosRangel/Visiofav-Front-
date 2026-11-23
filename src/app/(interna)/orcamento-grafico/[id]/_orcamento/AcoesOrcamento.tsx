@@ -26,6 +26,14 @@ import { getAuthToken } from '@/lib/authStorage'
 
 import AmostrasModal from '../AmostrasModal'
 
+interface PendenciaTiragem {
+  itemId: string
+  sequencia: number
+  descricao: string | null
+  tiragens: number[]
+  motivo: 'FALTA_ESCOLHA' | 'TIRAGEM_INEXISTENTE'
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
 
 export interface OrcamentoParaAcoes {
@@ -52,6 +60,10 @@ export default function AcoesOrcamento({ orcamento, onRecarregar }: AcoesOrcamen
   // Modal de recusa
   const [recusaModalOpen, setRecusaModalOpen] = useState(false)
   const [motivoRecusa, setMotivoRecusa] = useState('')
+
+  // Escolha da tiragem aprovada (itens com mais de uma tiragem)
+  const [escolhaTiragem, setEscolhaTiragem] = useState<PendenciaTiragem[] | null>(null)
+  const [tiragensEscolhidas, setTiragensEscolhidas] = useState<Record<string, number>>({})
 
   // Ver proposta de origem (RFQ) — spec comercial-pedido-proposta
   const [propostaOpen, setPropostaOpen] = useState(false)
@@ -239,14 +251,22 @@ export default function AcoesOrcamento({ orcamento, onRecarregar }: AcoesOrcamen
     }
   }
 
-  const handleAprovar = async () => {
+  // Item com mais de uma tiragem: o back pede a tiragem aprovada (code TIRAGEM_OBRIGATORIA).
+  const handleAprovar = async (tiragens?: Record<string, number>) => {
     setActionLoading(true)
     try {
-      await api.post(`/orcamento-grafico/${id}/aprovar`)
+      await api.post(`/orcamento-grafico/${id}/aprovar`, tiragens ? { tiragens } : {})
       notifications.show({ title: 'Aprovado', message: 'Orçamento aprovado com sucesso!', color: 'green' })
+      setEscolhaTiragem(null)
       await carregar()
     } catch (err: any) {
-      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao aprovar', color: 'red' })
+      const data = err?.response?.data
+      if (data?.code === 'TIRAGEM_OBRIGATORIA' && Array.isArray(data.itens)) {
+        setEscolhaTiragem(data.itens as PendenciaTiragem[])
+        setTiragensEscolhidas((atual) => ({ ...(tiragens ?? {}), ...atual }))
+      } else {
+        notifications.show({ title: 'Erro', message: data?.message || 'Falha ao aprovar', color: 'red' })
+      }
     } finally {
       setActionLoading(false)
     }
@@ -363,7 +383,7 @@ export default function AcoesOrcamento({ orcamento, onRecarregar }: AcoesOrcamen
       )}
       {orcamento.status === 'ENVIADO' && (
         <>
-          <Button color="green" leftSection={<IconCheck size={16} />} onClick={handleAprovar} loading={actionLoading}>
+          <Button color="green" leftSection={<IconCheck size={16} />} onClick={() => void handleAprovar()} loading={actionLoading}>
             Aprovar
           </Button>
           <Button
@@ -396,6 +416,34 @@ export default function AcoesOrcamento({ orcamento, onRecarregar }: AcoesOrcamen
       )}
 
       {/* Modal de Recusa */}
+      <Modal opened={escolhaTiragem !== null} onClose={() => setEscolhaTiragem(null)} title="Tiragem aprovada" centered>
+        <Stack gap="sm">
+          <Text size="sm">O pedido recebe uma tiragem por item. Escolha qual foi aprovada:</Text>
+          {(escolhaTiragem ?? []).map((p) => (
+            <Select
+              key={p.itemId}
+              label={`Item ${p.sequencia} — ${p.descricao ?? 'Sem descrição'}`}
+              data={p.tiragens.map((q) => ({ value: String(q), label: q.toLocaleString('pt-BR') }))}
+              value={tiragensEscolhidas[p.itemId] != null ? String(tiragensEscolhidas[p.itemId]) : null}
+              onChange={(v) => setTiragensEscolhidas((a) => ({ ...a, [p.itemId]: Number(v) }))}
+              error={p.motivo === 'TIRAGEM_INEXISTENTE' ? 'Tiragem não existe neste item' : undefined}
+              allowDeselect={false}
+            />
+          ))}
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setEscolhaTiragem(null)}>Cancelar</Button>
+            <Button
+              color="green"
+              loading={actionLoading}
+              disabled={(escolhaTiragem ?? []).some((p) => tiragensEscolhidas[p.itemId] == null)}
+              onClick={() => void handleAprovar(tiragensEscolhidas)}
+            >
+              Aprovar
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
       <Modal opened={recusaModalOpen} onClose={() => setRecusaModalOpen(false)} title="Recusar Orçamento" centered>
         <Stack gap="md">
           <Textarea
