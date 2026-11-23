@@ -80,6 +80,18 @@ describe('resolverLayoutItem — decisões novas', () => {
     expect(resolverLayoutItem(entradaBase({ possuiAlturaTampa: false })).formato.campos).not.toContain('alturaTampa')
   })
 
+  it('Alt Tampa também em DUAS_DIMENSOES (Cartelas), e só com possuiAlturaTampa = true', () => {
+    const duas = (extra: Record<string, unknown>) => resolverLayoutItem(entradaBase({ modoFormato: 'DUAS_DIMENSOES', ...extra }))
+    expect(duas({ possuiAlturaTampa: true }).formato.campos).toEqual(['formatoFinal', 'alturaTampa'])
+    expect(duas({ possuiAlturaTampa: null }).formato.campos).toEqual(['formatoFinal'])
+    expect(duas({ possuiAlturaTampa: false }).formato.campos).toEqual(['formatoFinal'])
+  })
+  it('Alt Tampa não aparece nos modos ABERTO_FECHADO, SANFONA_ABAS e PAGINA mesmo com a flag', () => {
+    for (const modoFormato of ['ABERTO_FECHADO', 'SANFONA_ABAS', 'PAGINA']) {
+      const campos = resolverLayoutItem(entradaBase({ modoFormato, possuiAlturaTampa: true })).formato.campos
+      expect(campos, modoFormato).not.toContain('alturaTampa')
+    }
+  })
   it('R8.4: um único tipo não fixo é multi-plano; fixo em qualquer posição é plano único', () => {
     expect(resolverLayoutItem(entradaBase({}, false)).estrutura).toBe('MULTI_PLANO')
     const e = entradaBase()

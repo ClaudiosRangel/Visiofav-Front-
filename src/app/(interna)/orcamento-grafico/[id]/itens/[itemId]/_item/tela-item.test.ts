@@ -4,6 +4,7 @@ import { montarPayloadItem } from '../../../itemFormShared'
 import { resolverLayoutItem } from '../../../_layout/resolver-layout-item'
 import { itemParaEditar } from '../itemParaEditar'
 import {
+  aplicarTipoDoProduto,
   estadoInicialTelaItem,
   formEfetivo,
   montarPayloadTelaItem,
@@ -90,6 +91,21 @@ describe('tela-item', () => {
     expect(validarTelaItem(e0, lay, { exigirFormato: true }).length).toBeGreaterThan(0)
     const invalido = { ...e0, comum: { ...e0.comum, tiragem: 'abc' } }
     expect(validarTelaItem(invalido, lay, { exigirFormato: false })[0]).toMatchObject({ campo: 'Tiragens' })
+  })
+  it('Tipo de Produto: vem do cadastro do produto só quando está vazio', () => {
+    const vazio = { ...inicial().comum, tipoEmbalagemId: null }
+    expect(aplicarTipoDoProduto(vazio, 'te-9').tipoEmbalagemId).toBe('te-9')
+    // não sobrescreve a escolha do usuário nem o tipo de item já salvo
+    expect(aplicarTipoDoProduto({ ...vazio, tipoEmbalagemId: 'te-1' }, 'te-9').tipoEmbalagemId).toBe('te-1')
+    // produto sem tipo: devolve o mesmo objeto, sem alterar nada
+    expect(aplicarTipoDoProduto(vazio, null)).toBe(vazio)
+    expect(aplicarTipoDoProduto(vazio, undefined)).toBe(vazio)
+    expect(aplicarTipoDoProduto(vazio, '')).toBe(vazio)
+  })
+  it('Tipo de Produto preenchido pelo produto entra no payload de salvar (muda em relação ao inicial)', () => {
+    const e0 = { ...inicial(), comum: { ...inicial().comum, tipoEmbalagemId: null } }
+    const e1 = { ...e0, comum: aplicarTipoDoProduto(e0.comum, 'te-9') }
+    expect(montarPayloadTelaItem(e1, e0, layout('TRES_DIMENSOES', true)).tipoEmbalagemId).toBe('te-9')
   })
   it('várias tiragens: o campo mostra a lista; sem alterar o campo, o payload não leva `tiragens`', () => {
     const bruto = { ...BRUTO, quantidade: 2000, tiragens: [{ quantidade: 6000 }, { quantidade: 2000 }, { quantidade: 4000 }] }

@@ -57,6 +57,16 @@ export interface ContextoHidratacao {
   imagemProdutoOrcamento?: string | null
 }
 
+/**
+ * Tipo de Produto vindo do cadastro do produto escolhido (como no Calcgraf, onde o Tipo acompanha o
+ * Produto). Só preenche quando o campo está vazio: nunca sobrescreve a escolha do usuário nem o tipo
+ * de um item já salvo. Sem tipo no produto, devolve o valor como veio.
+ */
+export function aplicarTipoDoProduto(comum: ValorComum, tipoEmbalagemIdDoProduto: string | null | undefined): ValorComum {
+  if (comum.tipoEmbalagemId || !tipoEmbalagemIdDoProduto) return comum
+  return { ...comum, tipoEmbalagemId: tipoEmbalagemIdDoProduto }
+}
+
 /** Estado inicial a partir do item carregado (`GET /:id` → `itemParaEditar`) ou de um item novo. */
 export function estadoInicialTelaItem(
   item: ItemParaEditarHierarquia | null,

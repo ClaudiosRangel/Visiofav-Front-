@@ -74,6 +74,7 @@ import { aplicarPreMarcadas, type AtividadeCadastro } from './acabamento-item'
 import { numeroParaTexto, type ValorFormato } from './formato-item'
 import { aplicarPadroesNoValor, leituraCalculada } from './plano-unico-item'
 import {
+  aplicarTipoDoProduto,
   estadoInicialTelaItem,
   formEfetivo,
   mensagemErroServidor,
@@ -392,6 +393,11 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
           const cadastro = (catalogo.planoFixo?.atividades ?? []) as unknown as AtividadeCadastro[]
           const pre = aplicarPreMarcadas(proximo.form.acabamentosRicos, padroes.atividadesPreMarcadas, cadastro)
           if (pre.marcadas.length > 0) proximo = { ...proximo, form: { ...proximo.form, acabamentosRicos: pre.acabamentosRicos } }
+        }
+        // Tipo de Produto: o Calcgraf preenche o Tipo com o do produto escolhido. Só em item novo (mesma
+        // regra dos padrões), só se estiver vazio, e nunca sobrescreve uma escolha do usuário.
+        if (aplicar) {
+          proximo = { ...proximo, comum: aplicarTipoDoProduto(proximo.comum, catalogo.produto.produto.tipoEmbalagemId) }
         }
         return { ...proximo, form: { ...proximo.form, _catalogoAplicadoEm: new Date().toISOString() } }
       })

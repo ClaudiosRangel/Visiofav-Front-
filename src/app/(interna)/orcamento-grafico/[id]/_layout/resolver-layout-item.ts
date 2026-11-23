@@ -157,7 +157,8 @@ export function resolverLayoutItem(entrada: EntradaLayoutItem): LayoutItem {
 
   // Formato
   let camposFormato: CampoFormato[] = cadastroCompleto ? [...MODOS_FORMATO[modo as ModoFormato]] : []
-  if (modo === 'TRES_DIMENSOES' && produto.possuiAlturaTampa === true) {
+  // Alt Tampa: 3 dimensões (Cartucho Composto, Caixa, Invólucros) e 2 dimensões (Cartelas) no Calcgraf.
+  if ((modo === 'TRES_DIMENSOES' || modo === 'DUAS_DIMENSOES') && produto.possuiAlturaTampa === true) {
     // Design R7.1 e vetores compartilhados: Alt Tampa só aparece com `true`
     // (null/omitido = não aparece, como no editor atual). Os blocos de plano, ao
     // contrário, tratam null como "mostrar".
