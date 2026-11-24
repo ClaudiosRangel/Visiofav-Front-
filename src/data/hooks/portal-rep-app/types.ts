@@ -123,6 +123,8 @@ export interface CriarSolicitacaoPayload {
   observacoes?: string
   // Campos da planilha Carton Wega (B2 Fase B) — todos opcionais.
   tipoPedido?: 'REPETICAO' | 'MOSTRUARIO' | 'NOVO'
+  /** Repetição: produto já fabricado que o representante quer reproduzir. */
+  produtoId?: string
   jaCliente?: boolean
   mercado?: string
   ufOrigem?: string

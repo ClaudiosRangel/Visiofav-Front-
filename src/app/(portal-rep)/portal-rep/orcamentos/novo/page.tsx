@@ -32,6 +32,21 @@ function useTiposEmbalagem() {
   })
 }
 
+// Produtos do representante (para pedido de Repetição), opcionalmente do cliente escolhido
+function useMeusProdutos(clienteId: string | null, ativo: boolean) {
+  return useQuery<Array<{ id: string; codigo: string; nome: string; ultimoPedidoEm: string | null }>>({
+    queryKey: ['portal-rep-catalogo-meus-produtos', clienteId],
+    enabled: ativo,
+    queryFn: async () => {
+      const { data } = await portalRepApi.get('/catalogo/meus-produtos', {
+        params: clienteId ? { clienteId } : undefined,
+      })
+      return data
+    },
+    staleTime: 60 * 1000,
+  })
+}
+
 function useAcabamentos() {
   return useQuery<Array<{ codigo: string; descricao: string }>>({
     queryKey: ['portal-rep-catalogo-acabamentos'],
@@ -126,6 +141,11 @@ export default function NovaSolicitacaoPage() {
 
   // ─── Campos da planilha Carton Wega (B2 Fase B) ─────────────────────────────
   const [tipoPedido, setTipoPedido] = useState<'REPETICAO' | 'MOSTRUARIO' | 'NOVO'>('NOVO')
+  const [produtoId, setProdutoId] = useState<string | null>(null)
+  const { data: meusProdutos, isLoading: carregandoProdutos } = useMeusProdutos(
+    clienteId,
+    tipoPedido === 'REPETICAO',
+  )
   const [wega, setWega] = useState({
     mercado: '', ufOrigem: '', cidade: '',
     tipoEntrega: 'UNICA' as 'UNICA' | 'FRACIONADA', entregaFracionadaDias: '',
@@ -191,6 +211,7 @@ export default function NovaSolicitacaoPage() {
         ...(observacoes.trim() ? { observacoes: observacoes.trim() } : {}),
         // Campos da planilha Carton Wega (B2 Fase B) — só envia os preenchidos.
         tipoPedido,
+        ...(tipoPedido === 'REPETICAO' && produtoId ? { produtoId } : {}),
         jaCliente: !!clienteId,
         ...(wega.mercado.trim() ? { mercado: wega.mercado.trim() } : {}),
         ...(wega.ufOrigem.trim() ? { ufOrigem: wega.ufOrigem.trim() } : {}),
@@ -248,7 +269,10 @@ export default function NovaSolicitacaoPage() {
             <SegmentedControl
               fullWidth
               value={tipoPedido}
-              onChange={(v) => setTipoPedido(v as typeof tipoPedido)}
+              onChange={(v) => {
+                setTipoPedido(v as typeof tipoPedido)
+                if (v !== 'REPETICAO') setProdutoId(null)
+              }}
               data={[
                 { label: 'Novo', value: 'NOVO' },
                 { label: 'Repetição', value: 'REPETICAO' },
@@ -316,6 +340,33 @@ export default function NovaSolicitacaoPage() {
 
           <Card>
             <Stack gap="sm">
+              {tipoPedido === 'REPETICAO' && (
+                <Select
+                  label="Produto a repetir"
+                  placeholder={
+                    !clienteId
+                      ? 'Selecione o cliente primeiro'
+                      : carregandoProdutos
+                        ? 'Carregando...'
+                        : 'Selecione um produto já fabricado'
+                  }
+                  description="Itens dos seus pedidos anteriores para este cliente."
+                  data={(meusProdutos ?? []).map((p) => ({
+                    value: p.id,
+                    label: `${p.codigo} - ${p.nome}`,
+                  }))}
+                  value={produtoId}
+                  onChange={(v) => {
+                    setProdutoId(v)
+                    const p = (meusProdutos ?? []).find((x) => x.id === v)
+                    if (p) setW('produtoNome', p.nome)
+                  }}
+                  searchable
+                  clearable
+                  disabled={!clienteId || carregandoProdutos}
+                  nothingFoundMessage="Nenhum produto encontrado para este cliente"
+                />
+              )}
               <Select
                 label="Tipo de embalagem"
                 placeholder="Selecione o tipo de embalagem"
