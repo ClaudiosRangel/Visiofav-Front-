@@ -248,6 +248,27 @@ export function montarPayloadTelaItem(
   }
 }
 
+/**
+ * Item de vários planos sem papel próprio: o papel fica em cada plano. Não exige gramatura nem
+ * preço do papel no item, e o envio sai sem papel (o back grava sem cálculo e soma os planos).
+ * Item que já tem papel (ex.: puxado de um cálculo) segue como antes.
+ */
+export function semPapelEmVariosPlanos(
+  layout: Pick<LayoutItem, 'estrutura'> | null,
+  form: Pick<WizardFormData, 'papelId'> | null,
+): boolean {
+  return layout?.estrutura === 'MULTI_PLANO' && !form?.papelId
+}
+
+/** Ajusta o corpo enviado ao back para o item de vários planos sem papel. Puro. */
+export function payloadVariosPlanos(
+  payload: Record<string, unknown>,
+  produtoGraficoId: string | null | undefined,
+): Record<string, unknown> {
+  const { precoKg: _p, precoKgPapel: _pp, papelId: _id, ...resto } = payload
+  return { ...resto, gramatura: 0, ...(produtoGraficoId ? { produtoGraficoId } : {}) }
+}
+
 /** Payload do botão Calcular (mesmo de `montarPayloadCalculo`, usado pelo editor atual). */
 export function montarPayloadCalculoTelaItem(form: WizardFormData): Record<string, unknown> {
   return montarPayloadCalculo(form)

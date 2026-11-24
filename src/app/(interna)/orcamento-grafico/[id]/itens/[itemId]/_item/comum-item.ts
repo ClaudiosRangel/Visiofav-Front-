@@ -159,3 +159,25 @@ export function comumParaPayload(valor: ValorComum): {
     qtdModelos: modelosEfetivo(valor),
   }
 }
+
+/**
+ * Tipos de Produto permitidos para o item: os tipos ligados aos produtos da mesma Linha de Produto
+ * do produto escolhido (no Calcgraf a lista de Produto/Tipo vem da linha). Sem vínculo cadastrado,
+ * devolve null (a tela mostra todos). O tipo já escolhido sempre continua na lista. Puro.
+ */
+export function tiposPermitidosDaLinha(
+  produtoAtualId: string | null | undefined,
+  produtos: ReadonlyArray<{ id: string; linhaProdutoId: string | null; tipoEmbalagemId?: string | null }>,
+  tipoAtualId: string | null | undefined,
+): Set<string> | null {
+  const atual = produtos.find((p) => p.id === produtoAtualId)
+  if (!atual?.linhaProdutoId) return null
+  const ids = new Set(
+    produtos
+      .filter((p) => p.linhaProdutoId === atual.linhaProdutoId && p.tipoEmbalagemId)
+      .map((p) => p.tipoEmbalagemId as string),
+  )
+  if (ids.size === 0) return null
+  if (tipoAtualId) ids.add(tipoAtualId)
+  return ids
+}

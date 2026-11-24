@@ -13,14 +13,15 @@
  * `trocaProduto.abertoInicial` (item novo) o seletor já vem aberto e habilitado.
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Anchor, Autocomplete, Button, Collapse, Group, Paper, Select, SimpleGrid, Stack, Text, TextInput, ThemeIcon, Title } from '@mantine/core'
 import { IconChevronDown, IconChevronUp, IconPackage, IconSearch } from '@tabler/icons-react'
 
 import SeletorProdutoGrafico, { type ProdutoEscolhido } from '../../../editor/catalogo/SeletorProdutoGrafico'
 import type { UseCatalogoItemResultado } from '../../../editor/catalogo/useCatalogoItem'
 import { useSiglasAcabado, useTiposProduto } from '../../../_hooks/useOpcoesBlocoComum'
-import { MAX_DESCRICAO, MAX_SIGLA_ACABADO, MAX_TRIBUTACAO, MODELOS_PADRAO, validarComum, type ValorComum } from './comum-item'
+import { MAX_DESCRICAO, MAX_SIGLA_ACABADO, MAX_TRIBUTACAO, MODELOS_PADRAO, tiposPermitidosDaLinha, validarComum, type ValorComum } from './comum-item'
+import { produtosApi } from '../../../../cadastros/_shared/cadastros-graficos.api'
 
 export interface TrocaProduto {
   /** Produto Gráfico atual do item. */
@@ -60,7 +61,24 @@ export default function BlocoComum({ value, onChange, produtoNome, trocaProduto,
   const siglas = useSiglasAcabado()
 
   const { erros } = useMemo(() => validarComum(value, { validarVazios }), [value, validarVazios])
-  const opcoesTipo = useMemo(() => tipos.tipos.map((t) => ({ value: t.id, label: t.descricao })), [tipos.tipos])
+  // Produtos ativos (com linha e tipo) para limitar o Tipo de Produto aos tipos da linha do produto.
+  const [produtosAtivos, setProdutosAtivos] = useState<Array<{ id: string; linhaProdutoId: string | null; tipoEmbalagemId?: string | null }>>([])
+  useEffect(() => {
+    let cancelado = false
+    produtosApi
+      .listar({ situacao: 'ativo' })
+      .then((lista) => { if (!cancelado) setProdutosAtivos(Array.isArray(lista) ? lista : []) })
+      .catch(() => { if (!cancelado) setProdutosAtivos([]) })
+    return () => { cancelado = true }
+  }, [])
+  const permitidos = useMemo(
+    () => tiposPermitidosDaLinha(trocaProduto?.produtoGraficoId, produtosAtivos, value.tipoEmbalagemId),
+    [trocaProduto?.produtoGraficoId, produtosAtivos, value.tipoEmbalagemId],
+  )
+  const opcoesTipo = useMemo(
+    () => tipos.tipos.filter((t) => !permitidos || permitidos.has(t.id)).map((t) => ({ value: t.id, label: t.descricao })),
+    [tipos.tipos, permitidos],
+  )
 
   return (
     <Paper withBorder radius="md" p="lg" shadow="xs" data-testid="bloco-comum">

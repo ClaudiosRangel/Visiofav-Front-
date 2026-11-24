@@ -302,3 +302,40 @@ export function formatoParaPayload(valor: ValorFormato, layout: Pick<LayoutItem,
   composto('formatoAberto', 'formatoAbertoLarguraMm', 'formatoAbertoAlturaMm')
   return saida
 }
+
+// ============================================================================
+// Formato do item -> medidas do cálculo (L/A/P do tipo de embalagem)
+// ============================================================================
+
+/** Medidas que o bloco Formato já cobre: L = comprimento, A = largura, P = altura. */
+export const MEDIDAS_DO_FORMATO: readonly string[] = ['L', 'A', 'P']
+
+/**
+ * Medidas do cálculo a partir do formato digitado. 3D: L/A/P = comprimento/largura/altura.
+ * Sem comprimento (formato em 2 dimensões): L/A = largura/altura do formato final (ou aberto).
+ * Só devolve valores > 0 e só as chaves que o tipo usa. Puro.
+ */
+export function medidasDoFormato(formato: ValorFormato, chavesDoTipo: readonly string[]): Record<string, number> {
+  const n = (t: string) => {
+    const v = textoParaNumero(t)
+    return v !== null && v > 0 ? v : null
+  }
+  const c = n(formato.comprimento)
+  const par = (p: ParDimensoes) => ({ l: n(p.largura), a: n(p.altura) })
+  const final = par(formato.formatoFinal)
+  const aberto = par(formato.formatoAberto)
+  const candidatos: Record<string, number | null> =
+    c !== null
+      ? { L: c, A: n(formato.largura), P: n(formato.altura) }
+      : {
+          L: final.l ?? aberto.l ?? n(formato.largura),
+          A: final.a ?? aberto.a ?? n(formato.altura),
+          P: null,
+        }
+  const saida: Record<string, number> = {}
+  for (const k of chavesDoTipo) {
+    const v = candidatos[k.trim().toUpperCase()]
+    if (v != null) saida[k] = v
+  }
+  return saida
+}

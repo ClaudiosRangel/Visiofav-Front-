@@ -32,9 +32,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  Alert, Anchor, Breadcrumbs, Button, Center, Group, Loader, Modal, Paper, Skeleton, Stack, Text, ThemeIcon, Title,
+  Alert, Anchor, Breadcrumbs, Button, Center, Group, Loader, Modal, Paper, Skeleton, Stack, Table, Text, ThemeIcon, Title,
 } from '@mantine/core'
-import { IconAlertCircle, IconArrowLeft, IconCalculator, IconDeviceFloppy, IconInfoCircle, IconLayoutList, IconRuler } from '@tabler/icons-react'
+import { IconAlertCircle, IconArrowLeft, IconCalculator, IconDeviceFloppy, IconInfoCircle, IconLayoutList, IconPlus, IconRuler } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 
 import { api } from '@/lib/api'
@@ -66,6 +66,7 @@ import BlocoAcabamento from './BlocoAcabamento'
 import BlocoComum from './BlocoComum'
 import BlocoEstruturaCusto from './BlocoEstruturaCusto'
 import BlocoFormato from './BlocoFormato'
+import { MEDIDAS_DO_FORMATO, medidasDoFormato } from './formato-item'
 import BlocoPlanoUnico from './BlocoPlanoUnico'
 import GridPlanos from './GridPlanos'
 import ComplementosDoItem, { type ValorComplementosItem } from './ComplementosDoItem'
@@ -80,6 +81,8 @@ import {
   mensagemErroServidor,
   montarPayloadCalculoTelaItem,
   montarPayloadTelaItem,
+  payloadVariosPlanos,
+  semPapelEmVariosPlanos,
   textoErrosValidacao,
   validarTelaItem,
   type EstadoTelaItem,
@@ -455,6 +458,20 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
   // Ações
   // ---------------------------------------------------------------------------
 
+  // O bloco Formato alimenta as medidas do cálculo (L/A/P): o usuário digita as medidas uma vez só.
+  const formatoAtual = estado?.formato
+  const parametrosTipo = form?.tipoEmbalagem?.parametros
+  useEffect(() => {
+    if (!formatoAtual || !parametrosTipo) return
+    const novas = medidasDoFormato(formatoAtual, parametrosTipo.map((p: { nome: string }) => p.nome))
+    const atual = (form?.medidas ?? {}) as Record<string, number>
+    if (Object.entries(novas).some(([k, v]) => atual[k] !== v)) atualizarForm({ medidas: { ...atual, ...novas } })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formatoAtual, parametrosTipo])
+  const medidasExtras = (parametrosTipo ?? []).filter(
+    (p: { nome: string }) => !MEDIDAS_DO_FORMATO.includes(p.nome.trim().toUpperCase()),
+  ).length
+
   const validar = (): boolean => {
     if (!estado || !formFinal) return false
     setValidarVazios(true)
@@ -463,7 +480,10 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
       setErroAcao(textoErrosValidacao(erros))
       return false
     }
-    const faltam = validarObrigatoriosParaSalvar(formFinal)
+    // Vários planos sem papel no item: gramatura e preço do papel ficam em cada plano.
+    const faltam = validarObrigatoriosParaSalvar(
+      semPapelEmVariosPlanos(layout, formFinal) ? { ...formFinal, gramatura: 1, precoKg: 1 } : formFinal,
+    )
     if (faltam.length > 0) {
       setErroAcao(`Faltam: ${faltam.join(', ')}.`)
       return false
@@ -473,13 +493,14 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
   }
 
   const enviarItem = (formEnvio: WizardFormData, id: string | null) => {
-    const payload = montarPayloadTelaItem(estado as EstadoTelaItem, inicial as EstadoTelaItem, layout, formEnvio)
+    const base = montarPayloadTelaItem(estado as EstadoTelaItem, inicial as EstadoTelaItem, layout, formEnvio)
+    const payload = semPapelEmVariosPlanos(layout, formEnvio) ? payloadVariosPlanos(base, formEnvio.produtoGraficoId) : base
     return id
       ? api.put(`/orcamento-grafico/${orcamentoId}/itens/${id}`, payload)
       : api.post(`/orcamento-grafico/${orcamentoId}/itens`, payload)
   }
 
-  const concluirSalvar = async (criadoAgora: string | null, editando: boolean) => {
+  const concluirSalvar = async (criadoAgora: string | null, editando: boolean, destino?: (id: string) => string) => {
     notificarAlteracaoItem(orcamentoId)
     selecao.zerarSujo()
     setSujo(false)
@@ -489,13 +510,14 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
         : { title: 'Item adicionado', message: 'Novo item calculado e salvo.', color: 'green' },
     )
     if (criadoAgora) {
-      router.replace(`/orcamento-grafico/${orcamentoId}/itens/${criadoAgora}`)
+      router.replace(destino ? destino(criadoAgora) : `/orcamento-grafico/${orcamentoId}/itens/${criadoAgora}`)
       return
     }
     await carregar()
   }
 
-  const salvar = async () => {
+  /** `destino`: para onde ir depois de criar o item (ex.: abrir a inclusão do 1º plano). */
+  const salvar = async (destino?: (id: string) => string) => {
     if (!estado || !formFinal || salvando) return
     if (!validar()) return
     setSalvando(true)
@@ -515,7 +537,7 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
         }
         if (passe.linhas) await enviarItem({ ...formFinal, materiaisAcabamento: passe.linhas }, idSalvo)
       }
-      await concluirSalvar(criadoAgora, modo.isEditing)
+      await concluirSalvar(criadoAgora, modo.isEditing, destino)
     } catch (err) {
       // Nada gravado do lado da tela: os valores digitados continuam como estão.
       setErroAcao(mensagemErroServidor(err, 'Não foi possível salvar o item.'))
@@ -550,7 +572,13 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
       const rota = idItemAtual
         ? `/orcamento-grafico/${orcamentoId}/itens/${idItemAtual}/calcular`
         : '/orcamento-grafico/calcular'
-      const resp = await api.post(rota, montarPayloadCalculoTelaItem(formFinal))
+      const variosPlanos = semPapelEmVariosPlanos(layout, formFinal)
+      if (variosPlanos && !idItemAtual) {
+        setErroAcao('Salve o item e inclua os planos para calcular.')
+        return
+      }
+      const baseCalc = montarPayloadCalculoTelaItem(formFinal)
+      const resp = await api.post(rota, variosPlanos ? payloadVariosPlanos(baseCalc, formFinal.produtoGraficoId) : baseCalc)
       setResultadoCalculado((resp.data?.resultado ?? resp.data) as Record<string, unknown>)
     } catch (err) {
       setErroAcao(mensagemErroServidor(err, 'Não foi possível calcular o item.'))
@@ -624,7 +652,7 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
             <Button
               size="sm"
               leftSection={<IconDeviceFloppy size={16} />}
-              onClick={salvar}
+              onClick={() => void salvar()}
               loading={salvando}
               disabled={ocupado && !salvando}
             >
@@ -699,9 +727,35 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
               </ThemeIcon>
               <Title order={5}>Tipos de Plano</Title>
             </Group>
-            <Text size="sm" c="dimmed" data-testid="tipos-de-plano-item-novo">
-              Salve o item para incluir planos.
-            </Text>
+            <Table withTableBorder data-testid="tipos-de-plano-item-novo">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Nome</Table.Th>
+                  <Table.Th>Suporte</Table.Th>
+                  <Table.Th>Cores</Table.Th>
+                  <Table.Th>Formato</Table.Th>
+                  <Table.Th>Acabamento</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                <Table.Tr>
+                  <Table.Td colSpan={5}>
+                    <Text size="sm" c="dimmed" ta="center">Nenhum plano. Ao incluir o primeiro, o item é salvo.</Text>
+                  </Table.Td>
+                </Table.Tr>
+              </Table.Tbody>
+            </Table>
+            <Group justify="flex-end">
+              <Button
+                size="xs"
+                leftSection={<IconPlus size={14} />}
+                loading={salvando}
+                disabled={ocupado}
+                onClick={() => void salvar((novoId) => `/orcamento-grafico/${orcamentoId}/itens/${novoId}/planos/novo`)}
+              >
+                Incluir plano
+              </Button>
+            </Group>
           </Stack>
         )}
       </Paper>
@@ -775,17 +829,20 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
         onTentarNovamente={layoutItem.tentarNovamente}
       />
 
-      <Paper withBorder radius="md" p="lg" shadow="xs" data-testid="medidas-calculo">
-        <Stack gap="md">
-          <Group gap="sm" wrap="nowrap">
-            <ThemeIcon variant="light" color="teal" size={32} radius="md">
-              <IconRuler size={18} stroke={1.5} />
-            </ThemeIcon>
-            <Title order={5}>Medidas de cálculo</Title>
-          </Group>
-          <StepMedidas formData={form} updateForm={atualizarForm} />
-        </Stack>
-      </Paper>
+      {/* Comprimento/Largura/Altura vêm do bloco Formato; aqui só se o tipo pedir outras medidas. */}
+      {(!form.tipoEmbalagem || medidasExtras > 0) && (
+        <Paper withBorder radius="md" p="lg" shadow="xs" data-testid="medidas-calculo">
+          <Stack gap="md">
+            <Group gap="sm" wrap="nowrap">
+              <ThemeIcon variant="light" color="teal" size={32} radius="md">
+                <IconRuler size={18} stroke={1.5} />
+              </ThemeIcon>
+              <Title order={5}>Medidas de cálculo</Title>
+            </Group>
+            <StepMedidas formData={form} updateForm={atualizarForm} />
+          </Stack>
+        </Paper>
+      )}
 
       {blocosPlano}
 
