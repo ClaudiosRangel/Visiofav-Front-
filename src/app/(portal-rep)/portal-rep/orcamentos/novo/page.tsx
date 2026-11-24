@@ -292,7 +292,7 @@ export default function NovaSolicitacaoPage() {
                   </Button>
                 </Group>
                 <TextInput label="Razão social" value={novoCliente.razaoSocial}
-                  onChange={(e) => setNovoCliente((c) => ({ ...c, razaoSocial: e.currentTarget.value }))} required />
+                  onChange={(e) => setNovoCliente((c) => ({ ...c, razaoSocial: e.currentTarget.value }))} withAsterisk />
                 <TextInput label="Nome fantasia" value={novoCliente.nomeFantasia}
                   onChange={(e) => setNovoCliente((c) => ({ ...c, nomeFantasia: e.currentTarget.value }))} />
                 <Group grow>

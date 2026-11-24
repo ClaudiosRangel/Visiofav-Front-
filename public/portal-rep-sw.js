@@ -65,9 +65,14 @@ self.addEventListener('fetch', (event) => {
           }
           return response
         })
-        .catch(() => {
-          return caches.match(request)
-        })
+        .catch(() =>
+          caches
+            .match(request)
+            .then((cached) => cached || new Response(JSON.stringify({ message: 'Sem conexão' }), {
+              status: 503,
+              headers: { 'Content-Type': 'application/json' },
+            }))
+        )
     )
     return
   }
@@ -105,7 +110,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(request, cloned))
         }
         return response
-      })
+      }).catch(() => new Response('', { status: 503, statusText: 'Offline' }))
     })
   )
 })
