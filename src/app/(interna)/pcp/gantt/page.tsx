@@ -199,7 +199,7 @@ const STATUS_BORDER: Record<string, string> = {
   AGUARDANDO: '#adb5bd', // gray-5 — neutro
 }
 
-const LABEL_WIDTH = 200
+const LABEL_WIDTH = 250
 // Nota (spec pcp-gantt-melhorias, Req 4.1): as antigas constantes RAIA_HEIGHT/
 // SETUP_HEIGHT deixaram de ser usadas após o empilhamento por sub-linhas
 // (SUBLINHA_H/alturaDaRaia) — removidas para o build final ficar limpo.
@@ -220,8 +220,13 @@ function corOcupacao(mediaPct: number): string {
 // SUBLINHA_H é a altura de UMA sub-linha. Com 1 sub-linha a raia fica
 // ~RAIA_HEIGHT (56), preservando o visual de hoje; a barra ocupa
 // SUBLINHA_H - SUBLINHA_GAP de altura.
-const SUBLINHA_H = 48
-const SUBLINHA_GAP = 16
+// Aumentadas (cliente reclamou de texto pequeno): barra de 50px comporta 2 linhas de 13/12px.
+const SUBLINHA_H = 64
+const SUBLINHA_GAP = 14
+
+// Fonte do Gantt: legível em tela, com algarismos de largura fixa (horas alinhadas).
+// Aplicada só ao conteúdo do Gantt; o hint (tooltip) é renderizado fora e não muda.
+const GANTT_FONT = '"Inter", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif'
 const alturaDaRaia = (sub: number) => Math.max(1, sub) * SUBLINHA_H
 
 // Zoom contínuo (pixels por minuto): preset por visão + limites de clamp.
@@ -1484,8 +1489,8 @@ export default function GanttProducaoPage() {
       style={telaCheia
         // Tela cheia: cobre o menu lateral/cabeçalho do ERP. z-index abaixo dos
         // modais/menus do Mantine (200/300) para eles continuarem aparecendo por cima.
-        ? { position: 'fixed', inset: 0, height: '100vh', zIndex: 150, background: 'var(--mantine-color-body)', overflow: 'auto' }
-        : { height: 'calc(100vh - 80px)' }}
+        ? { position: 'fixed', inset: 0, height: '100vh', zIndex: 150, background: 'var(--mantine-color-body)', overflow: 'auto', fontFamily: GANTT_FONT }
+        : { height: 'calc(100vh - 80px)', fontFamily: GANTT_FONT }}
     >
       {/* Header */}
       <Group justify="space-between" align="center">
@@ -1712,19 +1717,19 @@ export default function GanttProducaoPage() {
             por baixo para não perder scroll/zoom ao voltar. ═══ */}
         {modoVisual === 'carga' && (
           <div style={{ position: 'absolute', inset: 0, zIndex: 40, overflow: 'auto', background: 'var(--mantine-color-body)' }}>
-            <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: 11 }}>
+            <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: 13, fontFamily: GANTT_FONT }}>
               <thead>
                 <tr>
                   <th style={{ position: 'sticky', left: 0, top: 0, zIndex: 3, background: 'var(--mantine-color-body)', minWidth: LABEL_WIDTH, textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid var(--mantine-color-default-border)', borderRight: '2px solid var(--mantine-color-default-border)' }}>
-                    <Text size="xs" fw={600} c="dimmed">Máquina / Dia</Text>
+                    <Text size="13px" fw={700} c="var(--mantine-color-text)">Máquina / Dia</Text>
                   </th>
                   {diasVisiveis.map((d) => {
                     const dt = new Date(d)
                     const ehHoje = dt.toDateString() === new Date().toDateString()
                     return (
-                      <th key={d} style={{ position: 'sticky', top: 0, zIndex: 2, background: ehHoje ? 'var(--mantine-color-red-light)' : 'var(--mantine-color-body)', minWidth: 64, padding: '4px 2px', borderBottom: '1px solid var(--mantine-color-default-border)' }}>
-                        <Text size="10px" fw={700} c={ehHoje ? 'red.7' : undefined}>{dt.toLocaleDateString('pt-BR', { weekday: 'short' })}</Text>
-                        <Text size="10px" c="dimmed">{dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</Text>
+                      <th key={d} style={{ position: 'sticky', top: 0, zIndex: 2, background: ehHoje ? 'var(--mantine-color-red-light)' : 'var(--mantine-color-body)', minWidth: 76, padding: '5px 2px', borderBottom: '1px solid var(--mantine-color-default-border)' }}>
+                        <Text size="13px" fw={800} c={ehHoje ? 'red.7' : undefined}>{dt.toLocaleDateString('pt-BR', { weekday: 'short' })}</Text>
+                        <Text size="13px" fw={600} c={ehHoje ? 'red.7' : 'var(--mantine-color-text)'} style={{ fontVariantNumeric: 'tabular-nums' }}>{dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</Text>
                       </th>
                     )
                   })}
@@ -1737,13 +1742,13 @@ export default function GanttProducaoPage() {
                     novoGrupo ? (
                       <tr key={`g-${ri}`}>
                         <td colSpan={diasVisiveis.length + 1} style={{ position: 'sticky', left: 0, background: 'var(--mantine-color-default)', padding: '4px 8px', borderBottom: '1px solid var(--mantine-color-default-border)' }}>
-                          <Text size="10px" fw={700} tt="uppercase">{raia.tipoProcesso}</Text>
+                          <Text size="13px" fw={800} tt="uppercase" style={{ letterSpacing: '0.4px' }}>{raia.tipoProcesso}</Text>
                         </td>
                       </tr>
                     ) : null,
                     <tr key={`r-${ri}`}>
                       <td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--mantine-color-body)', padding: '4px 8px', borderBottom: '1px solid var(--mantine-color-default-border)', borderRight: '2px solid var(--mantine-color-default-border)' }}>
-                        <Text size="xs" lineClamp={1}>{raia.centroProducao}</Text>
+                        <Text size="15px" fw={600} lineClamp={1}>{raia.centroProducao}</Text>
                       </td>
                       {celulas.map((c) => {
                         const faixa = faixaDeCarga(c.ocupacaoPct)
@@ -1772,15 +1777,15 @@ export default function GanttProducaoPage() {
                             >
                               <div
                                 onClick={() => abrirDiaNoGantt(c.diaMs)}
-                                style={{ cursor: 'pointer', borderRadius: 4, background: fundo, minHeight: 34, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}
+                                style={{ cursor: 'pointer', borderRadius: 4, background: fundo, minHeight: 46, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}
                               >
                                 {c.ops.length > 0 || c.ocupacaoPct > 0 ? (
                                   <>
-                                    <Text size="11px" fw={700} c={corTexto}>{Math.round(c.ocupacaoPct)}%</Text>
-                                    <Text size="9px" c="dimmed">{c.ops.length} OP</Text>
+                                    <Text size="15px" fw={800} c={corTexto} style={{ fontVariantNumeric: 'tabular-nums' }}>{Math.round(c.ocupacaoPct)}%</Text>
+                                    <Text size="12px" fw={500} c="dimmed">{c.ops.length} OP</Text>
                                   </>
                                 ) : (
-                                  <Text size="10px" c="dimmed">{semTurno ? '·' : '—'}</Text>
+                                  <Text size="13px" c="dimmed">{semTurno ? '·' : '—'}</Text>
                                 )}
                                 {c.linhaTop && (
                                   <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, background: corDaLinha(c.linhaTop) }} />
@@ -1827,13 +1832,13 @@ export default function GanttProducaoPage() {
         >
           {/* Spacer para alinhar com header do eixo X */}
           <div style={{ height: 32, borderBottom: '1px solid var(--mantine-color-default-border)', display: 'flex', alignItems: 'center', padding: '0 8px', position: 'sticky', top: 0, background: 'var(--mantine-color-body)', zIndex: 5 }}>
-            <Text size="xs" fw={600} c="dimmed">Máquina / Recurso</Text>
+            <Text size="13px" fw={700} c="var(--mantine-color-text)">Máquina / Recurso</Text>
           </div>
           {/* Labels — alturas por raia vêm do mesmo `layout` das barras (Req 4.1) */}
           {layout.map((grupo, gi) => (
             <div key={gi}>
               <div style={{ height: 28, display: 'flex', alignItems: 'center', padding: '0 8px', background: 'var(--mantine-color-default)', borderBottom: '1px solid var(--mantine-color-default-border)' }}>
-                <Text size="10px" fw={700} tt="uppercase" c="var(--mantine-color-text)">{grupo.tipoProcesso}</Text>
+                <Text size="13px" fw={800} tt="uppercase" c="var(--mantine-color-text)" style={{ letterSpacing: '0.4px' }}>{grupo.tipoProcesso}</Text>
               </div>
               {grupo.raias.map((rl, ri) => {
                 // Ocupação/carga média da máquina no período (spec Req 7). A
@@ -1850,16 +1855,16 @@ export default function GanttProducaoPage() {
                 const larguraPct = Math.min(100, Math.max(0, mediaPct))
                 return (
                   <div key={ri} style={{ height: rl.alturaRaia, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 3, padding: '0 8px', borderBottom: '1px solid var(--mantine-color-default-border)', overflow: 'hidden' }}>
-                    <Text size="xs" lineClamp={1}>{rl.raia.centroProducao}</Text>
+                    <Text size="15px" fw={600} lineClamp={1} c="var(--mantine-color-text)">{rl.raia.centroProducao}</Text>
                     <Tooltip
                       label={`Ocupação média no período: ${mediaArred}%${sobrecarga ? ' — sobrecarga' : ''}`}
                       withinPortal
                     >
                       <Group gap={4} wrap="nowrap" style={{ cursor: 'help' }}>
-                        <div style={{ flex: 1, height: 4, borderRadius: 2, background: 'var(--mantine-color-default-border)', overflow: 'hidden' }}>
+                        <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'var(--mantine-color-default-border)', overflow: 'hidden' }}>
                           <div style={{ width: `${larguraPct}%`, height: '100%', background: corFaixa }} />
                         </div>
-                        <Text size="9px" c={corFaixa} fw={600} style={{ whiteSpace: 'nowrap' }}>{mediaArred}%</Text>
+                        <Text size="13px" c={corFaixa} fw={700} style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{mediaArred}%</Text>
                       </Group>
                     </Tooltip>
                   </div>
@@ -1886,7 +1891,8 @@ export default function GanttProducaoPage() {
                   borderLeft: `1px ${m.isNewDay ? 'solid' : 'dashed'} var(--mantine-color-gray-${m.isNewDay ? '4' : '3'})`,
                   paddingLeft: 4, display: 'flex', alignItems: 'center',
                 }}>
-                  <Text size="10px" c="dimmed" fw={m.isNewDay ? 700 : 400} style={{ whiteSpace: 'nowrap' }}>
+                  <Text size="13px" c="var(--mantine-color-text)" fw={m.isNewDay ? 800 : 600}
+                    style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', opacity: m.isNewDay ? 1 : 0.85 }}>
                     {m.label}
                   </Text>
                 </div>
@@ -2091,13 +2097,13 @@ export default function GanttProducaoPage() {
                         <div style={{
                           position: 'absolute', left: setupWidth, top: 0,
                           width: barWidth - setupWidth, height: '100%',
-                          background: bar.indicador === 'AGUARDANDO' ? `${color}55` : color,
+                          background: bar.indicador === 'AGUARDANDO' ? `${color}AA` : color,
                           borderRadius: setupWidth > 0 ? '0 4px 4px 0' : 4,
                           border: emFoco ? `3px solid #fff` : nivelDetalhe === 'minimo' ? 'none' : `2px solid ${borderColor}`,
                           // No nível mínimo o status (RAG) vira um filete no topo.
                           borderTop: nivelDetalhe === 'minimo' && !emFoco ? `3px solid ${borderColor}` : undefined,
                           cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', padding: nivelDetalhe === 'completo' ? '0 6px' : '0 2px',
+                          display: 'flex', alignItems: 'center', padding: nivelDetalhe === 'completo' ? '0 8px' : '0 3px',
                           overflow: 'hidden',
                           boxShadow: isActive ? `0 0 8px ${color}` : undefined,
                           animation: isActive ? 'pulse-gantt 2s infinite' : undefined,
@@ -2106,17 +2112,20 @@ export default function GanttProducaoPage() {
                               OP, se couber) ou nenhum (só a cor; detalhes no tooltip). */}
                           {nivelDetalhe === 'completo' && (
                             <div style={{ overflow: 'hidden', width: '100%' }}>
-                              <Text size="9px" c="white" fw={700} lineClamp={1}>
-                                OP{bar.opNumero}{bar.faceLabel ? ` · ${bar.faceLabel}` : (bar.produtoNome ? ` - ${bar.produtoNome.slice(0, 22)}` : '')}
+                              <Text size="13px" c="white" fw={700} lineClamp={1}
+                                style={{ lineHeight: '17px', textShadow: '0 1px 2px rgba(0,0,0,0.55)', letterSpacing: '0.1px' }}>
+                                OP{bar.opNumero}{bar.faceLabel ? ` · ${bar.faceLabel}` : (bar.produtoNome ? ` - ${bar.produtoNome.slice(0, 40)}` : '')}
                                 {bar.statusObs ? ' 📌' : ''}
                               </Text>
-                              <Text size="8px" c="rgba(255,255,255,0.8)" lineClamp={1}>
+                              <Text size="12px" c="white" fw={500} lineClamp={1}
+                                style={{ lineHeight: '16px', textShadow: '0 1px 2px rgba(0,0,0,0.55)', fontVariantNumeric: 'tabular-nums' }}>
                                 {bar.passada > 1 ? `${bar.passada}ª passada · ` : ''}x{bar.quantidade.toLocaleString('pt-BR')} | {formatMinutos(bar.tempoTotalPrevisto)}
                               </Text>
                             </div>
                           )}
-                          {nivelDetalhe === 'compacto' && barWidth >= 34 && (
-                            <Text size="9px" c="white" fw={700} lineClamp={1} style={{ whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                          {nivelDetalhe === 'compacto' && barWidth >= 44 && (
+                            <Text size="13px" c="white" fw={700} lineClamp={1}
+                              style={{ whiteSpace: 'nowrap', overflow: 'hidden', textShadow: '0 1px 2px rgba(0,0,0,0.55)' }}>
                               {bar.opNumero}
                             </Text>
                           )}
@@ -2153,8 +2162,8 @@ export default function GanttProducaoPage() {
                           <div style={{
                             position: 'absolute', top: -3, right: -3, zIndex: 2,
                             background: 'var(--mantine-color-body)', color: borderColor,
-                            fontSize: 8, fontWeight: 800, lineHeight: '12px',
-                            minWidth: 14, height: 14, borderRadius: 7, textAlign: 'center',
+                            fontSize: 11, fontWeight: 800, lineHeight: '16px',
+                            minWidth: 20, height: 20, borderRadius: 10, textAlign: 'center',
                             border: `1.5px solid ${borderColor}`, padding: '0 2px',
                           }}>
                             {bar.passada}ª
@@ -2163,23 +2172,23 @@ export default function GanttProducaoPage() {
                         {/* Cadeado quando a etapa está travada (Req 5.1) */}
                         {bar.agendaTravada && nivelDetalhe !== 'minimo' && (
                           <div style={{
-                            position: 'absolute', top: -3, left: -3, zIndex: 3,
-                            background: 'var(--mantine-color-body)', borderRadius: 7, width: 14, height: 14,
+                            position: 'absolute', top: -4, left: -4, zIndex: 3,
+                            background: 'var(--mantine-color-body)', borderRadius: 10, width: 20, height: 20,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             border: `1.5px solid ${borderColor}`,
                           }}>
-                            <IconLock size={9} color={borderColor} />
+                            <IconLock size={13} color={borderColor} />
                           </div>
                         )}
                         {/* Âncora quando a SEQUÊNCIA está travada (distinta do cadeado de data) */}
                         {bar.sequenciaTravada && nivelDetalhe !== 'minimo' && (
                           <div style={{
-                            position: 'absolute', bottom: -3, left: -3, zIndex: 3,
-                            background: 'var(--mantine-color-body)', borderRadius: 7, width: 14, height: 14,
+                            position: 'absolute', bottom: -4, left: -4, zIndex: 3,
+                            background: 'var(--mantine-color-body)', borderRadius: 10, width: 20, height: 20,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             border: `1.5px solid ${borderColor}`,
                           }}>
-                            <IconAnchor size={9} color={borderColor} />
+                            <IconAnchor size={13} color={borderColor} />
                           </div>
                         )}
                         {/* Seta de dependência (da etapa anterior) */}
