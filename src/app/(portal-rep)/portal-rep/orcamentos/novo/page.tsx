@@ -11,6 +11,7 @@ import { IconPlus, IconTrash } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { usePortalRepClientes, useConsultarCnpj, useCriarCliente } from '@/data/hooks/portal-rep-app/usePortalRepClientes'
 import { useCriarSolicitacao } from '@/data/hooks/portal-rep-app/usePortalRepOrcamentos'
+import { CidadeAutocomplete } from '@/components/portal-rep/CidadeAutocomplete'
 import { portalRepApi } from '@/data/hooks/portal-rep-app/portal-rep-api'
 import {
   SUG_MERCADO, SUG_CORES, SUG_ACONDICIONAMENTO,
@@ -157,6 +158,7 @@ export default function NovaSolicitacaoPage() {
   const [situacaoFaca, setSituacaoFaca] = useState<'NOVA' | 'EXISTENTE'>('NOVA')
   const [observacoes, setObservacoes] = useState('')
   const [entregaMesmoEndereco, setEntregaMesmoEndereco] = useState(true)
+  const [pdfs, setPdfs] = useState<File[]>([])
   const [w, setWega] = useState({
     mercado: '', ufOrigem: '', cidade: '', produtoNome: '',
     tipoEntrega: 'UNICA' as 'UNICA' | 'FRACIONADA', entregaFracionadaDias: '',
@@ -274,8 +276,22 @@ export default function NovaSolicitacaoPage() {
         ...(w.discriminacao.trim() ? { discriminacao: w.discriminacao.trim() } : {}),
       },
       {
-        onSuccess: () => {
-          notifications.show({ message: 'Solicitação de orçamento enviada com sucesso!', color: 'green' })
+        onSuccess: async (criada) => {
+          // Anexos em PDF: enviados após a criação (vão para o Pedido/Proposta).
+          let falhas = 0
+          for (const arq of pdfs) {
+            try {
+              const fd = new FormData()
+              fd.append('file', arq)
+              await portalRepApi.post(`/solicitacoes-orcamento/${criada.id}/anexos`, fd)
+            } catch { falhas++ }
+          }
+          notifications.show({
+            message: falhas
+              ? `Solicitação enviada, mas ${falhas} anexo(s) PDF não foram enviados. Reenvie pelo Comercial.`
+              : 'Solicitação de orçamento enviada com sucesso!',
+            color: falhas ? 'orange' : 'green',
+          })
           router.push('/portal-rep/orcamentos')
         },
         onError: (error: Error & { response?: { data?: { message?: string } } }) => {
@@ -354,10 +370,10 @@ export default function NovaSolicitacaoPage() {
                     onChange={(e) => setNC('email', e.currentTarget.value)} />
                 </Group>
                 <Group grow>
-                  <TextInput label="Cidade" withAsterisk value={novoCliente.cidade}
-                    onChange={(e) => setNC('cidade', e.currentTarget.value)} />
                   <Select label="UF" data={UFS} searchable clearable value={novoCliente.uf || null}
                     onChange={(v) => setNC('uf', v ?? '')} />
+                  <CidadeAutocomplete withAsterisk uf={novoCliente.uf} value={novoCliente.cidade}
+                    onChange={(v) => setNC('cidade', v)} />
                 </Group>
                 <Button onClick={salvarNovoCliente} loading={criarCliente.isPending}>
                   Salvar e selecionar cliente
@@ -522,10 +538,10 @@ export default function NovaSolicitacaoPage() {
                   onChange={(v) => setW('prazoPagamentoId', v ?? '')} />
               </SimpleGrid>
               <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                <TextInput label="Cidade de origem" withAsterisk value={w.cidade}
-                  onChange={(e) => setW('cidade', e.currentTarget.value)} />
                 <Select label="UF" data={UFS} searchable clearable value={w.ufOrigem || null}
                   onChange={(v) => setW('ufOrigem', v ?? '')} />
+                <CidadeAutocomplete label="Cidade de origem" withAsterisk uf={w.ufOrigem} value={w.cidade}
+                  onChange={(v) => setW('cidade', v)} />
               </SimpleGrid>
 
               <SimpleGrid cols={{ base: 1, sm: 2 }}>
@@ -560,6 +576,23 @@ export default function NovaSolicitacaoPage() {
                 <TextInput label="Anexo 2 (link)" value={w.anexo2Url}
                   onChange={(e) => setW('anexo2Url', e.currentTarget.value)} />
               </SimpleGrid>
+              <div>
+                <Text size="sm" fw={500} mb={4}>Anexos em PDF (até 3 arquivos, 10 MB cada)</Text>
+                <input
+                  type="file" accept="application/pdf" multiple
+                  onChange={(e) => {
+                    const lista = Array.from(e.currentTarget.files ?? [])
+                    const validos = lista.filter((f) => f.type === 'application/pdf' && f.size <= 10 * 1024 * 1024).slice(0, 3)
+                    if (validos.length < lista.length) {
+                      notifications.show({ message: 'Somente PDF até 10 MB, no máximo 3 arquivos.', color: 'orange' })
+                    }
+                    setPdfs(validos)
+                  }}
+                />
+                {pdfs.length > 0 && (
+                  <Text size="xs" c="dimmed" mt={4}>{pdfs.map((f) => f.name).join(', ')}</Text>
+                )}
+              </div>
               <Textarea label="Discriminação (itens do pedido)" placeholder="Produto / descrição / quantidade por item"
                 value={w.discriminacao} onChange={(e) => setW('discriminacao', e.currentTarget.value)} autosize minRows={2} />
             </Stack>

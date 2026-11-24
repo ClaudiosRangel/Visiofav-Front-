@@ -12,7 +12,8 @@ import {
   NumberInput, SimpleGrid, Text, Image, ActionIcon, Loader, Divider, Badge,
   Autocomplete, Checkbox, Modal,
 } from '@mantine/core'
-import { IconArrowLeft, IconSearch, IconUpload, IconTrash, IconDeviceFloppy, IconPlus, IconPrinter } from '@tabler/icons-react'
+import { IconArrowLeft, IconSearch, IconUpload, IconTrash, IconDeviceFloppy, IconPlus, IconPrinter, IconFileTypePdf } from '@tabler/icons-react'
+import { MunicipioAutocomplete } from '@/components/fiscal/MunicipioAutocomplete'
 import { api } from '@/lib/api'
 import { getAuthToken } from '@/lib/authStorage'
 import { notifications } from '@mantine/notifications'
@@ -34,6 +35,7 @@ interface FormState {
   tipoPedido: 'REPETICAO' | 'MOSTRUARIO' | 'NOVO'
   clienteNome: string
   clienteCpfCnpj: string
+  clienteTelefone: string
   jaCliente: boolean
   mercado: string
   ufOrigem: string
@@ -107,7 +109,7 @@ function tipoLegadoDe(tipo: 'REPETICAO' | 'ALTERACAO' | 'PRODUTO_NOVO', exigePro
   return 'NOVO'
 }
 
-interface ClienteOpc { id: string; razaoSocial: string; nomeFantasia?: string | null; cpfCnpj: string; uf?: string | null; cidade?: string | null }
+interface ClienteOpc { id: string; razaoSocial: string; nomeFantasia?: string | null; cpfCnpj: string; uf?: string | null; cidade?: string | null; telefone?: string | null }
 interface ProdutoOpc { id: string; nome: string; codigo: string; imagemUrl?: string | null; descricao?: string | null; gramatura?: number | string | null }
 interface PrazoOpc { id: string; descricao: string; dias: number; parcelas: number }
 interface AcabamentoOpc { id: string; nome: string }
@@ -119,7 +121,7 @@ const COMPOSICOES_PP: Record<string, string[]> = {
 }
 
 const VAZIO: FormState = {
-  origem: 'INTERNA', tipoPedido: 'NOVO', clienteNome: '', clienteCpfCnpj: '', jaCliente: false,
+  origem: 'INTERNA', tipoPedido: 'NOVO', clienteNome: '', clienteCpfCnpj: '', clienteTelefone: '', jaCliente: false,
   mercado: '', ufOrigem: '', cidade: '', tipoEntrega: '', entregaFracionadaDias: '', prazoPagamento: '',
   produtoNome: '', tipoEmbalagem: '', quantidade: '', cartao: '', gramatura: '', medidasTexto: '',
   cartaoFsc: false, corteInternoVerso: false, passtime: false, acabamentos: '', matriz: '',
@@ -328,6 +330,7 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
       clienteId: c.id,
       clienteNome: c.razaoSocial,
       clienteCpfCnpj: c.cpfCnpj || f.clienteCpfCnpj,
+      clienteTelefone: c.telefone || f.clienteTelefone,
       ufOrigem: c.uf || f.ufOrigem,
       cidade: c.cidade || f.cidade,
       jaCliente: true,
@@ -521,6 +524,10 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
       notifications.show({ message: 'Informe a cidade (obrigatório).', color: 'red' })
       return
     }
+    if (form.clienteTelefone.replace(/\D/g, '').length < 8) {
+      notifications.show({ message: 'Informe o telefone do cliente (obrigatório).', color: 'red' })
+      return
+    }
     if (!form.entregaMesmoEndereco && !form.entregaEndereco.trim()) {
       notifications.show({ message: 'Informe o endereço de entrega.', color: 'red' })
       return
@@ -575,7 +582,7 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
     } catch (err: any) {
       const code = err?.response?.data?.code
       const msg = code === 'LIMITE_ANEXOS' ? 'Limite de 5 imagens.'
-        : code === 'MIME_INVALIDO' ? 'Apenas imagens são aceitas.'
+        : code === 'MIME_INVALIDO' ? 'Apenas imagens ou PDF são aceitos.'
         : code === 'ARQUIVO_GRANDE' ? 'Imagem acima de 10MB.'
         : err?.response?.data?.message || 'Falha ao enviar imagem.'
       notifications.show({ title: 'Imagem', message: msg, color: 'red' })
@@ -795,8 +802,14 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
           <TextInput label="Razão social / Nome" value={form.clienteNome} onChange={(e) => set('clienteNome', e.currentTarget.value)} />
           <Switch label="Já é cliente" checked={form.jaCliente} onChange={(e) => set('jaCliente', e.currentTarget.checked)} />
           <Autocomplete label="Mercado (obrigatório)" data={SUG_MERCADO} value={form.mercado} onChange={(v) => set('mercado', v)} comboboxProps={{ withinPortal: true }} />
-          <TextInput label="UF de origem" maxLength={2} value={form.ufOrigem} onChange={(e) => set('ufOrigem', e.currentTarget.value.toUpperCase())} />
-          <TextInput label="Cidade" value={form.cidade} onChange={(e) => set('cidade', e.currentTarget.value)} />
+          <TextInput label="Telefone do cliente" required value={form.clienteTelefone}
+            onChange={(e) => set('clienteTelefone', e.currentTarget.value)} />
+          <Select label="UF de origem" searchable clearable
+            data={['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO']}
+            value={form.ufOrigem || null} onChange={(v) => set('ufOrigem', v ?? '')}
+            comboboxProps={{ withinPortal: true }} />
+          <MunicipioAutocomplete label="Cidade" required uf={form.ufOrigem} value={form.cidade}
+            onChange={(nome) => set('cidade', nome)} onSelect={() => { /* nome já atualizado em onChange */ }} />
         </SimpleGrid>
       </Paper>
 
@@ -1037,14 +1050,14 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
       <Paper withBorder p="md">
         <Group justify="space-between" mb="sm">
           <Group gap="xs">
-            <Text fw={600}>Imagens da amostra/arte</Text>
+            <Text fw={600}>Anexos da amostra/arte (imagem ou PDF)</Text>
             <Badge variant="light" color="gray">{anexos.length}/5</Badge>
           </Group>
           <Button variant="light" leftSection={<IconUpload size={16} />} disabled={!idAtual || anexos.length >= 5}
             onClick={() => fileRef.current?.click()}>
-            Adicionar imagem
+            Adicionar anexo
           </Button>
-          <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
+          <input ref={fileRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
             onChange={(e) => { const f = e.currentTarget.files?.[0]; if (f) enviarImagem(f); e.currentTarget.value = '' }} />
         </Group>
         {!idAtual && <Text size="xs" c="dimmed">Salve o pedido para habilitar o anexo de imagens.</Text>}
@@ -1052,8 +1065,18 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
           <SimpleGrid cols={{ base: 2, sm: 5 }}>
             {anexos.map((a) => (
               <div key={a.id} style={{ position: 'relative' }}>
-                <Image src={urlAnexo(a.id)} alt={a.nome} radius="sm" h={120} fit="cover"
-                  style={{ cursor: 'zoom-in' }} onClick={() => setImgAmpliada(urlAnexo(a.id))} />
+                {a.tipo === 'application/pdf' ? (
+                  <a href={urlAnexo(a.id)} target="_blank" rel="noreferrer"
+                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      height: 120, border: '1px solid var(--mantine-color-default-border)', borderRadius: 4, textDecoration: 'none',
+                      padding: 6, textAlign: 'center' }}>
+                    <IconFileTypePdf size={36} color="var(--mantine-color-red-6)" />
+                    <Text size="xs" lineClamp={2} mt={4}>{a.nome}</Text>
+                  </a>
+                ) : (
+                  <Image src={urlAnexo(a.id)} alt={a.nome} radius="sm" h={120} fit="cover"
+                    style={{ cursor: 'zoom-in' }} onClick={() => setImgAmpliada(urlAnexo(a.id))} />
+                )}
                 <ActionIcon color="red" variant="filled" size="sm" style={{ position: 'absolute', top: 4, right: 4 }}
                   onClick={() => removerImagem(a.id)}>
                   <IconTrash size={14} />
