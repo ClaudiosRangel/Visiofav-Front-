@@ -72,7 +72,7 @@ export default function SidebarDesktop({ notificationCount, onLogout, representa
       {/* Logo */}
       <div style={{ padding: '20px 16px 12px' }}>
         <Text fw={700} size="lg" c="green">
-          Vizor Rep
+          Vizor ERP
         </Text>
         {representanteNome && (
           <Text size="xs" c="dimmed" mt={-4}>

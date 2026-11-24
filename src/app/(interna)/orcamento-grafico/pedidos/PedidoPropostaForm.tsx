@@ -18,20 +18,10 @@ import { getAuthToken } from '@/lib/authStorage'
 import { notifications } from '@mantine/notifications'
 import { ativarGuardaNavegacao, desativarGuardaNavegacao } from '@/lib/navigationGuardStore'
 import {
-  SUG_MERCADO, SUG_TIPO_EMBALAGEM, SUG_CARTAO, SUG_GRAMATURA, SUG_ACABAMENTOS,
-  SUG_PRAZO, SUG_CORES,
+  SUG_MERCADO, SUG_GRAMATURA, SUG_ACONDICIONAMENTO,
+  SUG_CORES,
 } from './sugestoes-rfq'
 
-/** Une as opções do cadastro com as sugestões da planilha, sem duplicar. */
-function unir(cadastro: string[], sugestoes: string[]): string[] {
-  const vistos = new Set<string>()
-  const out: string[] = []
-  for (const v of [...cadastro, ...sugestoes]) {
-    const k = v.trim().toLowerCase()
-    if (v.trim() && !vistos.has(k)) { vistos.add(k); out.push(v.trim()) }
-  }
-  return out
-}
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
 
@@ -76,6 +66,12 @@ interface FormState {
   prazoPagamentoId: string | null
   acabamentosSelecionados: Array<{ acabamentoId?: string | null; nome: string; marcado: boolean; detalhe?: string | null }>
   tiragensTexto: string
+  // Alinhamento Portal Rep x Pedidos/Propostas (reuniao 24/11/2026)
+  materiaPrimaCamadas: Array<{ funcao: string; suporte: string; gramatura: string }>
+  entregaMesmoEndereco: boolean
+  entregaEndereco: string
+  alteracaoImpressao: string
+  acondicionamento: string
   // Imagem da faca (dataURL/base64). '' = sem imagem.
   imagemFaca: string
   // Respostas_Pedido (status fiel — spec comercial-pedido-status-fiel).
@@ -116,6 +112,12 @@ interface ProdutoOpc { id: string; nome: string; codigo: string; imagemUrl?: str
 interface PrazoOpc { id: string; descricao: string; dias: number; parcelas: number }
 interface AcabamentoOpc { id: string; nome: string }
 
+const COMPOSICOES_PP: Record<string, string[]> = {
+  CARTAO: ['Cartão'],
+  CARTAO_MICRO: ['Cartão', 'Microondulado'],
+  CARTAO_CARTAO: ['Cartão', 'Cartão (2ª camada)'],
+}
+
 const VAZIO: FormState = {
   origem: 'INTERNA', tipoPedido: 'NOVO', clienteNome: '', clienteCpfCnpj: '', jaCliente: false,
   mercado: '', ufOrigem: '', cidade: '', tipoEntrega: '', entregaFracionadaDias: '', prazoPagamento: '',
@@ -124,6 +126,7 @@ const VAZIO: FormState = {
   acabamentoManual: false, quantidadePorVolume: '', variacoesArte: '', exportacao: '', dataValidade: '',
   discriminacao: '', observacoes: '', exigeAmostra: false,
   clienteId: null, produtoId: null, prazoPagamentoId: null, acabamentosSelecionados: [], tiragensTexto: '',
+  materiaPrimaCamadas: [], entregaMesmoEndereco: true, entregaEndereco: '', alteracaoImpressao: '', acondicionamento: '',
   imagemFaca: '',
   situacaoCliente: '', situacaoFaca: '', numeroMatriz: '', situacaoArte: '', exigeProva: false,
   referenciaOrigemTipo: '', referenciaOrigemNumero: '',
@@ -185,11 +188,40 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
   // Comboboxes: tipos de embalagem e suportes (cartão) cadastrados
   const [tiposEmb, setTiposEmb] = useState<string[]>([])
   const [suportes, setSuportes] = useState<string[]>([])
+  const [suportesCat, setSuportesCat] = useState<Array<{ descricao: string; tipoSuporte: string; gramaturas: string[] }>>([])
+  const [acondOpc, setAcondOpc] = useState<string[]>([])
 
   // Ponto 3 — modal de imagem ampliada
   const [imgAmpliada, setImgAmpliada] = useState<string | null>(null)
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => { setForm((f) => ({ ...f, [k]: v })); setDirty(true) }
+
+  // Matéria-prima por camadas (mesma regra do Portal do Representante).
+  const camadasForm = form.materiaPrimaCamadas.length
+    ? form.materiaPrimaCamadas
+    : [{ funcao: 'Cartão', suporte: form.cartao, gramatura: form.gramatura }]
+  const composicaoAtual = camadasForm.some((c) => c.funcao === 'Microondulado')
+    ? 'CARTAO_MICRO' : camadasForm.length > 1 ? 'CARTAO_CARTAO' : 'CARTAO'
+  function aplicarCamadas(novas: FormState['materiaPrimaCamadas']) {
+    set('materiaPrimaCamadas', novas)
+    set('cartao', novas.map((c) => c.suporte).filter(Boolean).join(' + '))
+    set('gramatura', novas.map((c) => c.gramatura).filter(Boolean).join('+'))
+  }
+  function trocarComposicao(v: string) {
+    const defs = COMPOSICOES_PP[v] ?? COMPOSICOES_PP.CARTAO
+    aplicarCamadas(defs.map((funcao, i) => ({
+      funcao, suporte: camadasForm[i]?.suporte ?? '', gramatura: camadasForm[i]?.gramatura ?? '',
+    })))
+  }
+  function suportesDaCamada(funcao: string) {
+    const micro = suportesCat.filter((s) => /MICRO/i.test(s.tipoSuporte))
+    const cartao = suportesCat.filter((s) => !/MICRO/i.test(s.tipoSuporte))
+    const lista = funcao === 'Microondulado' ? (micro.length ? micro : suportesCat) : (cartao.length ? cartao : suportesCat)
+    return Array.from(new Set(lista.map((s) => s.descricao)))
+  }
+  function gramaturasDe(suporte: string) {
+    return suportesCat.find((s) => s.descricao === suporte)?.gramaturas ?? []
+  }
 
   useEffect(() => {
     if (!pedidoId) return
@@ -215,6 +247,11 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
       if (d[k] !== undefined && d[k] !== null) out[k] = d[k]
     }
     if (Array.isArray(d.acabamentosSelecionados)) out.acabamentosSelecionados = d.acabamentosSelecionados
+    if (Array.isArray(d.materiaPrimaCamadas)) {
+      out.materiaPrimaCamadas = d.materiaPrimaCamadas.map((c: { funcao?: string; suporte?: string; gramatura?: string | null }) => ({
+        funcao: c.funcao ?? '', suporte: c.suporte ?? '', gramatura: c.gramatura ?? '',
+      }))
+    }
     // Tiragens: usa o texto se existir; senão deriva da quantidade numérica.
     if (!out.tiragensTexto && d.quantidade != null) out.tiragensTexto = String(d.quantidade)
     return out as Partial<FormState>
@@ -247,22 +284,19 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
     api.get('/orcamento-grafico/pedidos-proposta/prazos-pagamento')
       .then(({ data }) => setPrazos(Array.isArray(data) ? data : []))
       .catch(() => setPrazos([]))
-    api.get('/orcamento-grafico/acabamentos', { params: { limit: 200 } })
-      .then(({ data }) => setAcabamentosCad(Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : [])))
-      .catch(() => setAcabamentosCad([]))
-    // Tipos de embalagem (combobox) e suportes/cartão (combobox).
-    api.get('/orcamento-grafico/tipos-embalagem', { params: { limit: 300 } })
+    // Catálogo comercial ÚNICO (mesmas listas do Portal do Representante).
+    api.get('/orcamento-grafico/pedidos-proposta/catalogo-comercial')
       .then(({ data }) => {
-        const lista = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : [])
-        setTiposEmb(lista.map((t: { descricao?: string; codigo?: string }) => t.descricao || t.codigo || '').filter(Boolean))
+        setAcabamentosCad((data?.acabamentos ?? []).map((a: { id: string; nome: string }) => ({ id: a.id, nome: a.nome })))
+        setTiposEmb((data?.tiposEmbalagem ?? []).map((t: { descricao: string }) => t.descricao).filter(Boolean))
+        setSuportes((data?.suportes ?? []).map((s: { descricao: string }) => s.descricao).filter(Boolean))
+        setSuportesCat(data?.suportes ?? [])
+        setAcondOpc(Array.from(new Set([
+          ...(data?.acondicionamentos ?? []).map((a: { nome: string }) => a.nome),
+          ...SUG_ACONDICIONAMENTO,
+        ].map((n: string) => n.trim()).filter(Boolean))))
       })
-      .catch(() => setTiposEmb([]))
-    api.get('/orcamento-grafico/suportes', { params: { limit: 500 } })
-      .then(({ data }) => {
-        const lista = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : [])
-        setSuportes(lista.map((s: { descricao?: string }) => s.descricao || '').filter(Boolean))
-      })
-      .catch(() => setSuportes([]))
+      .catch(() => { setAcabamentosCad([]); setTiposEmb([]); setSuportes([]); setSuportesCat([]); setAcondOpc([...SUG_ACONDICIONAMENTO]) })
   }, [])
 
   // Busca de cliente do cadastro (debounce simples).
@@ -452,6 +486,12 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
     p.tiragensTexto = form.tiragensTexto.trim() || null
     p.tipoEntrega = form.tipoEntrega || null
     p.exportacao = form.exportacao || null
+    p.materiaPrimaCamadas = camadasForm.some((c) => c.suporte.trim())
+      ? camadasForm.filter((c) => c.suporte.trim()).map((c) => ({ funcao: c.funcao, suporte: c.suporte.trim(), gramatura: c.gramatura.trim() || null }))
+      : null
+    p.entregaEndereco = form.entregaMesmoEndereco ? null : (form.entregaEndereco.trim() || null)
+    p.alteracaoImpressao = form.alteracaoImpressao.trim() || null
+    p.acondicionamento = form.acondicionamento.trim() || null
     // Imagem da faca: '' → null (não gravar string vazia).
     p.imagemFaca = form.imagemFaca ? form.imagemFaca : null
     // Tipo legado derivado das respostas (compat. do payload de criação).
@@ -471,6 +511,18 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
   async function salvar() {
     if (!form.mercado.trim()) {
       notifications.show({ message: 'O campo Mercado é obrigatório.', color: 'red' })
+      return
+    }
+    if (form.clienteCpfCnpj.replace(/\D/g, '').length < 11 && !form.clienteId) {
+      notifications.show({ message: 'Informe o CNPJ/CPF do cliente (obrigatório).', color: 'red' })
+      return
+    }
+    if (!form.cidade.trim()) {
+      notifications.show({ message: 'Informe a cidade (obrigatório).', color: 'red' })
+      return
+    }
+    if (!form.entregaMesmoEndereco && !form.entregaEndereco.trim()) {
+      notifications.show({ message: 'Informe o endereço de entrega.', color: 'red' })
       return
     }
     if (form.origem === 'REPRESENTANTE' && !form.representanteId) {
@@ -685,6 +737,11 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
             onChange={(v) => set('situacaoArte', (v as FormState['situacaoArte']) || '')}
             comboboxProps={{ withinPortal: true }}
           />
+          {form.situacaoArte === 'EXISTENTE_COM_ALTERACAO' && (
+            <Textarea label="Alteração na impressão" autosize minRows={2}
+              description="Somente a impressão pode ser alterada na repetição."
+              value={form.alteracaoImpressao} onChange={(e) => set('alteracaoImpressao', e.currentTarget.value)} />
+          )}
           <Select label="Referência de origem (tipo)" clearable
             data={[
               { value: 'CALCULO', label: 'Cálculo' }, { value: 'PROPOSTA', label: 'Proposta' },
@@ -775,7 +832,15 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
               </ActionIcon>
             </Group>
           </div>
-          <Autocomplete label="Prazo (texto livre)" description="Use quando não estiver no cadastro" data={SUG_PRAZO} value={form.prazoPagamento} onChange={(v) => set('prazoPagamento', v)} comboboxProps={{ withinPortal: true }} />
+          <div>
+            <Switch label="Entrega no mesmo endereço do CNPJ" checked={form.entregaMesmoEndereco}
+              onChange={(e) => set('entregaMesmoEndereco', e.currentTarget.checked)} mt="lg" />
+          </div>
+          {!form.entregaMesmoEndereco && (
+            <Textarea label="Endereço de entrega" required autosize minRows={2}
+              placeholder="Rua, número, bairro, cidade, UF, CEP"
+              value={form.entregaEndereco} onChange={(e) => set('entregaEndereco', e.currentTarget.value)} />
+          )}
         </SimpleGrid>
       </Paper>
 
@@ -815,12 +880,13 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
         )}
         <SimpleGrid cols={{ base: 1, sm: 3 }}>
           <TextInput label="Nome do produto" value={form.produtoNome} onChange={(e) => set('produtoNome', e.currentTarget.value)} />
-          <Autocomplete
+          <Select
             label="Tipo de embalagem"
-            placeholder="Cartucho / Caixa / Sacola..."
-            data={unir(tiposEmb, SUG_TIPO_EMBALAGEM)}
-            value={form.tipoEmbalagem}
-            onChange={(v) => set('tipoEmbalagem', v)}
+            placeholder="Selecione"
+            searchable
+            data={Array.from(new Set([...tiposEmb, ...(form.tipoEmbalagem ? [form.tipoEmbalagem] : [])]))}
+            value={form.tipoEmbalagem || null}
+            onChange={(v) => set('tipoEmbalagem', v ?? '')}
             comboboxProps={{ withinPortal: true }}
           />
           <TextInput
@@ -830,29 +896,45 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
             value={form.tiragensTexto}
             onChange={(e) => set('tiragensTexto', e.currentTarget.value)}
           />
-          <Autocomplete
-            label="Cartão"
-            placeholder="Duplex / Triplex / Kraft..."
-            data={unir(suportes, SUG_CARTAO)}
-            value={form.cartao}
-            onChange={(v) => set('cartao', v)}
-            comboboxProps={{ withinPortal: true }}
-          />
-          <Autocomplete label="Gramatura" placeholder="300, 276, 190+230..." data={SUG_GRAMATURA} value={form.gramatura} onChange={(v) => set('gramatura', v)} comboboxProps={{ withinPortal: true }} />
           <TextInput label="Medidas (C x L x A mm)" value={form.medidasTexto} onChange={(e) => set('medidasTexto', e.currentTarget.value)} />
           <Autocomplete label="Variações de arte / cores" placeholder="4x0, 5x0, 2x0..." data={SUG_CORES} value={form.variacoesArte} onChange={(v) => set('variacoesArte', v)} comboboxProps={{ withinPortal: true }} />
-          <Select label="Exportação" clearable data={[
-            { value: 'COMUM', label: 'Comum' }, { value: 'EXPORTACAO', label: 'Exportação' },
-          ]} value={form.exportacao || null} onChange={(v) => set('exportacao', (v as FormState['exportacao']) || '')} />
           <TextInput label="Matriz (nova / anterior)" value={form.matriz} onChange={(e) => set('matriz', e.currentTarget.value)} />
           <TextInput label="Qtd. por volume" value={form.quantidadePorVolume} onChange={(e) => set('quantidadePorVolume', e.currentTarget.value)} />
-          <TextInput label="Validade" value={form.dataValidade} onChange={(e) => set('dataValidade', e.currentTarget.value)} />
+          <Select label="Forma de acondicionamento" placeholder="Selecione" clearable searchable
+            data={Array.from(new Set([...acondOpc, ...(form.acondicionamento ? [form.acondicionamento] : [])]))}
+            value={form.acondicionamento || null}
+            onChange={(v) => set('acondicionamento', v ?? '')}
+            comboboxProps={{ withinPortal: true }} />
         </SimpleGrid>
+
+        {/* Matéria-prima por camadas (caixa acoplada = mais de uma camada) */}
+        <Divider my="sm" label="Matéria-prima" labelPosition="left" />
+        <Select label="Composição" allowDeselect={false} maw={320}
+          data={[
+            { value: 'CARTAO', label: 'Cartão' },
+            { value: 'CARTAO_MICRO', label: 'Cartão + Microondulado' },
+            { value: 'CARTAO_CARTAO', label: 'Cartão + Cartão' },
+          ]}
+          value={composicaoAtual} onChange={(v) => v && trocarComposicao(v)}
+          comboboxProps={{ withinPortal: true }} />
+        {camadasForm.map((c, i) => (
+          <SimpleGrid key={`${c.funcao}-${i}`} cols={{ base: 1, sm: 2 }} mt="xs">
+            <Select label={`${c.funcao} - tipo`} placeholder="Selecione" searchable
+              data={Array.from(new Set([...suportesDaCamada(c.funcao), ...(c.suporte ? [c.suporte] : [])]))}
+              value={c.suporte || null}
+              onChange={(v) => aplicarCamadas(camadasForm.map((x, j) => (j === i ? { ...x, suporte: v ?? '', gramatura: '' } : x)))}
+              comboboxProps={{ withinPortal: true }} />
+            <Autocomplete label={`${c.funcao} - gramatura`} placeholder="Ex.: 300"
+              data={gramaturasDe(c.suporte).length ? gramaturasDe(c.suporte) : SUG_GRAMATURA}
+              value={c.gramatura}
+              onChange={(v) => aplicarCamadas(camadasForm.map((x, j) => (j === i ? { ...x, gramatura: v } : x)))}
+              comboboxProps={{ withinPortal: true }} />
+          </SimpleGrid>
+        ))}
         <Group mt="sm" gap="lg">
           <Switch label="Cartão FSC" checked={form.cartaoFsc} onChange={(e) => set('cartaoFsc', e.currentTarget.checked)} />
-          <Switch label="Corte interno (verso)" checked={form.corteInternoVerso} onChange={(e) => set('corteInternoVerso', e.currentTarget.checked)} />
+          <Switch label="Impressão interna" checked={form.corteInternoVerso} onChange={(e) => set('corteInternoVerso', e.currentTarget.checked)} />
           <Switch label="Passtime (visor)" checked={form.passtime} onChange={(e) => set('passtime', e.currentTarget.checked)} />
-          <Switch label="Acabamento manual" checked={form.acabamentoManual} onChange={(e) => set('acabamentoManual', e.currentTarget.checked)} />
         </Group>
         {/* Checklist de acabamentos (cadastrados + livres) + detalhe por item */}
         <div style={{ marginTop: 12 }}>
@@ -861,10 +943,8 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
             {/* Lista combinada: cadastro (AcabamentoGrafico) + sugestões da planilha. */}
             {(() => {
               const nomesCad = acabamentosCad.map((a) => ({ id: a.id, nome: a.nome }))
-              const nomesSug = SUG_ACABAMENTOS
-                .filter((n) => !acabamentosCad.some((a) => a.nome.trim().toLowerCase() === n.trim().toLowerCase()))
-                .map((n) => ({ id: `sug-${n}`, nome: n }))
-              return [...nomesCad, ...nomesSug]
+              // Lista única: a mesma do Portal do Representante (catálogo comercial).
+              return nomesCad
             })().map((a) => {
                 const est = estadoAcabamento(a.nome)
                 const marcado = !!est?.marcado
@@ -893,8 +973,7 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
               {/* Acabamentos LIVRES já adicionados (fora do cadastro e das sugestões) */}
               {form.acabamentosSelecionados
                 .filter((a) => !a.acabamentoId
-                  && !acabamentosCad.some((c) => c.nome === a.nome)
-                  && !SUG_ACABAMENTOS.some((s) => s.trim().toLowerCase() === a.nome.trim().toLowerCase()))
+                  && !acabamentosCad.some((c) => c.nome === a.nome))
                 .map((a) => (
                   <Group key={`livre-${a.nome}`} gap="xs" wrap="nowrap" align="center">
                     <Checkbox
@@ -913,23 +992,9 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
                   </Group>
                 ))}
 
-              {/* Adicionar acabamento livre */}
-              <Group gap="xs" wrap="nowrap">
-                <TextInput
-                  placeholder="Outro acabamento (não listado)..."
-                  size="xs"
-                  value={acabLivre}
-                  onChange={(e) => setAcabLivre(e.currentTarget.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); adicionarAcabamentoLivre() } }}
-                  style={{ flex: 1 }}
-                />
-                <Button size="compact-sm" variant="light" leftSection={<IconPlus size={14} />} onClick={adicionarAcabamentoLivre}>
-                  Adicionar
-                </Button>
-              </Group>
             </Stack>
             {acabamentosCad.length === 0 && (
-              <Text size="xs" c="dimmed" mt={4}>Nenhum acabamento no cadastro — use o campo acima para adicionar.</Text>
+              <Text size="xs" c="dimmed" mt={4}>Nenhum acabamento disponível na lista comercial (cadastro de acabamentos).</Text>
             )}
           </div>
         <Textarea label="Acabamentos (texto livre / complemento)" mt="sm" minRows={2} value={form.acabamentos} onChange={(e) => set('acabamentos', e.currentTarget.value)} />

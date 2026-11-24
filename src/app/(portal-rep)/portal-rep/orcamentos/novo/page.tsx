@@ -1,38 +1,39 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import {
-  Card,
-  Textarea,
-  NumberInput,
-  Select,
-  MultiSelect,
-  Button,
-  Stack,
-  Group,
-  Title,
+  Card, Textarea, NumberInput, Select, MultiSelect, Button, Stack, Group, Title,
+  Collapse, TextInput, Divider, SegmentedControl, Switch, SimpleGrid, Text, Autocomplete, ActionIcon,
 } from '@mantine/core'
+import { IconPlus, IconTrash } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { usePortalRepClientes, useConsultarCnpj, useCriarCliente } from '@/data/hooks/portal-rep-app/usePortalRepClientes'
 import { useCriarSolicitacao } from '@/data/hooks/portal-rep-app/usePortalRepOrcamentos'
 import { portalRepApi } from '@/data/hooks/portal-rep-app/portal-rep-api'
-import { Collapse, TextInput, Divider, SegmentedControl, Switch, SimpleGrid, Text } from '@mantine/core'
+import {
+  SUG_MERCADO, SUG_CORES, SUG_ACONDICIONAMENTO,
+} from '@/app/(interna)/orcamento-grafico/pedidos/sugestoes-rfq'
 
-// Hooks para buscar catálogo
-function useTiposEmbalagem() {
-  return useQuery<Array<{ id: string; codigo: string; descricao: string }>>({
-    queryKey: ['portal-rep-catalogo-tipos-embalagem'],
-    queryFn: async () => {
-      const { data } = await portalRepApi.get('/catalogo/tipos-embalagem')
-      return data
-    },
-    staleTime: 5 * 60 * 1000, // 5 min cache
+// ─── Catálogo comercial único (mesmas listas de Pedidos/Propostas) ───────────
+interface CatalogoComercial {
+  tiposEmbalagem: Array<{ id: string; codigo: string; descricao: string }>
+  acabamentos: Array<{ id: string; codigo: string; nome: string }>
+  acondicionamentos: Array<{ id: string; nome: string }>
+  suportes: Array<{ id: string; descricao: string; tipoSuporte: string; gramaturas: string[] }>
+  prazos: Array<{ id: string; descricao: string }>
+}
+
+function useCatalogoComercial() {
+  return useQuery<CatalogoComercial>({
+    queryKey: ['portal-rep-catalogo-comercial'],
+    queryFn: async () => (await portalRepApi.get('/catalogo/comercial')).data,
+    staleTime: 5 * 60 * 1000,
   })
 }
 
-// Produtos do representante (para pedido de Repetição), opcionalmente do cliente escolhido
+// Produtos do representante (pedido de Repetição), opcionalmente do cliente escolhido
 function useMeusProdutos(clienteId: string | null, ativo: boolean) {
   return useQuery<Array<{ id: string; codigo: string; nome: string; ultimoPedidoEm: string | null }>>({
     queryKey: ['portal-rep-catalogo-meus-produtos', clienteId],
@@ -47,32 +48,33 @@ function useMeusProdutos(clienteId: string | null, ativo: boolean) {
   })
 }
 
-function useAcabamentos() {
-  return useQuery<Array<{ codigo: string; descricao: string }>>({
-    queryKey: ['portal-rep-catalogo-acabamentos'],
-    queryFn: async () => {
-      const { data } = await portalRepApi.get('/catalogo/acabamentos')
-      return data
-    },
-    staleTime: 5 * 60 * 1000,
-  })
-}
+const UFS = [
+  'AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT', 'PA', 'PB', 'PE', 'PI',
+  'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO',
+]
+
+type Composicao = 'CARTAO' | 'CARTAO_MICRO' | 'CARTAO_CARTAO'
+const COMPOSICOES: Array<{ value: Composicao; label: string; camadas: string[] }> = [
+  { value: 'CARTAO', label: 'Cartão', camadas: ['Cartão'] },
+  { value: 'CARTAO_MICRO', label: 'Cartão + Microondulado', camadas: ['Cartão', 'Microondulado'] },
+  { value: 'CARTAO_CARTAO', label: 'Cartão + Cartão', camadas: ['Cartão', 'Cartão (2ª camada)'] },
+]
 
 export default function NovaSolicitacaoPage() {
   const router = useRouter()
   const { data: clientes, isLoading: carregandoClientes } = usePortalRepClientes()
-  const { data: tiposEmbalagem, isLoading: carregandoTipos } = useTiposEmbalagem()
-  const { data: acabamentosDisponiveis, isLoading: carregandoAcabamentos } = useAcabamentos()
+  const { data: catalogo, isLoading: carregandoCatalogo } = useCatalogoComercial()
   const criarSolicitacao = useCriarSolicitacao()
   const consultarCnpj = useConsultarCnpj()
   const criarCliente = useCriarCliente()
 
-  // ─── Cliente novo (B2): cadastro com consulta de CNPJ ───────────────────────
+  // ─── Cliente novo: CNPJ, telefone e cidade são obrigatórios ─────────────────
   const [mostrarNovoCliente, setMostrarNovoCliente] = useState(false)
   const [novoCliente, setNovoCliente] = useState({
     cpfCnpj: '', razaoSocial: '', nomeFantasia: '', telefone: '', email: '',
     logradouro: '', numero: '', bairro: '', cidade: '', uf: '', cep: '',
   })
+  const setNC = (k: keyof typeof novoCliente, v: string) => setNovoCliente((c) => ({ ...c, [k]: v }))
 
   async function buscarCnpj() {
     try {
@@ -82,8 +84,8 @@ export default function NovaSolicitacaoPage() {
         cpfCnpj: d.cpfCnpj || c.cpfCnpj,
         razaoSocial: d.razaoSocial || '',
         nomeFantasia: d.nomeFantasia || '',
-        telefone: d.telefone || '',
-        email: d.email || '',
+        telefone: d.telefone || c.telefone,
+        email: d.email || c.email,
         logradouro: d.logradouro || '',
         numero: d.numero || '',
         bairro: d.bairro || '',
@@ -101,8 +103,13 @@ export default function NovaSolicitacaoPage() {
   }
 
   async function salvarNovoCliente() {
-    if (!novoCliente.razaoSocial.trim() || novoCliente.cpfCnpj.replace(/\D/g, '').length < 11) {
-      notifications.show({ message: 'Informe ao menos CNPJ/CPF e razão social.', color: 'red' })
+    const faltando: string[] = []
+    if (novoCliente.cpfCnpj.replace(/\D/g, '').length < 11) faltando.push('CNPJ/CPF')
+    if (!novoCliente.razaoSocial.trim()) faltando.push('razão social')
+    if (novoCliente.telefone.replace(/\D/g, '').length < 8) faltando.push('telefone')
+    if (!novoCliente.cidade.trim()) faltando.push('cidade')
+    if (faltando.length) {
+      notifications.show({ message: `Informe: ${faltando.join(', ')}.`, color: 'red' })
       return
     }
     try {
@@ -110,12 +117,12 @@ export default function NovaSolicitacaoPage() {
         razaoSocial: novoCliente.razaoSocial,
         nomeFantasia: novoCliente.nomeFantasia || undefined,
         cpfCnpj: novoCliente.cpfCnpj,
-        telefone: novoCliente.telefone || undefined,
+        telefone: novoCliente.telefone,
         email: novoCliente.email || undefined,
         logradouro: novoCliente.logradouro || undefined,
         numero: novoCliente.numero || undefined,
         bairro: novoCliente.bairro || undefined,
-        cidade: novoCliente.cidade || undefined,
+        cidade: novoCliente.cidade,
         uf: novoCliente.uf || undefined,
         cep: novoCliente.cep || undefined,
       })
@@ -130,129 +137,152 @@ export default function NovaSolicitacaoPage() {
     }
   }
 
+  // ─── Estado do pedido ───────────────────────────────────────────────────────
   const [clienteId, setClienteId] = useState<string | null>(null)
-  const [tipoEmbalagem, setTipoEmbalagem] = useState<string | null>(null)
-  const [quantidade, setQuantidade] = useState<number | ''>('')
-  const [medidaLargura, setMedidaLargura] = useState<number | ''>('')
-  const [medidaAltura, setMedidaAltura] = useState<number | ''>('')
-  const [medidaComprimento, setMedidaComprimento] = useState<number | ''>('')
-  const [acabamentosSelecionados, setAcabamentosSelecionados] = useState<string[]>([])
-  const [observacoes, setObservacoes] = useState('')
-
-  // ─── Campos da planilha Carton Wega (B2 Fase B) ─────────────────────────────
-  const [tipoPedido, setTipoPedido] = useState<'REPETICAO' | 'MOSTRUARIO' | 'NOVO'>('NOVO')
+  const [tipoPedido, setTipoPedido] = useState<'NOVO' | 'REPETICAO'>('NOVO')
+  const [mostruario, setMostruario] = useState(false) // pedido NOVO com amostra para teste
   const [produtoId, setProdutoId] = useState<string | null>(null)
-  const { data: meusProdutos, isLoading: carregandoProdutos } = useMeusProdutos(
-    clienteId,
-    tipoPedido === 'REPETICAO',
-  )
-  const [wega, setWega] = useState({
-    mercado: '', ufOrigem: '', cidade: '',
+  const [alteraImpressao, setAlteraImpressao] = useState(false)
+  const [alteracaoImpressao, setAlteracaoImpressao] = useState('')
+  const [tipoEmbalagem, setTipoEmbalagem] = useState<string | null>(null)
+  const [tiragens, setTiragens] = useState<Array<number | ''>>([''])
+  const [comprimento, setComprimento] = useState<number | ''>('')
+  const [largura, setLargura] = useState<number | ''>('')
+  const [altura, setAltura] = useState<number | ''>('')
+  const [composicao, setComposicao] = useState<Composicao>('CARTAO')
+  const [camadas, setCamadas] = useState<Array<{ suporte: string; gramatura: string }>>([
+    { suporte: '', gramatura: '' },
+  ])
+  const [acabamentosIds, setAcabamentosIds] = useState<string[]>([])
+  const [situacaoFaca, setSituacaoFaca] = useState<'NOVA' | 'EXISTENTE'>('NOVA')
+  const [observacoes, setObservacoes] = useState('')
+  const [entregaMesmoEndereco, setEntregaMesmoEndereco] = useState(true)
+  const [w, setWega] = useState({
+    mercado: '', ufOrigem: '', cidade: '', produtoNome: '',
     tipoEntrega: 'UNICA' as 'UNICA' | 'FRACIONADA', entregaFracionadaDias: '',
-    prazoPagamento: '', produtoNome: '', dataValidade: '', variacoesArte: '',
-    exportacao: 'COMUM' as 'COMUM' | 'EXPORTACAO', cartao: '', gramaturaTexto: '',
-    cartaoFsc: false, medidasTexto: '', corteInternoVerso: false, passtime: false,
-    matriz: '', acabamentoManual: false, quantidadePorVolume: '',
-    anexo1Url: '', anexo2Url: '', discriminacao: '',
+    prazoPagamentoId: '', variacoesArte: '', cartaoFsc: false, corteInternoVerso: false, passtime: false,
+    numeroMatriz: '', acondicionamento: '', quantidadePorVolume: '',
+    anexo1Url: '', anexo2Url: '', discriminacao: '', entregaEndereco: '',
   })
-  const setW = (k: keyof typeof wega, v: string | boolean) => setWega((s) => ({ ...s, [k]: v }))
+  const setW = (k: keyof typeof w, v: string | boolean) => setWega((s) => ({ ...s, [k]: v }))
+
+  const repeticao = tipoPedido === 'REPETICAO'
+  const { data: meusProdutos, isLoading: carregandoProdutos } = useMeusProdutos(clienteId, repeticao)
 
   const clienteOptions = (clientes ?? []).map((c) => ({
     value: c.id,
     label: c.razaoSocial + (c.nomeFantasia ? ` (${c.nomeFantasia})` : ''),
   }))
+  const tipoEmbalagemOptions = (catalogo?.tiposEmbalagem ?? []).map((t) => ({ value: t.descricao, label: t.descricao }))
+  const acabamentosOptions = (catalogo?.acabamentos ?? []).map((a) => ({ value: a.id, label: a.nome }))
+  const prazoOptions = (catalogo?.prazos ?? []).map((p) => ({ value: p.id, label: p.descricao }))
+  const acondicionamentoOptions = useMemo(() => {
+    const nomes = [...(catalogo?.acondicionamentos ?? []).map((a) => a.nome), ...SUG_ACONDICIONAMENTO]
+    return Array.from(new Set(nomes.map((n) => n.trim()).filter(Boolean)))
+  }, [catalogo])
 
-  // O Mantine 7 lança erro ("Duplicate options are not supported") quando duas
-  // opções têm o mesmo `value`. O cadastro pode ter descrições repetidas (ex.:
-  // dois "Impressos"), e aqui o value é a própria descrição — então deduplica,
-  // mantendo a primeira ocorrência, sem mudar o que é enviado ao backend.
-  const opcoesUnicas = (itens: Array<{ descricao: string }> | undefined) => {
-    const vistos = new Set<string>()
-    const out: Array<{ value: string; label: string }> = []
-    for (const i of itens ?? []) {
-      const d = (i.descricao ?? '').trim()
-      if (!d || vistos.has(d)) continue
-      vistos.add(d)
-      out.push({ value: d, label: d })
-    }
-    return out
+  const camadasDef = COMPOSICOES.find((c) => c.value === composicao)!.camadas
+  function trocarComposicao(v: Composicao) {
+    setComposicao(v)
+    const n = COMPOSICOES.find((c) => c.value === v)!.camadas.length
+    setCamadas((atual) => Array.from({ length: n }, (_, i) => atual[i] ?? { suporte: '', gramatura: '' }))
+  }
+  function suportesDaCamada(funcao: string) {
+    const todos = catalogo?.suportes ?? []
+    const micro = todos.filter((s) => /MICRO/i.test(s.tipoSuporte))
+    const cartao = todos.filter((s) => !/MICRO/i.test(s.tipoSuporte))
+    const lista = funcao === 'Microondulado' ? (micro.length ? micro : todos) : (cartao.length ? cartao : todos)
+    return Array.from(new Set(lista.map((s) => s.descricao)))
+  }
+  function gramaturasDe(suporte: string) {
+    const s = (catalogo?.suportes ?? []).find((x) => x.descricao === suporte)
+    return s?.gramaturas ?? []
   }
 
-  const tipoEmbalagemOptions = opcoesUnicas(tiposEmbalagem)
-  const acabamentosOptions = opcoesUnicas(acabamentosDisponiveis)
+  // Tiragens: lista (a primeira é a quantidade principal).
+  const tiragensValidas = tiragens.filter((t): t is number => typeof t === 'number' && t > 0)
+  const camadasPreenchidas = camadas.every((c) => c.suporte.trim())
 
+  const cidadeInformada = !!w.cidade.trim()
   const formValido =
-    !!clienteId &&
-    !!tipoEmbalagem &&
-    typeof quantidade === 'number' &&
-    quantidade > 0
+    !!clienteId && !!tipoEmbalagem && tiragensValidas.length > 0 && cidadeInformada && !!w.mercado.trim() &&
+    (!repeticao || !!produtoId) &&
+    (entregaMesmoEndereco || !!w.entregaEndereco.trim()) &&
+    (w.tipoEntrega !== 'FRACIONADA' || !!w.entregaFracionadaDias.trim()) &&
+    (repeticao || camadasPreenchidas)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!formValido || !clienteId || !tipoEmbalagem) return
 
+    const acabamentosSel = (catalogo?.acabamentos ?? [])
+      .filter((a) => acabamentosIds.includes(a.id))
+      .map((a) => ({ acabamentoId: a.id, nome: a.nome }))
+    const prazo = (catalogo?.prazos ?? []).find((p) => p.id === w.prazoPagamentoId)
+    const medidasTexto = [comprimento, largura, altura].every((m) => typeof m === 'number' && m > 0)
+      ? `${comprimento} x ${largura} x ${altura}` : ''
+
     criarSolicitacao.mutate(
       {
         clienteId,
         tipoEmbalagem,
-        quantidade: quantidade as number,
-        ...(typeof medidaLargura === 'number' && medidaLargura > 0
-          ? { medidaLargura }
-          : {}),
-        ...(typeof medidaAltura === 'number' && medidaAltura > 0
-          ? { medidaAltura }
-          : {}),
-        ...(typeof medidaComprimento === 'number' && medidaComprimento > 0
-          ? { medidaComprimento }
-          : {}),
-        ...(acabamentosSelecionados.length > 0
-          ? { acabamentos: acabamentosSelecionados.join(', ') }
+        quantidade: tiragensValidas[0],
+        tiragensTexto: tiragensValidas.join(', '),
+        ...(typeof comprimento === 'number' && comprimento > 0 ? { medidaComprimento: comprimento } : {}),
+        ...(typeof largura === 'number' && largura > 0 ? { medidaLargura: largura } : {}),
+        ...(typeof altura === 'number' && altura > 0 ? { medidaAltura: altura } : {}),
+        ...(medidasTexto ? { medidasTexto } : {}),
+        ...(!repeticao && acabamentosSel.length
+          ? { acabamentos: acabamentosSel.map((a) => a.nome).join(', '), acabamentosSelecionados: acabamentosSel }
           : {}),
         ...(observacoes.trim() ? { observacoes: observacoes.trim() } : {}),
-        // Campos da planilha Carton Wega (B2 Fase B) — só envia os preenchidos.
         tipoPedido,
-        ...(tipoPedido === 'REPETICAO' && produtoId ? { produtoId } : {}),
-        jaCliente: !!clienteId,
-        ...(wega.mercado.trim() ? { mercado: wega.mercado.trim() } : {}),
-        ...(wega.ufOrigem.trim() ? { ufOrigem: wega.ufOrigem.trim() } : {}),
-        ...(wega.cidade.trim() ? { cidade: wega.cidade.trim() } : {}),
-        tipoEntrega: wega.tipoEntrega,
-        ...(wega.tipoEntrega === 'FRACIONADA' && wega.entregaFracionadaDias.trim()
-          ? { entregaFracionadaDias: wega.entregaFracionadaDias.trim() } : {}),
-        ...(wega.prazoPagamento.trim() ? { prazoPagamento: wega.prazoPagamento.trim() } : {}),
-        ...(wega.produtoNome.trim() ? { produtoNome: wega.produtoNome.trim() } : {}),
-        ...(wega.dataValidade.trim() ? { dataValidade: wega.dataValidade.trim() } : {}),
-        ...(wega.variacoesArte.trim() ? { variacoesArte: wega.variacoesArte.trim() } : {}),
-        exportacao: wega.exportacao,
-        ...(wega.cartao.trim() ? { cartao: wega.cartao.trim() } : {}),
-        ...(wega.gramaturaTexto.trim() ? { gramaturaTexto: wega.gramaturaTexto.trim() } : {}),
-        cartaoFsc: wega.cartaoFsc,
-        ...(wega.medidasTexto.trim() ? { medidasTexto: wega.medidasTexto.trim() } : {}),
-        corteInternoVerso: wega.corteInternoVerso,
-        passtime: wega.passtime,
-        ...(wega.matriz.trim() ? { matriz: wega.matriz.trim() } : {}),
-        acabamentoManual: wega.acabamentoManual,
-        ...(wega.quantidadePorVolume.trim() ? { quantidadePorVolume: wega.quantidadePorVolume.trim() } : {}),
-        ...(wega.anexo1Url.trim() ? { anexo1Url: wega.anexo1Url.trim() } : {}),
-        ...(wega.anexo2Url.trim() ? { anexo2Url: wega.anexo2Url.trim() } : {}),
-        ...(wega.discriminacao.trim() ? { discriminacao: wega.discriminacao.trim() } : {}),
+        exigeAmostra: !repeticao && mostruario,
+        ...(repeticao && produtoId ? { produtoId } : {}),
+        ...(repeticao && alteraImpressao && alteracaoImpressao.trim()
+          ? { alteracaoImpressao: alteracaoImpressao.trim() } : {}),
+        jaCliente: true,
+        mercado: w.mercado.trim(),
+        ...(w.ufOrigem ? { ufOrigem: w.ufOrigem } : {}),
+        cidade: w.cidade.trim(),
+        ...(w.produtoNome.trim() ? { produtoNome: w.produtoNome.trim() } : {}),
+        tipoEntrega: w.tipoEntrega,
+        ...(w.tipoEntrega === 'FRACIONADA' ? { entregaFracionadaDias: w.entregaFracionadaDias.trim() } : {}),
+        entregaMesmoEndereco,
+        ...(!entregaMesmoEndereco ? { entregaEndereco: w.entregaEndereco.trim() } : {}),
+        ...(w.prazoPagamentoId ? { prazoPagamentoId: w.prazoPagamentoId } : {}),
+        ...(prazo ? { prazoPagamento: prazo.descricao } : {}),
+        ...(w.variacoesArte.trim() ? { variacoesArte: w.variacoesArte.trim() } : {}),
+        ...(!repeticao
+          ? {
+              materiaPrimaCamadas: camadas.map((c, i) => ({
+                funcao: camadasDef[i], suporte: c.suporte.trim(),
+                ...(c.gramatura.trim() ? { gramatura: c.gramatura.trim() } : {}),
+              })),
+              cartaoFsc: w.cartaoFsc,
+              corteInternoVerso: w.corteInternoVerso,
+              passtime: w.passtime,
+              situacaoFaca,
+              ...(situacaoFaca === 'EXISTENTE' && w.numeroMatriz.trim()
+                ? { numeroMatriz: w.numeroMatriz.trim(), matriz: w.numeroMatriz.trim() } : {}),
+              ...(w.acondicionamento ? { acondicionamento: w.acondicionamento } : {}),
+              ...(w.quantidadePorVolume.trim() ? { quantidadePorVolume: w.quantidadePorVolume.trim() } : {}),
+            }
+          : {}),
+        ...(w.anexo1Url.trim() ? { anexo1Url: w.anexo1Url.trim() } : {}),
+        ...(w.anexo2Url.trim() ? { anexo2Url: w.anexo2Url.trim() } : {}),
+        ...(w.discriminacao.trim() ? { discriminacao: w.discriminacao.trim() } : {}),
       },
       {
         onSuccess: () => {
-          notifications.show({
-            message: 'Solicitação de orçamento enviada com sucesso!',
-            color: 'green',
-          })
+          notifications.show({ message: 'Solicitação de orçamento enviada com sucesso!', color: 'green' })
           router.push('/portal-rep/orcamentos')
         },
         onError: (error: Error & { response?: { data?: { message?: string } } }) => {
           const msg =
             (error as unknown as { response?: { data?: { message?: string } } })
               .response?.data?.message || 'Erro ao enviar solicitação. Tente novamente.'
-          notifications.show({
-            message: msg,
-            color: 'red',
-          })
+          notifications.show({ message: msg, color: 'red' })
         },
       },
     )
@@ -264,6 +294,7 @@ export default function NovaSolicitacaoPage() {
 
       <form onSubmit={handleSubmit}>
         <Stack gap="md">
+          {/* 1. Tipo de pedido */}
           <Card>
             <Text size="sm" fw={600} mb={6}>Tipo de pedido</Text>
             <SegmentedControl
@@ -271,65 +302,62 @@ export default function NovaSolicitacaoPage() {
               value={tipoPedido}
               onChange={(v) => {
                 setTipoPedido(v as typeof tipoPedido)
-                if (v !== 'REPETICAO') setProdutoId(null)
+                if (v !== 'REPETICAO') { setProdutoId(null); setAlteraImpressao(false) } else setMostruario(false)
               }}
-              data={[
-                { label: 'Novo', value: 'NOVO' },
-                { label: 'Repetição', value: 'REPETICAO' },
-                { label: 'Mostruário', value: 'MOSTRUARIO' },
-              ]}
+              data={[{ label: 'Novo', value: 'NOVO' }, { label: 'Repetição', value: 'REPETICAO' }]}
             />
+            {!repeticao && (
+              <Switch
+                mt="sm"
+                label="Solicitar mostruário (amostra para teste de embalagem)"
+                description="Aprovada a amostra, o pedido segue como serviço novo."
+                checked={mostruario}
+                onChange={(e) => setMostruario(e.currentTarget.checked)}
+              />
+            )}
           </Card>
+
+          {/* 2. Cliente */}
           <Card>
             <Select
               label="Cliente"
               placeholder="Selecione o cliente"
               data={clienteOptions}
               value={clienteId}
-              onChange={setClienteId}
+              onChange={(v) => { setClienteId(v); setProdutoId(null) }}
               searchable
               nothingFoundMessage="Nenhum cliente encontrado"
               disabled={carregandoClientes}
-              required
+              withAsterisk
             />
-            <Button
-              variant="subtle"
-              size="compact-sm"
-              mt="xs"
-              onClick={() => setMostrarNovoCliente((v) => !v)}
-            >
+            <Button variant="subtle" size="compact-sm" mt="xs" onClick={() => setMostrarNovoCliente((v) => !v)}>
               {mostrarNovoCliente ? 'Cancelar cadastro' : 'Não achou? Cadastrar cliente novo'}
             </Button>
             <Collapse in={mostrarNovoCliente}>
-              <Divider my="sm" label="Novo cliente" labelPosition="left" />
+              <Divider my="sm" label="Novo cliente (CNPJ, telefone e cidade são obrigatórios)" labelPosition="left" />
               <Stack gap="xs">
                 <Group align="flex-end" gap="xs">
-                  <TextInput
-                    label="CNPJ"
-                    placeholder="Somente números"
-                    value={novoCliente.cpfCnpj}
-                    onChange={(e) => setNovoCliente((c) => ({ ...c, cpfCnpj: e.currentTarget.value }))}
-                    style={{ flex: 1 }}
-                  />
+                  <TextInput label="CNPJ" placeholder="Somente números" withAsterisk value={novoCliente.cpfCnpj}
+                    onChange={(e) => setNC('cpfCnpj', e.currentTarget.value)} style={{ flex: 1 }} />
                   <Button variant="light" loading={consultarCnpj.isPending} onClick={buscarCnpj}>
                     Buscar na Receita
                   </Button>
                 </Group>
-                <TextInput label="Razão social" value={novoCliente.razaoSocial}
-                  onChange={(e) => setNovoCliente((c) => ({ ...c, razaoSocial: e.currentTarget.value }))} withAsterisk />
+                <TextInput label="Razão social" withAsterisk value={novoCliente.razaoSocial}
+                  onChange={(e) => setNC('razaoSocial', e.currentTarget.value)} />
                 <TextInput label="Nome fantasia" value={novoCliente.nomeFantasia}
-                  onChange={(e) => setNovoCliente((c) => ({ ...c, nomeFantasia: e.currentTarget.value }))} />
+                  onChange={(e) => setNC('nomeFantasia', e.currentTarget.value)} />
                 <Group grow>
-                  <TextInput label="Cidade" value={novoCliente.cidade}
-                    onChange={(e) => setNovoCliente((c) => ({ ...c, cidade: e.currentTarget.value }))} />
-                  <TextInput label="UF" maxLength={2} value={novoCliente.uf}
-                    onChange={(e) => setNovoCliente((c) => ({ ...c, uf: e.currentTarget.value.toUpperCase() }))} />
+                  <TextInput label="Telefone" withAsterisk value={novoCliente.telefone}
+                    onChange={(e) => setNC('telefone', e.currentTarget.value)} />
+                  <TextInput label="E-mail" value={novoCliente.email}
+                    onChange={(e) => setNC('email', e.currentTarget.value)} />
                 </Group>
                 <Group grow>
-                  <TextInput label="Telefone" value={novoCliente.telefone}
-                    onChange={(e) => setNovoCliente((c) => ({ ...c, telefone: e.currentTarget.value }))} />
-                  <TextInput label="E-mail" value={novoCliente.email}
-                    onChange={(e) => setNovoCliente((c) => ({ ...c, email: e.currentTarget.value }))} />
+                  <TextInput label="Cidade" withAsterisk value={novoCliente.cidade}
+                    onChange={(e) => setNC('cidade', e.currentTarget.value)} />
+                  <Select label="UF" data={UFS} searchable clearable value={novoCliente.uf || null}
+                    onChange={(v) => setNC('uf', v ?? '')} />
                 </Group>
                 <Button onClick={salvarNovoCliente} loading={criarCliente.isPending}>
                   Salvar e selecionar cliente
@@ -338,194 +366,207 @@ export default function NovaSolicitacaoPage() {
             </Collapse>
           </Card>
 
+          {/* 3. Produto e especificação */}
           <Card>
+            <Text size="sm" fw={600} mb="xs">Produto</Text>
             <Stack gap="sm">
-              {tipoPedido === 'REPETICAO' && (
+              {repeticao && (
                 <Select
                   label="Produto a repetir"
-                  placeholder={
-                    !clienteId
-                      ? 'Selecione o cliente primeiro'
-                      : carregandoProdutos
-                        ? 'Carregando...'
-                        : 'Selecione um produto já fabricado'
-                  }
+                  placeholder={!clienteId ? 'Selecione o cliente primeiro' : carregandoProdutos ? 'Carregando...' : 'Selecione um produto já fabricado'}
                   description="Itens dos seus pedidos anteriores para este cliente."
-                  data={(meusProdutos ?? []).map((p) => ({
-                    value: p.id,
-                    label: `${p.codigo} - ${p.nome}`,
-                  }))}
+                  data={(meusProdutos ?? []).map((p) => ({ value: p.id, label: `${p.codigo} - ${p.nome}` }))}
                   value={produtoId}
                   onChange={(v) => {
                     setProdutoId(v)
                     const p = (meusProdutos ?? []).find((x) => x.id === v)
                     if (p) setW('produtoNome', p.nome)
                   }}
-                  searchable
-                  clearable
+                  searchable clearable withAsterisk
                   disabled={!clienteId || carregandoProdutos}
                   nothingFoundMessage="Nenhum produto encontrado para este cliente"
                 />
               )}
-              <Select
-                label="Tipo de embalagem"
-                placeholder="Selecione o tipo de embalagem"
-                data={tipoEmbalagemOptions}
-                value={tipoEmbalagem}
-                onChange={setTipoEmbalagem}
-                searchable
-                nothingFoundMessage="Nenhum tipo encontrado"
-                disabled={carregandoTipos}
-                required
-              />
 
-              <NumberInput
-                label="Quantidade"
-                placeholder="Quantidade desejada"
-                min={1}
-                value={quantidade}
-                onChange={(val) => setQuantidade(val === '' ? '' : Number(val))}
-                required
-              />
-
-              <Group grow>
-                <NumberInput
-                  label="Largura (mm)"
-                  placeholder="mm"
-                  min={0}
-                  value={medidaLargura}
-                  onChange={(val) => setMedidaLargura(val === '' ? '' : Number(val))}
+              <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                <TextInput label="Nome do produto" value={w.produtoNome}
+                  onChange={(e) => setW('produtoNome', e.currentTarget.value)} />
+                <Select
+                  label="Tipo de embalagem" placeholder="Selecione" withAsterisk searchable
+                  data={tipoEmbalagemOptions} value={tipoEmbalagem} onChange={setTipoEmbalagem}
+                  nothingFoundMessage="Nenhum tipo encontrado" disabled={carregandoCatalogo}
                 />
-                <NumberInput
-                  label="Altura (mm)"
-                  placeholder="mm"
-                  min={0}
-                  value={medidaAltura}
-                  onChange={(val) => setMedidaAltura(val === '' ? '' : Number(val))}
-                />
-                <NumberInput
-                  label="Comprimento (mm)"
-                  placeholder="mm"
-                  min={0}
-                  value={medidaComprimento}
-                  onChange={(val) => setMedidaComprimento(val === '' ? '' : Number(val))}
-                />
-              </Group>
+              </SimpleGrid>
 
-              <MultiSelect
-                label="Acabamentos"
-                placeholder="Selecione os acabamentos desejados"
-                data={acabamentosOptions}
-                value={acabamentosSelecionados}
-                onChange={setAcabamentosSelecionados}
-                searchable
-                nothingFoundMessage="Nenhum acabamento encontrado"
-                disabled={carregandoAcabamentos}
-              />
+              {/* Tiragens (mais de uma) */}
+              <div>
+                <Text size="sm" fw={500} mb={4}>Tiragens (quantidades) <span style={{ color: 'var(--mantine-color-red-6)' }}>*</span></Text>
+                <Stack gap={6}>
+                  {tiragens.map((t, i) => (
+                    <Group key={i} gap="xs" wrap="nowrap">
+                      <NumberInput
+                        placeholder={i === 0 ? 'Quantidade principal' : 'Outra tiragem'}
+                        min={1} thousandSeparator="." decimalSeparator="," value={t} style={{ flex: 1 }}
+                        onChange={(val) => setTiragens((arr) => arr.map((x, j) => (j === i ? (val === '' ? '' : Number(val)) : x)))}
+                      />
+                      {tiragens.length > 1 && (
+                        <ActionIcon variant="subtle" color="red" aria-label="Remover tiragem"
+                          onClick={() => setTiragens((arr) => arr.filter((_, j) => j !== i))}>
+                          <IconTrash size={16} />
+                        </ActionIcon>
+                      )}
+                    </Group>
+                  ))}
+                  {tiragens.length < 6 && (
+                    <Button variant="light" size="compact-sm" leftSection={<IconPlus size={14} />} style={{ alignSelf: 'flex-start' }}
+                      onClick={() => setTiragens((arr) => [...arr, ''])}>
+                      Adicionar tiragem
+                    </Button>
+                  )}
+                </Stack>
+              </div>
 
-              <Textarea
-                label="Observações"
-                placeholder="Informações adicionais sobre a solicitação"
-                value={observacoes}
-                onChange={(e) => setObservacoes(e.currentTarget.value)}
-                minRows={3}
-                autosize
-              />
+              {repeticao ? (
+                <>
+                  <Divider label="Impressão" labelPosition="left" />
+                  <Text size="xs" c="dimmed">
+                    Na repetição, o produto mantém material, medidas e acabamentos. Somente a impressão pode ser alterada.
+                  </Text>
+                  <Switch label="Haverá alteração na impressão?" checked={alteraImpressao}
+                    onChange={(e) => setAlteraImpressao(e.currentTarget.checked)} />
+                  {alteraImpressao && (
+                    <>
+                      <Autocomplete label="Cores / variações de arte" placeholder="4x0, 5x0, 2x0..."
+                        data={SUG_CORES} value={w.variacoesArte} onChange={(v) => setW('variacoesArte', v)} />
+                      <Textarea label="Descreva a alteração" autosize minRows={2} value={alteracaoImpressao}
+                        onChange={(e) => setAlteracaoImpressao(e.currentTarget.value)} />
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Divider label="Medidas (mm)" labelPosition="left" />
+                  <SimpleGrid cols={{ base: 1, sm: 3 }}>
+                    <NumberInput label="Comprimento" placeholder="mm" min={0} value={comprimento}
+                      onChange={(v) => setComprimento(v === '' ? '' : Number(v))} />
+                    <NumberInput label="Largura" placeholder="mm" min={0} value={largura}
+                      onChange={(v) => setLargura(v === '' ? '' : Number(v))} />
+                    <NumberInput label="Altura" placeholder="mm" min={0} value={altura}
+                      onChange={(v) => setAltura(v === '' ? '' : Number(v))} />
+                  </SimpleGrid>
+
+                  <Divider label="Matéria-prima" labelPosition="left" />
+                  <Select label="Composição" data={COMPOSICOES.map((c) => ({ value: c.value, label: c.label }))}
+                    value={composicao} onChange={(v) => v && trocarComposicao(v as Composicao)} allowDeselect={false}
+                    description="Caixa acoplada: escolha a composição com mais de uma camada." />
+                  {camadasDef.map((funcao, i) => (
+                    <SimpleGrid key={funcao + i} cols={{ base: 1, sm: 2 }}>
+                      <Select label={`${funcao} - tipo`} placeholder="Selecione" searchable withAsterisk
+                        data={suportesDaCamada(funcao)} value={camadas[i]?.suporte || null}
+                        onChange={(v) => setCamadas((arr) => arr.map((c, j) => (j === i ? { suporte: v ?? '', gramatura: '' } : c)))} />
+                      <Autocomplete label={`${funcao} - gramatura`} placeholder="Ex.: 300"
+                        data={gramaturasDe(camadas[i]?.suporte ?? '')} value={camadas[i]?.gramatura ?? ''}
+                        onChange={(v) => setCamadas((arr) => arr.map((c, j) => (j === i ? { ...c, gramatura: v } : c)))} />
+                    </SimpleGrid>
+                  ))}
+
+                  <Autocomplete label="Cores / variações de arte" placeholder="4x0, 5x0, 2x0..."
+                    data={SUG_CORES} value={w.variacoesArte} onChange={(v) => setW('variacoesArte', v)} />
+
+                  <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                    <Select label="Faca / matriz" allowDeselect={false} value={situacaoFaca}
+                      onChange={(v) => setSituacaoFaca((v as 'NOVA' | 'EXISTENTE') ?? 'NOVA')}
+                      data={[{ value: 'NOVA', label: 'Matriz nova' }, { value: 'EXISTENTE', label: 'Matriz existente' }]} />
+                    {situacaoFaca === 'EXISTENTE' && (
+                      <TextInput label="Nº da matriz" placeholder="Ex.: 2529B" value={w.numeroMatriz}
+                        onChange={(e) => setW('numeroMatriz', e.currentTarget.value)} />
+                    )}
+                  </SimpleGrid>
+
+                  <Group gap="lg">
+                    <Switch label="Cartão FSC" checked={w.cartaoFsc} onChange={(e) => setW('cartaoFsc', e.currentTarget.checked)} />
+                    <Switch label="Impressão interna" checked={w.corteInternoVerso} onChange={(e) => setW('corteInternoVerso', e.currentTarget.checked)} />
+                    <Switch label="Passtime (visor)" checked={w.passtime} onChange={(e) => setW('passtime', e.currentTarget.checked)} />
+                  </Group>
+
+                  <MultiSelect
+                    label="Acabamentos" placeholder="Verniz UV, Hot Stamping, Relevo..."
+                    data={acabamentosOptions} value={acabamentosIds} onChange={setAcabamentosIds}
+                    searchable nothingFoundMessage="Nenhum acabamento encontrado" disabled={carregandoCatalogo}
+                  />
+
+                  <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                    <Select label="Forma de acondicionamento" placeholder="Selecione" clearable
+                      data={acondicionamentoOptions} value={w.acondicionamento || null}
+                      onChange={(v) => setW('acondicionamento', v ?? '')} />
+                    <TextInput label="Quant. por volume" value={w.quantidadePorVolume}
+                      onChange={(e) => setW('quantidadePorVolume', e.currentTarget.value)} />
+                  </SimpleGrid>
+                </>
+              )}
+
+              <Textarea label="Observações" placeholder="Informações adicionais sobre a solicitação"
+                value={observacoes} onChange={(e) => setObservacoes(e.currentTarget.value)} minRows={3} autosize />
             </Stack>
           </Card>
 
+          {/* 4. Entrega e pagamento */}
           <Card>
-            <Text size="sm" fw={600} mb="xs">Detalhes do pedido</Text>
+            <Text size="sm" fw={600} mb="xs">Entrega e pagamento</Text>
             <Stack gap="sm">
               <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                <TextInput label="Nome do produto" value={wega.produtoNome}
-                  onChange={(e) => setW('produtoNome', e.currentTarget.value)} />
-                <TextInput label="Mercado atuante" placeholder="Ex.: Alimentício, Cosméticos"
-                  value={wega.mercado} onChange={(e) => setW('mercado', e.currentTarget.value)} />
+                <Autocomplete label="Mercado atuante" withAsterisk placeholder="Ex.: Alimentício, Cosméticos"
+                  data={SUG_MERCADO} value={w.mercado} onChange={(v) => setW('mercado', v)} />
+                <Select label="Prazo de pagamento" placeholder={prazoOptions.length ? 'Selecione' : 'Nenhum prazo cadastrado'}
+                  data={prazoOptions} value={w.prazoPagamentoId || null} clearable
+                  onChange={(v) => setW('prazoPagamentoId', v ?? '')} />
               </SimpleGrid>
-              <SimpleGrid cols={{ base: 1, sm: 3 }}>
-                <TextInput label="Cidade de origem" value={wega.cidade}
+              <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                <TextInput label="Cidade de origem" withAsterisk value={w.cidade}
                   onChange={(e) => setW('cidade', e.currentTarget.value)} />
-                <TextInput label="UF" maxLength={2} value={wega.ufOrigem}
-                  onChange={(e) => setW('ufOrigem', e.currentTarget.value.toUpperCase())} />
-                <TextInput label="Prazo de pagamento" placeholder="Ex.: 28/35"
-                  value={wega.prazoPagamento} onChange={(e) => setW('prazoPagamento', e.currentTarget.value)} />
+                <Select label="UF" data={UFS} searchable clearable value={w.ufOrigem || null}
+                  onChange={(v) => setW('ufOrigem', v ?? '')} />
               </SimpleGrid>
 
               <SimpleGrid cols={{ base: 1, sm: 2 }}>
                 <div>
                   <Text size="sm" mb={4}>Entrega</Text>
-                  <SegmentedControl fullWidth value={wega.tipoEntrega}
-                    onChange={(v) => setW('tipoEntrega', v)}
+                  <SegmentedControl fullWidth value={w.tipoEntrega} onChange={(v) => setW('tipoEntrega', v)}
                     data={[{ label: 'Única', value: 'UNICA' }, { label: 'Fracionada', value: 'FRACIONADA' }]} />
                 </div>
-                {wega.tipoEntrega === 'FRACIONADA' && (
-                  <TextInput label="A cada quantos dias?" value={wega.entregaFracionadaDias}
+                {w.tipoEntrega === 'FRACIONADA' && (
+                  <TextInput label="A cada quantos dias?" withAsterisk value={w.entregaFracionadaDias}
                     onChange={(e) => setW('entregaFracionadaDias', e.currentTarget.value)} />
                 )}
               </SimpleGrid>
 
-              <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                <div>
-                  <Text size="sm" mb={4}>Exportação</Text>
-                  <SegmentedControl fullWidth value={wega.exportacao}
-                    onChange={(v) => setW('exportacao', v)}
-                    data={[{ label: 'Comum', value: 'COMUM' }, { label: 'Exportação', value: 'EXPORTACAO' }]} />
-                </div>
-                <TextInput label="Variações de arte (quantas emitir?)" value={wega.variacoesArte}
-                  onChange={(e) => setW('variacoesArte', e.currentTarget.value)} />
-              </SimpleGrid>
-
-              <Divider label="Material" labelPosition="left" />
-              <SimpleGrid cols={{ base: 1, sm: 3 }}>
-                <TextInput label="Cartão" placeholder="Ex.: Duplex, Triplex" value={wega.cartao}
-                  onChange={(e) => setW('cartao', e.currentTarget.value)} />
-                <TextInput label="Gramatura" placeholder="Ex.: 300 g/m²" value={wega.gramaturaTexto}
-                  onChange={(e) => setW('gramaturaTexto', e.currentTarget.value)} />
-                <TextInput label="Medidas (C x L x A mm)" value={wega.medidasTexto}
-                  onChange={(e) => setW('medidasTexto', e.currentTarget.value)} />
-              </SimpleGrid>
-              <Group gap="lg">
-                <Switch label="Cartão FSC" checked={wega.cartaoFsc}
-                  onChange={(e) => setW('cartaoFsc', e.currentTarget.checked)} />
-                <Switch label="Corte interno (verso)" checked={wega.corteInternoVerso}
-                  onChange={(e) => setW('corteInternoVerso', e.currentTarget.checked)} />
-                <Switch label="Passtime (visor)" checked={wega.passtime}
-                  onChange={(e) => setW('passtime', e.currentTarget.checked)} />
-                <Switch label="Acabamento manual" checked={wega.acabamentoManual}
-                  onChange={(e) => setW('acabamentoManual', e.currentTarget.checked)} />
-              </Group>
-
-              <Divider label="Matriz / Validade / Volume" labelPosition="left" />
-              <SimpleGrid cols={{ base: 1, sm: 3 }}>
-                <TextInput label="Matriz (nova ou nº anterior)" value={wega.matriz}
-                  onChange={(e) => setW('matriz', e.currentTarget.value)} />
-                <TextInput label="Data de validade" value={wega.dataValidade}
-                  onChange={(e) => setW('dataValidade', e.currentTarget.value)} />
-                <TextInput label="Quant. por volume" value={wega.quantidadePorVolume}
-                  onChange={(e) => setW('quantidadePorVolume', e.currentTarget.value)} />
-              </SimpleGrid>
-
-              <Divider label="Anexos (links) / Discriminação" labelPosition="left" />
-              <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                <TextInput label="Anexo 1 (link)" placeholder="Drive / WhatsApp" value={wega.anexo1Url}
-                  onChange={(e) => setW('anexo1Url', e.currentTarget.value)} />
-                <TextInput label="Anexo 2 (link)" value={wega.anexo2Url}
-                  onChange={(e) => setW('anexo2Url', e.currentTarget.value)} />
-              </SimpleGrid>
-              <Textarea label="Discriminação (itens do pedido)"
-                placeholder="Produto / descrição / quantidade por item"
-                value={wega.discriminacao} onChange={(e) => setW('discriminacao', e.currentTarget.value)}
-                autosize minRows={2} />
+              <Switch label="Entrega no mesmo endereço do CNPJ" checked={entregaMesmoEndereco}
+                onChange={(e) => setEntregaMesmoEndereco(e.currentTarget.checked)} />
+              {!entregaMesmoEndereco && (
+                <Textarea label="Endereço de entrega" withAsterisk autosize minRows={2}
+                  placeholder="Rua, número, bairro, cidade, UF, CEP"
+                  value={w.entregaEndereco} onChange={(e) => setW('entregaEndereco', e.currentTarget.value)} />
+              )}
             </Stack>
           </Card>
 
-          <Button
-            type="submit"
-            fullWidth
-            loading={criarSolicitacao.isPending}
-            disabled={!formValido || criarSolicitacao.isPending}
-          >
+          {/* 5. Anexos e discriminação */}
+          <Card>
+            <Text size="sm" fw={600} mb="xs">Anexos e discriminação</Text>
+            <Stack gap="sm">
+              <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                <TextInput label="Anexo 1 (link)" placeholder="Drive / WhatsApp" value={w.anexo1Url}
+                  onChange={(e) => setW('anexo1Url', e.currentTarget.value)} />
+                <TextInput label="Anexo 2 (link)" value={w.anexo2Url}
+                  onChange={(e) => setW('anexo2Url', e.currentTarget.value)} />
+              </SimpleGrid>
+              <Textarea label="Discriminação (itens do pedido)" placeholder="Produto / descrição / quantidade por item"
+                value={w.discriminacao} onChange={(e) => setW('discriminacao', e.currentTarget.value)} autosize minRows={2} />
+            </Stack>
+          </Card>
+
+          <Button type="submit" fullWidth loading={criarSolicitacao.isPending}
+            disabled={!formValido || criarSolicitacao.isPending}>
             Enviar Solicitação
           </Button>
         </Stack>

@@ -148,6 +148,18 @@ export interface CriarSolicitacaoPayload {
   anexo1Url?: string
   anexo2Url?: string
   discriminacao?: string
+  // Alinhamento Portal x Pedidos/Propostas (reunião 24/11/2026)
+  exigeAmostra?: boolean
+  tiragensTexto?: string
+  prazoPagamentoId?: string
+  materiaPrimaCamadas?: Array<{ funcao: string; suporte: string; gramatura?: string }>
+  situacaoFaca?: 'NOVA' | 'EXISTENTE'
+  numeroMatriz?: string
+  alteracaoImpressao?: string
+  entregaMesmoEndereco?: boolean
+  entregaEndereco?: string
+  acondicionamento?: string
+  acabamentosSelecionados?: Array<{ acabamentoId?: string; nome: string }>
 }
 
 // ─── Pipeline ────────────────────────────────────────────────────

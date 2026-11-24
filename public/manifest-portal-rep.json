@@ -1,6 +1,6 @@
 {
-  "name": "Vizor - Portal do Representante",
-  "short_name": "Vizor Rep",
+  "name": "Vizor ERP - Representante",
+  "short_name": "Vizor ERP",
   "start_url": "/portal-rep/dashboard",
   "display": "standalone",
   "theme_color": "#1ab854",

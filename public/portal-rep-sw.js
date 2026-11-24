@@ -85,7 +85,7 @@ self.addEventListener('fetch', (event) => {
   if (request.mode === 'navigate' && url.pathname.startsWith('/portal-rep')) {
     const respostaOffline = () =>
       new Response(
-        '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Vizor Rep - Offline</title></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#fff;color:#333"><div style="text-align:center"><h2>Sem conexão</h2><p>Verifique sua internet e tente novamente.</p></div></body></html>',
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Vizor ERP - Offline</title></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#fff;color:#333"><div style="text-align:center"><h2>Sem conexão</h2><p>Verifique sua internet e tente novamente.</p></div></body></html>',
         { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
       )
     event.respondWith(
