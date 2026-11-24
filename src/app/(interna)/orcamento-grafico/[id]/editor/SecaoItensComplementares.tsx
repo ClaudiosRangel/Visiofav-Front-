@@ -32,13 +32,16 @@ interface Props {
   obrigatorios?: ReadonlySet<string>
   /** Falha ao carregar os campos livres cadastrados; não bloqueia o salvamento. */
   avisoCamposLivres?: string | null
+  /** Só uma das listas (abas da tela do item). Ausente = as três. */
+  secao?: 'diversos' | 'fornecidos' | 'livres'
 }
 
 export default function SecaoItensComplementares({
-  formData, updateForm, catalogo, sugestoesRotulos, opcoesPorRotulo, obrigatorios, avisoCamposLivres,
+  formData, updateForm, catalogo, sugestoesRotulos, opcoesPorRotulo, obrigatorios, avisoCamposLivres, secao,
 }: Props) {
   return (
     <>
+      {(!secao || secao === 'diversos') && (
       <SugestaoItensDiversos
         catalogo={catalogo}
         itensAtuais={formData.itensDiversos}
@@ -46,7 +49,8 @@ export default function SecaoItensComplementares({
           updateForm({ itensDiversos: [...(formData.itensDiversos ?? []), ...novos] })
         }
       />
-      {avisoCamposLivres && (
+      )}
+      {avisoCamposLivres && (!secao || secao === 'livres') && (
         <Text size="xs" c="dimmed" mb="xs" data-testid="aviso-campos-livres">
           Não foi possível carregar as sugestões de campos livres ({avisoCamposLivres}). Você pode digitar os
           campos normalmente.
@@ -58,6 +62,7 @@ export default function SecaoItensComplementares({
         sugestoesRotulos={sugestoesRotulos}
         opcoesPorRotulo={opcoesPorRotulo}
         obrigatorios={obrigatorios}
+        secao={secao}
       />
     </>
   )

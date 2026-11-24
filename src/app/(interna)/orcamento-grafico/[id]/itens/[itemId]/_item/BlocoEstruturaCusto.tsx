@@ -8,11 +8,13 @@
  * cálculo ao vivo, quando existirem). Sem KPIs, mostra só a decomposição.
  */
 
-import { Loader, Paper, Stack, Group, Title } from '@mantine/core'
+import { Loader, Stack } from '@mantine/core'
+import { IconChartPie } from '@tabler/icons-react'
 
 import ResumoKpis from '../../../editor/ResumoKpis'
 import SecaoEstruturaCusto from '../../../editor/SecaoEstruturaCusto'
 import type { KpisCalculo } from '../../../editor/useCalculoAoVivo'
+import CartaoSecao from './CartaoSecao'
 
 export interface BlocoEstruturaCustoProps {
   /** Resultado do cálculo persistido do item (`item.resultadoCalculo`). */
@@ -25,15 +27,16 @@ export interface BlocoEstruturaCustoProps {
 
 export default function BlocoEstruturaCusto({ resultadoCalculo, kpis, calculando }: BlocoEstruturaCustoProps) {
   return (
-    <Paper withBorder radius="md" p="lg" shadow="xs" data-testid="bloco-estrutura-custo">
+    <CartaoSecao
+      titulo="Estrutura de custo"
+      icone={<IconChartPie size={16} />}
+      direita={calculando ? <Loader size="xs" /> : undefined}
+      data-testid="bloco-estrutura-custo"
+    >
       <Stack gap="md">
-        <Group gap="xs">
-          <Title order={5}>Estrutura de custo</Title>
-          {calculando && <Loader size="xs" />}
-        </Group>
         {kpis && <ResumoKpis kpis={kpis} loading={calculando === true} />}
         <SecaoEstruturaCusto resultadoCalculo={resultadoCalculo ?? null} />
       </Stack>
-    </Paper>
+    </CartaoSecao>
   )
 }

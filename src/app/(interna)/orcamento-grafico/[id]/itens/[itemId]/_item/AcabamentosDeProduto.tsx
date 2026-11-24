@@ -13,8 +13,9 @@
  * segue o `ControleSelecao` já existente (passado pelo pai).
  */
 
-import { Badge, Group, Paper, Stack, Text, ThemeIcon, Title } from '@mantine/core'
+import { Badge, Stack, Text } from '@mantine/core'
 import { IconTool } from '@tabler/icons-react'
+import CartaoSecao from './CartaoSecao'
 
 import type { WizardFormData } from '../../../../novo/page'
 import type { CatalogoDoItem } from '../../../editor/catalogo/catalogo.types'
@@ -53,19 +54,17 @@ export default function AcabamentosDeProduto({
   const produtoSemAtividades = !!catalogo && catalogo.produto.atividades.length === 0
 
   return (
-    <Paper withBorder radius="md" p="lg" shadow="xs" data-testid="acabamentos-de-produto">
+    <CartaoSecao
+      titulo="Acabamentos de Produto"
+      icone={<IconTool size={16} />}
+      direita={
+        <Badge variant="light" color={marcados > 0 ? 'blue' : 'gray'} data-testid="acabamentos-de-produto-contagem">
+          {marcados === 1 ? '1 selecionado' : `${marcados} selecionados`}
+        </Badge>
+      }
+      data-testid="acabamentos-de-produto"
+    >
       <Stack gap="md">
-        <Group justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap">
-            <ThemeIcon variant="light" color="orange" size={32} radius="md">
-              <IconTool size={18} stroke={1.5} />
-            </ThemeIcon>
-            <Title order={5}>Acabamentos de Produto</Title>
-          </Group>
-          <Badge variant="light" color={marcados > 0 ? 'blue' : 'gray'} data-testid="acabamentos-de-produto-contagem">
-            {marcados === 1 ? '1 marcado' : `${marcados} marcados`}
-          </Badge>
-        </Group>
 
         {produtoSemAtividades && (
           <Text size="sm" c="dimmed" data-testid="acabamentos-de-produto-vazio">
@@ -84,6 +83,6 @@ export default function AcabamentosDeProduto({
           carregandoLista={carregandoLista}
         />
       </Stack>
-    </Paper>
+    </CartaoSecao>
   )
 }

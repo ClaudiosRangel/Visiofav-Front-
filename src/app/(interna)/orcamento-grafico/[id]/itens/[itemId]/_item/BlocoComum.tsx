@@ -13,8 +13,8 @@
  * `trocaProduto.abertoInicial` (item novo) o seletor já vem aberto e habilitado.
  */
 
-import { useEffect, useMemo, useState } from 'react'
-import { Anchor, Autocomplete, Button, Collapse, Group, Paper, Select, SimpleGrid, Stack, Text, TextInput, ThemeIcon, Title } from '@mantine/core'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Anchor, Autocomplete, Button, Collapse, Divider, Grid, Group, Input, Paper, Select, Stack, TagsInput, Text, TextInput } from '@mantine/core'
 import { IconChevronDown, IconChevronUp, IconPackage, IconSearch } from '@tabler/icons-react'
 
 import SeletorProdutoGrafico, { type ProdutoEscolhido } from '../../../editor/catalogo/SeletorProdutoGrafico'
@@ -45,17 +45,11 @@ export interface BlocoComumProps {
   /** Exige os campos obrigatórios (ligue após uma tentativa de salvar). */
   validarVazios?: boolean
   disabled?: boolean
+  /** Grupo de dimensões exibido ao lado das tiragens (bloco Formato embutido). */
+  dimensoes?: ReactNode
 }
 
-function Rotulo({ children }: { children: string }) {
-  return (
-    <Text size="xs" fw={600} tt="uppercase" c="dimmed" style={{ letterSpacing: '0.04em' }}>
-      {children}
-    </Text>
-  )
-}
-
-export default function BlocoComum({ value, onChange, produtoNome, trocaProduto, validarVazios, disabled }: BlocoComumProps) {
+export default function BlocoComum({ value, onChange, produtoNome, trocaProduto, validarVazios, disabled, dimensoes }: BlocoComumProps) {
   const [trocaAberta, setTrocaAberta] = useState(() => !!trocaProduto?.abertoInicial)
   const tipos = useTiposProduto()
   const siglas = useSiglasAcabado()
@@ -80,49 +74,49 @@ export default function BlocoComum({ value, onChange, produtoNome, trocaProduto,
     [tipos.tipos, permitidos],
   )
 
+  const tagsTiragem = useMemo(
+    () => value.tiragem.split(/[;,]/).map((s) => s.trim()).filter((s) => s.length > 0),
+    [value.tiragem],
+  )
+
   return (
-    <Paper withBorder radius="md" p="lg" shadow="xs" data-testid="bloco-comum">
-      <Stack gap="md">
-        <Group justify="space-between" align="center" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
-            <ThemeIcon variant="light" color="blue" size={44} radius="md">
-              <IconPackage size={26} stroke={1.5} />
-            </ThemeIcon>
-            <div style={{ minWidth: 0 }}>
-              <Rotulo>Produto</Rotulo>
-              <Title order={3} lineClamp={1} data-testid="bloco-comum-titulo">
-                {produtoNome?.trim() || 'Produto não definido'}
-              </Title>
-            </div>
-          </Group>
-          {trocaProduto && (
-            <Button
-              variant="subtle"
-              size="xs"
-              disabled={disabled}
-              rightSection={trocaAberta ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
-              onClick={() => setTrocaAberta((v) => !v)}
+    <Stack gap="md" data-testid="bloco-comum">
+      <Grid gutter="md">
+        <Grid.Col span={{ base: 12, sm: 6, lg: 4 }}>
+          <Input.Wrapper label="Produto">
+            <Group
+              gap="xs"
+              wrap="nowrap"
+              justify="space-between"
+              px="sm"
+              mt={4}
+              style={{
+                minHeight: 36,
+                border: '1px solid var(--mantine-color-default-border)',
+                borderRadius: 'var(--mantine-radius-sm)',
+              }}
             >
-              Trocar produto
-            </Button>
-          )}
-        </Group>
-
-        {trocaProduto && (
-          <Collapse in={trocaAberta}>
-            <Paper withBorder radius="md" p="sm" bg="var(--mantine-color-default)">
-              <SeletorProdutoGrafico
-                value={trocaProduto.produtoGraficoId}
-                linhaProdutoId={trocaProduto.linhaProdutoId}
-                catalogo={trocaProduto.catalogo}
-                disabled={disabled}
-                onChange={trocaProduto.onChange}
-              />
-            </Paper>
-          </Collapse>
-        )}
-
-        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+              <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+                <IconPackage size={16} stroke={1.5} />
+                <Text size="sm" fw={600} lineClamp={1} data-testid="bloco-comum-titulo">
+                  {produtoNome?.trim() || 'Produto não definido'}
+                </Text>
+              </Group>
+              {trocaProduto && (
+                <Button
+                  variant="subtle"
+                  size="compact-xs"
+                  disabled={disabled}
+                  rightSection={trocaAberta ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}
+                  onClick={() => setTrocaAberta((v) => !v)}
+                >
+                  Trocar produto
+                </Button>
+              )}
+            </Group>
+          </Input.Wrapper>
+        </Grid.Col>
+        <Grid.Col span={{ base: 12, sm: 6, lg: 4 }}>
           <Select
             label="Tipo de Produto"
             placeholder={tipos.carregando ? 'Carregando…' : 'Selecione o tipo'}
@@ -135,19 +129,53 @@ export default function BlocoComum({ value, onChange, produtoNome, trocaProduto,
             nothingFoundMessage="Nenhum tipo encontrado"
             comboboxProps={{ withinPortal: true }}
           />
+        </Grid.Col>
+        <Grid.Col span={{ base: 12, lg: 4 }}>
+          <TextInput
+            label="Tributação"
+            placeholder="Ex.: ICMS + IPI"
+            maxLength={MAX_TRIBUTACAO}
+            value={value.tributacao}
+            onChange={(e) => onChange({ tributacao: e.currentTarget.value })}
+            error={erros.tributacao}
+            disabled={disabled}
+          />
+        </Grid.Col>
+      </Grid>
+
+      {trocaProduto && (
+        <Collapse in={trocaAberta}>
+          <Paper withBorder radius="md" p="sm" bg="var(--mantine-color-default)">
+            <SeletorProdutoGrafico
+              value={trocaProduto.produtoGraficoId}
+              linhaProdutoId={trocaProduto.linhaProdutoId}
+              catalogo={trocaProduto.catalogo}
+              disabled={disabled}
+              onChange={trocaProduto.onChange}
+            />
+          </Paper>
+        </Collapse>
+      )}
+
+      <Grid gutter="md">
+        <Grid.Col span={{ base: 12, lg: 8 }}>
           <TextInput
             label="Descrição"
             placeholder="Descrição do item"
             maxLength={MAX_DESCRICAO}
             value={value.descricao}
             onChange={(e) => onChange({ descricao: e.currentTarget.value })}
-            description={`${value.descricao.length}/${MAX_DESCRICAO}`}
+            rightSection={
+              <Text size="xs" c="dimmed">
+                {value.descricao.length}/{MAX_DESCRICAO}
+              </Text>
+            }
+            rightSectionWidth={64}
             error={erros.descricao}
             disabled={disabled}
           />
-        </SimpleGrid>
-
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
+        </Grid.Col>
+        <Grid.Col span={{ base: 12, lg: 4 }}>
           <Autocomplete
             label="Sigla Acabado"
             placeholder="Buscar ou digitar"
@@ -160,55 +188,58 @@ export default function BlocoComum({ value, onChange, produtoNome, trocaProduto,
             error={erros.siglaAcabado}
             disabled={disabled}
           />
-          <TextInput
-            label="Tributação"
-            placeholder="Ex.: ICMS + IPI"
-            maxLength={MAX_TRIBUTACAO}
-            value={value.tributacao}
-            onChange={(e) => onChange({ tributacao: e.currentTarget.value })}
-            error={erros.tributacao}
-            disabled={disabled}
-          />
-          <TextInput
+        </Grid.Col>
+      </Grid>
+
+      <Divider />
+
+      <Grid gutter="md" align="flex-start">
+        <Grid.Col span={{ base: 12, md: 8, lg: dimensoes ? 4 : 9 }}>
+          <TagsInput
             label="Tiragens"
-            placeholder="Ex.: 2.000, 4.000, 6.000"
-            description="Uma ou várias, separadas por vírgula (até 20). Valem para todos os planos."
-            value={value.tiragem}
-            onChange={(e) => onChange({ tiragem: e.currentTarget.value })}
+            description="Enter ou vírgula adiciona (até 20). Valem para todos os planos."
+            placeholder={tagsTiragem.length === 0 ? 'Ex.: 10000' : ''}
+            value={tagsTiragem}
+            onChange={(lista) => onChange({ tiragem: lista.join(', ') })}
+            splitChars={[',', ';']}
+            clearable
             error={erros.tiragem}
             disabled={disabled}
           />
+        </Grid.Col>
+        <Grid.Col span={{ base: 12, md: 4, lg: dimensoes ? 2 : 3 }}>
           <TextInput
             label="Modelos"
             placeholder={MODELOS_PADRAO}
             inputMode="numeric"
             value={value.modelos}
             onChange={(e) => onChange({ modelos: e.currentTarget.value })}
-            description="De 1 a 999 (padrão 1)"
+            description="1 a 999"
             error={erros.modelos}
             disabled={disabled}
           />
-        </SimpleGrid>
+        </Grid.Col>
+        {dimensoes && <Grid.Col span={{ base: 12, lg: 6 }}>{dimensoes}</Grid.Col>}
+      </Grid>
 
-        {(tipos.erro || siglas.erro) && (
-          <Group gap="xs">
-            <Text size="xs" c="red">
-              {tipos.erro ?? siglas.erro}
-            </Text>
-            <Anchor
-              size="xs"
-              component="button"
-              type="button"
-              onClick={() => {
-                if (tipos.erro) tipos.tentarNovamente()
-                if (siglas.erro) siglas.tentarNovamente()
-              }}
-            >
-              Tentar novamente
-            </Anchor>
-          </Group>
-        )}
-      </Stack>
-    </Paper>
+      {(tipos.erro || siglas.erro) && (
+        <Group gap="xs">
+          <Text size="xs" c="red">
+            {tipos.erro ?? siglas.erro}
+          </Text>
+          <Anchor
+            size="xs"
+            component="button"
+            type="button"
+            onClick={() => {
+              if (tipos.erro) tipos.tentarNovamente()
+              if (siglas.erro) siglas.tentarNovamente()
+            }}
+          >
+            Tentar novamente
+          </Anchor>
+        </Group>
+      )}
+    </Stack>
   )
 }

@@ -32,9 +32,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  Alert, Anchor, Breadcrumbs, Button, Center, Group, Loader, Modal, Paper, Skeleton, Stack, Table, Text, ThemeIcon, Title,
+  Alert, Anchor, Badge, Breadcrumbs, Button, Center, Drawer, Grid, Group, Loader, Modal, Paper, Skeleton, Stack, Table, Text, ThemeIcon, Title,
 } from '@mantine/core'
-import { IconAlertCircle, IconArrowLeft, IconCalculator, IconDeviceFloppy, IconInfoCircle, IconLayoutList, IconPlus, IconRuler } from '@tabler/icons-react'
+import {
+  IconAdjustmentsHorizontal, IconAlertCircle, IconArrowLeft, IconCalculator, IconCheck, IconDeviceFloppy, IconInfoCircle,
+  IconLayoutList, IconPackage, IconPlus, IconRuler, IconX,
+} from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 
 import { api } from '@/lib/api'
@@ -66,9 +69,11 @@ import BlocoAcabamento from './BlocoAcabamento'
 import BlocoComum from './BlocoComum'
 import BlocoEstruturaCusto from './BlocoEstruturaCusto'
 import BlocoFormato from './BlocoFormato'
+import CartaoSecao from './CartaoSecao'
 import { MEDIDAS_DO_FORMATO, medidasDoFormato } from './formato-item'
 import BlocoPlanoUnico from './BlocoPlanoUnico'
 import GridPlanos from './GridPlanos'
+import TelaPlano from '../_plano/TelaPlano'
 import ComplementosDoItem, { type ValorComplementosItem } from './ComplementosDoItem'
 import MargemDoItem from './MargemDoItem'
 import { aplicarPreMarcadas, type AtividadeCadastro } from './acabamento-item'
@@ -112,6 +117,8 @@ export interface TelaItemProps {
    * de Produto (no lugar da linha do orçamento) e dá o título da tela. Ignorada em item existente.
    */
   linhaProdutoIdNovo?: string | null
+  /** `?plano=` da URL: abre a gaveta do plano ao entrar (``novo`` = inclusão). */
+  planoInicial?: string | null
 }
 
 function numero(v: unknown): number | null {
@@ -147,7 +154,12 @@ function formatoComTexto(form: Record<string, unknown>, base: ValorFormato): Val
   return saida as ValorFormato
 }
 
-export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = null }: TelaItemProps) {
+export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = null, planoInicial = null }: TelaItemProps) {
+  // Gaveta do plano (inclusão/alteração por cima do item). `versaoPlanos` recarrega o grid.
+  const [planoGaveta, setPlanoGaveta] = useState<{ planoId: string; apos: string | null } | null>(
+    planoInicial ? { planoId: planoInicial, apos: null } : null,
+  )
+  const [versaoPlanos, setVersaoPlanos] = useState(0)
   const routerInstavel = useRouter()
   // Referência estável: a identidade do router não pode refazer a carga do item.
   const routerRef = useRef(routerInstavel)
@@ -500,7 +512,12 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
       : api.post(`/orcamento-grafico/${orcamentoId}/itens`, payload)
   }
 
-  const concluirSalvar = async (criadoAgora: string | null, editando: boolean, destino?: (id: string) => string) => {
+  const concluirSalvar = async (
+    criadoAgora: string | null,
+    editando: boolean,
+    destino?: (id: string) => string,
+    sempreIr = false,
+  ) => {
     notificarAlteracaoItem(orcamentoId)
     selecao.zerarSujo()
     setSujo(false)
@@ -509,6 +526,12 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
         ? { title: 'Item atualizado', message: 'Item recalculado e salvo.', color: 'green' }
         : { title: 'Item adicionado', message: 'Novo item calculado e salvo.', color: 'green' },
     )
+    // "Salvar e Fechar": vai ao destino também quando o item já existia.
+    const idDestino = criadoAgora ?? itemCarregado?.id ?? itemIdCriado
+    if (sempreIr && destino && idDestino) {
+      router.push(destino(idDestino))
+      return
+    }
     if (criadoAgora) {
       router.replace(destino ? destino(criadoAgora) : `/orcamento-grafico/${orcamentoId}/itens/${criadoAgora}`)
       return
@@ -517,7 +540,7 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
   }
 
   /** `destino`: para onde ir depois de criar o item (ex.: abrir a inclusão do 1º plano). */
-  const salvar = async (destino?: (id: string) => string) => {
+  const salvar = async (destino?: (id: string) => string, sempreIr = false) => {
     if (!estado || !formFinal || salvando) return
     if (!validar()) return
     setSalvando(true)
@@ -537,7 +560,7 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
         }
         if (passe.linhas) await enviarItem({ ...formFinal, materiaisAcabamento: passe.linhas }, idSalvo)
       }
-      await concluirSalvar(criadoAgora, modo.isEditing, destino)
+      await concluirSalvar(criadoAgora, modo.isEditing, destino, sempreIr)
     } catch (err) {
       // Nada gravado do lado da tela: os valores digitados continuam como estão.
       setErroAcao(mensagemErroServidor(err, 'Não foi possível salvar o item.'))
@@ -610,6 +633,11 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
   }
 
   const urlOrcamento = `/orcamento-grafico/${orcamentoId}`
+  // Fecha a gaveta; tira o ?plano= da URL para recarregar a página não reabrir.
+  const fecharGaveta = () => {
+    setPlanoGaveta(null)
+    if (planoInicial && idItemAtual) router.replace(`/orcamento-grafico/${orcamentoId}/itens/${idItemAtual}`)
+  }
   const podeEditar = orcamento.status === 'RASCUNHO'
   const estrutura = layout?.estrutura ?? null
   const ocupado = salvando || calculando
@@ -625,17 +653,42 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
   }
 
   const cabecalho = (
-    <Stack gap="xs">
-      <Breadcrumbs>
-        <Anchor component={Link} href={urlOrcamento} size="sm">
-          Orçamento nº {orcamento.numero}
-        </Anchor>
-        <Text size="sm">Item</Text>
-      </Breadcrumbs>
+    <Paper
+      withBorder
+      radius="md"
+      shadow="xs"
+      px="md"
+      py="sm"
+      style={{ position: 'sticky', top: 0, zIndex: 20 }}
+      data-testid="tela-item-cabecalho"
+    >
       <Group justify="space-between" align="center" wrap="wrap" gap="sm">
-        <Title order={3} data-testid="tela-item-titulo">
-          {titulo}
-        </Title>
+        <Stack gap={4}>
+          <Breadcrumbs separator="›">
+            <Anchor component={Link} href={urlOrcamento} size="xs">
+              Orçamento nº {orcamento.numero}
+            </Anchor>
+            <Text size="xs" c="dimmed">
+              Itens
+            </Text>
+            <Text size="xs" fw={600} c="blue">
+              {produtoNome ?? 'Novo item'}
+            </Text>
+          </Breadcrumbs>
+          <Group gap="sm" wrap="nowrap">
+            <ThemeIcon size={32} radius="md">
+              <IconPackage size={18} />
+            </ThemeIcon>
+            <Title order={4} data-testid="tela-item-titulo">
+              {titulo}
+            </Title>
+            {podeEditar && (
+              <Badge variant="light" color={sujo ? 'yellow' : 'gray'} visibleFrom="sm">
+                {sujo ? 'Em edição' : novo && !itemIdCriado ? 'Novo' : 'Salvo'}
+              </Badge>
+            )}
+          </Group>
+        </Stack>
         {podeEditar && (
           <Group gap="xs">
             <PreviewFichaMaster orcamentoId={orcamentoId} tamanhoBotao="sm" />
@@ -650,6 +703,16 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
               Calcular
             </Button>
             <Button
+              variant="default"
+              size="sm"
+              leftSection={<IconX size={16} />}
+              onClick={() => guarda.navegar(urlOrcamento)}
+              disabled={ocupado}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="light"
               size="sm"
               leftSection={<IconDeviceFloppy size={16} />}
               onClick={() => void salvar()}
@@ -658,10 +721,19 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
             >
               Salvar
             </Button>
+            <Button
+              size="sm"
+              leftSection={<IconCheck size={16} />}
+              onClick={() => void salvar(() => urlOrcamento, true)}
+              loading={salvando}
+              disabled={ocupado && !salvando}
+            >
+              Salvar e Fechar
+            </Button>
           </Group>
         )}
       </Group>
-    </Stack>
+    </Paper>
   )
 
   if (!podeEditar) {
@@ -710,23 +782,20 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
         <AvisoPlanosLegados estrutura="PLANO_UNICO" planosPersistidos={planosPersistidos} />
       </>
     ) : estrutura === 'MULTI_PLANO' ? (
-      <Paper withBorder radius="md" p="lg" shadow="xs" data-testid="tipos-de-plano">
+      <div data-testid="tipos-de-plano">
         {idItemAtual ? (
           <GridPlanos
+            key={versaoPlanos}
             orcamentoId={orcamentoId}
             itemId={idItemAtual}
             navegar={guarda.navegar}
+            abrirPlano={(planoId, apos) => setPlanoGaveta({ planoId, apos: apos ?? null })}
             onAlterado={() => notificarAlteracaoItem(orcamentoId)}
             disabled={ocupado}
           />
         ) : (
+          <CartaoSecao titulo="Tipos de Plano" icone={<IconLayoutList size={16} />} contador={0}>
           <Stack gap="md">
-            <Group gap="sm" wrap="nowrap">
-              <ThemeIcon variant="light" color="indigo" size={32} radius="md">
-                <IconLayoutList size={18} stroke={1.5} />
-              </ThemeIcon>
-              <Title order={5}>Tipos de Plano</Title>
-            </Group>
             <Table withTableBorder data-testid="tipos-de-plano-item-novo">
               <Table.Thead>
                 <Table.Tr>
@@ -751,14 +820,15 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
                 leftSection={<IconPlus size={14} />}
                 loading={salvando}
                 disabled={ocupado}
-                onClick={() => void salvar((novoId) => `/orcamento-grafico/${orcamentoId}/itens/${novoId}/planos/novo`)}
+                onClick={() => void salvar((novoId) => `/orcamento-grafico/${orcamentoId}/itens/${novoId}?plano=novo`)}
               >
                 Incluir plano
               </Button>
             </Group>
           </Stack>
+          </CartaoSecao>
         )}
-      </Paper>
+      </div>
     ) : layoutItem.carregando ? (
       <Skeleton height={120} radius="md" />
     ) : !produtoGraficoId ? (
@@ -802,7 +872,29 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
         carregando={tentandoNovamente}
       />
 
+      <CartaoSecao
+        titulo="Dados Gerais & Dimensões"
+        icone={<IconAdjustmentsHorizontal size={16} />}
+        direita={
+          <Text size="xs" c="dimmed">
+            Unidade padrão: <b>mm</b>
+          </Text>
+        }
+      >
       <BlocoComum
+        dimensoes={
+          <BlocoFormato
+            embutido
+            layout={layout}
+            value={estado.formato}
+            onChange={(p) => alterar((e) => ({ ...e, formato: { ...e.formato, ...p } }))}
+            validarVazios={validarVazios && !itemCarregado}
+            disabled={ocupado}
+            carregando={layoutItem.carregando}
+            erroLayout={layoutItem.erro}
+            onTentarNovamente={layoutItem.tentarNovamente}
+          />
+        }
         value={estado.comum}
         onChange={(p) => alterar((e) => ({ ...e, comum: { ...e.comum, ...p } }))}
         produtoNome={produtoNome}
@@ -817,35 +909,19 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
         validarVazios={validarVazios}
         disabled={ocupado}
       />
-
-      <BlocoFormato
-        layout={layout}
-        value={estado.formato}
-        onChange={(p) => alterar((e) => ({ ...e, formato: { ...e.formato, ...p } }))}
-        validarVazios={validarVazios && !itemCarregado}
-        disabled={ocupado}
-        carregando={layoutItem.carregando}
-        erroLayout={layoutItem.erro}
-        onTentarNovamente={layoutItem.tentarNovamente}
-      />
+      </CartaoSecao>
 
       {/* Comprimento/Largura/Altura vêm do bloco Formato; aqui só se o tipo pedir outras medidas. */}
       {(!form.tipoEmbalagem || medidasExtras > 0) && (
-        <Paper withBorder radius="md" p="lg" shadow="xs" data-testid="medidas-calculo">
-          <Stack gap="md">
-            <Group gap="sm" wrap="nowrap">
-              <ThemeIcon variant="light" color="teal" size={32} radius="md">
-                <IconRuler size={18} stroke={1.5} />
-              </ThemeIcon>
-              <Title order={5}>Medidas de cálculo</Title>
-            </Group>
-            <StepMedidas formData={form} updateForm={atualizarForm} />
-          </Stack>
-        </Paper>
+        <CartaoSecao titulo="Medidas de cálculo" icone={<IconRuler size={16} />} data-testid="medidas-calculo">
+          <StepMedidas formData={form} updateForm={atualizarForm} />
+        </CartaoSecao>
       )}
 
       {blocosPlano}
 
+      <Grid gutter="md" align="stretch">
+        <Grid.Col span={{ base: 12, lg: 8 }}>
       <AcabamentosDeProduto
         value={form}
         onChange={atualizarForm}
@@ -856,7 +932,8 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
         onTentarNovamente={todosAcabamentos.tentarNovamente}
         carregandoLista={todosAcabamentos.carregando}
       />
-
+        </Grid.Col>
+        <Grid.Col span={{ base: 12, lg: 4 }}>
       <AcondicionamentoBloco
         value={estado.acondicionamento}
         onChange={(p) => alterar((e) => ({ ...e, acondicionamento: { ...e.acondicionamento, ...p } }))}
@@ -864,6 +941,8 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
         carregando={catalogoItem.carregando}
         disabled={ocupado}
       />
+        </Grid.Col>
+      </Grid>
 
       <ComplementosDoItem
         value={valorComplementos}
@@ -905,6 +984,44 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
           Voltar ao orçamento
         </Button>
       </Group>
+
+      <Drawer
+        opened={planoGaveta !== null && !!idItemAtual}
+        onClose={fecharGaveta}
+        position="right"
+        size="min(960px, 100vw)"
+        padding="md"
+        title={
+          <Group gap="sm" wrap="nowrap">
+            <ThemeIcon size={32} radius="md">
+              <IconLayoutList size={18} />
+            </ThemeIcon>
+            <div>
+              <Text fw={700}>{planoGaveta?.planoId === 'novo' ? 'Inclusão de Tipo de Plano' : 'Alteração de Tipo de Plano'}</Text>
+              <Text size="xs" c="dimmed">
+                Estrutura, substratos e impressão do plano
+              </Text>
+            </div>
+          </Group>
+        }
+        data-testid="gaveta-plano"
+      >
+        {planoGaveta && idItemAtual && (
+          <TelaPlano
+            key={`${planoGaveta.planoId}-${planoGaveta.apos ?? ''}`}
+            modo="gaveta"
+            orcamentoId={orcamentoId}
+            itemId={idItemAtual}
+            planoId={planoGaveta.planoId}
+            posicaoApos={planoGaveta.apos}
+            onFechar={fecharGaveta}
+            onGravado={() => {
+              setVersaoPlanos((v) => v + 1)
+              void carregar()
+            }}
+          />
+        )}
+      </Drawer>
 
       <Modal
         opened={guarda.destinoPendente !== null}

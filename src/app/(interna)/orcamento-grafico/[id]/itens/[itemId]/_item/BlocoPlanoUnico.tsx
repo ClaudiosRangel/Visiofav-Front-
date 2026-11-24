@@ -20,8 +20,9 @@
  */
 
 import { useState, type ReactNode } from 'react'
-import { ActionIcon, Anchor, Autocomplete, Button, Group, Paper, SimpleGrid, Stack, Switch, Text, TextInput, ThemeIcon, Title, Tooltip } from '@mantine/core'
+import { ActionIcon, Anchor, Autocomplete, Button, Group, SimpleGrid, Stack, Switch, Text, TextInput, Tooltip } from '@mantine/core'
 import { IconLock, IconLockOpen, IconPrinter } from '@tabler/icons-react'
+import CartaoSecao from './CartaoSecao'
 
 import type { LayoutItem } from '../../../_layout/resolver-layout-item'
 import { useCoberturasTinta, useProcessosImpressao } from '../../../_hooks/useOpcoesPlanoUnico'
@@ -79,14 +80,8 @@ export default function BlocoPlanoUnico({
   const erroListas = processos.erro ?? coberturas.erro
 
   return (
-    <Paper withBorder radius="md" p="lg" shadow="xs" data-testid="bloco-plano-unico">
+    <CartaoSecao titulo="Impressão e Suporte" icone={<IconPrinter size={16} />} data-testid="bloco-plano-unico">
       <Stack gap="md">
-        <Group gap="sm" wrap="nowrap">
-          <ThemeIcon variant="light" color="teal" size={32} radius="md">
-            <IconPrinter size={18} stroke={1.5} />
-          </ThemeIcon>
-          <Title order={5}>Impressão e suporte</Title>
-        </Group>
 
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
           {mostra('cores') && (
@@ -261,6 +256,6 @@ export default function BlocoPlanoUnico({
           </Group>
         )}
       </Stack>
-    </Paper>
+    </CartaoSecao>
   )
 }

@@ -19,7 +19,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Alert, Button, Group, Modal, Paper, ScrollArea, Stack, Table, Text, ThemeIcon, Title } from '@mantine/core'
+import { ActionIcon, Alert, Badge, Button, Group, Modal, Paper, Radio, ScrollArea, Stack, Table, Text, Tooltip } from '@mantine/core'
 import {
   IconAlertCircle,
   IconArrowBackUp,
@@ -28,12 +28,14 @@ import {
   IconCopy,
   IconExternalLink,
   IconLayoutList,
+  IconPencil,
   IconPlus,
   IconTrash,
 } from '@tabler/icons-react'
 
 import { MSG_LIMITE_PLANOS, usePlanosDoItem, type PlanosDoItem } from '../_plano/usePlanosDoItem'
 import type { PlanoLeitura } from '../_plano/plano.types'
+import CartaoSecao from './CartaoSecao'
 
 export interface GridPlanosProps {
   orcamentoId: string
@@ -44,6 +46,8 @@ export interface GridPlanosProps {
   planosDoItem?: PlanosDoItem
   /** Navegação da tela (ex.: com a guarda de alterações não salvas). Padrão: router.push. */
   navegar?: (url: string) => void
+  /** Abre o plano na gaveta lateral (`novo` = inclusão). Sem ela, navega para a página do plano. */
+  abrirPlano?: (planoId: string, posicaoApos?: string | null) => void
   disabled?: boolean
 }
 
@@ -80,6 +84,12 @@ export function textoAcabamento(p: PlanoLeitura): string {
   return nomes.length > 0 ? nomes.join(', ') : '—'
 }
 
+/** Nome do tipo de plano, quando o plano o guarda (`especificacao.tipoPlanoNome`). */
+function nomeTipo(p: PlanoLeitura): string | null {
+  const n = (p.especificacao as { tipoPlanoNome?: unknown } | null)?.tipoPlanoNome
+  return typeof n === 'string' && n.trim() ? n.trim() : null
+}
+
 // ─── Componente ─────────────────────────────────────────────────────────────
 
 function GridPlanosComHook(props: GridPlanosProps) {
@@ -97,6 +107,7 @@ function GridPlanosView({
   onAlterado,
   planosDoItem: h,
   navegar,
+  abrirPlano,
   disabled = false,
 }: GridPlanosProps & { planosDoItem: PlanosDoItem }) {
   const router = useRouter()
@@ -116,9 +127,12 @@ function GridPlanosView({
     if (ok) onAlterado?.()
   }
 
+  const abrir = (planoId: string) => (abrirPlano ? abrirPlano(planoId) : ir(urlPlano(planoId)))
   const incluir = () => {
     const url = h.incluir(selecionado?.id ?? null)
-    if (url) ir(url)
+    if (!url) return
+    if (abrirPlano) abrirPlano('novo', selecionado?.id ?? null)
+    else ir(url)
   }
   const copiar = async () => {
     if (selecionado) depois(await h.copiar(selecionado.id))
@@ -190,7 +204,7 @@ function GridPlanosView({
         size="xs"
         variant="subtle"
         leftSection={<IconExternalLink size={14} />}
-        onClick={() => selecionado && ir(urlPlano(selecionado.id))}
+        onClick={() => selecionado && abrir(selecionado.id)}
         disabled={disabled || !umSelecionado}
       >
         Abrir
@@ -199,16 +213,14 @@ function GridPlanosView({
   )
 
   return (
-    <Stack gap="sm" data-testid="grid-planos">
-      <Group gap="sm" wrap="nowrap">
-        <ThemeIcon variant="light" color="indigo" size={32} radius="md">
-          <IconLayoutList size={18} stroke={1.5} />
-        </ThemeIcon>
-        <Title order={5}>Tipos de Plano</Title>
-      </Group>
-
-      {botoes}
-
+    <CartaoSecao
+      titulo="Tipos de Plano"
+      icone={<IconLayoutList size={16} />}
+      contador={h.planos.length}
+      direita={botoes}
+      data-testid="grid-planos"
+    >
+    <Stack gap="sm">
       {h.noLimite && (
         <Alert color="orange" variant="light" icon={<IconAlertCircle size={16} />} data-testid="grid-planos-limite">
           {MSG_LIMITE_PLANOS}
@@ -257,11 +269,13 @@ function GridPlanosView({
           <Table highlightOnHover withTableBorder verticalSpacing="xs" data-testid="grid-planos-tabela">
             <Table.Thead>
               <Table.Tr>
+                <Table.Th w={36} />
                 <Table.Th>Nome</Table.Th>
                 <Table.Th>Suporte</Table.Th>
                 <Table.Th>Cores</Table.Th>
                 <Table.Th>Formato</Table.Th>
                 <Table.Th>Acabamento</Table.Th>
+                <Table.Th w={80} ta="right">Ações</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -275,13 +289,50 @@ function GridPlanosView({
                     bg={ativo ? 'var(--mantine-color-blue-light)' : undefined}
                     style={{ cursor: 'pointer' }}
                     onClick={() => setSelecionadoId(ativo ? null : p.id)}
-                    onDoubleClick={() => !disabled && ir(urlPlano(p.id))}
+                    onDoubleClick={() => !disabled && abrir(p.id)}
                   >
-                    <Table.Td>{p.nome}</Table.Td>
+                    <Table.Td>
+                      <Radio checked={ativo} onChange={() => setSelecionadoId(p.id)} aria-label={`Selecionar ${p.nome}`} size="xs" />
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={6} wrap="nowrap">
+                        <Text size="sm" fw={600}>{p.nome}</Text>
+                        {nomeTipo(p) && (
+                          <Badge size="xs" variant="light" color="gray">{nomeTipo(p)}</Badge>
+                        )}
+                      </Group>
+                    </Table.Td>
                     <Table.Td>{textoSuporte(p)}</Table.Td>
                     <Table.Td>{textoCores(p)}</Table.Td>
                     <Table.Td>{textoFormato(p)}</Table.Td>
                     <Table.Td>{textoAcabamento(p)}</Table.Td>
+                    <Table.Td>
+                      <Group gap={2} justify="flex-end" wrap="nowrap">
+                        <Tooltip label="Editar plano">
+                          <ActionIcon
+                            variant="subtle"
+                            size="sm"
+                            aria-label={`Editar ${p.nome}`}
+                            disabled={disabled}
+                            onClick={(e) => { e.stopPropagation(); abrir(p.id) }}
+                          >
+                            <IconPencil size={14} />
+                          </ActionIcon>
+                        </Tooltip>
+                        <Tooltip label="Excluir plano">
+                          <ActionIcon
+                            variant="subtle"
+                            color="red"
+                            size="sm"
+                            aria-label={`Excluir ${p.nome}`}
+                            disabled={travado}
+                            onClick={(e) => { e.stopPropagation(); setSelecionadoId(p.id); setConfirmarExclusao(true) }}
+                          >
+                            <IconTrash size={14} />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Group>
+                    </Table.Td>
                   </Table.Tr>
                 )
               })}
@@ -304,5 +355,6 @@ function GridPlanosView({
         </Stack>
       </Modal>
     </Stack>
+    </CartaoSecao>
   )
 }

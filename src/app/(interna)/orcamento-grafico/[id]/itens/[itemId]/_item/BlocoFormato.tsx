@@ -16,7 +16,7 @@
  * Componente CONTROLADO (`value`/`onChange`), sem gravação e sem chamada de rede.
  */
 
-import { useEffect, useMemo, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Alert, Anchor, Button, Group, Input, Paper, SimpleGrid, Skeleton, Stack, Text, TextInput, ThemeIcon, Title } from '@mantine/core'
 import { IconAlertTriangle, IconRuler2, IconWand } from '@tabler/icons-react'
 
@@ -53,6 +53,56 @@ export interface BlocoFormatoProps {
    * caso manual.
    */
   aplicarPadraoAutomatico?: boolean
+  /**
+   * Dentro do cartão "Dados Gerais & Dimensões": caixa compacta, e Comprimento x Largura x Altura
+   * num campo só ("220 x 150 x 80").
+   */
+  embutido?: boolean
+}
+
+/** "220 x 150 x 80" → ['220','150','80']. Aceita x, X, × e *. Puro. */
+export function separarTresDimensoes(texto: string): [string, string, string] {
+  const partes = texto.split(/\s*[xX×*]\s*/)
+  return [partes[0]?.trim() ?? '', partes[1]?.trim() ?? '', partes.slice(2).join('').trim()]
+}
+
+/** Comprimento, Largura e Altura num campo só; mantém o texto digitado enquanto o foco está nele. */
+function CampoTresDimensoes({
+  value,
+  onChange,
+  erro,
+  disabled,
+}: {
+  value: Pick<ValorFormato, 'comprimento' | 'largura' | 'altura'>
+  onChange: (p: Pick<ValorFormato, 'comprimento' | 'largura' | 'altura'>) => void
+  erro?: string
+  disabled?: boolean
+}) {
+  const externo = [value.comprimento, value.largura, value.altura].filter((v) => v !== '').join(' x ')
+  const [texto, setTexto] = useState(externo)
+  const [focado, setFocado] = useState(false)
+  useEffect(() => {
+    if (!focado) setTexto(externo)
+  }, [externo, focado])
+  return (
+    <TextInput
+      label="Comp x Larg x Alt"
+      placeholder="220 x 150 x 80"
+      inputMode="decimal"
+      value={texto}
+      onFocus={() => setFocado(true)}
+      onBlur={() => setFocado(false)}
+      onChange={(e) => {
+        const t = e.currentTarget.value
+        setTexto(t)
+        const [comprimento, largura, altura] = separarTresDimensoes(t)
+        onChange({ comprimento, largura, altura })
+      }}
+      error={erro}
+      disabled={disabled}
+      data-testid="formato-comp-larg-alt"
+    />
+  )
 }
 
 const MENSAGEM_CADASTRO_INCOMPLETO: Record<NonNullable<LayoutItem['motivoIncompleto']>, string> = {
@@ -74,6 +124,7 @@ export default function BlocoFormato({
   erroLayout,
   onTentarNovamente,
   aplicarPadraoAutomatico = false,
+  embutido = false,
 }: BlocoFormatoProps) {
   const validacao = useMemo(
     () => (layout ? validarFormato(value, layout, { validarVazios }) : null),
@@ -96,7 +147,14 @@ export default function BlocoFormato({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layout, aplicarPadraoAutomatico])
 
-  const cabecalho = (
+  const cabecalho = embutido ? (
+    <Group gap={6} wrap="nowrap">
+      <IconRuler2 size={14} stroke={1.5} />
+      <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ letterSpacing: '0.04em' }}>
+        Dimensões (mm)
+      </Text>
+    </Group>
+  ) : (
     <Group gap="sm" wrap="nowrap">
       <ThemeIcon variant="light" color="teal" size={32} radius="md">
         <IconRuler2 size={18} stroke={1.5} />
@@ -107,14 +165,22 @@ export default function BlocoFormato({
 
   const parcial = (campo: keyof ValorFormato, valor: unknown) => onChange({ [campo]: valor } as Partial<ValorFormato>)
 
-  const envolver = (conteudo: ReactNode) => (
-    <Paper withBorder radius="md" p="lg" shadow="xs" data-testid="bloco-formato">
-      <Stack gap="md">
-        {cabecalho}
-        {conteudo}
-      </Stack>
-    </Paper>
-  )
+  const envolver = (conteudo: ReactNode) =>
+    embutido ? (
+      <Paper withBorder radius="md" p="sm" bg="var(--mantine-color-default-hover)" data-testid="bloco-formato">
+        <Stack gap="xs">
+          {cabecalho}
+          {conteudo}
+        </Stack>
+      </Paper>
+    ) : (
+      <Paper withBorder radius="md" p="lg" shadow="xs" data-testid="bloco-formato">
+        <Stack gap="md">
+          {cabecalho}
+          {conteudo}
+        </Stack>
+      </Paper>
+    )
 
   if (carregando) {
     return envolver(
@@ -167,6 +233,9 @@ export default function BlocoFormato({
   const escalares = campos.filter((c): c is ChaveEscalar => !ehComposto(c))
   const compostos = campos.filter((c): c is ChaveComposta => ehComposto(c))
   const erros = validacao?.erros ?? {}
+  const TRES: ChaveEscalar[] = ['comprimento', 'largura', 'altura']
+  const tresJuntos = embutido && TRES.every((c) => escalares.includes(c))
+  const escalaresVisiveis = tresJuntos ? escalares.filter((c) => !TRES.includes(c)) : escalares
 
   return envolver(
     <>
@@ -177,8 +246,24 @@ export default function BlocoFormato({
       )}
 
       {escalares.length > 0 && (
-        <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 5 }} spacing="md">
-          {escalares.map((campo) => (
+        <SimpleGrid cols={embutido ? { base: 1, xs: 2, sm: 4 } : { base: 1, xs: 2, md: 3, lg: 5 }} spacing={embutido ? 'xs' : 'md'}>
+          {tresJuntos && (
+            <CampoTresDimensoes
+              value={value}
+              onChange={(p) => onChange(p)}
+              erro={
+                [
+                  erros[chaveErro('comprimento')] && `Comp.: ${erros[chaveErro('comprimento')]}`,
+                  erros[chaveErro('largura')] && `Larg.: ${erros[chaveErro('largura')]}`,
+                  erros[chaveErro('altura')] && `Alt.: ${erros[chaveErro('altura')]}`,
+                ]
+                  .filter(Boolean)
+                  .join(' ') || undefined
+              }
+              disabled={disabled}
+            />
+          )}
+          {escalaresVisiveis.map((campo) => (
             <TextInput
               key={campo}
               label={ROTULOS_FORMATO[campo]}

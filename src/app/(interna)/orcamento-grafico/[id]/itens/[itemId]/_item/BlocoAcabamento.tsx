@@ -15,8 +15,9 @@
  */
 
 import { useRef, useState } from 'react'
-import { Alert, Badge, Box, Button, Checkbox, Group, Loader, Paper, ScrollArea, SimpleGrid, Stack, Text, TextInput, ThemeIcon, Title } from '@mantine/core'
+import { Alert, Badge, Box, Button, Checkbox, Group, Loader, ScrollArea, SimpleGrid, Stack, Text, TextInput, Title } from '@mantine/core'
 import { IconAlertCircle, IconSearch, IconTool } from '@tabler/icons-react'
+import CartaoSecao from './CartaoSecao'
 
 import type { WizardFormData } from '../../../../novo/page'
 import type { LayoutItem } from '../../../_layout/resolver-layout-item'
@@ -131,19 +132,17 @@ export default function BlocoAcabamento({
   }
 
   return (
-    <Paper withBorder radius="md" p="lg" shadow="xs" data-testid="bloco-acabamento">
+    <CartaoSecao
+      titulo="Acabamento — Atividades"
+      icone={<IconTool size={16} />}
+      direita={
+        <Badge variant="light" color={marcadas.length > 0 ? 'blue' : 'gray'} data-testid="bloco-acabamento-contagem">
+          {marcadas.length === 1 ? '1 marcada' : `${marcadas.length} marcadas`}
+        </Badge>
+      }
+      data-testid="bloco-acabamento"
+    >
       <Stack gap="md">
-        <Group justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap">
-            <ThemeIcon variant="light" color="orange" size={32} radius="md">
-              <IconTool size={18} stroke={1.5} />
-            </ThemeIcon>
-            <Title order={5}>Acabamento</Title>
-          </Group>
-          <Badge variant="light" color={marcadas.length > 0 ? 'blue' : 'gray'} data-testid="bloco-acabamento-contagem">
-            {marcadas.length === 1 ? '1 marcada' : `${marcadas.length} marcadas`}
-          </Badge>
-        </Group>
 
         {avisoLista && (
           <Alert color="yellow" variant="light" icon={<IconAlertCircle size={16} />} data-testid="bloco-acabamento-aviso">
@@ -240,6 +239,6 @@ export default function BlocoAcabamento({
           />
         </SimpleGrid>
       </Stack>
-    </Paper>
+    </CartaoSecao>
   )
 }

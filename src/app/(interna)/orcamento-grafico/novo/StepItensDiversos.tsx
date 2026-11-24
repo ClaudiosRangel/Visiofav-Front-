@@ -37,6 +37,8 @@ interface Props {
   opcoesPorRotulo?: Readonly<Record<string, ReadonlyArray<OpcaoSugerida>>>
   /** Rótulos obrigatórios: só um ícone com tooltip; não bloqueia o salvamento. */
   obrigatorios?: ReadonlySet<string>
+  /** Mostra só uma das listas, sem o título geral (usado nas abas da tela do item). Ausente = as três. */
+  secao?: 'diversos' | 'fornecidos' | 'livres'
 }
 
 const MAX_DIVERSOS = 50
@@ -48,8 +50,9 @@ type ItemFornecido = { descricao: string; quantidade: number }
 type CampoLivre = { rotulo: string; conteudo: string }
 
 export default function StepItensDiversos({
-  formData, updateForm, sugestoesRotulos, opcoesPorRotulo, obrigatorios,
+  formData, updateForm, sugestoesRotulos, opcoesPorRotulo, obrigatorios, secao,
 }: Props) {
+  const ver = (s: 'diversos' | 'fornecidos' | 'livres') => !secao || secao === s
   // Modo com sugestões: só quando alguma das props opcionais é informada.
   const comSugestoes =
     sugestoesRotulos !== undefined || opcoesPorRotulo !== undefined || obrigatorios !== undefined
@@ -121,6 +124,7 @@ export default function StepItensDiversos({
 
   return (
     <Stack gap="lg">
+      {!secao && (
       <Group gap="xs">
         <IconListDetails size={18} />
         <div>
@@ -130,8 +134,10 @@ export default function StepItensDiversos({
           </Text>
         </div>
       </Group>
+      )}
 
       {/* ================= Itens Diversos ================= */}
+      {ver('diversos') && (
       <Paper p="md" withBorder>
         <Group justify="space-between" align="center" mb="sm">
           <Text fw={600}>Itens Diversos</Text>
@@ -213,10 +219,12 @@ export default function StepItensDiversos({
           <Text c="dimmed" size="sm" ta="center" py="sm">Nenhum item diverso.</Text>
         )}
       </Paper>
+      )}
 
-      <Divider />
+      {!secao && <Divider />}
 
       {/* ================= Itens Fornecidos pelo cliente ================= */}
+      {ver('fornecidos') && (
       <Paper p="md" withBorder>
         <Group justify="space-between" align="center" mb="sm">
           <Text fw={600}>Itens Fornecidos pelo cliente</Text>
@@ -277,10 +285,12 @@ export default function StepItensDiversos({
           <Text c="dimmed" size="sm" ta="center" py="sm">Nenhum item fornecido.</Text>
         )}
       </Paper>
+      )}
 
-      <Divider />
+      {!secao && <Divider />}
 
       {/* ================= Campos Livres ================= */}
+      {ver('livres') && (
       <Paper p="md" withBorder>
         <Group justify="space-between" align="center" mb="sm">
           <Text fw={600}>Campos Livres</Text>
@@ -388,6 +398,7 @@ export default function StepItensDiversos({
           <Text c="dimmed" size="sm" ta="center" py="sm">Nenhum campo livre.</Text>
         )}
       </Paper>
+      )}
     </Stack>
   )
 }

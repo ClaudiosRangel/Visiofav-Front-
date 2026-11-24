@@ -13,8 +13,9 @@
  */
 
 import { useMemo, useState } from 'react'
-import { Accordion, Badge, Group, Paper, Stack, Textarea, ThemeIcon, Title } from '@mantine/core'
-import { IconNotes } from '@tabler/icons-react'
+import { Badge, Stack, Tabs, Text, Textarea } from '@mantine/core'
+import { IconBuildingFactory2, IconFileText, IconListDetails, IconNotes, IconPackages, IconTruck } from '@tabler/icons-react'
+import CartaoSecao from './CartaoSecao'
 
 import type { WizardFormData } from '../../../../novo/page'
 import type { OpcaoSugerida } from '../../../editor/campos-livres-puro'
@@ -73,7 +74,7 @@ export function CampoInformacoesComplementares({ value, onChange, erro, disabled
   )
 }
 
-const PAINEIS = { listas: 'listas', observacao: 'observacao', areas: 'areas' } as const
+const ABAS = { diversos: 'diversos', fornecidos: 'fornecidos', livres: 'livres', observacao: 'observacao', areas: 'areas' } as const
 
 export default function ComplementosDoItem({
   value,
@@ -86,8 +87,8 @@ export default function ComplementosDoItem({
   avisoCamposLivres,
   disabled,
 }: ComplementosDoItemProps) {
-  // Só estado de apresentação (quais painéis estão abertos). Nenhum dado fica aqui.
-  const [abertos, setAbertos] = useState<string[]>([])
+  // Só estado de apresentação (aba aberta). Nenhum dado fica aqui: trocar de aba não descarta nada.
+  const [aba, setAba] = useState<string>(ABAS.diversos)
 
   const exibeInfo = layout?.informacoesComplementaresVisiveis === true
   const { erros } = useMemo(
@@ -114,19 +115,25 @@ export default function ComplementosDoItem({
     if (Object.keys(parcial).length > 0) onChange(parcial)
   }
 
-  const qtdListas =
-    (value.itensDiversos?.length ?? 0) + (value.itensFornecidos?.length ?? 0) + (value.camposLivres?.length ?? 0)
+  const marca = (n: number | boolean) =>
+    (typeof n === 'number' ? n > 0 : n) ? (
+      <Badge size="xs" variant="light" circle={typeof n === 'number'}>
+        {typeof n === 'number' ? n : '•'}
+      </Badge>
+    ) : null
 
   return (
-    <Paper withBorder radius="md" p="lg" shadow="xs" data-testid="complementos-do-item">
+    <CartaoSecao
+      titulo="Complementos do item"
+      icone={<IconNotes size={16} />}
+      direita={
+        <Text size="xs" c="dimmed">
+          Informações complementares do item
+        </Text>
+      }
+      data-testid="complementos-do-item"
+    >
       <Stack gap="md">
-        <Group gap="sm" wrap="nowrap">
-          <ThemeIcon variant="light" color="cyan" size={32} radius="md">
-            <IconNotes size={18} stroke={1.5} />
-          </ThemeIcon>
-          <Title order={5}>Complementos do item</Title>
-        </Group>
-
         {exibeInfo && (
           <CampoInformacoesComplementares
             value={value.informacoesComplementares}
@@ -136,19 +143,27 @@ export default function ComplementosDoItem({
           />
         )}
 
-        <Accordion multiple variant="separated" radius="md" value={abertos} onChange={setAbertos}>
-          <Accordion.Item value={PAINEIS.listas}>
-            <Accordion.Control>
-              <Group gap="xs">
-                Itens Diversos, Itens Fornecidos e Campos Livres
-                {qtdListas > 0 && (
-                  <Badge size="sm" variant="light" color="blue">
-                    {qtdListas}
-                  </Badge>
-                )}
-              </Group>
-            </Accordion.Control>
-            <Accordion.Panel>
+        <Tabs value={aba} onChange={(v) => v && setAba(v)} variant="pills" radius="md">
+          <Tabs.List>
+            <Tabs.Tab value={ABAS.diversos} leftSection={<IconPackages size={14} />} rightSection={marca(value.itensDiversos?.length ?? 0)}>
+              Itens Diversos
+            </Tabs.Tab>
+            <Tabs.Tab value={ABAS.fornecidos} leftSection={<IconTruck size={14} />} rightSection={marca(value.itensFornecidos?.length ?? 0)}>
+              Itens Fornecidos
+            </Tabs.Tab>
+            <Tabs.Tab value={ABAS.livres} leftSection={<IconListDetails size={14} />} rightSection={marca(value.camposLivres?.length ?? 0)}>
+              Campos Livres
+            </Tabs.Tab>
+            <Tabs.Tab value={ABAS.observacao} leftSection={<IconFileText size={14} />} rightSection={marca(value.observacao.trim() !== '')}>
+              Observação
+            </Tabs.Tab>
+            <Tabs.Tab value={ABAS.areas} leftSection={<IconBuildingFactory2 size={14} />} rightSection={marca(value.observacaoAreasOp.trim() !== '')}>
+              Obs. Áreas de Op
+            </Tabs.Tab>
+          </Tabs.List>
+
+          {(['diversos', 'fornecidos', 'livres'] as const).map((s) => (
+            <Tabs.Panel key={s} value={ABAS[s]} pt="md">
               <SecaoItensComplementares
                 formData={formData}
                 updateForm={atualizarListas}
@@ -157,67 +172,44 @@ export default function ComplementosDoItem({
                 opcoesPorRotulo={opcoesPorRotulo}
                 obrigatorios={obrigatorios}
                 avisoCamposLivres={avisoCamposLivres}
+                secao={s}
               />
-            </Accordion.Panel>
-          </Accordion.Item>
+            </Tabs.Panel>
+          ))}
 
-          <Accordion.Item value={PAINEIS.observacao}>
-            <Accordion.Control>
-              <Group gap="xs">
-                Observação
-                {value.observacao.trim() !== '' && (
-                  <Badge size="sm" variant="light" color="teal">
-                    preenchida
-                  </Badge>
-                )}
-              </Group>
-            </Accordion.Control>
-            <Accordion.Panel>
-              <Textarea
-                aria-label="Observação"
-                autosize
-                minRows={3}
-                maxRows={10}
-                maxLength={MAX_OBSERVACAO}
-                description={`${value.observacao.length.toLocaleString('pt-BR')}/${MAX_OBSERVACAO.toLocaleString('pt-BR')}`}
-                value={value.observacao}
-                onChange={(e) => onChange({ observacao: e.currentTarget.value })}
-                error={erros.observacao}
-                disabled={disabled}
-                data-testid="campo-observacao"
-              />
-            </Accordion.Panel>
-          </Accordion.Item>
+          <Tabs.Panel value={ABAS.observacao} pt="md">
+            <Textarea
+              label="Observação"
+              autosize
+              minRows={3}
+              maxRows={10}
+              maxLength={MAX_OBSERVACAO}
+              description={`${value.observacao.length.toLocaleString('pt-BR')}/${MAX_OBSERVACAO.toLocaleString('pt-BR')}`}
+              value={value.observacao}
+              onChange={(e) => onChange({ observacao: e.currentTarget.value })}
+              error={erros.observacao}
+              disabled={disabled}
+              data-testid="campo-observacao"
+            />
+          </Tabs.Panel>
 
-          <Accordion.Item value={PAINEIS.areas}>
-            <Accordion.Control>
-              <Group gap="xs">
-                Obs. Áreas de Op
-                {value.observacaoAreasOp.trim() !== '' && (
-                  <Badge size="sm" variant="light" color="teal">
-                    preenchida
-                  </Badge>
-                )}
-              </Group>
-            </Accordion.Control>
-            <Accordion.Panel>
-              <Textarea
-                aria-label="Obs. Áreas de Op"
-                autosize
-                minRows={3}
-                maxRows={10}
-                maxLength={MAX_OBS_AREAS_OP}
-                description={`${value.observacaoAreasOp.length.toLocaleString('pt-BR')}/${MAX_OBS_AREAS_OP.toLocaleString('pt-BR')}`}
-                value={value.observacaoAreasOp}
-                onChange={(e) => onChange({ observacaoAreasOp: e.currentTarget.value })}
-                error={erros.observacaoAreasOp}
-                disabled={disabled}
-                data-testid="campo-obs-areas-op"
-              />
-            </Accordion.Panel>
-          </Accordion.Item>
-        </Accordion>
+          <Tabs.Panel value={ABAS.areas} pt="md">
+            <Textarea
+              label="Obs. Áreas de Op"
+              autosize
+              minRows={3}
+              maxRows={10}
+              maxLength={MAX_OBS_AREAS_OP}
+              description={`${value.observacaoAreasOp.length.toLocaleString('pt-BR')}/${MAX_OBS_AREAS_OP.toLocaleString('pt-BR')}`}
+              value={value.observacaoAreasOp}
+              onChange={(e) => onChange({ observacaoAreasOp: e.currentTarget.value })}
+              error={erros.observacaoAreasOp}
+              disabled={disabled}
+              data-testid="campo-obs-areas-op"
+            />
+          </Tabs.Panel>
+        </Tabs>
       </Stack>
-    </Paper>
+    </CartaoSecao>
   )
 }

@@ -20,5 +20,6 @@ export default function PaginaItem() {
   const searchParams = useSearchParams()
   const itemId = params.itemId as string
   const linha = itemId === ID_ITEM_NOVO ? searchParams.get('linha')?.trim() || null : null
-  return <TelaItem orcamentoId={params.id as string} itemId={itemId} linhaProdutoIdNovo={linha} />
+  const plano = searchParams.get('plano')?.trim() || null
+  return <TelaItem orcamentoId={params.id as string} itemId={itemId} linhaProdutoIdNovo={linha} planoInicial={plano} />
 }

@@ -78,7 +78,8 @@ describe('GridPlanos — colunas', () => {
     renderizar()
     const tabela = await screen.findByTestId('grid-planos-tabela')
     const cabecalhos = within(tabela).getAllByRole('columnheader').map((c) => c.textContent)
-    expect(cabecalhos).toEqual(['Nome', 'Suporte', 'Cores', 'Formato', 'Acabamento'])
+    // 1ª coluna = seleção (rádio); última = ações da linha.
+    expect(cabecalhos).toEqual(['', 'Nome', 'Suporte', 'Cores', 'Formato', 'Acabamento', 'Ações'])
     expect(within(tabela).getByText('Tampa')).toBeInTheDocument()
     expect(within(tabela).getByText('Fundo')).toBeInTheDocument()
   })

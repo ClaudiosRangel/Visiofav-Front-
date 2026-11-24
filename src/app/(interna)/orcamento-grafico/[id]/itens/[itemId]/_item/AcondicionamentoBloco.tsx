@@ -13,8 +13,9 @@
  */
 
 import { useMemo } from 'react'
-import { ActionIcon, Checkbox, Group, Loader, Paper, ScrollArea, SimpleGrid, Stack, Text, TextInput, ThemeIcon, Title } from '@mantine/core'
+import { ActionIcon, Checkbox, Group, Loader, Paper, ScrollArea, SimpleGrid, Stack, Text, TextInput } from '@mantine/core'
 import { IconBoxSeam, IconX } from '@tabler/icons-react'
+import CartaoSecao from './CartaoSecao'
 
 import {
   descartar,
@@ -43,17 +44,14 @@ export default function AcondicionamentoBloco({ value, onChange, opcoes, carrega
   const { erros } = useMemo(() => validarAcondicionamento(value), [value])
 
   return (
-    <Paper withBorder radius="md" p="lg" shadow="xs" data-testid="acondicionamento-bloco">
+    <CartaoSecao
+      titulo="Acondicionamento"
+      icone={<IconBoxSeam size={16} />}
+      direita={carregando ? <Loader size="xs" /> : undefined}
+      data-testid="acondicionamento-bloco"
+    >
       <Stack gap="md">
-        <Group gap="sm" wrap="nowrap">
-          <ThemeIcon variant="light" color="grape" size={32} radius="md">
-            <IconBoxSeam size={18} stroke={1.5} />
-          </ThemeIcon>
-          <Title order={5}>Acondicionamento</Title>
-          {carregando && <Loader size="xs" />}
-        </Group>
-
-        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 1 }} spacing="md">
           <Paper withBorder radius="md" p="sm" bg="var(--mantine-color-default)">
             <Text size="xs" fw={600} tt="uppercase" c="dimmed" mb="xs">
               Opções
@@ -119,18 +117,26 @@ export default function AcondicionamentoBloco({ value, onChange, opcoes, carrega
           </Paper>
         </SimpleGrid>
 
-        <TextInput
-          label="Conteúdo por volume"
-          placeholder="Ex.: 500"
-          inputMode="numeric"
-          description="Inteiro de 1 a 999.999"
-          value={value.conteudoVolume}
-          onChange={(e) => onChange({ conteudoVolume: e.currentTarget.value })}
-          error={erros.conteudoVolume}
-          disabled={disabled}
-          maw={260}
-        />
+        <Paper withBorder radius="md" p="sm" bg="var(--mantine-color-default-hover)">
+          <Group justify="space-between" align="flex-start" wrap="nowrap" gap="sm">
+            <Text size="sm" fw={600} mt={6}>
+              Conteúdo por volume
+            </Text>
+            <TextInput
+              aria-label="Conteúdo por volume"
+              placeholder="0"
+              inputMode="numeric"
+              value={value.conteudoVolume}
+              onChange={(e) => onChange({ conteudoVolume: e.currentTarget.value })}
+              error={erros.conteudoVolume}
+              disabled={disabled}
+              rightSection={<Text size="xs" c="dimmed">un.</Text>}
+              w={150}
+              styles={{ input: { textAlign: 'right' } }}
+            />
+          </Group>
+        </Paper>
       </Stack>
-    </Paper>
+    </CartaoSecao>
   )
 }

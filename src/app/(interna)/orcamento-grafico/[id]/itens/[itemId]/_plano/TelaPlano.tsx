@@ -31,7 +31,10 @@ import { useRouter } from 'next/navigation'
 import {
   Alert, Anchor, Breadcrumbs, Button, Center, Group, Loader, Modal, Paper, Select, SimpleGrid, Stack, Text, TextInput, ThemeIcon, Title,
 } from '@mantine/core'
-import { IconAlertCircle, IconAlertTriangle, IconCheck, IconLayoutList, IconX } from '@tabler/icons-react'
+import {
+  IconAlertCircle, IconAlertTriangle, IconCheck, IconId, IconLayoutGrid, IconLayoutList, IconPrinter, IconStack2, IconX,
+} from '@tabler/icons-react'
+import CartaoSecao from '../_item/CartaoSecao'
 
 import { api } from '@/lib/api'
 import type { CatalogoPlano } from '../../../../cadastros/_shared/cadastros-graficos.types'
@@ -70,6 +73,12 @@ export interface TelaPlanoProps {
   planoId: string
   /** `?apos=` da URL: o plano novo entra logo abaixo deste. */
   posicaoApos?: string | null
+  /** `gaveta`: aberta por cima do item (sem migalhas; rodapé com Cancelar e Confirmar Plano). */
+  modo?: 'pagina' | 'gaveta'
+  /** Fecha a gaveta (no lugar de voltar para a página do item). */
+  onFechar?: () => void
+  /** Plano gravado com sucesso (o item recarrega o grid). */
+  onGravado?: () => void
 }
 
 interface OrcamentoParaPlano {
@@ -86,7 +95,16 @@ interface ItemParaPlano {
   calculoGraficoOrigemId: string | null
 }
 
-export default function TelaPlano({ orcamentoId, itemId, planoId, posicaoApos }: TelaPlanoProps) {
+export default function TelaPlano({
+  orcamentoId,
+  itemId,
+  planoId,
+  posicaoApos,
+  modo = 'pagina',
+  onFechar,
+  onGravado,
+}: TelaPlanoProps) {
+  const naGaveta = modo === 'gaveta'
   const routerInstavel = useRouter()
   const routerRef = useRef(routerInstavel)
   routerRef.current = routerInstavel
@@ -261,7 +279,10 @@ export default function TelaPlano({ orcamentoId, itemId, planoId, posicaoApos }:
   )
   const ancorado = !!item?.calculoGraficoOrigemId
 
-  const voltar = useCallback(() => routerRef.current.push(urlItem), [urlItem])
+  const voltar = useCallback(() => {
+    if (onFechar) onFechar()
+    else routerRef.current.push(urlItem)
+  }, [urlItem, onFechar])
 
   const gravar = async () => {
     if (!estado) return
@@ -276,6 +297,7 @@ export default function TelaPlano({ orcamentoId, itemId, planoId, posicaoApos }:
         await api.put(`${base}/${planoId}`, montarBodyTelaPlano(estado, blocos, plano))
       }
       notificarAlteracaoItem(orcamentoId)
+      onGravado?.()
       voltar()
     } catch (err) {
       // Nada muda na tela: os valores digitados continuam como estão.
@@ -348,6 +370,7 @@ export default function TelaPlano({ orcamentoId, itemId, planoId, posicaoApos }:
 
   return (
     <Stack gap="md" data-testid="tela-plano">
+      {!naGaveta && (
       <Stack gap="xs">
         <Breadcrumbs>
           <Anchor component={Link} href={`/orcamento-grafico/${orcamentoId}`} size="sm">
@@ -377,6 +400,7 @@ export default function TelaPlano({ orcamentoId, itemId, planoId, posicaoApos }:
           </Group>
         </Group>
       </Stack>
+      )}
 
       {ancorado && (
         <Alert color="yellow" variant="light" icon={<IconAlertTriangle size={16} />} data-testid="aviso-custo-ancorado">
@@ -407,9 +431,9 @@ export default function TelaPlano({ orcamentoId, itemId, planoId, posicaoApos }:
         </Alert>
       )}
 
-      <Paper withBorder radius="md" p="lg" shadow="xs" data-testid="bloco-plano">
-        <Stack gap="md">
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
+      <Stack gap="md" data-testid="bloco-plano">
+        <CartaoSecao titulo="Identificação do Plano" icone={<IconId size={16} />}>
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: naGaveta ? 2 : 4 }} spacing="md">
             <Select
               label="Tipo de Plano"
               placeholder={opcoesTipo.length === 0 ? 'Nenhum tipo no catálogo do produto' : 'Selecione'}
@@ -450,7 +474,10 @@ export default function TelaPlano({ orcamentoId, itemId, planoId, posicaoApos }:
               required
             />
           </SimpleGrid>
+        </CartaoSecao>
 
+        <CartaoSecao titulo="Formato & Montagem" icone={<IconLayoutGrid size={16} />}>
+          <Stack gap="md">
           <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
             <TextInput
               label="Montagem"
@@ -509,7 +536,10 @@ export default function TelaPlano({ orcamentoId, itemId, planoId, posicaoApos }:
               />
             ))}
           </SimpleGrid>
+          </Stack>
+        </CartaoSecao>
 
+        <CartaoSecao titulo="Impressão Principal" icone={<IconPrinter size={16} />}>
           <CamposImpressao
             value={estado}
             onChange={(p) => alterar(p, Object.keys(p))}
@@ -518,20 +548,30 @@ export default function TelaPlano({ orcamentoId, itemId, planoId, posicaoApos }:
             erros={{ cores: erros.cores, processoImpressao: erros.processoImpressao, coberturaTinta: erros.coberturaTinta }}
             disabled={travado}
           />
-        </Stack>
-      </Paper>
+        </CartaoSecao>
+      </Stack>
 
-      <BlocosPorTipoPlano
-        blocos={blocos}
-        value={estado}
-        onChange={mudarBloco}
-        erros={erros}
-        processos={processos.nomes}
-        processoPre={processoPre}
-        suportesPermitidos={suportesPermitidos}
-        orcamentoId={orcamentoId}
-        disabled={travado}
-      />
+      <CartaoSecao
+        titulo="Composição de Substratos / Camadas"
+        icone={<IconStack2 size={16} />}
+        direita={
+          <Text size="xs" c="dimmed">
+            Microondulado e capa interna são opcionais
+          </Text>
+        }
+      >
+        <BlocosPorTipoPlano
+          blocos={blocos}
+          value={estado}
+          onChange={mudarBloco}
+          erros={erros}
+          processos={processos.nomes}
+          processoPre={processoPre}
+          suportesPermitidos={suportesPermitidos}
+          orcamentoId={orcamentoId}
+          disabled={travado}
+        />
+      </CartaoSecao>
 
       <BlocoAcabamento
         atividades={atividades}
@@ -544,6 +584,39 @@ export default function TelaPlano({ orcamentoId, itemId, planoId, posicaoApos }:
         onTentarNovamente={todosAcabamentos.tentarNovamente}
         disabled={travado}
       />
+
+      {naGaveta && (
+        <Paper
+          withBorder
+          radius="md"
+          p="sm"
+          shadow="md"
+          style={{ position: 'sticky', bottom: 0, zIndex: 5 }}
+          data-testid="tela-plano-rodape"
+        >
+          <Group justify="space-between" wrap="wrap" gap="sm">
+            <Text size="xs" c="dimmed" lineClamp={1}>
+              {[
+                opcoesTipo.find((o) => o.value === estado.tipoPlanoId)?.label,
+                estado.formatoAberto.largura && estado.formatoAberto.altura
+                  ? `Formato aberto: ${estado.formatoAberto.largura} x ${estado.formatoAberto.altura} mm`
+                  : null,
+                `Acabamentos: ${estado.acabamentosRicos.length}`,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </Text>
+            <Group gap="xs">
+              <Button variant="default" size="sm" leftSection={<IconX size={16} />} onClick={voltar} disabled={gravando}>
+                Cancelar
+              </Button>
+              <Button size="sm" leftSection={<IconCheck size={16} />} onClick={ok} loading={gravando} disabled={!podeEditar}>
+                Confirmar Plano
+              </Button>
+            </Group>
+          </Group>
+        </Paper>
+      )}
 
       <Modal
         opened={confirmarAncorado}
