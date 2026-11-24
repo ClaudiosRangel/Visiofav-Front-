@@ -5,9 +5,8 @@ import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import {
   Card, Textarea, NumberInput, Select, MultiSelect, Button, Stack, Group, Title,
-  Collapse, TextInput, Divider, SegmentedControl, Switch, SimpleGrid, Text, Autocomplete, ActionIcon,
+  Collapse, TextInput, Divider, SegmentedControl, Switch, SimpleGrid, Text, Autocomplete,
 } from '@mantine/core'
-import { IconPlus, IconTrash } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { usePortalRepClientes, useConsultarCnpj, useCriarCliente } from '@/data/hooks/portal-rep-app/usePortalRepClientes'
 import { useCriarSolicitacao } from '@/data/hooks/portal-rep-app/usePortalRepOrcamentos'
@@ -146,7 +145,7 @@ export default function NovaSolicitacaoPage() {
   const [alteraImpressao, setAlteraImpressao] = useState(false)
   const [alteracaoImpressao, setAlteracaoImpressao] = useState('')
   const [tipoEmbalagem, setTipoEmbalagem] = useState<string | null>(null)
-  const [tiragens, setTiragens] = useState<Array<number | ''>>([''])
+  const [tiragensTexto, setTiragensTexto] = useState('')
   const [comprimento, setComprimento] = useState<number | ''>('')
   const [largura, setLargura] = useState<number | ''>('')
   const [altura, setAltura] = useState<number | ''>('')
@@ -202,7 +201,11 @@ export default function NovaSolicitacaoPage() {
   }
 
   // Tiragens: lista (a primeira é a quantidade principal).
-  const tiragensValidas = tiragens.filter((t): t is number => typeof t === 'number' && t > 0)
+  const tiragensValidas = tiragensTexto
+    .split(/[,;]/)
+    .map((s) => Number(s.replace(/\D/g, '')))
+    .filter((n) => Number.isFinite(n) && n > 0)
+    .slice(0, 6)
   const camadasPreenchidas = camadas.every((c) => c.suporte.trim())
 
   const cidadeInformada = !!w.cidade.trim()
@@ -415,32 +418,14 @@ export default function NovaSolicitacaoPage() {
               </SimpleGrid>
 
               {/* Tiragens (mais de uma) */}
-              <div>
-                <Text size="sm" fw={500} mb={4}>Tiragens (quantidades) <span style={{ color: 'var(--mantine-color-red-6)' }}>*</span></Text>
-                <Stack gap={6}>
-                  {tiragens.map((t, i) => (
-                    <Group key={i} gap="xs" wrap="nowrap">
-                      <NumberInput
-                        placeholder={i === 0 ? 'Quantidade principal' : 'Outra tiragem'}
-                        min={1} thousandSeparator="." decimalSeparator="," value={t} style={{ flex: 1 }}
-                        onChange={(val) => setTiragens((arr) => arr.map((x, j) => (j === i ? (val === '' ? '' : Number(val)) : x)))}
-                      />
-                      {tiragens.length > 1 && (
-                        <ActionIcon variant="subtle" color="red" aria-label="Remover tiragem"
-                          onClick={() => setTiragens((arr) => arr.filter((_, j) => j !== i))}>
-                          <IconTrash size={16} />
-                        </ActionIcon>
-                      )}
-                    </Group>
-                  ))}
-                  {tiragens.length < 6 && (
-                    <Button variant="light" size="compact-sm" leftSection={<IconPlus size={14} />} style={{ alignSelf: 'flex-start' }}
-                      onClick={() => setTiragens((arr) => [...arr, ''])}>
-                      Adicionar tiragem
-                    </Button>
-                  )}
-                </Stack>
-              </div>
+              <TextInput
+                label="Quantidade (tiragens)"
+                withAsterisk
+                description="Separe por vírgula: 1000, 5000, 8000"
+                placeholder="1000, 5000, 8000, 10000"
+                value={tiragensTexto}
+                onChange={(e) => setTiragensTexto(e.currentTarget.value)}
+              />
 
               {repeticao ? (
                 <>
