@@ -51,6 +51,8 @@ interface EtapaTimeline {
   centroProducaoId: string | null
   tipoProcesso: string | null
   tipoProcessoPosicao: number
+  /** Ordem da máquina dentro do tipo (cadastro de Centros; igual à Programação). */
+  centroProducaoPosicao?: number
   status: string
   tempoSetupMinutos: number
   tempoOperacaoMinutos: number
@@ -153,6 +155,7 @@ interface GanttBar {
 interface Raia {
   tipoProcesso: string
   tipoProcessoPosicao: number
+  centroPosicao: number
   centroProducao: string
   barras: GanttBar[]
 }
@@ -1004,7 +1007,15 @@ export default function GanttProducaoPage() {
 
         const key = `${etapa.tipoProcesso}||${etapa.centroProducao}`
         if (!raiaMap.has(key)) {
-          raiaMap.set(key, { tipoProcesso: etapa.tipoProcesso, tipoProcessoPosicao: etapa.tipoProcessoPosicao || 999, centroProducao: etapa.centroProducao, barras: [] })
+          // `??` e não `||`: a posição 0 é válida (1º tipo/1ª máquina) e `|| 999` jogava a
+          // Cortadeira para o fim do Gantt.
+          raiaMap.set(key, {
+            tipoProcesso: etapa.tipoProcesso,
+            tipoProcessoPosicao: etapa.tipoProcessoPosicao ?? 999,
+            centroPosicao: etapa.centroProducaoPosicao ?? 999,
+            centroProducao: etapa.centroProducao,
+            barras: [],
+          })
         }
 
         const inicioMs = new Date(etapa.inicioPrevistoAt).getTime()
@@ -1072,7 +1083,9 @@ export default function GanttProducaoPage() {
 
     const raiasArr = Array.from(raiaMap.values())
     raiasArr.sort((a, b) => {
+      // Mesma ordem da Programação: tipo de processo (cadastro) → posição da máquina → nome.
       if (a.tipoProcessoPosicao !== b.tipoProcessoPosicao) return a.tipoProcessoPosicao - b.tipoProcessoPosicao
+      if (a.centroPosicao !== b.centroPosicao) return a.centroPosicao - b.centroPosicao
       return a.centroProducao.localeCompare(b.centroProducao)
     })
 
