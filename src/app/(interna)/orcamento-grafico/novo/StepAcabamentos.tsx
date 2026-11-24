@@ -3,9 +3,9 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Stack, Text, Checkbox, Paper, NumberInput, SimpleGrid, Group, Collapse, Badge,
-  Loader, Center, TextInput, Alert, Button, Select, ActionIcon, Tooltip, Box, SegmentedControl, Anchor,
+  Loader, Center, TextInput, Alert, Button, Select, ActionIcon, Tooltip, Box, SegmentedControl, Anchor, ScrollArea,
 } from '@mantine/core'
-import { IconSettings, IconAlertCircle, IconTrash, IconPlus } from '@tabler/icons-react'
+import { IconSettings, IconAlertCircle, IconTrash, IconPlus, IconSearch } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import type { WizardFormData, AcabamentoRicoSelecionado, MaterialAcabamentoItem } from './page'
 // Fase 2 (catálogo no editor): só o EditorItem passa `catalogo`/`selecao`; o wizard /novo não.
@@ -53,6 +53,8 @@ interface Props {
   avisoLista?: string | null
   /** Ação do botão "Tentar novamente" do aviso (o botão só aparece se informada). */
   onTentarNovamente?: () => void
+  /** Lista simples de marcar (tela do item): sem colunas de custo, sem filtro de natureza e sem o grupo Acondicionamento. */
+  compacto?: boolean
 }
 
 export interface AcabamentoCadastro {
@@ -116,7 +118,7 @@ function normalizarAcabamento(a: any): AcabamentoCadastro {
 
 export default function StepAcabamentos({
   formData, updateForm, mostrar = 'ambos', catalogo = null, selecao,
-  acabamentosExternos, avisoLista, onTentarNovamente,
+  acabamentosExternos, avisoLista, onTentarNovamente, compacto = false,
 }: Props) {
   const mostrarAcabamentos = mostrar === 'ambos' || mostrar === 'acabamentos'
   // Fase 2 — "Ver lista geral" permite marcar algo fora do catálogo do produto.
@@ -387,7 +389,7 @@ export default function StepAcabamentos({
     grupos.foraDoCatalogo.forEach((a) => grupoPorId.set(a.id, 2))
   }
   const baseLista = usarCatalogo && grupos
-    ? [...grupos.planoProduto, ...grupos.acondicionamento, ...grupos.foraDoCatalogo]
+    ? [...grupos.planoProduto, ...(compacto ? [] : grupos.acondicionamento), ...grupos.foraDoCatalogo]
     : cadastro
 
   const porBusca = busca.trim()
@@ -506,12 +508,13 @@ export default function StepAcabamentos({
         <Stack gap="xs">
           <Group gap="xs" align="center" wrap="wrap">
             <TextInput
-              placeholder="Buscar acabamento..."
+              leftSection={compacto ? <IconSearch size={14} /> : undefined}
+              placeholder={compacto ? 'Filtrar atividades de acabamento...' : 'Buscar acabamento...'}
               value={busca}
               onChange={(e) => setBusca(e.currentTarget.value)}
               style={{ flex: 1, minWidth: 220 }}
             />
-            {totalSelecionados > 0 && (
+            {!compacto && totalSelecionados > 0 && (
               <Badge size="sm" variant="light" color="blue">
                 {totalSelecionados} selecionado{totalSelecionados > 1 ? 's' : ''}
               </Badge>
@@ -519,6 +522,7 @@ export default function StepAcabamentos({
           </Group>
           {/* R6.2 — filtro por categoria (natureza de custo). Usa os labels do
               naturezaBadge quando possível. */}
+          {!compacto && (
           <SegmentedControl
             size="xs"
             value={filtroNatureza}
@@ -531,6 +535,7 @@ export default function StepAcabamentos({
               { value: 'CUSTO_FIXO', label: naturezaBadge.CUSTO_FIXO.label },
             ]}
           />
+          )}
           {catalogo && grupos && (grupos.planoProduto.length + grupos.acondicionamento.length > 0) && (
             <Group gap={6}>
               <Text size="xs" c="dimmed">
@@ -552,7 +557,7 @@ export default function StepAcabamentos({
       )}
 
       {/* Cabeçalho de colunas (densidade tipo planilha) — só na largura md+. */}
-      {filtrados.length > 0 && (
+      {!compacto && filtrados.length > 0 && (
         <Group gap="xs" px="xs" wrap="nowrap" visibleFrom="md" c="dimmed" style={{ fontSize: 11, fontWeight: 700 }}>
           <Box style={{ flex: 1, minWidth: 220 }}>Acabamento / Processo</Box>
           <Box w={110} ta="right">Custo/h</Box>
@@ -564,7 +569,12 @@ export default function StepAcabamentos({
         </Group>
       )}
 
-      <Stack gap={4}>
+      {compacto && filtrados.length > 0 && (
+        <Text size="xs" fw={700} c="dimmed" tt="uppercase" px={4}>Atividades</Text>
+      )}
+      <ScrollArea.Autosize mah={compacto ? 260 : undefined} type="auto"
+        style={compacto ? { border: '1px solid var(--mantine-color-default-border)', borderRadius: 'var(--mantine-radius-md)' } : undefined}>
+      <Stack gap={compacto ? 0 : 4}>
         {filtrados.map((ac, indice) => {
           const sel = selById.get(ac.id) ?? selByNome.get(norm(ac.nome))
           const ativo = !!sel
@@ -611,12 +621,19 @@ export default function StepAcabamentos({
 
           return (
             <Fragment key={ac.id}>
-            {cabecalhoGrupo && (
+            {cabecalhoGrupo && !(compacto && grupoAtual === 0) && (
               <Text size="xs" fw={700} c="dimmed" tt="uppercase" mt={indice === 0 ? 0 : 'xs'}>
                 {cabecalhoGrupo}
               </Text>
             )}
-            <Paper px="xs" py={6} withBorder bg={ativo ? 'var(--mantine-color-default-hover)' : undefined}>
+            <Paper
+              px={compacto ? 'sm' : 'xs'}
+              py={compacto ? 8 : 6}
+              withBorder={!compacto}
+              radius={compacto ? 0 : undefined}
+              bg={ativo ? (compacto ? 'var(--mantine-primary-color-light)' : 'var(--mantine-color-default-hover)') : undefined}
+              style={compacto && indice > 0 ? { borderTop: '1px solid var(--mantine-color-default-border)' } : undefined}
+            >
               {/* LINHA principal — tudo numa linha só (pedido do usuário). */}
               <Group gap="xs" wrap="nowrap" align="center">
                 <Box style={{ flex: 1, minWidth: 220 }}>
@@ -626,14 +643,17 @@ export default function StepAcabamentos({
                     label={
                       <Group gap={6} wrap="nowrap">
                         <Text size="sm" fw={500} lineClamp={1}>{ac.nome}</Text>
-                        <Badge size="xs" variant="light" color={nb?.color}>{nb?.label}</Badge>
+                        {!compacto && <Badge size="xs" variant="light" color={nb?.color}>{nb?.label}</Badge>}
                       </Group>
                     }
                   />
                 </Box>
+                {compacto && (
+                  <Badge size="xs" variant="light" color={ativo ? undefined : 'gray'} radius="sm" tt="none">{nb?.label}</Badge>
+                )}
 
                 {/* HORA_MÁQUINA: os 5 campos clássicos na linha. */}
-                {ac.naturezaCusto === 'HORA_MAQUINA' && (
+                {!compacto && ac.naturezaCusto === 'HORA_MAQUINA' && (
                   <>
                     {campo('custoHora', 110, { prefix: 'R$ ', decimalScale: 2 })}
                     {campo('producaoHora', 110, { decimalScale: 2 })}
@@ -644,7 +664,7 @@ export default function StepAcabamentos({
                 )}
 
                 {/* MATERIAL/kg: Consumo + Preço ocupam 2 das colunas numéricas. */}
-                {ac.naturezaCusto === 'MATERIAL_KG' && (
+                {!compacto && ac.naturezaCusto === 'MATERIAL_KG' && (
                   <>
                     <NumberInput w={110} size="xs" min={0} decimalScale={3} hideControls disabled={dis}
                       placeholder="Consumo kg" value={sel?.variavelKg ?? ''} styles={{ input: { textAlign: 'right' } }}
@@ -655,7 +675,7 @@ export default function StepAcabamentos({
                     <Box w={90} /><Box w={110} /><Box w={100} />
                   </>
                 )}
-                {ac.naturezaCusto === 'MATERIAL_UN' && (
+                {!compacto && ac.naturezaCusto === 'MATERIAL_UN' && (
                   <>
                     <NumberInput w={110} size="xs" min={0} decimalScale={2} hideControls disabled={dis}
                       placeholder="Consumo un" value={sel?.variavelUn ?? ''} styles={{ input: { textAlign: 'right' } }}
@@ -666,7 +686,7 @@ export default function StepAcabamentos({
                     <Box w={90} /><Box w={110} /><Box w={100} />
                   </>
                 )}
-                {ac.naturezaCusto === 'CUSTO_FIXO' && (
+                {!compacto && ac.naturezaCusto === 'CUSTO_FIXO' && (
                   <>
                     <NumberInput w={110} size="xs" min={0} decimalScale={2} hideControls disabled={dis} prefix="R$ "
                       placeholder="Valor fixo" value={sel?.valorFixo ?? ''} styles={{ input: { textAlign: 'right' } }}
@@ -678,7 +698,7 @@ export default function StepAcabamentos({
                 {/* Engrenagem — abre os extras (restrição/material/medida). Só
                     aparece quando a atividade tem extras; senão, espaço vazio
                     para manter o alinhamento das colunas. */}
-                <Box w={32} ta="center">
+                <Box w={compacto ? 28 : 32} ta="center">
                   {temExtras ? (
                     <Tooltip label="Restrição / material / medida" withinPortal>
                       <ActionIcon variant="subtle" color="gray" onClick={() => toggleExtras(ac.id)} aria-label="Mais opções">
@@ -774,6 +794,7 @@ export default function StepAcabamentos({
           )
         })}
       </Stack>
+      </ScrollArea.Autosize>
         </>
       )}
 

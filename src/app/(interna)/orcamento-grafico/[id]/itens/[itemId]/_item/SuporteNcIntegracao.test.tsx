@@ -130,10 +130,10 @@ describe('NC nos blocos do Plano (BlocosPorTipoPlano)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Simular criado' }))
     expect(espiao).toHaveBeenCalledTimes(1)
     expect(espiao).toHaveBeenCalledWith(['microondulado', { suporteId: 'sup-nc', suporteNome: 'Kraft NC 250' }, ['suporteId']])
-    expect((within(bloco).getByRole('textbox', { name: /Suporte do microondulado/ }) as HTMLInputElement).value).toBe('Kraft NC 250')
+    expect((within(bloco).getByRole('textbox', { name: /Suporte Microondulado/ }) as HTMLInputElement).value).toBe('Kraft NC 250')
     // Os outros blocos não mudam.
     const externa = screen.getByTestId('bloco-capa-externa')
-    expect((within(externa).getByRole('textbox', { name: /Suporte da capa externa/ }) as HTMLInputElement).value).toBe('')
+    expect((within(externa).getByRole('textbox', { name: /Suporte Capa Externa/ }) as HTMLInputElement).value).toBe('')
   })
 
   it('com lista restrita, o suporte novo entra nas opções e fica selecionado', () => {
@@ -142,7 +142,7 @@ describe('NC nos blocos do Plano (BlocosPorTipoPlano)', () => {
     const bloco = screen.getByTestId('bloco-capa-interna')
     fireEvent.click(within(bloco).getByRole('button', { name: 'Suporte não cadastrado' }))
     fireEvent.click(screen.getByRole('button', { name: 'Simular criado' }))
-    expect((within(bloco).getByRole('textbox', { name: /Suporte da capa interna/ }) as HTMLInputElement).value).toBe('Kraft NC 250')
+    expect((within(bloco).getByRole('textbox', { name: /Suporte Capa Interna/ }) as HTMLInputElement).value).toBe('Kraft NC 250')
   })
 
   it('sem criação (erro/cancelar) o campo não muda', () => {

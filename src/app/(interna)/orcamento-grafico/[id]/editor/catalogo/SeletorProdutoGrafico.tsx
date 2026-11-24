@@ -33,9 +33,11 @@ interface Props {
   catalogo?: UseCatalogoItemResultado
   disabled?: boolean
   onChange: (produto: ProdutoEscolhido | null) => void
+  /** Campo "Produto" da tela do item: sem descrição, largura total e sem limpar. */
+  compacto?: boolean
 }
 
-export default function SeletorProdutoGrafico({ value, linhaProdutoId, catalogo, disabled, onChange }: Props) {
+export default function SeletorProdutoGrafico({ value, linhaProdutoId, catalogo, disabled, onChange, compacto }: Props) {
   const [produtos, setProdutos] = useState<ProdutoGrafico[]>([])
   const [carregandoLista, setCarregandoLista] = useState(false)
   const [erroLista, setErroLista] = useState<string | null>(null)
@@ -104,18 +106,19 @@ export default function SeletorProdutoGrafico({ value, linhaProdutoId, catalogo,
   return (
     <Stack gap={6}>
       <Select
-        label="Produto Gráfico"
-        placeholder="Selecione o produto (opcional)"
-        description="Define as atividades, os planos e os padrões oferecidos neste item."
+        label={compacto ? 'Produto' : 'Produto Gráfico'}
+        placeholder={compacto ? 'Selecione o produto' : 'Selecione o produto (opcional)'}
+        description={compacto ? undefined : 'Define as atividades, os planos e os padrões oferecidos neste item.'}
         data={opcoes}
         value={value ?? null}
         searchable
-        clearable
+        clearable={!compacto}
+        allowDeselect={!compacto}
         disabled={disabled}
         nothingFoundMessage={carregandoLista ? 'Carregando...' : 'Nenhum produto encontrado'}
         rightSection={carregandoLista || catalogo?.carregando ? <Loader size={14} /> : undefined}
         comboboxProps={{ withinPortal: true }}
-        maw={420}
+        maw={compacto ? undefined : 420}
         onChange={(v) => {
           if (!v) return onChange(null)
           const p = produtos.find((x) => x.id === v) ?? extra

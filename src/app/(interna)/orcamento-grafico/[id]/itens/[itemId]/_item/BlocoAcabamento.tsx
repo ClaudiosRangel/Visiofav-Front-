@@ -57,6 +57,8 @@ export interface BlocoAcabamentoProps {
   avisoLista?: string | null
   onTentarNovamente?: () => void
   disabled?: boolean
+  /** Gaveta do plano: atividades em grade de 2 colunas; restrição/material abaixo da atividade em foco. */
+  grade?: boolean
 }
 
 export default function BlocoAcabamento({
@@ -70,6 +72,7 @@ export default function BlocoAcabamento({
   avisoLista,
   onTentarNovamente,
   disabled,
+  grade = false,
 }: BlocoAcabamentoProps) {
   const [foco, setFoco] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
@@ -129,6 +132,112 @@ export default function BlocoAcabamento({
       return true
     }
     return selecao.escolher({ ...escolha, acabamentoId: ac.id })
+  }
+
+  const painelFoco = (
+    <RestricoesEMateriais
+      key={emFoco?.id ?? 'sem-foco'}
+      atividade={emFoco ? { id: emFoco.id, nome: emFoco.nome } : null}
+      marcada={emFoco ? estaMarcada(marcadas, emFoco) : false}
+      catalogoDoPlano={catalogoDoPlano}
+      restricoesRecolhidas={layout.restricoes === 'RECOLHIDA'}
+      restricaoId={emFoco ? (restricaoDaAtividade(marcadas, emFoco)?.id ?? null) : null}
+      onRestricaoChange={emFoco ? (r) => mudarRestricao(emFoco, r) : undefined}
+      escolhaAtual={emFoco ? selecaoDaAtividade(selecao?.selecoes, selecao?.pendentes, emFoco.id) : null}
+      ocupado={chaveFoco ? selecao?.ocupados[chaveFoco] === true : false}
+      erroSelecao={chaveFoco ? (selecao?.erros[chaveFoco] ?? null) : null}
+      onMaterialChange={emFoco && selecao ? (escolha) => mudarMaterial(emFoco, escolha) : undefined}
+      disabled={disabled}
+    />
+  )
+
+  if (grade) {
+    return (
+      <CartaoSecao
+        variante="ponto"
+        titulo="Acabamento do Plano (Atividades)"
+        direita={
+          <Text size="xs" c="dimmed">
+            Selecione os processos aplicados à folha
+          </Text>
+        }
+        data-testid="bloco-acabamento"
+      >
+        <Stack gap="sm">
+          {avisoLista && (
+            <Alert color="yellow" variant="light" icon={<IconAlertCircle size={16} />} data-testid="bloco-acabamento-aviso">
+              <Group justify="space-between" wrap="nowrap" gap="sm">
+                <Text size="sm">{avisoLista}</Text>
+                {onTentarNovamente && (
+                  <Button size="xs" variant="default" onClick={onTentarNovamente}>
+                    Tentar novamente
+                  </Button>
+                )}
+              </Group>
+            </Alert>
+          )}
+          <TextInput
+            placeholder="Buscar atividade"
+            aria-label="Buscar atividade"
+            leftSection={<IconSearch size={14} />}
+            value={busca}
+            onChange={(e) => setBusca(e.currentTarget.value)}
+          />
+          {carregandoLista && atividades.length === 0 ? (
+            <Group gap="xs" py="xs">
+              <Loader size="xs" />
+              <Text size="sm" c="dimmed">
+                Carregando atividades…
+              </Text>
+            </Group>
+          ) : visiveis.length === 0 ? (
+            <Text size="sm" c="dimmed" data-testid="bloco-acabamento-vazio">
+              {atividades.length === 0 ? 'Nenhuma atividade cadastrada.' : 'Nenhuma atividade encontrada.'}
+            </Text>
+          ) : (
+            <ScrollArea.Autosize mah={300} type="auto">
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing={6} verticalSpacing={6}>
+                {visiveis.map((a) => {
+                  const marcada = estaMarcada(marcadas, a)
+                  return (
+                    <Group
+                      key={a.id}
+                      gap="xs"
+                      wrap="nowrap"
+                      justify="space-between"
+                      px="sm"
+                      py={6}
+                      onClick={() => setFoco(a.id)}
+                      style={{
+                        cursor: 'pointer',
+                        borderRadius: 'var(--mantine-radius-sm)',
+                        border: `1px solid ${marcada ? 'var(--mantine-primary-color-filled)' : 'var(--mantine-color-default-border)'}`,
+                        background: marcada ? 'var(--mantine-primary-color-light)' : undefined,
+                      }}
+                    >
+                      <Checkbox
+                        size="xs"
+                        aria-label={a.nome}
+                        label={a.nome}
+                        checked={marcada}
+                        disabled={disabled}
+                        onChange={() => alternar(a)}
+                      />
+                      {preMarcadaNoCatalogo(a.id) && (
+                        <Badge size="xs" variant="light" color="gray">
+                          Padrão
+                        </Badge>
+                      )}
+                    </Group>
+                  )
+                })}
+              </SimpleGrid>
+            </ScrollArea.Autosize>
+          )}
+          {emFoco && painelFoco}
+        </Stack>
+      </CartaoSecao>
+    )
   }
 
   return (

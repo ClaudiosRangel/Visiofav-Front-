@@ -150,7 +150,7 @@ describe('TelaItem — carga e blocos por estrutura', () => {
     await esperarTela()
     await waitFor(() => expect(screen.getByTestId('tela-item')).toHaveAttribute('data-estrutura', 'PLANO_UNICO'))
 
-    expect(screen.getByTestId('tela-item-titulo')).toHaveTextContent('Item — Cartucho')
+    expect(screen.getByTestId('tela-item-titulo')).toHaveTextContent('Configuração de Produto: Cartucho')
     expect(screen.getByRole('link', { name: 'Orçamento nº 3233' })).toHaveAttribute('href', '/orcamento-grafico/orc-1')
     for (const id of ['bloco-comum', 'bloco-formato', 'bloco-plano-unico', 'bloco-acabamento', 'acabamentos-de-produto',
       'acondicionamento-bloco', 'complementos-do-item', 'margem-do-item', 'bloco-estrutura-custo']) {

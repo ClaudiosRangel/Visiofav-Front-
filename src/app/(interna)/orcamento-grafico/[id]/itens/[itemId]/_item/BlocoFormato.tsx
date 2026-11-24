@@ -16,7 +16,8 @@
  * Componente CONTROLADO (`value`/`onChange`), sem gravação e sem chamada de rede.
  */
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, type ReactNode } from 'react'
+import CampoDimensoes from './CampoDimensoes'
 import { Alert, Anchor, Button, Group, Input, Paper, SimpleGrid, Skeleton, Stack, Text, TextInput, ThemeIcon, Title } from '@mantine/core'
 import { IconAlertTriangle, IconRuler2, IconWand } from '@tabler/icons-react'
 
@@ -66,45 +67,6 @@ export function separarTresDimensoes(texto: string): [string, string, string] {
   return [partes[0]?.trim() ?? '', partes[1]?.trim() ?? '', partes.slice(2).join('').trim()]
 }
 
-/** Comprimento, Largura e Altura num campo só; mantém o texto digitado enquanto o foco está nele. */
-function CampoTresDimensoes({
-  value,
-  onChange,
-  erro,
-  disabled,
-}: {
-  value: Pick<ValorFormato, 'comprimento' | 'largura' | 'altura'>
-  onChange: (p: Pick<ValorFormato, 'comprimento' | 'largura' | 'altura'>) => void
-  erro?: string
-  disabled?: boolean
-}) {
-  const externo = [value.comprimento, value.largura, value.altura].filter((v) => v !== '').join(' x ')
-  const [texto, setTexto] = useState(externo)
-  const [focado, setFocado] = useState(false)
-  useEffect(() => {
-    if (!focado) setTexto(externo)
-  }, [externo, focado])
-  return (
-    <TextInput
-      label="Comp x Larg x Alt"
-      placeholder="220 x 150 x 80"
-      inputMode="decimal"
-      value={texto}
-      onFocus={() => setFocado(true)}
-      onBlur={() => setFocado(false)}
-      onChange={(e) => {
-        const t = e.currentTarget.value
-        setTexto(t)
-        const [comprimento, largura, altura] = separarTresDimensoes(t)
-        onChange({ comprimento, largura, altura })
-      }}
-      error={erro}
-      disabled={disabled}
-      data-testid="formato-comp-larg-alt"
-    />
-  )
-}
-
 const MENSAGEM_CADASTRO_INCOMPLETO: Record<NonNullable<LayoutItem['motivoIncompleto']>, string> = {
   MODO_FORMATO_AUSENTE: 'O produto selecionado não tem o modo de formato definido.',
   MODO_FORMATO_DESCONHECIDO: 'O produto selecionado tem um modo de formato que o sistema não reconhece.',
@@ -147,14 +109,7 @@ export default function BlocoFormato({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layout, aplicarPadraoAutomatico])
 
-  const cabecalho = embutido ? (
-    <Group gap={6} wrap="nowrap">
-      <IconRuler2 size={14} stroke={1.5} />
-      <Text size="xs" fw={700} tt="uppercase" c="dimmed" style={{ letterSpacing: '0.04em' }}>
-        Dimensões (mm)
-      </Text>
-    </Group>
-  ) : (
+  const cabecalho = embutido ? null : (
     <Group gap="sm" wrap="nowrap">
       <ThemeIcon variant="light" color="teal" size={32} radius="md">
         <IconRuler2 size={18} stroke={1.5} />
@@ -248,10 +203,14 @@ export default function BlocoFormato({
       {escalares.length > 0 && (
         <SimpleGrid cols={embutido ? { base: 1, xs: 2, sm: 4 } : { base: 1, xs: 2, md: 3, lg: 5 }} spacing={embutido ? 'xs' : 'md'}>
           {tresJuntos && (
-            <CampoTresDimensoes
-              value={value}
-              onChange={(p) => onChange(p)}
-              erro={
+            <CampoDimensoes
+              label="Comp x Larg x Alt"
+              ajuda="Dimensões internas em milímetros (ex.: 220 x 150 x 80)"
+              placeholder="220 x 150 x 80"
+              valores={[value.comprimento, value.largura, value.altura]}
+              onChange={([comprimento, largura, altura]) => onChange({ comprimento, largura, altura })}
+              data-testid="formato-comp-larg-alt"
+              error={
                 [
                   erros[chaveErro('comprimento')] && `Comp.: ${erros[chaveErro('comprimento')]}`,
                   erros[chaveErro('largura')] && `Larg.: ${erros[chaveErro('largura')]}`,
@@ -266,8 +225,10 @@ export default function BlocoFormato({
           {escalaresVisiveis.map((campo) => (
             <TextInput
               key={campo}
-              label={ROTULOS_FORMATO[campo]}
+              label={embutido ? ROTULOS_FORMATO[campo].replace(' (mm)', '').replace('Aba Fechamento', 'Aba Fec') : ROTULOS_FORMATO[campo]}
+              aria-label={ROTULOS_FORMATO[campo]}
               inputMode="decimal"
+              rightSection={embutido && !['numeroSanfonas', 'numeroPaginas'].includes(campo) ? <Text size="xs" c="dimmed">mm</Text> : undefined}
               value={value[campo]}
               onChange={(e) => parcial(campo, e.currentTarget.value)}
               error={erros[chaveErro(campo)]}

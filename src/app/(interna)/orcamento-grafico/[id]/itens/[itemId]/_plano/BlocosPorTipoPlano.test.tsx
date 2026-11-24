@@ -39,9 +39,9 @@ describe('BlocosPorTipoPlano (R10.4 a R10.6, R10.8)', () => {
     expect(screen.getByTestId('bloco-microondulado')).toBeInTheDocument()
     expect(screen.getByTestId('bloco-capa-interna')).toBeInTheDocument()
     expect(screen.queryByTestId('bloco-suporte-principal')).not.toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: /Fibra da capa externa/ })).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: /Sentido da onda/ })).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: /Cores da capa interna/ })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: /Fibra Capa Externa/ })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: /Sentido Onda/ })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: /Cores \(Interna\)/ })).toBeInTheDocument()
   })
 
   it('só oculta o bloco com previsão false (tipo sem microondulado nem capa interna)', () => {

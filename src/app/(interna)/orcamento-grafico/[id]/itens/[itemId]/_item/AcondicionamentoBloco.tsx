@@ -13,8 +13,8 @@
  */
 
 import { useMemo } from 'react'
-import { ActionIcon, Checkbox, Group, Loader, Paper, ScrollArea, SimpleGrid, Stack, Text, TextInput } from '@mantine/core'
-import { IconBoxSeam, IconX } from '@tabler/icons-react'
+import { Checkbox, Group, Loader, Paper, ScrollArea, Stack, Text, TextInput } from '@mantine/core'
+import { IconBoxSeam } from '@tabler/icons-react'
 import CartaoSecao from './CartaoSecao'
 
 import {
@@ -51,71 +51,62 @@ export default function AcondicionamentoBloco({ value, onChange, opcoes, carrega
       data-testid="acondicionamento-bloco"
     >
       <Stack gap="md">
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 1 }} spacing="md">
-          <Paper withBorder radius="md" p="sm" bg="var(--mantine-color-default)">
-            <Text size="xs" fw={600} tt="uppercase" c="dimmed" mb="xs">
-              Opções
-            </Text>
-            <ScrollArea.Autosize mah={220}>
-              {opcoes.length === 0 ? (
-                <Text size="sm" c="dimmed" data-testid="acondicionamento-sem-opcoes">
-                  {carregando ? 'Carregando…' : 'Este produto não tem acondicionamento cadastrado.'}
-                </Text>
-              ) : (
-                <Stack gap={6}>
-                  {opcoes.map((o) => (
-                    <Checkbox
+        {(() => {
+          // Opções do cadastro + escolhas gravadas que o cadastro não traz mais (continuam marcáveis).
+          const extras = value.escolhidos
+            .filter((e) => !opcoes.some((o) => o.nome === e.descricao))
+            .map((e) => ({ id: `gravado:${e.descricao}`, nome: e.descricao }))
+          const lista = [...opcoes, ...extras]
+          if (lista.length === 0) {
+            return (
+              <Text size="sm" c="dimmed" data-testid="acondicionamento-sem-opcoes">
+                {carregando ? 'Carregando…' : 'Este produto não tem acondicionamento cadastrado.'}
+              </Text>
+            )
+          }
+          return (
+            <ScrollArea.Autosize
+              mah={220}
+              type="auto"
+              style={{ border: '1px solid var(--mantine-color-default-border)', borderRadius: 'var(--mantine-radius-md)' }}
+            >
+              <Stack gap={0}>
+                {lista.map((o, i) => {
+                  const marcado = estaEscolhido(value.escolhidos, o.nome)
+                  return (
+                    <Group
                       key={o.id}
-                      label={o.nome}
-                      disabled={disabled}
-                      checked={estaEscolhido(value.escolhidos, o.nome)}
-                      onChange={(e) =>
-                        onChange({
-                          escolhidos: e.currentTarget.checked
-                            ? escolher(value.escolhidos, o.nome)
-                            : descartar(value.escolhidos, o.nome),
-                        })
-                      }
-                    />
-                  ))}
-                </Stack>
-              )}
-            </ScrollArea.Autosize>
-          </Paper>
-
-          <Paper withBorder radius="md" p="sm" bg="var(--mantine-color-default)">
-            <Text size="xs" fw={600} tt="uppercase" c="dimmed" mb="xs">
-              Escolhidos
-            </Text>
-            <ScrollArea.Autosize mah={220}>
-              {value.escolhidos.length === 0 ? (
-                <Text size="sm" c="dimmed" data-testid="acondicionamento-sem-escolhidos">
-                  Nenhum acondicionamento escolhido.
-                </Text>
-              ) : (
-                <Stack gap={6}>
-                  {value.escolhidos.map((e) => (
-                    <Group key={e.descricao} justify="space-between" wrap="nowrap" gap="xs">
-                      <Text size="sm" lineClamp={1}>
-                        {e.descricao}
-                      </Text>
-                      <ActionIcon
-                        variant="subtle"
-                        color="red"
-                        size="sm"
-                        aria-label={`Remover ${e.descricao}`}
+                      justify="space-between"
+                      wrap="nowrap"
+                      px="sm"
+                      py={8}
+                      bg={marcado ? 'var(--mantine-primary-color-light)' : undefined}
+                      style={i > 0 ? { borderTop: '1px solid var(--mantine-color-default-border)' } : undefined}
+                    >
+                      <Checkbox
+                        label={o.nome}
                         disabled={disabled}
-                        onClick={() => onChange({ escolhidos: descartar(value.escolhidos, e.descricao) })}
-                      >
-                        <IconX size={14} />
-                      </ActionIcon>
+                        checked={marcado}
+                        onChange={(e) =>
+                          onChange({
+                            escolhidos: e.currentTarget.checked
+                              ? escolher(value.escolhidos, o.nome)
+                              : descartar(value.escolhidos, o.nome),
+                          })
+                        }
+                      />
+                      {o.id.startsWith('gravado:') && (
+                        <Text size="xs" c="dimmed">
+                          fora do cadastro
+                        </Text>
+                      )}
                     </Group>
-                  ))}
-                </Stack>
-              )}
+                  )
+                })}
+              </Stack>
             </ScrollArea.Autosize>
-          </Paper>
-        </SimpleGrid>
+          )
+        })()}
 
         <Paper withBorder radius="md" p="sm" bg="var(--mantine-color-default-hover)">
           <Group justify="space-between" align="flex-start" wrap="nowrap" gap="sm">

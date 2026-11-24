@@ -18,11 +18,23 @@ export interface CartaoSecaoProps {
   direita?: ReactNode
   /** Corpo sem padding (tabelas de borda a borda). */
   semPadding?: boolean
+  /** `ponto`: cabeçalho leve, com um ponto na cor do tema no lugar do ícone (seções da gaveta do plano). */
+  variante?: 'faixa' | 'ponto'
   children: ReactNode
   'data-testid'?: string
 }
 
-export default function CartaoSecao({ titulo, icone, contador, direita, semPadding, children, ...resto }: CartaoSecaoProps) {
+export default function CartaoSecao({
+  titulo,
+  icone,
+  contador,
+  direita,
+  semPadding,
+  variante = 'faixa',
+  children,
+  ...resto
+}: CartaoSecaoProps) {
+  const ponto = variante === 'ponto'
   return (
     <Paper withBorder radius="md" shadow="xs" style={{ overflow: 'hidden' }} data-testid={resto['data-testid']}>
       <Group
@@ -30,17 +42,21 @@ export default function CartaoSecao({ titulo, icone, contador, direita, semPaddi
         wrap="wrap"
         gap="sm"
         px="md"
-        py="sm"
-        bg="var(--mantine-color-default-hover)"
+        py={ponto ? 'xs' : 'sm'}
+        bg={ponto ? undefined : 'var(--mantine-color-default-hover)'}
         style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}
       >
         <Group gap="xs" wrap="nowrap">
-          {icone && (
-            <ThemeIcon variant="light" size={26} radius="md">
-              {icone}
-            </ThemeIcon>
+          {ponto ? (
+            <Box w={8} h={8} style={{ borderRadius: '50%', background: 'var(--mantine-primary-color-filled)' }} />
+          ) : (
+            icone && (
+              <ThemeIcon variant="light" size={26} radius="md">
+                {icone}
+              </ThemeIcon>
+            )
           )}
-          <Text size="sm" fw={700} tt="uppercase" style={{ letterSpacing: '0.04em' }}>
+          <Text size={ponto ? 'xs' : 'sm'} fw={700} tt="uppercase" style={{ letterSpacing: '0.04em' }}>
             {titulo}
           </Text>
           {contador != null && (

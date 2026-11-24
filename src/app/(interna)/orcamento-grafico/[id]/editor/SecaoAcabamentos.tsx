@@ -37,10 +37,12 @@ interface Props {
   onTentarNovamente?: () => void
   /** A lista completa ainda está sendo carregada pela primeira vez. */
   carregandoLista?: boolean
+  /** Lista simples de marcar (tela do item). */
+  compacto?: boolean
 }
 
 export default function SecaoAcabamentos({
-  formData, updateForm, catalogo, selecao, acabamentosExternos, avisoLista, onTentarNovamente, carregandoLista,
+  formData, updateForm, catalogo, selecao, acabamentosExternos, avisoLista, onTentarNovamente, carregandoLista, compacto,
 }: Props) {
   // Primeira carga da lista completa: evita mostrar "nenhum acabamento" antes da resposta.
   if (carregandoLista && (acabamentosExternos?.length ?? 0) === 0) {
@@ -61,6 +63,7 @@ export default function SecaoAcabamentos({
       acabamentosExternos={acabamentosExternos as unknown as ReadonlyArray<AcabamentoCadastro> | null | undefined}
       avisoLista={avisoLista}
       onTentarNovamente={onTentarNovamente}
+      compacto={compacto}
     />
   )
 }

@@ -29,12 +29,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  Alert, Anchor, Breadcrumbs, Button, Center, Group, Loader, Modal, Paper, Select, SimpleGrid, Stack, Text, TextInput, ThemeIcon, Title,
+  Alert, Anchor, Breadcrumbs, Button, Center, Grid, Group, Loader, Modal, Paper, Select, Stack, Text, TextInput, ThemeIcon, Title,
 } from '@mantine/core'
 import {
-  IconAlertCircle, IconAlertTriangle, IconCheck, IconId, IconLayoutGrid, IconLayoutList, IconPrinter, IconStack2, IconX,
+  IconAlertCircle, IconAlertTriangle, IconCheck, IconLayoutList, IconX,
 } from '@tabler/icons-react'
 import CartaoSecao from '../_item/CartaoSecao'
+import CampoDimensoes from '../_item/CampoDimensoes'
 
 import { api } from '@/lib/api'
 import type { CatalogoPlano } from '../../../../cadastros/_shared/cadastros-graficos.types'
@@ -432,115 +433,132 @@ export default function TelaPlano({
       )}
 
       <Stack gap="md" data-testid="bloco-plano">
-        <CartaoSecao titulo="Identificação do Plano" icone={<IconId size={16} />}>
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: naGaveta ? 2 : 4 }} spacing="md">
-            <Select
-              label="Tipo de Plano"
-              placeholder={opcoesTipo.length === 0 ? 'Nenhum tipo no catálogo do produto' : 'Selecione'}
-              data={opcoesTipo}
-              value={estado.tipoPlanoId}
-              onChange={(v) => alterar({ tipoPlanoId: v }, ['tipoPlanoId'])}
-              error={erros.tipoPlanoId}
-              disabled={travado}
-              allowDeselect={false}
-              required
-            />
-            <TextInput
-              label="Nome"
-              maxLength={MAX_NOME_PLANO}
-              value={estado.nome}
-              onChange={(e) => alterar({ nome: e.currentTarget.value }, ['nome'])}
-              error={erros.nome}
-              disabled={travado}
-              required
-            />
-            <TextInput
-              label="Ocorrências"
-              description="De 1 a 99"
-              inputMode="numeric"
-              value={estado.ocorrencias}
-              onChange={(e) => alterar({ ocorrencias: e.currentTarget.value }, ['ocorrencias'])}
-              error={erros.ocorrencias}
-              disabled={travado}
-            />
-            <TextInput
-              label="Tiragem"
-              description={estado.tiragemPropria ? 'Tiragem própria do plano' : 'Padrão: a tiragem do item'}
-              inputMode="numeric"
-              value={estado.tiragem}
-              onChange={(e) => alterar({ tiragem: e.currentTarget.value, tiragemPropria: true }, ['tiragem'])}
-              error={erros.tiragem}
-              disabled={travado}
-              required
-            />
-          </SimpleGrid>
-        </CartaoSecao>
-
-        <CartaoSecao titulo="Formato & Montagem" icone={<IconLayoutGrid size={16} />}>
-          <Stack gap="md">
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
-            <TextInput
-              label="Montagem"
-              placeholder="Ex.: 2x2"
-              maxLength={MAX_TEXTO_CURTO}
-              value={estado.montagem}
-              onChange={(e) => alterar({ montagem: e.currentTarget.value }, ['montagem'])}
-              disabled={travado}
-            />
-            <TextInput
-              label="Corte"
-              placeholder="Ex.: 650 x 1225"
-              maxLength={MAX_TEXTO_CURTO}
-              value={estado.corte}
-              onChange={(e) => alterar({ corte: e.currentTarget.value }, ['corte'])}
-              disabled={travado}
-            />
-            <TextInput
-              label="Formato Aberto — largura (mm)"
-              inputMode="decimal"
-              placeholder="0,00"
-              value={estado.formatoAberto.largura}
-              onChange={(e) => alterar({ formatoAberto: { ...estado.formatoAberto, largura: e.currentTarget.value } }, ['formatoAberto'])}
-              error={erros['formatoAberto.largura']}
-              disabled={travado}
-            />
-            <TextInput
-              label="Formato Aberto — altura (mm)"
-              inputMode="decimal"
-              placeholder="0,00"
-              value={estado.formatoAberto.altura}
-              onChange={(e) => alterar({ formatoAberto: { ...estado.formatoAberto, altura: e.currentTarget.value } }, ['formatoAberto'])}
-              error={erros['formatoAberto.altura']}
-              disabled={travado}
-            />
-          </SimpleGrid>
-
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
-            {(
-              [
-                ['comprimento', 'Formato Final — comprimento (mm)'],
-                ['largura', 'Formato Final — largura (mm)'],
-                ['altura', 'Formato Final — altura (mm)'],
-                ['alturaTampa', 'Formato Final — altura da tampa (mm)'],
-              ] as const
-            ).map(([chave, rotulo]) => (
+        <CartaoSecao variante="ponto" titulo="Identificação do Plano">
+          <Grid gutter="sm">
+            <Grid.Col span={{ base: 12, sm: 4 }}>
+              <Select
+                label="Tipo de Plano"
+                placeholder={opcoesTipo.length === 0 ? 'Nenhum tipo no catálogo do produto' : 'Selecione'}
+                data={opcoesTipo}
+                value={estado.tipoPlanoId}
+                onChange={(v) => alterar({ tipoPlanoId: v }, ['tipoPlanoId'])}
+                error={erros.tipoPlanoId}
+                disabled={travado}
+                allowDeselect={false}
+                required
+              />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, sm: 4 }}>
               <TextInput
-                key={chave}
-                label={rotulo}
-                inputMode="decimal"
-                placeholder="0,00"
-                value={estado.formatoFinal[chave]}
-                onChange={(e) => alterar({ formatoFinal: { ...estado.formatoFinal, [chave]: e.currentTarget.value } }, ['formatoFinal'])}
-                error={erros[`formatoFinal.${chave}`]}
+                label="Nome"
+                placeholder="Ex: Tampa Superior"
+                maxLength={MAX_NOME_PLANO}
+                value={estado.nome}
+                onChange={(e) => alterar({ nome: e.currentTarget.value }, ['nome'])}
+                error={erros.nome}
+                disabled={travado}
+                required
+              />
+            </Grid.Col>
+            <Grid.Col span={{ base: 6, sm: 2 }}>
+              <TextInput
+                label="Ocor."
+                aria-label="Ocorrências"
+                title="De 1 a 99"
+                inputMode="numeric"
+                value={estado.ocorrencias}
+                onChange={(e) => alterar({ ocorrencias: e.currentTarget.value }, ['ocorrencias'])}
+                error={erros.ocorrencias}
+                disabled={travado}
+                styles={{ input: { textAlign: 'center' } }}
+              />
+            </Grid.Col>
+            <Grid.Col span={{ base: 6, sm: 2 }}>
+              <TextInput
+                label="Tiragem"
+                title={estado.tiragemPropria ? 'Tiragem própria do plano' : 'Padrão: a tiragem do item'}
+                placeholder="(padrão)"
+                inputMode="numeric"
+                value={naGaveta && !estado.tiragemPropria ? '' : estado.tiragem}
+                onChange={(e) =>
+                  alterar(
+                    naGaveta && e.currentTarget.value.trim() === ''
+                      ? { tiragem: item?.quantidade != null ? String(item.quantidade) : estado.tiragem, tiragemPropria: false }
+                      : { tiragem: e.currentTarget.value, tiragemPropria: true },
+                    ['tiragem'],
+                  )
+                }
+                error={erros.tiragem}
                 disabled={travado}
               />
-            ))}
-          </SimpleGrid>
-          </Stack>
+            </Grid.Col>
+          </Grid>
         </CartaoSecao>
 
-        <CartaoSecao titulo="Impressão Principal" icone={<IconPrinter size={16} />}>
+        <CartaoSecao variante="ponto" titulo="Formato & Montagem">
+          <Grid gutter="sm">
+            <Grid.Col span={{ base: 6, sm: 2 }}>
+              <TextInput
+                label="Mont."
+                aria-label="Montagem"
+                placeholder="2x2"
+                maxLength={MAX_TEXTO_CURTO}
+                value={estado.montagem}
+                onChange={(e) => alterar({ montagem: e.currentTarget.value }, ['montagem'])}
+                disabled={travado}
+                styles={{ input: { textAlign: 'center' } }}
+              />
+            </Grid.Col>
+            <Grid.Col span={{ base: 6, sm: 2 }}>
+              <TextInput
+                label="Corte"
+                placeholder="650 x 1225"
+                maxLength={MAX_TEXTO_CURTO}
+                value={estado.corte}
+                onChange={(e) => alterar({ corte: e.currentTarget.value }, ['corte'])}
+                disabled={travado}
+              />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, sm: 4 }}>
+              <CampoDimensoes
+                label="Formato Aberto"
+                placeholder="480 x 340"
+                valores={[estado.formatoAberto.largura, estado.formatoAberto.altura]}
+                onChange={([largura, altura]) => alterar({ formatoAberto: { largura, altura } }, ['formatoAberto'])}
+                error={[erros['formatoAberto.largura'], erros['formatoAberto.altura']].filter(Boolean).join(' ') || undefined}
+                disabled={travado}
+              />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, sm: 4 }}>
+              <CampoDimensoes
+                label="Form. Final"
+                ajuda="Formato Final: Comp x Larg x Alt x AltTampa"
+                placeholder="220 x 150 x 80 x 0"
+                unidade=""
+                valores={[
+                  estado.formatoFinal.comprimento,
+                  estado.formatoFinal.largura,
+                  estado.formatoFinal.altura,
+                  estado.formatoFinal.alturaTampa,
+                ]}
+                onChange={([comprimento, largura, altura, alturaTampa]) =>
+                  alterar({ formatoFinal: { comprimento, largura, altura, alturaTampa } }, ['formatoFinal'])
+                }
+                error={
+                  ['comprimento', 'largura', 'altura', 'alturaTampa']
+                    .map((c) => erros[`formatoFinal.${c}`])
+                    .filter(Boolean)
+                    .join(' ') || undefined
+                }
+                disabled={travado}
+              />
+            </Grid.Col>
+          </Grid>
+        </CartaoSecao>
+
+        <CartaoSecao variante="ponto" titulo="Impressão Principal">
           <CamposImpressao
+            compacto
             value={estado}
             onChange={(p) => alterar(p, Object.keys(p))}
             processos={processos.nomes}
@@ -551,15 +569,10 @@ export default function TelaPlano({
         </CartaoSecao>
       </Stack>
 
-      <CartaoSecao
-        titulo="Composição de Substratos / Camadas"
-        icone={<IconStack2 size={16} />}
-        direita={
-          <Text size="xs" c="dimmed">
-            Microondulado e capa interna são opcionais
-          </Text>
-        }
-      >
+      <Stack gap="xs">
+        <Text size="xs" fw={700} tt="uppercase" c="dimmed" px={4} style={{ letterSpacing: '0.04em' }}>
+          Composição de Substratos / Camadas
+        </Text>
         <BlocosPorTipoPlano
           blocos={blocos}
           value={estado}
@@ -571,7 +584,7 @@ export default function TelaPlano({
           orcamentoId={orcamentoId}
           disabled={travado}
         />
-      </CartaoSecao>
+      </Stack>
 
       <BlocoAcabamento
         atividades={atividades}
@@ -583,6 +596,7 @@ export default function TelaPlano({
         avisoLista={todosAcabamentos.erro}
         onTentarNovamente={todosAcabamentos.tentarNovamente}
         disabled={travado}
+        grade={naGaveta}
       />
 
       {naGaveta && (

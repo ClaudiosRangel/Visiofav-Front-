@@ -459,7 +459,7 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
     orcamento?.produtoNome ||
     orcamento?.tipoEmbalagem?.descricao ||
     null
-  const titulo = novo && !itemIdCriado ? linhaNovoNome ?? 'Novo item' : `Item — ${produtoNome ?? '—'}`
+  const titulo = novo && !itemIdCriado ? `Configuração de Produto: ${linhaNovoNome ?? 'Novo item'}` : `Configuração de Produto: ${produtoNome ?? '—'}`
   useEffect(() => {
     document.title = titulo
   }, [titulo])
@@ -684,7 +684,7 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
             </Title>
             {podeEditar && (
               <Badge variant="light" color={sujo ? 'yellow' : 'gray'} visibleFrom="sm">
-                {sujo ? 'Em edição' : novo && !itemIdCriado ? 'Novo' : 'Salvo'}
+                {sujo ? 'Em Edição' : novo && !itemIdCriado ? 'Novo' : 'Salvo'}
               </Badge>
             )}
           </Group>
@@ -999,7 +999,7 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
             <div>
               <Text fw={700}>{planoGaveta?.planoId === 'novo' ? 'Inclusão de Tipo de Plano' : 'Alteração de Tipo de Plano'}</Text>
               <Text size="xs" c="dimmed">
-                Estrutura, substratos e impressão do plano
+                Engenharia estrutural, substratos e especificações de impressão
               </Text>
             </div>
           </Group>

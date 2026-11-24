@@ -81,6 +81,7 @@ export default function AcabamentosDeProduto({
           avisoLista={avisoLista}
           onTentarNovamente={onTentarNovamente}
           carregandoLista={carregandoLista}
+          compacto
         />
       </Stack>
     </CartaoSecao>

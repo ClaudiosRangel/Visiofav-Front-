@@ -16,7 +16,7 @@
  */
 
 import { useState, type ReactNode } from 'react'
-import { ActionIcon, Autocomplete, Button, Group, Paper, SimpleGrid, Stack, Switch, TextInput, Title, Tooltip } from '@mantine/core'
+import { ActionIcon, Autocomplete, Box, Button, Checkbox, Grid, Group, Paper, SimpleGrid, Stack, Text, TextInput, Tooltip } from '@mantine/core'
 import { IconLock, IconLockOpen } from '@tabler/icons-react'
 
 import BotaoPropriedades from '../_item/BotaoPropriedades'
@@ -42,23 +42,28 @@ export interface CamposImpressaoProps {
   processoPre?: string | null
   erros?: { cores?: string; processoImpressao?: string; coberturaTinta?: string }
   disabled?: boolean
+  /** Uma linha só (Cores | Processo | Cobertura), sem descrições: gaveta do plano. */
+  compacto?: boolean
 }
 
-export function CamposImpressao({ value, onChange, sufixoRotulo, processos, processoPre, erros, disabled }: CamposImpressaoProps) {
+export function CamposImpressao({ value, onChange, sufixoRotulo, processos, processoPre, erros, disabled, compacto }: CamposImpressaoProps) {
   const [travado, setTravado] = useState(false)
   const r = (t: string) => (sufixoRotulo ? `${t} ${sufixoRotulo}` : t)
-  return (
-    <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-      <TextInput
-        label={r('Cores')}
-        placeholder="Ex.: 4x0"
-        description="Frente x verso, de 0 a 12"
-        value={value.cores}
-        onChange={(e) => onChange({ cores: e.currentTarget.value })}
-        error={erros?.cores}
-        disabled={disabled}
-        required
-      />
+  const cores = (
+    <TextInput
+      label={r('Cores')}
+      placeholder={compacto ? '4x0' : 'Ex.: 4x0'}
+      description={compacto ? undefined : 'Frente x verso, de 0 a 12'}
+      title="Frente x verso, de 0 a 12"
+      value={value.cores}
+      onChange={(e) => onChange({ cores: e.currentTarget.value })}
+      error={erros?.cores}
+      disabled={disabled}
+      required
+      styles={compacto ? { input: { textAlign: 'center', fontWeight: 600 } } : undefined}
+    />
+  )
+  const processo = (
       <Group gap={6} align="flex-end" wrap="nowrap">
         <Autocomplete
           label={r('Processo de Impressão')}
@@ -97,16 +102,35 @@ export function CamposImpressao({ value, onChange, sufixoRotulo, processos, proc
           </ActionIcon>
         </Tooltip>
       </Group>
-      <TextInput
-        label={r('Cobertura de Tinta (%)')}
-        placeholder="0,00"
-        description="De 0 a 100"
-        inputMode="decimal"
-        value={value.coberturaTinta}
-        onChange={(e) => onChange({ coberturaTinta: e.currentTarget.value })}
-        error={erros?.coberturaTinta}
-        disabled={disabled}
-      />
+  )
+  const cobertura = (
+    <TextInput
+      label={compacto ? r('Cobertura de Tinta') : r('Cobertura de Tinta (%)')}
+      placeholder="0,00"
+      description={compacto ? undefined : 'De 0 a 100'}
+      title="De 0 a 100%"
+      inputMode="decimal"
+      value={value.coberturaTinta}
+      onChange={(e) => onChange({ coberturaTinta: e.currentTarget.value })}
+      error={erros?.coberturaTinta}
+      disabled={disabled}
+      rightSection={compacto ? <Text size="xs" c="dimmed">%</Text> : undefined}
+    />
+  )
+  if (compacto) {
+    return (
+      <Grid gutter="sm" align="flex-end">
+        <Grid.Col span={{ base: 12, sm: 2 }}>{cores}</Grid.Col>
+        <Grid.Col span={{ base: 12, sm: 6 }}>{processo}</Grid.Col>
+        <Grid.Col span={{ base: 12, sm: 4 }}>{cobertura}</Grid.Col>
+      </Grid>
+    )
+  }
+  return (
+    <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+      {cores}
+      {processo}
+      {cobertura}
     </SimpleGrid>
   )
 }
@@ -136,6 +160,7 @@ function CamposSuporte({
   onChange,
   erro,
   suportesPermitidos,
+  terceiro,
   disabled,
 }: {
   bloco: ChaveBlocoSuporte
@@ -144,6 +169,8 @@ function CamposSuporte({
   onChange: (parcial: Partial<BlocoSuporteForm>, campos: string[]) => void
   erro?: string
   suportesPermitidos?: ReadonlyArray<OpcaoSuporte>
+  /** Terceiro campo da linha (Fibra, Sentido da onda...). */
+  terceiro?: ReactNode
   disabled?: boolean
 }) {
   // Suportes criados pelo NC nesta tela: entram nas opções quando há lista restrita (`permitidos`).
@@ -154,52 +181,81 @@ function CamposSuporte({
       : suportesPermitidos
 
   return (
-    <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md" data-testid={`campos-suporte-${bloco}`}>
-      <TextInput
-        label="Fabricante"
-        placeholder="Fabricante"
-        maxLength={MAX_TEXTO_CURTO}
-        value={valor.fabricante}
-        onChange={(e) => onChange({ fabricante: e.currentTarget.value }, ['fabricante'])}
-        disabled={disabled}
-      />
-      <Group gap={6} align="flex-end" wrap="nowrap">
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <SeletorSuportePlano
-            label={rotuloSuporte}
-            value={valor.suporteId}
-            nomeAtual={valor.suporteNome}
-            onChange={(id, nome) => onChange({ suporteId: id, suporteNome: nome }, ['suporteId'])}
-            permitidos={permitidosEfetivos}
-            error={erro}
-            disabled={disabled}
-            required
-          />
-        </div>
-        <BotaoSuporteNc
+    <Grid gutter="sm" align="flex-end" data-testid={`campos-suporte-${bloco}`}>
+      <Grid.Col span={{ base: 12, sm: 3 }}>
+        <TextInput
+          label="Fabricante"
+          placeholder="Fabricante"
+          maxLength={MAX_TEXTO_CURTO}
+          value={valor.fabricante}
+          onChange={(e) => onChange({ fabricante: e.currentTarget.value }, ['fabricante'])}
           disabled={disabled}
-          onCriado={(r) => {
-            setCriadosNc((l) => [...l, { value: r.suporteId, label: r.nome }])
-            onChange({ suporteId: r.suporteId, suporteNome: r.nome }, ['suporteId'])
-          }}
         />
-      </Group>
-      <Switch
-        label="Fornecido"
-        checked={valor.fornecido}
-        onChange={(e) => onChange({ fornecido: e.currentTarget.checked }, ['fornecido'])}
-        disabled={disabled}
-        mt={{ base: 0, sm: 'xl' }}
-      />
-    </SimpleGrid>
+      </Grid.Col>
+      <Grid.Col span={{ base: 12, sm: terceiro ? 6 : 9 }}>
+        <Group gap={6} align="flex-end" wrap="nowrap">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <SeletorSuportePlano
+              label={rotuloSuporte}
+              value={valor.suporteId}
+              nomeAtual={valor.suporteNome}
+              onChange={(id, nome) => onChange({ suporteId: id, suporteNome: nome }, ['suporteId'])}
+              permitidos={permitidosEfetivos}
+              error={erro}
+              disabled={disabled}
+              required
+            />
+          </div>
+          <BotaoSuporteNc
+            disabled={disabled}
+            onCriado={(r) => {
+              setCriadosNc((l) => [...l, { value: r.suporteId, label: r.nome }])
+              onChange({ suporteId: r.suporteId, suporteNome: r.nome }, ['suporteId'])
+            }}
+          />
+        </Group>
+      </Grid.Col>
+      {terceiro && <Grid.Col span={{ base: 12, sm: 3 }}>{terceiro}</Grid.Col>}
+    </Grid>
   )
 }
 
-function Bloco({ titulo, testId, children }: { titulo: string; testId: string; children: ReactNode }) {
+/** Camada do plano: barra colorida, título e "Fornecido" no cabeçalho (cores do tema). */
+function Bloco({
+  titulo,
+  testId,
+  cor,
+  fornecido,
+  onFornecido,
+  disabled,
+  children,
+}: {
+  titulo: string
+  testId: string
+  cor: string
+  fornecido: boolean
+  onFornecido: (v: boolean) => void
+  disabled?: boolean
+  children: ReactNode
+}) {
   return (
     <Paper withBorder radius="md" p="md" data-testid={testId}>
       <Stack gap="sm">
-        <Title order={6}>{titulo}</Title>
+        <Group justify="space-between" wrap="nowrap">
+          <Group gap={8} wrap="nowrap">
+            <Box w={4} h={18} style={{ borderRadius: 4, background: `var(--mantine-color-${cor}-filled)` }} />
+            <Text size="sm" fw={700}>
+              {titulo}
+            </Text>
+          </Group>
+          <Checkbox
+            size="xs"
+            label="Fornecido"
+            checked={fornecido}
+            onChange={(e) => onFornecido(e.currentTarget.checked)}
+            disabled={disabled}
+          />
+        </Group>
         {children}
       </Stack>
     </Paper>
@@ -217,84 +273,94 @@ export default function BlocosPorTipoPlano({
   orcamentoId,
   disabled,
 }: BlocosPorTipoPlanoProps) {
+  const fornecido = (bloco: ChaveBlocoSuporte) => ({
+    fornecido: value[bloco].fornecido,
+    onFornecido: (v: boolean) => onChange(bloco, { fornecido: v } as never, ['fornecido']),
+    disabled,
+  })
   return (
-    <Stack gap="md" data-testid="blocos-por-tipo-plano">
+    <Stack gap="sm" data-testid="blocos-por-tipo-plano">
       {blocos.capaExterna && (
-        <Bloco titulo="Capa externa" testId="bloco-capa-externa">
+        <Bloco titulo="Capa Externa" testId="bloco-capa-externa" cor="indigo" {...fornecido('capaExterna')}>
           <CamposSuporte
             bloco="capaExterna"
             valor={value.capaExterna}
-            rotuloSuporte="Suporte da capa externa"
+            rotuloSuporte="Suporte Capa Externa"
             onChange={(p, c) => onChange('capaExterna', p, c)}
             erro={erros['capaExterna.suporteId']}
             suportesPermitidos={suportesPermitidos}
             disabled={disabled}
+            terceiro={
+              blocos.fibra ? (
+                <TextInput
+                  label="Fibra Capa Externa"
+                  placeholder="Indiferente"
+                  maxLength={MAX_TEXTO_CURTO}
+                  value={value.capaExterna.fibra}
+                  onChange={(e) => onChange('capaExterna', { fibra: e.currentTarget.value }, ['fibra'])}
+                  disabled={disabled}
+                />
+              ) : undefined
+            }
           />
-          {blocos.fibra && (
-            <TextInput
-              label="Fibra da capa externa"
-              placeholder="Ex.: Longitudinal"
-              maxLength={MAX_TEXTO_CURTO}
-              value={value.capaExterna.fibra}
-              onChange={(e) => onChange('capaExterna', { fibra: e.currentTarget.value }, ['fibra'])}
-              disabled={disabled}
-              maw={360}
-            />
-          )}
         </Bloco>
       )}
 
       {blocos.microondulado && (
-        <Bloco titulo="Microondulado" testId="bloco-microondulado">
+        <Bloco titulo="Microondulado" testId="bloco-microondulado" cor="orange" {...fornecido('microondulado')}>
           <CamposSuporte
             bloco="microondulado"
             valor={value.microondulado}
-            rotuloSuporte="Suporte do microondulado"
+            rotuloSuporte="Suporte Microondulado"
             onChange={(p, c) => onChange('microondulado', p, c)}
             erro={erros['microondulado.suporteId']}
             suportesPermitidos={suportesPermitidos}
             disabled={disabled}
+            terceiro={
+              <Group gap={6} align="flex-end" wrap="nowrap">
+                <TextInput
+                  label="Sentido Onda"
+                  placeholder="Indiferente"
+                  maxLength={MAX_TEXTO_CURTO}
+                  value={value.microondulado.sentidoOnda}
+                  onChange={(e) => onChange('microondulado', { sentidoOnda: e.currentTarget.value }, ['sentidoOnda'])}
+                  disabled={disabled}
+                  style={{ flex: 1, minWidth: 0 }}
+                />
+                <TextInput
+                  label="Ajuste Corte"
+                  aria-label="Ajuste Corte Micro (mm)"
+                  title="Ajuste Corte Micro, de −99,99 a 99,99 mm"
+                  placeholder="0"
+                  inputMode="decimal"
+                  value={value.microondulado.ajusteCorteMicro}
+                  onChange={(e) => onChange('microondulado', { ajusteCorteMicro: e.currentTarget.value }, ['ajusteCorteMicro'])}
+                  error={erros['microondulado.ajusteCorteMicro']}
+                  disabled={disabled}
+                  rightSection={<Text size="xs" c="dimmed">mm</Text>}
+                  w={96}
+                />
+                <BotaoPropriedades orcamentoId={orcamentoId} />
+              </Group>
+            }
           />
-          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-            <TextInput
-              label="Sentido da onda"
-              placeholder="Ex.: Vertical"
-              maxLength={MAX_TEXTO_CURTO}
-              value={value.microondulado.sentidoOnda}
-              onChange={(e) => onChange('microondulado', { sentidoOnda: e.currentTarget.value }, ['sentidoOnda'])}
-              disabled={disabled}
-            />
-            <Group gap="sm" align="flex-end" wrap="nowrap">
-              <TextInput
-                label="Ajuste Corte Micro (mm)"
-                placeholder="0,00"
-                description="De −99,99 a 99,99"
-                inputMode="decimal"
-                value={value.microondulado.ajusteCorteMicro}
-                onChange={(e) => onChange('microondulado', { ajusteCorteMicro: e.currentTarget.value }, ['ajusteCorteMicro'])}
-                error={erros['microondulado.ajusteCorteMicro']}
-                disabled={disabled}
-                style={{ flex: 1, minWidth: 0 }}
-              />
-              <BotaoPropriedades orcamentoId={orcamentoId} />
-            </Group>
-          </SimpleGrid>
         </Bloco>
       )}
 
       {blocos.capaInterna && (
-        <Bloco titulo="Capa interna" testId="bloco-capa-interna">
+        <Bloco titulo="Capa Interna" testId="bloco-capa-interna" cor="teal" {...fornecido('capaInterna')}>
           <CamposSuporte
             bloco="capaInterna"
             valor={value.capaInterna}
-            rotuloSuporte="Suporte da capa interna"
+            rotuloSuporte="Suporte Capa Interna"
             onChange={(p, c) => onChange('capaInterna', p, c)}
             erro={erros['capaInterna.suporteId']}
             suportesPermitidos={suportesPermitidos}
             disabled={disabled}
           />
           <CamposImpressao
-            sufixoRotulo="da capa interna"
+            compacto
+            sufixoRotulo="(Interna)"
             value={value.capaInterna}
             onChange={(p) => onChange('capaInterna', p, Object.keys(p))}
             processos={processos}
@@ -310,7 +376,7 @@ export default function BlocosPorTipoPlano({
       )}
 
       {blocos.principal && (
-        <Bloco titulo="Suporte" testId="bloco-suporte-principal">
+        <Bloco titulo="Suporte" testId="bloco-suporte-principal" cor="blue" {...fornecido('principal')}>
           <CamposSuporte
             bloco="principal"
             valor={value.principal}

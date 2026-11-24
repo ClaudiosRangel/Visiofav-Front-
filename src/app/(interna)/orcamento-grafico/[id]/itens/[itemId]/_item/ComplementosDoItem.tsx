@@ -13,9 +13,8 @@
  */
 
 import { useMemo, useState } from 'react'
-import { Badge, Stack, Tabs, Text, Textarea } from '@mantine/core'
-import { IconBuildingFactory2, IconFileText, IconListDetails, IconNotes, IconPackages, IconTruck } from '@tabler/icons-react'
-import CartaoSecao from './CartaoSecao'
+import { Badge, Group, Paper, Stack, Tabs, Text, Textarea } from '@mantine/core'
+import { IconBuildingFactory2, IconFileText, IconListDetails, IconPackages, IconTruck } from '@tabler/icons-react'
 
 import type { WizardFormData } from '../../../../novo/page'
 import type { OpcaoSugerida } from '../../../editor/campos-livres-puro'
@@ -123,27 +122,17 @@ export default function ComplementosDoItem({
     ) : null
 
   return (
-    <CartaoSecao
-      titulo="Complementos do item"
-      icone={<IconNotes size={16} />}
-      direita={
-        <Text size="xs" c="dimmed">
-          Informações complementares do item
-        </Text>
-      }
-      data-testid="complementos-do-item"
-    >
-      <Stack gap="md">
-        {exibeInfo && (
-          <CampoInformacoesComplementares
-            value={value.informacoesComplementares}
-            onChange={(texto) => onChange({ informacoesComplementares: texto })}
-            erro={erros.informacoesComplementares}
-            disabled={disabled}
-          />
-        )}
-
+    <Paper withBorder radius="md" shadow="xs" style={{ overflow: 'hidden' }} data-testid="complementos-do-item">
         <Tabs value={aba} onChange={(v) => v && setAba(v)} variant="pills" radius="md">
+          <Group
+            justify="space-between"
+            wrap="wrap"
+            gap="sm"
+            px="md"
+            py="xs"
+            bg="var(--mantine-color-default-hover)"
+            style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}
+          >
           <Tabs.List>
             <Tabs.Tab value={ABAS.diversos} leftSection={<IconPackages size={14} />} rightSection={marca(value.itensDiversos?.length ?? 0)}>
               Itens Diversos
@@ -161,9 +150,23 @@ export default function ComplementosDoItem({
               Obs. Áreas de Op
             </Tabs.Tab>
           </Tabs.List>
+          <Text size="xs" c="dimmed" visibleFrom="sm">
+            Informações complementares do item
+          </Text>
+          </Group>
+
+          <Stack gap="md" p="md">
+          {exibeInfo && (
+            <CampoInformacoesComplementares
+              value={value.informacoesComplementares}
+              onChange={(texto) => onChange({ informacoesComplementares: texto })}
+              erro={erros.informacoesComplementares}
+              disabled={disabled}
+            />
+          )}
 
           {(['diversos', 'fornecidos', 'livres'] as const).map((s) => (
-            <Tabs.Panel key={s} value={ABAS[s]} pt="md">
+            <Tabs.Panel key={s} value={ABAS[s]} >
               <SecaoItensComplementares
                 formData={formData}
                 updateForm={atualizarListas}
@@ -177,7 +180,7 @@ export default function ComplementosDoItem({
             </Tabs.Panel>
           ))}
 
-          <Tabs.Panel value={ABAS.observacao} pt="md">
+          <Tabs.Panel value={ABAS.observacao} >
             <Textarea
               label="Observação"
               autosize
@@ -193,7 +196,7 @@ export default function ComplementosDoItem({
             />
           </Tabs.Panel>
 
-          <Tabs.Panel value={ABAS.areas} pt="md">
+          <Tabs.Panel value={ABAS.areas} >
             <Textarea
               label="Obs. Áreas de Op"
               autosize
@@ -208,8 +211,8 @@ export default function ComplementosDoItem({
               data-testid="campo-obs-areas-op"
             />
           </Tabs.Panel>
+          </Stack>
         </Tabs>
-      </Stack>
-    </CartaoSecao>
+    </Paper>
   )
 }

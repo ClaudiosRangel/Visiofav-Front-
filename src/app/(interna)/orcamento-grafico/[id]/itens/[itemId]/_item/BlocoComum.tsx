@@ -13,9 +13,10 @@
  * `trocaProduto.abertoInicial` (item novo) o seletor já vem aberto e habilitado.
  */
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Anchor, Autocomplete, Button, Collapse, Divider, Grid, Group, Input, Paper, Select, Stack, TagsInput, Text, TextInput } from '@mantine/core'
-import { IconChevronDown, IconChevronUp, IconPackage, IconSearch } from '@tabler/icons-react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { ActionIcon, Anchor, Autocomplete, Divider, Grid, Group, Select, Stack, TagsInput, Text, TextInput, Tooltip } from '@mantine/core'
+import { IconEraser, IconSearch } from '@tabler/icons-react'
+import { api } from '@/lib/api'
 
 import SeletorProdutoGrafico, { type ProdutoEscolhido } from '../../../editor/catalogo/SeletorProdutoGrafico'
 import type { UseCatalogoItemResultado } from '../../../editor/catalogo/useCatalogoItem'
@@ -50,7 +51,6 @@ export interface BlocoComumProps {
 }
 
 export default function BlocoComum({ value, onChange, produtoNome, trocaProduto, validarVazios, disabled, dimensoes }: BlocoComumProps) {
-  const [trocaAberta, setTrocaAberta] = useState(() => !!trocaProduto?.abertoInicial)
   const tipos = useTiposProduto()
   const siglas = useSiglasAcabado()
 
@@ -74,6 +74,26 @@ export default function BlocoComum({ value, onChange, produtoNome, trocaProduto,
     [tipos.tipos, permitidos],
   )
 
+  const siglaRef = useRef<HTMLInputElement>(null)
+  // Tributações cadastradas (nome); o valor gravado continua na lista mesmo se não estiver cadastrado.
+  const [tributacoes, setTributacoes] = useState<string[]>([])
+  useEffect(() => {
+    let cancelado = false
+    api
+      .get('/configurador-grafico/tributacao')
+      .then(({ data }) => {
+        const lista: Array<{ nome?: string; ativo?: boolean }> = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : []
+        if (!cancelado) setTributacoes(lista.filter((t) => t?.ativo !== false && t?.nome).map((t) => String(t.nome)))
+      })
+      .catch(() => { if (!cancelado) setTributacoes([]) })
+    return () => { cancelado = true }
+  }, [])
+  const opcoesTributacao = useMemo(() => {
+    const nomes = [...new Set(tributacoes)]
+    if (value.tributacao && !nomes.includes(value.tributacao)) nomes.unshift(value.tributacao)
+    return nomes
+  }, [tributacoes, value.tributacao])
+
   const tagsTiragem = useMemo(
     () => value.tiragem.split(/[;,]/).map((s) => s.trim()).filter((s) => s.length > 0),
     [value.tiragem],
@@ -83,42 +103,23 @@ export default function BlocoComum({ value, onChange, produtoNome, trocaProduto,
     <Stack gap="md" data-testid="bloco-comum">
       <Grid gutter="md">
         <Grid.Col span={{ base: 12, sm: 6, lg: 4 }}>
-          <Input.Wrapper label="Produto">
-            <Group
-              gap="xs"
-              wrap="nowrap"
-              justify="space-between"
-              px="sm"
-              mt={4}
-              style={{
-                minHeight: 36,
-                border: '1px solid var(--mantine-color-default-border)',
-                borderRadius: 'var(--mantine-radius-sm)',
-              }}
-            >
-              <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
-                <IconPackage size={16} stroke={1.5} />
-                <Text size="sm" fw={600} lineClamp={1} data-testid="bloco-comum-titulo">
-                  {produtoNome?.trim() || 'Produto não definido'}
-                </Text>
-              </Group>
-              {trocaProduto && (
-                <Button
-                  variant="subtle"
-                  size="compact-xs"
-                  disabled={disabled}
-                  rightSection={trocaAberta ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}
-                  onClick={() => setTrocaAberta((v) => !v)}
-                >
-                  Trocar produto
-                </Button>
-              )}
-            </Group>
-          </Input.Wrapper>
+          {trocaProduto ? (
+            <SeletorProdutoGrafico
+              compacto
+              value={trocaProduto.produtoGraficoId}
+              linhaProdutoId={trocaProduto.linhaProdutoId}
+              catalogo={trocaProduto.catalogo}
+              disabled={disabled}
+              onChange={trocaProduto.onChange}
+            />
+          ) : (
+            <TextInput label="Produto" value={produtoNome?.trim() || ''} readOnly data-testid="bloco-comum-titulo" />
+          )}
         </Grid.Col>
         <Grid.Col span={{ base: 12, sm: 6, lg: 4 }}>
           <Select
-            label="Tipo de Produto"
+            label="Tipo"
+            aria-label="Tipo de Produto"
             placeholder={tipos.carregando ? 'Carregando…' : 'Selecione o tipo'}
             searchable
             data={opcoesTipo}
@@ -131,31 +132,20 @@ export default function BlocoComum({ value, onChange, produtoNome, trocaProduto,
           />
         </Grid.Col>
         <Grid.Col span={{ base: 12, lg: 4 }}>
-          <TextInput
+          <Select
             label="Tributação"
-            placeholder="Ex.: ICMS + IPI"
-            maxLength={MAX_TRIBUTACAO}
-            value={value.tributacao}
-            onChange={(e) => onChange({ tributacao: e.currentTarget.value })}
+            placeholder="Selecione"
+            searchable
+            data={opcoesTributacao}
+            value={value.tributacao || null}
+            onChange={(v) => onChange({ tributacao: (v ?? '').slice(0, MAX_TRIBUTACAO) })}
             error={erros.tributacao}
             disabled={disabled}
+            nothingFoundMessage="Nenhuma tributação cadastrada"
+            comboboxProps={{ withinPortal: true }}
           />
         </Grid.Col>
       </Grid>
-
-      {trocaProduto && (
-        <Collapse in={trocaAberta}>
-          <Paper withBorder radius="md" p="sm" bg="var(--mantine-color-default)">
-            <SeletorProdutoGrafico
-              value={trocaProduto.produtoGraficoId}
-              linhaProdutoId={trocaProduto.linhaProdutoId}
-              catalogo={trocaProduto.catalogo}
-              disabled={disabled}
-              onChange={trocaProduto.onChange}
-            />
-          </Paper>
-        </Collapse>
-      )}
 
       <Grid gutter="md">
         <Grid.Col span={{ base: 12, lg: 8 }}>
@@ -176,18 +166,43 @@ export default function BlocoComum({ value, onChange, produtoNome, trocaProduto,
           />
         </Grid.Col>
         <Grid.Col span={{ base: 12, lg: 4 }}>
-          <Autocomplete
-            label="Sigla Acabado"
-            placeholder="Buscar ou digitar"
-            maxLength={MAX_SIGLA_ACABADO}
-            data={siglas.siglas}
-            limit={20}
-            leftSection={<IconSearch size={14} />}
-            value={value.siglaAcabado}
-            onChange={(v) => onChange({ siglaAcabado: v })}
-            error={erros.siglaAcabado}
-            disabled={disabled}
-          />
+          <Group gap={6} align="flex-end" wrap="nowrap">
+            <Autocomplete
+              ref={siglaRef}
+              label="Sigla Acabado"
+              placeholder="Código / Sigla"
+              maxLength={MAX_SIGLA_ACABADO}
+              data={siglas.siglas}
+              limit={20}
+              value={value.siglaAcabado}
+              onChange={(v) => onChange({ siglaAcabado: v })}
+              error={erros.siglaAcabado}
+              disabled={disabled}
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            <Tooltip label="Pesquisar Sigla Acabado">
+              <ActionIcon
+                variant="default"
+                size={36}
+                aria-label="Pesquisar Sigla Acabado"
+                disabled={disabled}
+                onClick={() => siglaRef.current?.focus()}
+              >
+                <IconSearch size={16} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Limpar Sigla Acabado">
+              <ActionIcon
+                variant="default"
+                size={36}
+                aria-label="Limpar Sigla Acabado"
+                disabled={disabled || !value.siglaAcabado}
+                onClick={() => onChange({ siglaAcabado: '' })}
+              >
+                <IconEraser size={16} />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
         </Grid.Col>
       </Grid>
 
@@ -196,9 +211,18 @@ export default function BlocoComum({ value, onChange, produtoNome, trocaProduto,
       <Grid gutter="md" align="flex-start">
         <Grid.Col span={{ base: 12, md: 8, lg: dimensoes ? 4 : 9 }}>
           <TagsInput
-            label="Tiragens"
-            description="Enter ou vírgula adiciona (até 20). Valem para todos os planos."
-            placeholder={tagsTiragem.length === 0 ? 'Ex.: 10000' : ''}
+            label={
+              <Group justify="space-between" wrap="nowrap" gap="xs" component="span" w="100%">
+                <span>Tiragens</span>
+                <Text span size="xs" c="dimmed" fw={400}>
+                  Pressione Enter ou vírgula para adicionar
+                </Text>
+              </Group>
+            }
+            aria-label="Tiragens"
+            labelProps={{ style: { width: '100%' } }}
+            title="Valem para todos os planos (até 20)"
+            placeholder="Ex: 10000"
             value={tagsTiragem}
             onChange={(lista) => onChange({ tiragem: lista.join(', ') })}
             splitChars={[',', ';']}
@@ -214,9 +238,10 @@ export default function BlocoComum({ value, onChange, produtoNome, trocaProduto,
             inputMode="numeric"
             value={value.modelos}
             onChange={(e) => onChange({ modelos: e.currentTarget.value })}
-            description="1 a 999"
+            title="De 1 a 999"
             error={erros.modelos}
             disabled={disabled}
+            styles={{ input: { textAlign: 'center', fontWeight: 600 } }}
           />
         </Grid.Col>
         {dimensoes && <Grid.Col span={{ base: 12, lg: 6 }}>{dimensoes}</Grid.Col>}

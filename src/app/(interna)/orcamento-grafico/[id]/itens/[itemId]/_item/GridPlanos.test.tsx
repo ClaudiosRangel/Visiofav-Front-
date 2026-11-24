@@ -90,9 +90,9 @@ describe('GridPlanos — estado vazio', () => {
     servidor([])
     renderizar()
     expect(await screen.findByTestId('grid-planos-vazio')).toHaveTextContent('Este item ainda não tem planos.')
-    expect(botao('Incluir')).toBeEnabled()
+    expect(botao('Adicionar Plano')).toBeEnabled()
     expect(botao('Incluir plano')).toBeEnabled()
-    for (const nome of ['Copiar', 'Excluir', 'Subir', 'Descer', 'Desfazer', 'Abrir']) expect(botao(nome)).toBeDisabled()
+    for (const nome of ['Duplicar', 'Excluir', 'Subir', 'Descer', 'Desfazer', 'Editar']) expect(botao(nome)).toBeDisabled()
 
     fireEvent.click(botao('Incluir plano'))
     expect(push).toHaveBeenCalledWith('/orcamento-grafico/orc-1/itens/item-1/planos/novo')
@@ -105,13 +105,13 @@ describe('GridPlanos — habilitação dos botões', () => {
     renderizar()
     await screen.findByTestId('grid-planos-tabela')
 
-    expect(botao('Incluir')).toBeEnabled()
-    for (const nome of ['Copiar', 'Excluir', 'Subir', 'Descer', 'Abrir']) expect(botao(nome)).toBeDisabled()
+    expect(botao('Adicionar Plano')).toBeEnabled()
+    for (const nome of ['Duplicar', 'Excluir', 'Subir', 'Descer', 'Editar']) expect(botao(nome)).toBeDisabled()
     expect(botao('Desfazer')).toBeDisabled()
 
     fireEvent.click(screen.getByTestId('plano-linha-a'))
     expect(screen.getByTestId('plano-linha-a')).toHaveAttribute('aria-selected', 'true')
-    for (const nome of ['Copiar', 'Excluir', 'Descer', 'Abrir']) expect(botao(nome)).toBeEnabled()
+    for (const nome of ['Duplicar', 'Excluir', 'Descer', 'Editar']) expect(botao(nome)).toBeEnabled()
     expect(botao('Subir')).toBeDisabled()
 
     fireEvent.click(screen.getByTestId('plano-linha-b'))
@@ -119,7 +119,7 @@ describe('GridPlanos — habilitação dos botões', () => {
     expect(botao('Descer')).toBeDisabled()
 
     // Incluir com seleção vai para logo abaixo do selecionado.
-    fireEvent.click(botao('Incluir'))
+    fireEvent.click(botao('Adicionar Plano'))
     expect(push).toHaveBeenLastCalledWith('/orcamento-grafico/orc-1/itens/item-1/planos/novo?apos=b')
   })
 
@@ -129,7 +129,7 @@ describe('GridPlanos — habilitação dos botões', () => {
     fireEvent.click(await screen.findByTestId('plano-linha-a'))
     expect(botao('Subir')).toBeDisabled()
     expect(botao('Descer')).toBeDisabled()
-    expect(botao('Copiar')).toBeEnabled()
+    expect(botao('Duplicar')).toBeEnabled()
   })
 
   it('duplo clique abre a Tela_Plano do plano', async () => {
@@ -157,8 +157,8 @@ describe('GridPlanos — limite de 20 planos', () => {
     renderizar()
     expect(await screen.findByTestId('grid-planos-limite')).toHaveTextContent('Limite de 20 planos por item.')
     fireEvent.click(screen.getByTestId('plano-linha-p0'))
-    expect(botao('Incluir')).toBeDisabled()
-    expect(botao('Copiar')).toBeDisabled()
+    expect(botao('Adicionar Plano')).toBeDisabled()
+    expect(botao('Duplicar')).toBeDisabled()
     expect(botao('Excluir')).toBeEnabled()
   })
 })

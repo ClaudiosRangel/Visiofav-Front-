@@ -26,7 +26,6 @@ import {
   IconArrowDown,
   IconArrowUp,
   IconCopy,
-  IconExternalLink,
   IconLayoutList,
   IconPencil,
   IconPlus,
@@ -150,23 +149,23 @@ function GridPlanosView({
   const desfazer = async () => depois(await h.desfazer())
 
   const botoes = (
-    <Group gap="xs" wrap="wrap">
+    <Group gap={6} wrap="wrap">
       <Button size="xs" leftSection={<IconPlus size={14} />} onClick={incluir} disabled={travado || h.noLimite}>
-        Incluir
+        Adicionar Plano
       </Button>
       <Button
         size="xs"
-        variant="light"
-        leftSection={<IconCopy size={14} />}
-        onClick={copiar}
-        disabled={travado || !umSelecionado || h.noLimite}
+        variant="default"
+        leftSection={<IconPencil size={14} />}
+        onClick={() => selecionado && abrir(selecionado.id)}
+        disabled={disabled || !umSelecionado}
       >
-        Copiar
+        Editar
       </Button>
       <Button
         size="xs"
-        variant="light"
-        color="red"
+        variant="default"
+        c="red"
         leftSection={<IconTrash size={14} />}
         onClick={() => setConfirmarExclusao(true)}
         disabled={travado || !umSelecionado}
@@ -176,21 +175,34 @@ function GridPlanosView({
       <Button
         size="xs"
         variant="default"
-        leftSection={<IconArrowUp size={14} />}
-        onClick={() => mover('cima')}
-        disabled={travado || !podeMover || indiceSel <= 0}
+        leftSection={<IconCopy size={14} />}
+        onClick={copiar}
+        disabled={travado || !umSelecionado || h.noLimite}
       >
-        Subir
+        Duplicar
       </Button>
-      <Button
-        size="xs"
-        variant="default"
-        leftSection={<IconArrowDown size={14} />}
-        onClick={() => mover('baixo')}
-        disabled={travado || !podeMover || indiceSel >= h.planos.length - 1}
-      >
-        Descer
-      </Button>
+      <Tooltip label="Subir o plano selecionado">
+        <ActionIcon
+          variant="default"
+          size={30}
+          aria-label="Subir"
+          onClick={() => mover('cima')}
+          disabled={travado || !podeMover || indiceSel <= 0}
+        >
+          <IconArrowUp size={14} />
+        </ActionIcon>
+      </Tooltip>
+      <Tooltip label="Descer o plano selecionado">
+        <ActionIcon
+          variant="default"
+          size={30}
+          aria-label="Descer"
+          onClick={() => mover('baixo')}
+          disabled={travado || !podeMover || indiceSel >= h.planos.length - 1}
+        >
+          <IconArrowDown size={14} />
+        </ActionIcon>
+      </Tooltip>
       <Button
         size="xs"
         variant="default"
@@ -199,15 +211,6 @@ function GridPlanosView({
         disabled={travado || !h.podeDesfazer}
       >
         Desfazer
-      </Button>
-      <Button
-        size="xs"
-        variant="subtle"
-        leftSection={<IconExternalLink size={14} />}
-        onClick={() => selecionado && abrir(selecionado.id)}
-        disabled={disabled || !umSelecionado}
-      >
-        Abrir
       </Button>
     </Group>
   )
@@ -267,7 +270,10 @@ function GridPlanosView({
       ) : (
         <ScrollArea>
           <Table highlightOnHover withTableBorder verticalSpacing="xs" data-testid="grid-planos-tabela">
-            <Table.Thead>
+            <Table.Thead
+              bg="var(--mantine-color-default-hover)"
+              style={{ textTransform: 'uppercase', fontSize: 'var(--mantine-font-size-xs)', letterSpacing: '0.04em' }}
+            >
               <Table.Tr>
                 <Table.Th w={36} />
                 <Table.Th>Nome</Table.Th>
@@ -303,8 +309,10 @@ function GridPlanosView({
                       </Group>
                     </Table.Td>
                     <Table.Td>{textoSuporte(p)}</Table.Td>
-                    <Table.Td>{textoCores(p)}</Table.Td>
-                    <Table.Td>{textoFormato(p)}</Table.Td>
+                    <Table.Td>
+                      {textoCores(p) === '—' ? '—' : <Badge size="sm" variant="light" radius="sm">{textoCores(p)}</Badge>}
+                    </Table.Td>
+                    <Table.Td ff="monospace" fz="xs">{textoFormato(p)}</Table.Td>
                     <Table.Td>{textoAcabamento(p)}</Table.Td>
                     <Table.Td>
                       <Group gap={2} justify="flex-end" wrap="nowrap">

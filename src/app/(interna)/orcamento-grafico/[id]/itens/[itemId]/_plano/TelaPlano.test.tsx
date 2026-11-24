@@ -182,7 +182,7 @@ describe('TelaPlano (R10, R13, R15.7)', () => {
     // Padrão do tipo seria 4x1; o gravado é 4x0 e fica.
     expect(campo(/^Cores/).value).toBe('4x0')
     expect(campo(/^Tiragem/).value).toBe('4000')
-    expect(campo(/Formato Aberto — largura/).value).toBe('650')
+    expect(campo(/^Formato Aberto/).value).toMatch(/^650 x /)
     // Tipo Cartão: sem microondulado nem capa interna.
     expect(screen.getByTestId('bloco-capa-externa')).toBeInTheDocument()
     expect(screen.queryByTestId('bloco-microondulado')).not.toBeInTheDocument()
@@ -301,8 +301,7 @@ describe('TelaPlano (R10, R13, R15.7)', () => {
     expect((within(capa).getByRole('textbox', { name: /Fibra/ }) as HTMLInputElement).value).toBe('Longitudinal')
     await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Corte e vinco' })).toBeChecked())
 
-    digitar(/Formato Aberto — largura/, '650')
-    digitar(/Formato Aberto — altura/, '1225,5')
+    digitar(/^Formato Aberto/, '650 x 1225,5')
     fireEvent.click(screen.getByRole('button', { name: 'OK' }))
 
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1))
