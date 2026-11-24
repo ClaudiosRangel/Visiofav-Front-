@@ -10,7 +10,7 @@ import {
   IconSearch, IconTimeline, IconRefresh, IconLock, IconLockOpen,
   IconCalendar, IconZoomIn, IconZoomOut, IconPalette,
   IconFilterOff, IconFocus2, IconArrowsLeftRight, IconArrowsSort, IconInfoCircle,
-  IconCheck, IconAnchor, IconAnchorOff,
+  IconCheck, IconAnchor, IconAnchorOff, IconMaximize, IconMinimize,
 } from '@tabler/icons-react'
 import { Menu } from '@mantine/core'
 import { api } from '@/lib/api'
@@ -230,6 +230,14 @@ const PPM_PRESET: Record<'12h' | '24h' | '3d' | '7d', number> = {
 }
 const PPM_MIN = 0.05
 const PPM_MAX = 6
+// Margem de tempo sem dados em volta do Gantt: espaço para arrastar uma OP para
+// antes da 1ª ou depois da última etapa programada.
+const MARGEM_ARRASTE_ANTES_MS = 24 * 60 * 60 * 1000
+const MARGEM_ARRASTE_DEPOIS_MS = 3 * 24 * 60 * 60 * 1000
+// Auto-scroll durante o arraste: zona de borda (px) e velocidade máxima (px/frame).
+const ARRASTE_ZONA_BORDA_PX = 90
+const ARRASTE_VELOCIDADE_MAX = 32
+
 const ZOOM_IN_FATOR = 1.25
 const ZOOM_OUT_FATOR = 0.8
 const clampPpm = (v: number) => Math.min(PPM_MAX, Math.max(PPM_MIN, v))
@@ -490,7 +498,14 @@ export default function GanttProducaoPage() {
     centroProducaoId: string | null
     // Barras da raia de origem já ordenadas pela fila visual (por inicioMs).
     filaRaia: Array<{ etapaId: string; inicioMs: number }>
+    // scrollLeft no início do arraste: o deslocamento real = cursor + rolagem.
+    startScrollLeft: number
   } | null>(null)
+  // Auto-scroll horizontal durante o arraste (cursor perto da borda do Gantt).
+  const dragClientXRef = useRef(0)
+  const dragScrollRafRef = useRef<number | null>(null)
+  // Etapa que acabou de ser movida: após o recálculo a tela rola até ela.
+  const scrollAlvoRef = useRef<{ etapaId: string; ate: number } | null>(null)
   const [salvandoAgenda, setSalvandoAgenda] = useState(false)
 
   // ── Modo do Gantt (spec pcp-gantt-melhorias, Req 6) ──
@@ -511,13 +526,28 @@ export default function GanttProducaoPage() {
   /** Trava a etapa numa data (ISO) — usado pelo drag e pelo menu. */
   async function agendarEtapa(etapaId: string, inicioISO: string) {
     setSalvandoAgenda(true)
+    // Aviso de progresso: o "travada" só aparece DEPOIS do recálculo, quando o bloco
+    // já está no lugar final (antes avisava cedo e o bloco só chegava depois).
+    const toastId = `agenda-${etapaId}`
+    notifications.show({
+      id: toastId, loading: true, autoClose: false, withCloseButton: false,
+      title: 'Salvando agenda…', message: 'Fixando a etapa e recalculando o Gantt.',
+    })
     try {
       await api.patch(`/pcp/etapas/${etapaId}/agendar`, { inicio: inicioISO })
-      notifications.show({ title: 'Etapa travada', message: 'Agenda fixada nesta data.', color: 'green' })
-      setOffsetMin((p) => { const n = { ...p }; delete n[etapaId]; return n })
+      scrollAlvoRef.current = { etapaId, ate: Date.now() + 15000 }
       await carregar()
+      // O deslocamento otimista só sai depois do recálculo: o bloco não "volta" ao lugar antigo.
+      setOffsetMin((p) => { const n = { ...p }; delete n[etapaId]; return n })
+      notifications.update({
+        id: toastId, loading: false, color: 'green', autoClose: 4000, withCloseButton: true,
+        title: 'Etapa travada', message: 'Agenda fixada e Gantt atualizado.',
+      })
     } catch (e: any) {
-      notifications.show({ title: 'Não foi possível agendar', message: e?.response?.data?.message || 'Falha ao travar a etapa.', color: 'red' })
+      notifications.update({
+        id: toastId, loading: false, color: 'red', autoClose: 6000, withCloseButton: true,
+        title: 'Não foi possível agendar', message: e?.response?.data?.message || 'Falha ao travar a etapa.',
+      })
       // Reverte o deslocamento otimista (Req 3.5).
       setOffsetMin((p) => { const n = { ...p }; delete n[etapaId]; return n })
     } finally {
@@ -631,13 +661,14 @@ export default function GanttProducaoPage() {
    * (no-overlap) re-sequencia respeitando as etapas travadas (pontos fixos).
    * `reordenandoFila` evita duplo-disparo.
    */
-  async function reordenarFilaCentro(centroProducaoId: string, etapaIds: string[]) {
+  async function reordenarFilaCentro(centroProducaoId: string, etapaIds: string[], etapaMovidaId?: string) {
     if (reordenandoFilaRef.current) return
     setReordenandoFila(true)
     try {
       await api.patch('/pcp/etapas/reordenar', { centroProducaoId, etapaIds })
-      notifications.show({ title: 'Fila reordenada', message: 'Nova ordem da máquina aplicada.', color: 'green' })
+      if (etapaMovidaId) scrollAlvoRef.current = { etapaId: etapaMovidaId, ate: Date.now() + 15000 }
       await carregar()
+      notifications.show({ title: 'Fila reordenada', message: 'Nova ordem da máquina aplicada.', color: 'green' })
     } catch (e: any) {
       const travadas: Array<{ descricao: string }> = e?.response?.data?.etapasTravadas ?? []
       const detalhe = travadas.length > 0
@@ -775,23 +806,73 @@ export default function GanttProducaoPage() {
       inicioMs: bar.inicioMs,
       centroProducaoId: bar.centroProducaoId,
       filaRaia,
+      startScrollLeft: ganttRef.current?.scrollLeft ?? 0,
     }
+    dragClientXRef.current = e.clientX
     ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+    iniciarAutoScrollArraste()
+  }, [])
+
+  /** Deslocamento do arraste em minutos = movimento do cursor + rolagem horizontal desde o início. */
+  const deltaMinDoArraste = useCallback((clientX: number): number => {
+    const d = dragRef.current
+    if (!d) return 0
+    const scrollAtual = ganttRef.current?.scrollLeft ?? d.startScrollLeft
+    const deltaPx = (clientX - d.startX) + (scrollAtual - d.startScrollLeft)
+    return deltaPx / (ppmRef.current || 1.2)
+  }, [])
+
+  /**
+   * Rola o Gantt sozinho quando o cursor fica perto da borda esquerda/direita
+   * durante o arraste (mesmo parado). Sem isso só dava para soltar a OP no que
+   * estava visível. A velocidade cresce quanto mais perto (ou além) da borda.
+   */
+  const iniciarAutoScrollArraste = useCallback(() => {
+    if (dragScrollRafRef.current != null) return
+    const passo = () => {
+      const d = dragRef.current
+      const el = ganttRef.current
+      if (!d || !el) { dragScrollRafRef.current = null; return }
+      const r = el.getBoundingClientRect()
+      const x = dragClientXRef.current
+      let v = 0
+      if (x < r.left + ARRASTE_ZONA_BORDA_PX) v = -Math.min(1, (r.left + ARRASTE_ZONA_BORDA_PX - x) / ARRASTE_ZONA_BORDA_PX)
+      else if (x > r.right - ARRASTE_ZONA_BORDA_PX) v = Math.min(1, (x - (r.right - ARRASTE_ZONA_BORDA_PX)) / ARRASTE_ZONA_BORDA_PX)
+      if (v !== 0) {
+        const antes = el.scrollLeft
+        el.scrollLeft = antes + v * ARRASTE_VELOCIDADE_MAX
+        if (el.scrollLeft !== antes) {
+          const deltaMin = deltaMinDoArraste(x)
+          setOffsetMin((p) => ({ ...p, [d.etapaId]: deltaMin }))
+        }
+      }
+      dragScrollRafRef.current = requestAnimationFrame(passo)
+    }
+    dragScrollRafRef.current = requestAnimationFrame(passo)
+  }, [deltaMinDoArraste])
+
+  const pararAutoScrollArraste = useCallback(() => {
+    if (dragScrollRafRef.current != null) {
+      cancelAnimationFrame(dragScrollRafRef.current)
+      dragScrollRafRef.current = null
+    }
   }, [])
 
   const onBarPointerMove = useCallback((e: React.PointerEvent) => {
     const d = dragRef.current
     if (!d) return
-    const deltaPx = e.clientX - d.startX
-    const deltaMin = deltaPx / (ppmRef.current || 1.2)
+    dragClientXRef.current = e.clientX
+    const deltaMin = deltaMinDoArraste(e.clientX)
     setOffsetMin((p) => ({ ...p, [d.etapaId]: deltaMin }))
-  }, [])
+  }, [deltaMinDoArraste])
 
   const onBarPointerUp = useCallback((e: React.PointerEvent) => {
     const d = dragRef.current
+    pararAutoScrollArraste()
     dragRef.current = null
     if (!d) return
-    const deltaPx = e.clientX - d.startX
+    const scrollFinal = ganttRef.current?.scrollLeft ?? d.startScrollLeft
+    const deltaPx = (e.clientX - d.startX) + (scrollFinal - d.startScrollLeft)
     const deltaMin = deltaPx / (ppmRef.current || 1.2)
     // Ignora cliques (sem arraste significativo) — < 3px.
     if (Math.abs(deltaPx) < 3) return
@@ -823,7 +904,7 @@ export default function GanttProducaoPage() {
       const etapaIds = fila.map((f) => f.etapaId)
       etapaIds.splice(idxAtual, 1)
       etapaIds.splice(idxAlvo, 0, d.etapaId)
-      reordenarFilaCentro(d.centroProducaoId, etapaIds)
+      reordenarFilaCentro(d.centroProducaoId, etapaIds, d.etapaId)
       return
     }
 
@@ -832,6 +913,17 @@ export default function GanttProducaoPage() {
     const snapped = Math.round((d.inicioMs + deltaMin * 60000) / (15 * 60000)) * (15 * 60000)
     agendarEtapa(d.etapaId, new Date(snapped).toISOString())
   }, [])
+
+  /** Arraste interrompido (ex.: toque cancelado): para o auto-scroll e devolve o bloco ao lugar. */
+  const onBarPointerCancel = useCallback(() => {
+    const d = dragRef.current
+    pararAutoScrollArraste()
+    dragRef.current = null
+    if (d) setOffsetMin((p) => { const n = { ...p }; delete n[d.etapaId]; return n })
+  }, [pararAutoScrollArraste])
+
+  // Garante que o auto-scroll não continue se a tela for fechada no meio de um arraste.
+  useEffect(() => () => pararAutoScrollArraste(), [pararAutoScrollArraste])
 
   // Mantém o ref vivo para o handler de drag (que roda fora do render).
   ppmRef.current = pixelsPorMinuto
@@ -873,7 +965,7 @@ export default function GanttProducaoPage() {
   }, [])
 
   // Transformar dados em raias
-  const { raias, minTime, maxTime, totalWidth, hourMarkers, entregaMarkers } = useMemo(() => {
+  const { raias, minTime, maxTime, minDados, maxDados, totalWidth, hourMarkers, entregaMarkers } = useMemo(() => {
     const raiaMap = new Map<string, Raia>()
     let minT = Infinity
     let maxT = -Infinity
@@ -991,6 +1083,15 @@ export default function GanttProducaoPage() {
     minT -= 30 * 60 * 1000
     maxT += 60 * 60 * 1000
 
+    // Intervalo REAL dos dados: base da ocupação por dia e do Mapa de carga
+    // (a margem de arraste abaixo não pode diluir a média de ocupação).
+    const minDados = minT
+    const maxDados = maxT
+    // Margem de arraste (só no desenho do Gantt): sem ela não há área para soltar
+    // uma OP antes da 1ª ou depois da última etapa programada.
+    minT -= MARGEM_ARRASTE_ANTES_MS
+    maxT += MARGEM_ARRASTE_DEPOIS_MS
+
     // Marcadores de entrega que caem no range
     const entregasVisiveis = entregas.filter(e => e.ms >= minT && e.ms <= maxT)
 
@@ -1002,7 +1103,7 @@ export default function GanttProducaoPage() {
     const markers = gerarMarcadoresEscala(minT, maxT, pixelsPorMinuto)
       .map((m) => ({ ms: m.ms, label: m.rotulo, isNewDay: m.forte }))
 
-    return { raias: raiasArr, minTime: minT, maxTime: maxT, totalWidth: tw, hourMarkers: markers, entregaMarkers: entregasVisiveis }
+    return { raias: raiasArr, minTime: minT, maxTime: maxT, minDados, maxDados, totalWidth: tw, hourMarkers: markers, entregaMarkers: entregasVisiveis }
   }, [timeline, busca, pixelsPorMinuto, filtroCentros, filtroTipos, filtroIndicador, filtroLinhas])
 
   // Legenda por Linha de Produto: linhas presentes nas OPs carregadas, com a
@@ -1075,9 +1176,9 @@ export default function GanttProducaoPage() {
   // `new Date(y, m, d).getTime()` (meia-noite local, robusto a horário de
   // verão). Limite defensivo ~400 dias para não estourar em ranges absurdos.
   const diasVisiveis = useMemo<number[]>(() => {
-    if (!Number.isFinite(minTime) || !Number.isFinite(maxTime) || maxTime < minTime) return []
+    if (!Number.isFinite(minDados) || !Number.isFinite(maxDados) || maxDados < minDados) return []
     const dias: number[] = []
-    const ini = new Date(minTime)
+    const ini = new Date(minDados)
     let y = ini.getFullYear()
     let m = ini.getMonth()
     let d = ini.getDate()
@@ -1085,7 +1186,7 @@ export default function GanttProducaoPage() {
     while (guard < 400) {
       guard++
       const ms = new Date(y, m, d).getTime()
-      if (ms > maxTime) break
+      if (ms > maxDados) break
       dias.push(ms)
       // Avança 1 dia reconstruindo a data (normaliza fim de mês/ano).
       const prox = new Date(y, m, d + 1)
@@ -1094,7 +1195,7 @@ export default function GanttProducaoPage() {
       d = prox.getDate()
     }
     return dias
-  }, [minTime, maxTime])
+  }, [minDados, maxDados])
 
   // ── Ocupação média por raia no período (spec pcp-gantt-melhorias, Req 7) ──
   // Para cada raia (máquina), calcula a ocupação por dia (reusando o motor puro
@@ -1308,12 +1409,71 @@ export default function GanttProducaoPage() {
     return () => cancelAnimationFrame(raf)
   }, [timeline, minTime, irParaHoje])
 
+  // ── Tela cheia ──
+  // Usa o fullscreen real do navegador (esconde a barra do browser) e, junto, uma
+  // sobreposição que cobre o menu do ERP. Se o navegador não permitir o fullscreen
+  // (ex.: alguns celulares), a sobreposição sozinha já funciona.
+  const [telaCheia, setTelaCheia] = useState(false)
+  const alternarTelaCheia = useCallback(() => {
+    if (!telaCheia) {
+      setTelaCheia(true)
+      document.documentElement.requestFullscreen?.().catch(() => { /* só sobreposição */ })
+    } else {
+      setTelaCheia(false)
+      if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {})
+    }
+  }, [telaCheia])
+  useEffect(() => {
+    if (!telaCheia) return
+    // Esc fecha o fullscreen do navegador (evento abaixo); na sobreposição pura, fecha aqui.
+    const onFs = () => { if (!document.fullscreenElement) setTelaCheia(false) }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !document.fullscreenElement) setTelaCheia(false)
+    }
+    document.addEventListener('fullscreenchange', onFs)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('fullscreenchange', onFs)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [telaCheia])
+  // Ao sair da tela (navegar para outra), não deixa o navegador preso em fullscreen.
+  useEffect(() => () => { if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}) }, [])
+
+  // Após mover um bloco, rola até onde ele ficou (para trás ou para frente) se não estiver visível.
+  useEffect(() => {
+    const alvo = scrollAlvoRef.current
+    const el = ganttRef.current
+    if (!alvo || !el || !Number.isFinite(minTime)) return
+    if (Date.now() > alvo.ate) { scrollAlvoRef.current = null; return }
+    let barra: { inicioMs: number; fimMs: number } | null = null
+    for (const r of raias) {
+      for (const b of r.barras) if (b.etapaId === alvo.etapaId) barra = b
+    }
+    if (!barra) return
+    scrollAlvoRef.current = null
+    const xi = xInicio(barra.inicioMs, minTime, pixelsPorMinuto)
+    const xf = xFim(barra.fimMs, minTime, pixelsPorMinuto)
+    const visIni = el.scrollLeft
+    const visFim = el.scrollLeft + el.clientWidth
+    if (xi >= visIni + 24 && xf <= visFim - 24) return // já está visível
+    el.scrollTo({ left: Math.max(0, xi - el.clientWidth * 0.3), behavior: 'smooth' })
+  }, [raias, minTime, pixelsPorMinuto])
+
   if (loading && timeline.length === 0) {
     return <Center h={400}><Loader size="lg" /></Center>
   }
 
   return (
-    <Stack p="md" gap="sm" style={{ height: 'calc(100vh - 80px)' }}>
+    <Stack
+      p="md"
+      gap="sm"
+      style={telaCheia
+        // Tela cheia: cobre o menu lateral/cabeçalho do ERP. z-index abaixo dos
+        // modais/menus do Mantine (200/300) para eles continuarem aparecendo por cima.
+        ? { position: 'fixed', inset: 0, height: '100vh', zIndex: 150, background: 'var(--mantine-color-body)', overflow: 'auto' }
+        : { height: 'calc(100vh - 80px)' }}
+    >
       {/* Header */}
       <Group justify="space-between" align="center">
         <Group gap="xs">
@@ -1402,6 +1562,11 @@ export default function GanttProducaoPage() {
           <ActionIcon variant="subtle" size="sm" onClick={carregar}>
             <IconRefresh size={16} />
           </ActionIcon>
+          <Tooltip label={telaCheia ? 'Sair da tela cheia (Esc)' : 'Tela cheia'}>
+            <ActionIcon variant="default" size="sm" onClick={alternarTelaCheia} aria-label="Tela cheia">
+              {telaCheia ? <IconMinimize size={16} /> : <IconMaximize size={16} />}
+            </ActionIcon>
+          </Tooltip>
         </Group>
       </Group>
 
@@ -1899,6 +2064,7 @@ export default function GanttProducaoPage() {
                         onPointerDown={podeEditar ? (e) => onBarPointerDown(e, bar, rl.raia.barras) : undefined}
                         onPointerMove={podeEditar ? onBarPointerMove : undefined}
                         onPointerUp={podeEditar ? onBarPointerUp : undefined}
+                onPointerCancel={podeEditar ? onBarPointerCancel : undefined}
                       >
                         {/* Setup block */}
                         {setupWidth > 0 && (
