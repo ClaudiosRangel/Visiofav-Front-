@@ -286,7 +286,12 @@ export default function NovaSolicitacaoPage() {
     value: c.id,
     label: c.razaoSocial + (c.nomeFantasia ? ` (${c.nomeFantasia})` : ''),
   }))
-  const tipoEmbalagemOptions = (catalogo?.tiposEmbalagem ?? []).map((t) => ({ value: t.descricao, label: t.descricao }))
+  // Mesmo padrão de nome do Pedido/Proposta: só a descrição do cadastro. O valor atual entra na lista
+  // (ex.: tipo de um pedido repetido que não está mais no catálogo) para o campo não ficar vazio.
+  const tipoEmbalagemOptions = Array.from(new Set([
+    ...(catalogo?.tiposEmbalagem ?? []).map((t) => t.descricao),
+    ...(tipoEmbalagem ? [tipoEmbalagem] : []),
+  ])).map((d) => ({ value: d, label: d }))
   const acabamentosOptions = (catalogo?.acabamentos ?? []).map((a) => ({ value: a.id, label: a.nome }))
   const prazoOptions = (catalogo?.prazos ?? []).map((p) => ({ value: p.id, label: p.descricao }))
   const acondicionamentoOptions = useMemo(() => {
@@ -305,7 +310,8 @@ export default function NovaSolicitacaoPage() {
     const micro = todos.filter((s) => /MICRO/i.test(s.tipoSuporte))
     const cartao = todos.filter((s) => !/MICRO/i.test(s.tipoSuporte))
     const lista = funcao === 'Microondulado' ? (micro.length ? micro : todos) : (cartao.length ? cartao : todos)
-    return Array.from(new Set(lista.map((s) => s.descricao)))
+    const atual = camadas[camadasDef.indexOf(funcao)]?.suporte
+    return Array.from(new Set([...lista.map((s) => s.descricao), ...(atual ? [atual] : [])]))
   }
   function gramaturasDe(suporte: string) {
     const s = (catalogo?.suportes ?? []).find((x) => x.descricao === suporte)
@@ -661,6 +667,9 @@ export default function NovaSolicitacaoPage() {
                   {camadasDef.map((funcao, i) => (
                     <SimpleGrid key={funcao + i} cols={{ base: 1, sm: 2 }}>
                       <Select label={`${funcao} - tipo`} placeholder="Selecione" searchable withAsterisk
+                        description={!carregandoCatalogo && (catalogo?.suportes ?? []).length === 0
+                          ? 'Nenhum cartão cadastrado. Peça ao Comercial para cadastrar em Suportes.' : undefined}
+                        nothingFoundMessage="Nenhum cartão encontrado" disabled={carregandoCatalogo}
                         data={suportesDaCamada(funcao)} value={camadas[i]?.suporte || null}
                         onChange={(v) => setCamadas((arr) => arr.map((c, j) => (j === i ? { suporte: v ?? '', gramatura: '' } : c)))} />
                       <Autocomplete label={`${funcao} - gramatura`} placeholder="Ex.: 300"
@@ -690,13 +699,15 @@ export default function NovaSolicitacaoPage() {
 
                   <MultiSelect
                     label="Acabamentos" placeholder="Verniz UV, Hot Stamping, Relevo..."
+                    description={!carregandoCatalogo && acabamentosOptions.length === 0
+                      ? 'Nenhum acabamento disponível na lista comercial. Peça ao Comercial para liberar em Cadastros → Acabamentos.' : undefined}
                     data={acabamentosOptions} value={acabamentosIds} onChange={setAcabamentosIds}
                     searchable nothingFoundMessage="Nenhum acabamento encontrado" disabled={carregandoCatalogo}
                   />
 
                   <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                    <Select label="Forma de acondicionamento" placeholder="Selecione" clearable
-                      data={acondicionamentoOptions} value={w.acondicionamento || null}
+                    <Select label="Forma de acondicionamento" placeholder="Selecione" clearable searchable
+                      data={Array.from(new Set([...acondicionamentoOptions, ...(w.acondicionamento ? [w.acondicionamento] : [])]))} value={w.acondicionamento || null}
                       onChange={(v) => setW('acondicionamento', v ?? '')} />
                     <TextInput label="Quant. por volume" value={w.quantidadePorVolume}
                       onChange={(e) => setW('quantidadePorVolume', e.currentTarget.value)} />

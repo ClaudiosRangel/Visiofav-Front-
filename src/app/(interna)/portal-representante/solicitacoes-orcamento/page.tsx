@@ -273,7 +273,7 @@ export default function SolicitacoesOrcamentoPage() {
           <Select
             label="Tipo de Embalagem"
             placeholder="Selecione"
-            data={tiposEmbalagem.map((t) => ({ value: t.id, label: `${t.codigo} - ${t.descricao}` }))}
+            data={tiposEmbalagem.map((t) => ({ value: t.id, label: t.descricao }))}
             value={tipoSelecionado}
             onChange={setTipoSelecionado}
             searchable
