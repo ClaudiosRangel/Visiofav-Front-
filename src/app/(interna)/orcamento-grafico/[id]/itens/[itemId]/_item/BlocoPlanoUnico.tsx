@@ -27,6 +27,8 @@ import CartaoSecao from './CartaoSecao'
 import type { LayoutItem } from '../../../_layout/resolver-layout-item'
 import { useCoberturasTinta, useProcessosImpressao } from '../../../_hooks/useOpcoesPlanoUnico'
 import BotaoPropriedades from './BotaoPropriedades'
+import BotaoTintas from './BotaoTintas'
+import type { CorGravada } from './tintas-item'
 import BotaoSuporteNc from './BotaoSuporteNc'
 import type { SuporteNcCriadoInfo } from './SuporteNcModal'
 import {
@@ -54,6 +56,9 @@ export interface BlocoPlanoUnicoProps {
   orcamentoId?: string
   /** Suporte criado pelo botão NC; o pai o seleciona no formulário. Sem esta prop o botão não aparece. */
   onSuporteNcCriado?: (r: SuporteNcCriadoInfo) => void
+  /** Tintas do item (janela "Tintas" ao lado da Cobertura). Sem `onTintas` o botão não aparece. */
+  tintas?: ReadonlyArray<Partial<CorGravada>> | null
+  onTintas?: (cores: CorGravada[]) => void
   disabled?: boolean
 }
 
@@ -67,6 +72,8 @@ export default function BlocoPlanoUnico({
   processoPre,
   orcamentoId,
   onSuporteNcCriado,
+  tintas,
+  onTintas,
   disabled,
 }: BlocoPlanoUnicoProps) {
   const [processoTravado, setProcessoTravado] = useState(false)
@@ -138,17 +145,21 @@ export default function BlocoPlanoUnico({
           )}
 
           {mostra('coberturaTinta') && (
-            <Autocomplete
-              label="Cobertura de Tinta"
-              placeholder="Ex.: Definição Manual"
-              maxLength={MAX_COBERTURA}
-              data={coberturas.nomes}
-              limit={20}
-              value={value.coberturaTintaTexto}
-              onChange={(v) => onChange({ coberturaTintaTexto: v })}
-              error={erros.coberturaTintaTexto}
-              disabled={disabled}
-            />
+            <Group gap={6} align="flex-end" wrap="nowrap">
+              <Autocomplete
+                label="Cobertura de Tinta"
+                placeholder="Ex.: Definição Manual"
+                maxLength={MAX_COBERTURA}
+                data={coberturas.nomes}
+                limit={20}
+                value={value.coberturaTintaTexto}
+                onChange={(v) => onChange({ coberturaTintaTexto: v })}
+                error={erros.coberturaTintaTexto}
+                disabled={disabled}
+                style={{ flex: 1, minWidth: 0 }}
+              />
+              {onTintas && <BotaoTintas value={tintas} onChange={onTintas} disabled={disabled} />}
+            </Group>
           )}
 
           {mostra('fabricante') && (

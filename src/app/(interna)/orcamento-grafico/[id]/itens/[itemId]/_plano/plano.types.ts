@@ -23,6 +23,10 @@ export interface CorPlano {
   coberturaPercent: number
   precoKg: number
   rendimentoM2Kg?: number
+  /** Janela "Tintas": tinta do cadastro e complemento (fora do cálculo). */
+  tintaId?: string | null
+  tinta?: string | null
+  complemento?: string | null
 }
 
 export interface PlanoLeitura {

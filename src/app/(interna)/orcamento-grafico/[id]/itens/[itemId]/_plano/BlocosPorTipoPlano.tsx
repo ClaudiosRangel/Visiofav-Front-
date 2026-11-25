@@ -21,6 +21,8 @@ import { IconLock, IconLockOpen } from '@tabler/icons-react'
 
 import BotaoPropriedades from '../_item/BotaoPropriedades'
 import BotaoSuporteNc from '../_item/BotaoSuporteNc'
+import BotaoTintas from '../_item/BotaoTintas'
+import type { CorGravada } from '../_item/tintas-item'
 import SeletorSuportePlano, { type OpcaoSuporte } from './SeletorSuportePlano'
 import { MAX_PROCESSO_PLANO, MAX_TEXTO_CURTO, type BlocoSuporteForm, type BlocosTelaPlano, type ErrosTelaPlano, type EstadoTelaPlano } from './tela-plano'
 
@@ -44,9 +46,23 @@ export interface CamposImpressaoProps {
   disabled?: boolean
   /** Uma linha só (Cores | Processo | Cobertura), sem descrições: gaveta do plano. */
   compacto?: boolean
+  /** Tintas (janela ao lado da Cobertura). Sem `onTintas` o botão não aparece. */
+  tintas?: ReadonlyArray<Partial<CorGravada>> | null
+  onTintas?: (cores: CorGravada[]) => void
 }
 
-export function CamposImpressao({ value, onChange, sufixoRotulo, processos, processoPre, erros, disabled, compacto }: CamposImpressaoProps) {
+export function CamposImpressao({
+  value,
+  onChange,
+  sufixoRotulo,
+  processos,
+  processoPre,
+  erros,
+  disabled,
+  compacto,
+  tintas,
+  onTintas,
+}: CamposImpressaoProps) {
   const [travado, setTravado] = useState(false)
   const r = (t: string) => (sufixoRotulo ? `${t} ${sufixoRotulo}` : t)
   const cores = (
@@ -103,7 +119,7 @@ export function CamposImpressao({ value, onChange, sufixoRotulo, processos, proc
         </Tooltip>
       </Group>
   )
-  const cobertura = (
+  const campoCobertura = (
     <TextInput
       label={compacto ? r('Cobertura de Tinta') : r('Cobertura de Tinta (%)')}
       placeholder="0,00"
@@ -115,7 +131,16 @@ export function CamposImpressao({ value, onChange, sufixoRotulo, processos, proc
       error={erros?.coberturaTinta}
       disabled={disabled}
       rightSection={compacto ? <Text size="xs" c="dimmed">%</Text> : undefined}
+      style={onTintas ? { flex: 1, minWidth: 0 } : undefined}
     />
+  )
+  const cobertura = onTintas ? (
+    <Group gap={6} align="flex-end" wrap="nowrap">
+      {campoCobertura}
+      <BotaoTintas value={tintas} onChange={onTintas} disabled={disabled} />
+    </Group>
+  ) : (
+    campoCobertura
   )
   if (compacto) {
     return (

@@ -347,6 +347,8 @@ export function montarPayloadItem(formData: WizardFormData): Record<string, unkn
       coberturaPercent: c.coberturaPercent,
       precoKg: c.precoKg,
       rendimentoM2Kg: c.rendimentoM2Kg,
+      // Identificação da janela Tintas (só quando existe: não muda o payload das cores antigas).
+      ...identificacaoTinta(c),
     })),
     acabamentos: acabamentosAtivos,
     acabamentosRicos: formData.acabamentosRicos?.length ? formData.acabamentosRicos : undefined,
@@ -468,6 +470,8 @@ export function montarPayloadCalculo(formData: WizardFormData): Record<string, u
       coberturaPercent: c.coberturaPercent,
       precoKg: c.precoKg,
       rendimentoM2Kg: c.rendimentoM2Kg,
+      // Identificação da janela Tintas (só quando existe: não muda o payload das cores antigas).
+      ...identificacaoTinta(c),
     })),
     acabamentos: acabamentosAtivos,
     acabamentosRicos: formData.acabamentosRicos?.length ? formData.acabamentosRicos : undefined,
@@ -525,4 +529,14 @@ export async function salvarItem(
 export interface ItemSalvo {
   id?: string
   [campo: string]: unknown
+}
+
+/** tintaId/tinta/complemento da janela Tintas, só os preenchidos. */
+function identificacaoTinta(c: unknown): Record<string, unknown> {
+  const o = (c ?? {}) as { tintaId?: unknown; tinta?: unknown; complemento?: unknown }
+  const saida: Record<string, unknown> = {}
+  if (typeof o.tintaId === 'string' && o.tintaId) saida.tintaId = o.tintaId
+  if (typeof o.tinta === 'string' && o.tinta) saida.tinta = o.tinta
+  if (typeof o.complemento === 'string' && o.complemento) saida.complemento = o.complemento
+  return saida
 }

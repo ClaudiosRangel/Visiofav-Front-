@@ -559,6 +559,8 @@ export default function TelaPlano({
         <CartaoSecao variante="ponto" titulo="Impressão Principal">
           <CamposImpressao
             compacto
+            tintas={estado.tintas}
+            onTintas={(cores) => alterar({ tintas: cores }, ['tintas'])}
             value={estado}
             onChange={(p) => alterar(p, Object.keys(p))}
             processos={processos.nomes}

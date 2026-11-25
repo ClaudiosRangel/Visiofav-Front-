@@ -35,7 +35,7 @@ import {
   type EspecFaixa,
 } from '../../../_validacao/validar-faixa'
 import { numeroParaTexto } from '../_item/formato-item'
-import type { BlocoSuporteEspec, EspecificacaoPlanoV1, PlanoLeitura } from './plano.types'
+import type { BlocoSuporteEspec, CorPlano, EspecificacaoPlanoV1, PlanoLeitura } from './plano.types'
 
 export const MAX_NOME_PLANO = 60
 export const MAX_TEXTO_CURTO = 60
@@ -71,6 +71,8 @@ export interface EstadoTelaPlano {
   microondulado: BlocoSuporteForm & { sentidoOnda: string; ajusteCorteMicro: string }
   capaInterna: BlocoSuporteForm & { cores: string; processoImpressao: string; coberturaTinta: string }
   acabamentosRicos: AcabamentoRicoSelecionado[]
+  /** Tintas do plano (janela Tintas): viram as `cores` do cálculo. */
+  tintas: CorPlano[]
   /** Mantidos do plano gravado (sem campo na tela). */
   gramatura: number | null
 }
@@ -122,6 +124,7 @@ export function estadoPlanoNovo(ctx: ContextoItemPlano): EstadoTelaPlano {
     microondulado: { ...SUPORTE_VAZIO, sentidoOnda: '', ajusteCorteMicro: '' },
     capaInterna: { ...SUPORTE_VAZIO, cores: '', processoImpressao: '', coberturaTinta: '' },
     acabamentosRicos: [],
+    tintas: [],
     gramatura: null,
   }
 }
@@ -157,6 +160,7 @@ export function estadoDoPlano(
       alturaTampa: numeroParaTexto(e?.formatoFinal?.alturaTampa ?? null),
     },
     cores,
+    tintas: Array.isArray(plano.cores) ? plano.cores.map((c) => ({ ...c })) : [],
     processoImpressao: texto(e?.processoImpressao),
     coberturaTinta: numeroParaTexto(e?.coberturaTinta ?? null),
     principal: suporteDe(e?.suportePrincipal),
@@ -491,8 +495,9 @@ export function montarBodyTelaPlano(
     // Campos sem tela: seguem como estavam gravados.
     body.suporteProducaoId = plano.suporteProducaoId ?? null
     body.maquinaId = plano.maquinaId ?? null
-    if (Array.isArray(plano.cores)) body.cores = plano.cores.map((c) => semNulos(c as unknown as Record<string, unknown>))
   }
+  // Tintas da janela (lista vazia = sem tinta no plano).
+  body.cores = estado.tintas.map((c) => semNulos(c as unknown as Record<string, unknown>))
   if (posicaoApos) body.posicaoApos = posicaoApos
   return body
 }
