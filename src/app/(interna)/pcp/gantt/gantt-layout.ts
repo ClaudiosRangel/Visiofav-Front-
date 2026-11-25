@@ -384,7 +384,17 @@ const FOLGA_ROTULO_PX = 8
 /** Menor largura de barra (px) onde ainda cabe o número da OP escrito em pé. */
 const LARGURA_MIN_ROTULO_VERTICAL_PX = 15
 
-export type RotuloNaBarra = { texto: string; orientacao: 'horizontal' | 'vertical' }
+/** Menor largura (px) de barra para escrever também cliente e serviço (fonte menor, com reticências). */
+const LARGURA_MIN_DETALHES_PX = 90
+/** Menor altura (px) de barra para caberem as 3 linhas (OP + cliente + serviço). */
+const ALTURA_MIN_DETALHES_PX = 44
+
+export type RotuloNaBarra = {
+  texto: string
+  orientacao: 'horizontal' | 'vertical'
+  /** Linhas extras em fonte menor (cliente, serviço). Só existe quando há largura e altura para elas. */
+  detalhes?: string[]
+}
 
 /**
  * Escolhe o rótulo que cabe EM CIMA da barra colorida (zoom afastado):
@@ -397,6 +407,8 @@ export function escolherRotuloNaBarra(
   opNumero: string,
   larguraPx: number,
   alturaPx: number,
+  /** Linhas extras por prioridade (ex.: [cliente, serviço]); vazias/nulas são ignoradas. */
+  detalhes: ReadonlyArray<string | null | undefined> = [],
 ): RotuloNaBarra | null {
   const numero = String(opNumero ?? '').trim()
   if (!numero) return null
@@ -404,7 +416,14 @@ export function escolherRotuloNaBarra(
     texto.length * LARGURA_CHAR_ROTULO_PX + FOLGA_ROTULO_PX <= espacoPx
   const completo = `OP${numero}`
 
-  if (cabe(completo, larguraPx)) return { texto: completo, orientacao: 'horizontal' }
+  if (cabe(completo, larguraPx)) {
+    // Barra larga e alta: além da OP, escreve cliente e serviço em fonte menor.
+    const extras = detalhes.map((d) => String(d ?? '').trim()).filter(Boolean).slice(0, 2)
+    if (extras.length > 0 && larguraPx >= LARGURA_MIN_DETALHES_PX && alturaPx >= ALTURA_MIN_DETALHES_PX) {
+      return { texto: completo, orientacao: 'horizontal', detalhes: extras }
+    }
+    return { texto: completo, orientacao: 'horizontal' }
+  }
   if (cabe(numero, larguraPx)) return { texto: numero, orientacao: 'horizontal' }
   if (larguraPx >= LARGURA_MIN_ROTULO_VERTICAL_PX) {
     if (cabe(completo, alturaPx)) return { texto: completo, orientacao: 'vertical' }

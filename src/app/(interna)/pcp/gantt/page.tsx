@@ -2097,7 +2097,7 @@ export default function GanttProducaoPage() {
                   // conforme a largura). Barra fina demais cai no rótulo ao lado (mais abaixo).
                   const rotuloDentro = nivelDetalhe === 'completo'
                     ? null
-                    : escolherRotuloNaBarra(String(bar.opNumero), barWidth, barHeight)
+                    : escolherRotuloNaBarra(String(bar.opNumero), barWidth, barHeight, [bar.clienteNome, bar.produtoNome])
 
                   return (
                     <Menu key={`${gi}-${ri}-${bi}`} shadow="md" width={210} position="bottom-start" withinPortal trigger="click" openDelay={0}>
@@ -2180,7 +2180,28 @@ export default function GanttProducaoPage() {
                               </Text>
                             </div>
                           )}
-                          {rotuloDentro && (
+                          {rotuloDentro?.detalhes && rotuloDentro.detalhes.length > 0 && (
+                            // Barra larga: OP (negrito) + cliente + serviço, fonte menor e com reticências.
+                            <div style={{
+                              position: 'relative', zIndex: 2, width: '100%',
+                              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+                              pointerEvents: 'none', overflow: 'hidden', color: '#fff',
+                              textShadow: '0 1px 2px rgba(0,0,0,0.8), 0 0 3px rgba(0,0,0,0.5)',
+                            }}>
+                              <span style={{ fontSize: 12, fontWeight: 800, lineHeight: '14px', whiteSpace: 'nowrap' }}>
+                                {rotuloDentro.texto}
+                              </span>
+                              {rotuloDentro.detalhes.map((linha, i) => (
+                                <span key={i} style={{
+                                  fontSize: 10, fontWeight: 600, lineHeight: '12px', maxWidth: '100%',
+                                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', opacity: 0.95,
+                                }}>
+                                  {linha}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {rotuloDentro && !(rotuloDentro.detalhes && rotuloDentro.detalhes.length > 0) && (
                             <span style={{
                               position: 'relative', zIndex: 2, margin: '0 auto',
                               fontSize: 12, fontWeight: 800, lineHeight: 1, color: '#fff',
