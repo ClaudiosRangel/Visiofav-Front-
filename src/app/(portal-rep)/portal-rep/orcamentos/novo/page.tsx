@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Card, Textarea, NumberInput, Select, MultiSelect, Button, Stack, Group, Title,
-  Collapse, TextInput, Divider, SegmentedControl, Switch, SimpleGrid, Text, Autocomplete,
+  Collapse, TextInput, Divider, SegmentedControl, Switch, SimpleGrid, Text, Autocomplete, Modal, ActionIcon,
 } from '@mantine/core'
+import { IconPlus } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { usePortalRepClientes, useConsultarCnpj, useCriarCliente } from '@/data/hooks/portal-rep-app/usePortalRepClientes'
 import { useCriarSolicitacao } from '@/data/hooks/portal-rep-app/usePortalRepOrcamentos'
@@ -64,6 +65,50 @@ export default function NovaSolicitacaoPage() {
   const router = useRouter()
   const { data: clientes, isLoading: carregandoClientes } = usePortalRepClientes()
   const { data: catalogo, isLoading: carregandoCatalogo } = useCatalogoComercial()
+  const queryClient = useQueryClient()
+
+  // ─── Novo prazo de pagamento (vai para o mesmo cadastro do Comercial) ───────
+  const [prazoModal, setPrazoModal] = useState(false)
+  const [prazoDesc, setPrazoDesc] = useState('')
+  const [prazoDias, setPrazoDias] = useState<number | ''>(0)
+  const [prazoParcelas, setPrazoParcelas] = useState<number | ''>(1)
+  const [salvandoPrazo, setSalvandoPrazo] = useState(false)
+
+  /** "28/35/42" ou "30,60,90" → parcelas = 3 e prazo médio = média dos dias; "30 dias" → 1 parcela, 30 dias. */
+  function sugerirPrazo(desc: string) {
+    const nums = (desc.match(/\d+/g) ?? []).map(Number).filter((n) => n > 0 && n <= 720)
+    if (/vista/i.test(desc)) { setPrazoDias(0); setPrazoParcelas(1); return }
+    if (nums.length === 0) return
+    setPrazoParcelas(Math.min(60, nums.length))
+    setPrazoDias(Math.round(nums.reduce((a, b) => a + b, 0) / nums.length))
+  }
+
+  async function salvarPrazo() {
+    const descricao = prazoDesc.trim()
+    if (descricao.length < 2) {
+      notifications.show({ message: 'Informe a descrição do prazo (ex.: 28/35/42).', color: 'red' })
+      return
+    }
+    setSalvandoPrazo(true)
+    try {
+      const { data } = await portalRepApi.post('/catalogo/prazos-pagamento', {
+        descricao,
+        dias: prazoDias === '' ? 0 : prazoDias,
+        parcelas: prazoParcelas === '' ? 1 : prazoParcelas,
+      })
+      await queryClient.invalidateQueries({ queryKey: ['portal-rep-catalogo-comercial'] })
+      setW('prazoPagamentoId', data.id)
+      notifications.show({
+        message: data.reaproveitado ? 'Esse prazo já existia: foi selecionado.' : 'Prazo cadastrado e selecionado.',
+        color: 'green',
+      })
+      setPrazoModal(false); setPrazoDesc(''); setPrazoDias(0); setPrazoParcelas(1)
+    } catch (err: any) {
+      notifications.show({ message: err?.response?.data?.message || 'Falha ao cadastrar o prazo.', color: 'red' })
+    } finally {
+      setSalvandoPrazo(false)
+    }
+  }
   const criarSolicitacao = useCriarSolicitacao()
   const consultarCnpj = useConsultarCnpj()
   const criarCliente = useCriarCliente()
@@ -518,9 +563,15 @@ export default function NovaSolicitacaoPage() {
               <SimpleGrid cols={{ base: 1, sm: 2 }}>
                 <Autocomplete label="Mercado atuante" withAsterisk placeholder="Ex.: Alimentício, Cosméticos"
                   data={SUG_MERCADO} value={w.mercado} onChange={(v) => setW('mercado', v)} />
-                <Select label="Prazo de pagamento" placeholder={prazoOptions.length ? 'Selecione' : 'Nenhum prazo cadastrado'}
-                  data={prazoOptions} value={w.prazoPagamentoId || null} clearable
-                  onChange={(v) => setW('prazoPagamentoId', v ?? '')} />
+                <Group gap={6} align="flex-end" wrap="nowrap">
+                  <Select label="Prazo de pagamento" placeholder={prazoOptions.length ? 'Selecione' : 'Nenhum prazo cadastrado'}
+                    data={prazoOptions} value={w.prazoPagamentoId || null} clearable style={{ flex: 1 }}
+                    onChange={(v) => setW('prazoPagamentoId', v ?? '')} />
+                  <ActionIcon variant="light" size={36} aria-label="Novo prazo de pagamento" title="Novo prazo de pagamento"
+                    onClick={() => setPrazoModal(true)}>
+                    <IconPlus size={18} />
+                  </ActionIcon>
+                </Group>
               </SimpleGrid>
               <SimpleGrid cols={{ base: 1, sm: 2 }}>
                 <Select label="UF" data={UFS} searchable clearable value={w.ufOrigem || null}
@@ -589,6 +640,30 @@ export default function NovaSolicitacaoPage() {
           </Button>
         </Stack>
       </form>
+
+      <Modal opened={prazoModal} onClose={() => setPrazoModal(false)} title="Novo prazo de pagamento" centered>
+        <Stack gap="sm">
+          <TextInput
+            label="Descrição" withAsterisk placeholder="Ex.: 28/35/42, 30 dias, À vista"
+            value={prazoDesc}
+            onChange={(e) => { setPrazoDesc(e.currentTarget.value); sugerirPrazo(e.currentTarget.value) }}
+            data-autofocus
+          />
+          <SimpleGrid cols={2}>
+            <NumberInput label="Prazo médio (dias)" min={0} max={720} value={prazoDias}
+              onChange={(v) => setPrazoDias(v === '' ? '' : Number(v))} />
+            <NumberInput label="Parcelas" min={1} max={60} value={prazoParcelas}
+              onChange={(v) => setPrazoParcelas(v === '' ? '' : Number(v))} />
+          </SimpleGrid>
+          <Text size="xs" c="dimmed">
+            Dias e parcelas são sugeridos pela descrição; confira antes de salvar. O prazo fica disponível para todo o Comercial.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setPrazoModal(false)}>Cancelar</Button>
+            <Button loading={salvandoPrazo} onClick={salvarPrazo}>Salvar prazo</Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   )
 }
