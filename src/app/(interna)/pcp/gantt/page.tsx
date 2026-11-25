@@ -1427,6 +1427,57 @@ export default function GanttProducaoPage() {
     return () => cancelAnimationFrame(raf)
   }, [timeline, minTime, irParaHoje])
 
+  // ── Rótulo ao lado da barra (zoom afastado) ──
+  // Com zoom afastado a barra fica estreita demais para o texto. Para cada barra
+  // calcula o espaço LIVRE (px) à esquerda e à direita na MESMA sub-linha; o
+  // desenho usa isso para escrever o nº da OP ao lado quando há espaço.
+  const espacoLivrePorBarra = useMemo(() => {
+    const mapa = new Map<string, { esq: number; dir: number }>()
+    const nivel = nivelDetalheBarra(pixelsPorMinuto)
+    const larguraMin = larguraMinimaBarra(nivel)
+    for (const grupo of layout) {
+      for (const rl of grupo.raias) {
+        const porSub = new Map<number, GanttBar[]>()
+        for (const b of rl.raia.barras) {
+          const s = rl.subLinhaPorEtapa.get(b.etapaId) ?? 0
+          const arr = porSub.get(s)
+          if (arr) arr.push(b); else porSub.set(s, [b])
+        }
+        for (const barras of porSub.values()) {
+          barras.sort((a, b) => a.inicioMs - b.inicioMs)
+          const lim = (b: GanttBar) => {
+            const esq = xInicio(b.inicioMs, minTime, pixelsPorMinuto)
+            const dir = esq + Math.max(larguraMin, ((b.fimMs - b.inicioMs) / 60000) * pixelsPorMinuto)
+            return { esq, dir }
+          }
+          for (let i = 0; i < barras.length; i++) {
+            const atual = lim(barras[i])
+            const anterior = i > 0 ? lim(barras[i - 1]).dir : 0
+            const proximo = i < barras.length - 1 ? lim(barras[i + 1]).esq : totalWidth
+            mapa.set(barras[i].etapaId, {
+              esq: Math.max(0, atual.esq - anterior),
+              dir: Math.max(0, proximo - atual.dir),
+            })
+          }
+        }
+      }
+    }
+    return mapa
+  }, [layout, minTime, pixelsPorMinuto, totalWidth])
+
+  /** Duplo clique numa barra: aproxima o zoom até o nível com texto e centraliza o trabalho. */
+  const aproximarNaBarra = useCallback((bar: GanttBar) => {
+    const el = ganttRef.current
+    if (!el || !Number.isFinite(minTime)) return
+    const ppmNovo = pixelsPorMinuto < 0.8 ? clampPpm(PPM_PRESET['24h']) : pixelsPorMinuto
+    if (ppmNovo !== pixelsPorMinuto) setPixelsPorMinuto(ppmNovo)
+    // Espera o layout refletir o novo zoom (largura total) antes de rolar.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const meio = ((bar.inicioMs + (bar.fimMs - bar.inicioMs) / 2 - minTime) / 60000) * ppmNovo
+      el.scrollTo({ left: Math.max(0, meio - el.clientWidth / 2), behavior: 'smooth' })
+    }))
+  }, [minTime, pixelsPorMinuto])
+
   // ── Tela cheia ──
   // Usa o fullscreen real do navegador (esconde a barra do browser) e, junto, uma
   // sobreposição que cobre o menu do ERP. Se o navegador não permitir o fullscreen
@@ -2083,7 +2134,8 @@ export default function GanttProducaoPage() {
                         onPointerDown={podeEditar ? (e) => onBarPointerDown(e, bar, rl.raia.barras) : undefined}
                         onPointerMove={podeEditar ? onBarPointerMove : undefined}
                         onPointerUp={podeEditar ? onBarPointerUp : undefined}
-                onPointerCancel={podeEditar ? onBarPointerCancel : undefined}
+                        onPointerCancel={podeEditar ? onBarPointerCancel : undefined}
+                        onDoubleClick={() => aproximarNaBarra(bar)}
                       >
                         {/* Setup block */}
                         {setupWidth > 0 && (
@@ -2130,6 +2182,39 @@ export default function GanttProducaoPage() {
                             </Text>
                           )}
                         </div>
+                        {/* Zoom afastado: o nº da OP vai ao LADO da barra (direita; se não couber, esquerda)
+                            quando há espaço livre na mesma linha. Sem espaço, fica só a cor + hint. */}
+                        {(() => {
+                          const dentro = nivelDetalhe === 'completo' || (nivelDetalhe === 'compacto' && barWidth >= 44)
+                          if (dentro || offMin !== 0) return null
+                          const livre = espacoLivrePorBarra.get(bar.etapaId)
+                          if (!livre) return null
+                          const larg = (t: string) => t.length * 8 + 10
+                          const longo = `OP${bar.opNumero}`
+                          const curto = String(bar.opNumero)
+                          let texto: string | null = null
+                          let lado: 'dir' | 'esq' = 'dir'
+                          if (livre.dir >= larg(longo)) texto = longo
+                          else if (livre.esq >= larg(longo)) { texto = longo; lado = 'esq' }
+                          else if (livre.dir >= larg(curto)) texto = curto
+                          else if (livre.esq >= larg(curto)) { texto = curto; lado = 'esq' }
+                          if (!texto) return null
+                          const w = larg(texto)
+                          return (
+                            <div style={{
+                              position: 'absolute', top: 0, height: '100%', zIndex: 5,
+                              display: 'flex', alignItems: 'center', pointerEvents: 'none', whiteSpace: 'nowrap',
+                              ...(lado === 'dir' ? { left: barWidth + 4 } : { left: -(w + 4), width: w, justifyContent: 'flex-end' }),
+                            }}>
+                              <span style={{
+                                fontSize: 13, fontWeight: 700, color: 'var(--mantine-color-text)',
+                                textShadow: '0 0 3px var(--mantine-color-body), 0 0 3px var(--mantine-color-body)',
+                              }}>
+                                {texto}
+                              </span>
+                            </div>
+                          )
+                        })()}
                         {/* Indicador visual mínimo de status (spec pcp-gantt-melhorias,
                             Req 3.6): um dot discreto no canto; o texto fica no tooltip
                             para não poluir barras estreitas. */}
