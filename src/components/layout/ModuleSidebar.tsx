@@ -492,6 +492,7 @@ const MODULE_MENUS: Record<string, ModuleConfig> = {
         ],
       },
       { icon: IconLock, label: 'Permissões', href: '/orcamento-grafico/permissoes' },
+      { icon: IconSitemap, label: 'Fluxos por Operação', href: '/orcamento-grafico/fluxos' },
       {
         label: 'Cadastros', icon: IconDatabase, items: [
           { icon: IconPackage, label: 'Produtos', href: '/orcamento-grafico/cadastros/produtos' },
