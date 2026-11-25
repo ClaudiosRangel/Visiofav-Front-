@@ -137,7 +137,7 @@ export function CamposImpressao({
   const cobertura = onTintas ? (
     <Group gap={6} align="flex-end" wrap="nowrap">
       {campoCobertura}
-      <BotaoTintas value={tintas} onChange={onTintas} disabled={disabled} />
+      <BotaoTintas value={tintas} onChange={onTintas} disabled={disabled} cores={value.cores} />
     </Group>
   ) : (
     campoCobertura

@@ -127,6 +127,59 @@ export function coresDasLinhas(linhas: ReadonlyArray<LinhaTinta>): CorGravada[] 
     })
 }
 
+/** Composição padrão de uma Cobertura de Tinta (cadastro). */
+export interface TintaPadrao {
+  tinta: string
+  perc: number
+}
+export interface TintasPadrao {
+  umaCor?: TintaPadrao | null
+  cores?: TintaPadrao[] | null
+}
+
+/** Total de cores de "NxM" (frente + verso). Texto inválido → 0. */
+export function totalDeCores(cores: string | null | undefined): number {
+  const m = /^\s*(\d{1,2})\s*[xX×]\s*(\d{1,2})\s*$/.exec(cores ?? '')
+  if (!m) return 0
+  return Number(m[1]) + Number(m[2])
+}
+
+const normal = (s: string) =>
+  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
+
+/**
+ * Tintas da cobertura para as cores do plano, como no sistema de referência: 1 cor usa a tinta de
+ * "uma cor"; N cores, as N primeiras da sequência (se a sequência for menor, repete a última). O preço/kg
+ * vem do cadastro de tintas (casando pelo nome sem acento); tinta sem cadastro fica com preço 0.
+ */
+export function tintasDaCobertura(
+  padrao: TintasPadrao | null | undefined,
+  cores: string | null | undefined,
+  cadastro: ReadonlyArray<TintaCadastro> = [],
+): CorGravada[] {
+  const total = Math.min(totalDeCores(cores), MAX_TINTAS)
+  if (!padrao || total === 0) return []
+  const seq = (padrao.cores ?? []).filter((t) => t?.tinta?.trim())
+  let escolhidas: TintaPadrao[]
+  if (total === 1 && padrao.umaCor?.tinta?.trim()) escolhidas = [padrao.umaCor]
+  else if (seq.length === 0) escolhidas = padrao.umaCor?.tinta?.trim() ? Array(total).fill(padrao.umaCor) : []
+  else escolhidas = Array.from({ length: total }, (_, i) => seq[Math.min(i, seq.length - 1)])
+  return escolhidas.map((t) => {
+    const nome = t.tinta.trim()
+    const doCadastro = cadastro.find((c) => normal(c.nome) === normal(nome))
+    return {
+      nome: doCadastro?.nome ?? nome,
+      tipo: tipoDaTinta(nome, ''),
+      coberturaPercent: Math.round((Number(t.perc) || 0) * 100) / 100,
+      precoKg: doCadastro?.precoKg ?? 0,
+      rendimentoM2Kg: RENDIMENTO_PADRAO,
+      tintaId: doCadastro?.id ?? null,
+      tinta: doCadastro?.nome ?? nome,
+      complemento: null,
+    }
+  })
+}
+
 /** Resumo para o botão: "2 tintas · 100%". */
 export function resumoTintas(cores: ReadonlyArray<Partial<Pick<CorGravada, 'coberturaPercent'>>> | null | undefined): string {
   const lista = cores ?? []

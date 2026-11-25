@@ -28,6 +28,7 @@ import type { LayoutItem } from '../../../_layout/resolver-layout-item'
 import { useCoberturasTinta, useProcessosImpressao } from '../../../_hooks/useOpcoesPlanoUnico'
 import BotaoPropriedades from './BotaoPropriedades'
 import BotaoTintas from './BotaoTintas'
+import { tintasDaCoberturaPorNome } from './tintas-cadastro'
 import type { CorGravada } from './tintas-item'
 import BotaoSuporteNc from './BotaoSuporteNc'
 import type { SuporteNcCriadoInfo } from './SuporteNcModal'
@@ -85,6 +86,16 @@ export default function BlocoPlanoUnico({
   const mostra = (c: Parameters<typeof campoVisivel>[1]) => campoVisivel(layout, c)
   const { erros } = validarPlanoUnico(value, layout)
   const erroListas = processos.erro ?? coberturas.erro
+
+  /** Ao escolher a cobertura com as tintas vazias, preenche pela composição padrão (como no sistema de referência). */
+  const preencherTintasDaCobertura = (nome: string) => {
+    if (!onTintas || (tintas ?? []).length > 0) return
+    tintasDaCoberturaPorNome(nome, value.cores)
+      .then((lista) => {
+        if (lista.length > 0) onTintas(lista)
+      })
+      .catch(() => undefined)
+  }
 
   return (
     <CartaoSecao titulo="Impressão e Suporte" icone={<IconPrinter size={16} />} data-testid="bloco-plano-unico">
@@ -154,11 +165,20 @@ export default function BlocoPlanoUnico({
                 limit={20}
                 value={value.coberturaTintaTexto}
                 onChange={(v) => onChange({ coberturaTintaTexto: v })}
+                onOptionSubmit={preencherTintasDaCobertura}
                 error={erros.coberturaTintaTexto}
                 disabled={disabled}
                 style={{ flex: 1, minWidth: 0 }}
               />
-              {onTintas && <BotaoTintas value={tintas} onChange={onTintas} disabled={disabled} />}
+              {onTintas && (
+                <BotaoTintas
+                  value={tintas}
+                  onChange={onTintas}
+                  disabled={disabled}
+                  cores={value.cores}
+                  coberturaAtual={value.coberturaTintaTexto}
+                />
+              )}
             </Group>
           )}
 

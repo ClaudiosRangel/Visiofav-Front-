@@ -13,14 +13,15 @@
  * `trocaProduto.abertoInicial` (item novo) o seletor já vem aberto e habilitado.
  */
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ActionIcon, Anchor, Autocomplete, Divider, Grid, Group, Select, Stack, TagsInput, Text, TextInput, Tooltip } from '@mantine/core'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { ActionIcon, Anchor, Divider, Grid, Group, Select, Stack, TagsInput, Text, TextInput, Tooltip } from '@mantine/core'
 import { IconEraser, IconSearch } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 
 import SeletorProdutoGrafico, { type ProdutoEscolhido } from '../../../editor/catalogo/SeletorProdutoGrafico'
 import type { UseCatalogoItemResultado } from '../../../editor/catalogo/useCatalogoItem'
-import { useSiglasAcabado, useTiposProduto } from '../../../_hooks/useOpcoesBlocoComum'
+import { useTiposProduto } from '../../../_hooks/useOpcoesBlocoComum'
+import PesquisaAcabadosModal, { type AcabadoEscolhido } from './PesquisaAcabadosModal'
 import { MAX_DESCRICAO, MAX_SIGLA_ACABADO, MAX_TRIBUTACAO, MODELOS_PADRAO, tiposPermitidosDaLinha, validarComum, type ValorComum } from './comum-item'
 import { produtosApi } from '../../../../cadastros/_shared/cadastros-graficos.api'
 
@@ -52,7 +53,6 @@ export interface BlocoComumProps {
 
 export default function BlocoComum({ value, onChange, produtoNome, trocaProduto, validarVazios, disabled, dimensoes }: BlocoComumProps) {
   const tipos = useTiposProduto()
-  const siglas = useSiglasAcabado()
 
   const { erros } = useMemo(() => validarComum(value, { validarVazios }), [value, validarVazios])
   // Produtos ativos (com linha e tipo) para limitar o Tipo de Produto aos tipos da linha do produto.
@@ -74,7 +74,13 @@ export default function BlocoComum({ value, onChange, produtoNome, trocaProduto,
     [tipos.tipos, permitidos],
   )
 
-  const siglaRef = useRef<HTMLInputElement>(null)
+  const [pesquisaAberta, setPesquisaAberta] = useState(false)
+  /** Acabado escolhido: a sigla recebe o código; a Descrição vazia recebe o nome. */
+  const escolherAcabado = (a: AcabadoEscolhido) =>
+    onChange({
+      siglaAcabado: a.codigo.slice(0, MAX_SIGLA_ACABADO),
+      ...(value.descricao.trim() ? {} : { descricao: a.nome.slice(0, MAX_DESCRICAO) }),
+    })
   // Tributações cadastradas (nome); o valor gravado continua na lista mesmo se não estiver cadastrado.
   const [tributacoes, setTributacoes] = useState<string[]>([])
   useEffect(() => {
@@ -167,26 +173,30 @@ export default function BlocoComum({ value, onChange, produtoNome, trocaProduto,
         </Grid.Col>
         <Grid.Col span={{ base: 12, lg: 4 }}>
           <Group gap={6} align="flex-end" wrap="nowrap">
-            <Autocomplete
-              ref={siglaRef}
+            <TextInput
               label="Sigla Acabado"
               placeholder="Código / Sigla"
               maxLength={MAX_SIGLA_ACABADO}
-              data={siglas.siglas}
-              limit={20}
               value={value.siglaAcabado}
-              onChange={(v) => onChange({ siglaAcabado: v })}
+              onChange={(e) => onChange({ siglaAcabado: e.currentTarget.value })}
+              onKeyDown={(e) => {
+                if (e.key === 'F2' || (e.key === 'Enter' && e.ctrlKey)) {
+                  e.preventDefault()
+                  setPesquisaAberta(true)
+                }
+              }}
+              title="Lupa ou F2: pesquisar acabados"
               error={erros.siglaAcabado}
               disabled={disabled}
               style={{ flex: 1, minWidth: 0 }}
             />
-            <Tooltip label="Pesquisar Sigla Acabado">
+            <Tooltip label="Pesquisar acabados">
               <ActionIcon
                 variant="default"
                 size={36}
                 aria-label="Pesquisar Sigla Acabado"
                 disabled={disabled}
-                onClick={() => siglaRef.current?.focus()}
+                onClick={() => setPesquisaAberta(true)}
               >
                 <IconSearch size={16} />
               </ActionIcon>
@@ -203,6 +213,12 @@ export default function BlocoComum({ value, onChange, produtoNome, trocaProduto,
               </ActionIcon>
             </Tooltip>
           </Group>
+          <PesquisaAcabadosModal
+            opened={pesquisaAberta}
+            onClose={() => setPesquisaAberta(false)}
+            onEscolher={escolherAcabado}
+            codigoInicial={value.siglaAcabado}
+          />
         </Grid.Col>
       </Grid>
 
@@ -247,20 +263,12 @@ export default function BlocoComum({ value, onChange, produtoNome, trocaProduto,
         {dimensoes && <Grid.Col span={{ base: 12, lg: 6 }}>{dimensoes}</Grid.Col>}
       </Grid>
 
-      {(tipos.erro || siglas.erro) && (
+      {tipos.erro && (
         <Group gap="xs">
           <Text size="xs" c="red">
-            {tipos.erro ?? siglas.erro}
+            {tipos.erro}
           </Text>
-          <Anchor
-            size="xs"
-            component="button"
-            type="button"
-            onClick={() => {
-              if (tipos.erro) tipos.tentarNovamente()
-              if (siglas.erro) siglas.tentarNovamente()
-            }}
-          >
+          <Anchor size="xs" component="button" type="button" onClick={() => tipos.tentarNovamente()}>
             Tentar novamente
           </Anchor>
         </Group>
