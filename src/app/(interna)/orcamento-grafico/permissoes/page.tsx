@@ -23,6 +23,7 @@ interface PermissoesComercial {
   podeLiberarPcp?: boolean
   podeGerenciarAmostras?: boolean
   podeEditarCadastros?: boolean
+  podeConcluirEtapas?: boolean
 }
 interface UsuarioPerm {
   usuarioId: string
@@ -42,6 +43,7 @@ const ACOES: Array<{ chave: keyof PermissoesComercial; label: string }> = [
   { chave: 'podeLiberarPcp', label: 'Liberar ao PCP' },
   { chave: 'podeGerenciarAmostras', label: 'Gerenciar amostras' },
   { chave: 'podeEditarCadastros', label: 'Editar cadastros' },
+  { chave: 'podeConcluirEtapas', label: 'Concluir etapas do fluxo' },
 ]
 
 export default function PermissoesComercialPage() {

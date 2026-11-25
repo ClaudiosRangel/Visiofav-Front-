@@ -18,6 +18,7 @@ import {
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
 import AprovacaoEtapaPanel from '@/components/comercial/AprovacaoEtapaPanel'
+import FluxoPedidoBanner from '@/components/comercial/FluxoPedidoBanner'
 
 
 interface FichaForm {
@@ -331,6 +332,7 @@ export default function PreImpressaoPage() {
           <Center py="xl"><Loader /></Center>
         ) : (
           <Stack gap="md">
+            {aberto && <FluxoPedidoBanner pedidoId={aberto.pedidoId} />}
             <Group gap="xs">
               <Badge variant="light" color="grape">{CAMINHO_LABEL[caminho] || caminho}</Badge>
               {concluido && <Badge color="teal" leftSection={<IconCheck size={12} />}>Pré-impressão concluída</Badge>}

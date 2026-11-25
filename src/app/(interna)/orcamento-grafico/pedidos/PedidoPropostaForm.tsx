@@ -62,6 +62,7 @@ interface FormState {
   discriminacao: string
   observacoes: string
   exigeAmostra: boolean
+  solicitaAlteracao: boolean
   // Revisão 3
   clienteId: string | null
   produtoId: string | null
@@ -126,7 +127,7 @@ const VAZIO: FormState = {
   produtoNome: '', tipoEmbalagem: '', quantidade: '', cartao: '', gramatura: '', medidasTexto: '',
   cartaoFsc: false, corteInternoVerso: false, passtime: false, acabamentos: '', matriz: '',
   acabamentoManual: false, quantidadePorVolume: '', variacoesArte: '', exportacao: '', dataValidade: '',
-  discriminacao: '', observacoes: '', exigeAmostra: false,
+  discriminacao: '', observacoes: '', exigeAmostra: false, solicitaAlteracao: false,
   clienteId: null, produtoId: null, prazoPagamentoId: null, acabamentosSelecionados: [], tiragensTexto: '',
   materiaPrimaCamadas: [], entregaMesmoEndereco: true, entregaEndereco: '', alteracaoImpressao: '', acondicionamento: '',
   imagemFaca: '',
@@ -701,6 +702,8 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
           </div>
           <Switch label="Exige prova (mostruário)" checked={form.exigeProva}
             onChange={(e) => { set('exigeProva', e.currentTarget.checked); set('exigeAmostra', e.currentTarget.checked) }} mt="lg" />
+          <Switch label="Solicita alteração (arte ou faca)" checked={form.solicitaAlteracao}
+            onChange={(e) => set('solicitaAlteracao', e.currentTarget.checked)} mt="lg" />
         </SimpleGrid>
       </Paper>
 

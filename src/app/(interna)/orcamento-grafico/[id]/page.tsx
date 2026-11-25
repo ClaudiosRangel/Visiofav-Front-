@@ -47,6 +47,7 @@ import AbaComissoes from './_orcamento/AbaComissoes'
 import PreviewFichaMaster from './_orcamento/PreviewFichaMaster'
 import AcoesOrcamento, { ExigeAmostraOrcamento } from './_orcamento/AcoesOrcamento'
 import DetalheLegadoOrcamento from './_orcamento/DetalheLegadoOrcamento'
+import FluxoPedidoBanner from '@/components/comercial/FluxoPedidoBanner'
 import { formatarMoeda } from './_orcamento/formatadores'
 
 // ============================================================================
@@ -380,6 +381,7 @@ function OrcamentoDetalheConteudo() {
 
   return (
     <Stack gap="md">
+      <FluxoPedidoBanner orcamentoId={id} onChanged={atualizarTudo} />
       <CabecalhoOrcamento
         numero={orcamento.numero}
         serie={orcamento.serie}

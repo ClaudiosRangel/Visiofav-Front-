@@ -17,7 +17,7 @@ type Operacao = 'NOVO' | 'REPETICAO' | 'MOSTRUARIO' | 'ALTERACAO'
 type Etapa = 'COMERCIAL' | 'ORCAMENTO' | 'PRE_IMPRESSAO' | 'OP_PCP' | 'FATURAMENTO'
 type Setor = 'COMERCIAL' | 'ORCAMENTO' | 'PRE_IMPRESSAO'
 
-interface EtapaConfig { etapa: Etapa; ativa: boolean; bloqueia: Setor[] }
+interface EtapaConfig { etapa: Etapa; ativa: boolean; bloqueia: Setor[]; automatica?: boolean }
 interface Fluxo { operacao: Operacao; etapas: EtapaConfig[]; personalizado: boolean }
 
 const OPERACOES: Array<{ valor: Operacao; rotulo: string }> = [
@@ -77,6 +77,9 @@ function Diagrama({ etapas }: { etapas: EtapaConfig[] }) {
               </Stack>
             ) : (
               <Text size="xs" c="dimmed" mt={4}>Sem bloqueios</Text>
+            )}
+            {e.ativa && e.automatica && (
+              <Badge color="teal" size="xs" variant="light" mt={4}>Avança sozinho</Badge>
             )}
           </Card>
           {i < etapas.length - 1 && <Text c="dimmed">→</Text>}
@@ -138,7 +141,7 @@ export default function FluxosPage() {
       lista.map((e) => {
         if (e.etapa !== etapa) return e
         const novo = { ...e, ...patch }
-        if (!novo.ativa) novo.bloqueia = []
+        if (!novo.ativa) { novo.bloqueia = []; novo.automatica = false }
         return novo
       }),
     )
@@ -240,6 +243,14 @@ export default function FluxosPage() {
                   />
                 </Group>
                 <Group gap="md">
+                  {e.etapa === 'OP_PCP' && (
+                    <Switch
+                      label="Avançar sozinho para o Faturamento ao concluir as OPs"
+                      checked={!!e.automatica}
+                      disabled={!e.ativa}
+                      onChange={(ev) => alterarEtapa(e.etapa, { automatica: ev.currentTarget.checked })}
+                    />
+                  )}
                   <Text size="sm" c="dimmed">Enquanto não concluída, bloqueia:</Text>
                   {SETORES.map((s) => (
                     <Checkbox

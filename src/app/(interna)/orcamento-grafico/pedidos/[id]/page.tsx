@@ -15,6 +15,7 @@ import {
 } from '@mantine/core'
 import PedidoPropostaForm from '../PedidoPropostaForm'
 import AprovacaoEtapaPanel from '@/components/comercial/AprovacaoEtapaPanel'
+import FluxoPedidoBanner from '@/components/comercial/FluxoPedidoBanner'
 import {
   IconArrowBack, IconArrowRight, IconArrowBackUp, IconHistory, IconEdit,
   IconCircleCheck, IconAlertTriangle, IconLink,
@@ -189,6 +190,7 @@ export default function DetalhePedidoStatusPage() {
         )}
       </Group>
 
+      <FluxoPedidoBanner pedidoId={id} onChanged={carregar} />
       <Tabs value={aba} onChange={(v) => setAba(v || 'andamento')} keepMounted={false}>
         <Tabs.List>
           <Tabs.Tab value="andamento">Andamento</Tabs.Tab>

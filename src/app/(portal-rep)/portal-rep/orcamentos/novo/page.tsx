@@ -185,7 +185,8 @@ export default function NovaSolicitacaoPage() {
   // ─── Estado do pedido ───────────────────────────────────────────────────────
   const [clienteId, setClienteId] = useState<string | null>(null)
   const [tipoPedido, setTipoPedido] = useState<'NOVO' | 'REPETICAO'>('NOVO')
-  const [mostruario, setMostruario] = useState(false) // pedido NOVO com amostra para teste
+  const [mostruario, setMostruario] = useState(false) // pedido (novo ou repetição) com amostra para teste
+  const [solicitaAlteracao, setSolicitaAlteracao] = useState(false) // alteração de arte ou faca
   const [produtoId, setProdutoId] = useState<string | null>(null)
   const [alteraImpressao, setAlteraImpressao] = useState(false)
   const [alteracaoImpressao, setAlteracaoImpressao] = useState('')
@@ -287,7 +288,8 @@ export default function NovaSolicitacaoPage() {
           : {}),
         ...(observacoes.trim() ? { observacoes: observacoes.trim() } : {}),
         tipoPedido,
-        exigeAmostra: !repeticao && mostruario,
+        exigeAmostra: mostruario,
+        solicitaAlteracao,
         ...(repeticao && produtoId ? { produtoId } : {}),
         ...(repeticao && alteraImpressao && alteracaoImpressao.trim()
           ? { alteracaoImpressao: alteracaoImpressao.trim() } : {}),
@@ -366,18 +368,28 @@ export default function NovaSolicitacaoPage() {
               value={tipoPedido}
               onChange={(v) => {
                 setTipoPedido(v as typeof tipoPedido)
-                if (v !== 'REPETICAO') { setProdutoId(null); setAlteraImpressao(false) } else setMostruario(false)
+                if (v !== 'REPETICAO') { setProdutoId(null); setAlteraImpressao(false) }
               }}
               data={[{ label: 'Novo', value: 'NOVO' }, { label: 'Repetição', value: 'REPETICAO' }]}
             />
-            {!repeticao && (
-              <Switch
-                mt="sm"
-                label="Solicitar mostruário (amostra para teste de embalagem)"
-                description="Aprovada a amostra, o pedido segue como serviço novo."
-                checked={mostruario}
-                onChange={(e) => setMostruario(e.currentTarget.checked)}
-              />
+            <Switch
+              mt="sm"
+              label="Solicitar mostruário (amostra para teste de embalagem)"
+              description="Aprovada a amostra, o pedido segue o fluxo de mostruário."
+              checked={mostruario}
+              onChange={(e) => setMostruario(e.currentTarget.checked)}
+            />
+            <Switch
+              mt="sm"
+              label="Solicitar alteração (arte ou faca)"
+              description="O pedido segue o fluxo de alteração."
+              checked={solicitaAlteracao}
+              onChange={(e) => setSolicitaAlteracao(e.currentTarget.checked)}
+            />
+            {mostruario && solicitaAlteracao && (
+              <Text size="xs" c="dimmed" mt={4}>
+                Com mostruário e alteração marcados, vale o fluxo de mostruário.
+              </Text>
             )}
           </Card>
 

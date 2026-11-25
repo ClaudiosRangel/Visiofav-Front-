@@ -150,6 +150,7 @@ export interface CriarSolicitacaoPayload {
   discriminacao?: string
   // Alinhamento Portal x Pedidos/Propostas (reunião 24/11/2026)
   exigeAmostra?: boolean
+  solicitaAlteracao?: boolean
   tiragensTexto?: string
   prazoPagamentoId?: string
   materiaPrimaCamadas?: Array<{ funcao: string; suporte: string; gramatura?: string }>
