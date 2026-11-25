@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Card, Textarea, NumberInput, Select, MultiSelect, Button, Stack, Group, Title,
   Collapse, TextInput, Divider, SegmentedControl, Switch, SimpleGrid, Text, Autocomplete, Modal, ActionIcon,
+  Alert, Badge, Loader,
 } from '@mantine/core'
 import { IconPlus } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
@@ -41,6 +42,34 @@ function useMeusProdutos(clienteId: string | null, ativo: boolean) {
     enabled: ativo,
     queryFn: async () => {
       const { data } = await portalRepApi.get('/catalogo/meus-produtos', {
+        params: clienteId ? { clienteId } : undefined,
+      })
+      return data
+    },
+    staleTime: 60 * 1000,
+  })
+}
+
+// Pedidos concluídos de um produto (o representante escolhe qual repetir).
+interface DadosPedidoOrigem {
+  tipoEmbalagem: string; medidasTexto: string; cartao: string; gramatura: string
+  camadas: Array<{ funcao: string; suporte: string; gramatura: string }>
+  acabamentos: Array<{ acabamentoId: string | null; nome: string }>
+  variacoesArte: string; situacaoFaca: string; numeroMatriz: string
+  cartaoFsc: boolean; corteInternoVerso: boolean; passtime: boolean
+  quantidadePorVolume: string; acondicionamento: string; tiragensTexto: string
+}
+interface PedidoOrigem {
+  chave: string; origem: 'PROPOSTA' | 'SOLICITACAO' | 'VENDA'; numero: number | null
+  data: string; quantidade: number | null; situacao: string; resumo: string; dados: DadosPedidoOrigem | null
+}
+
+function usePedidosDoProduto(produtoId: string | null, clienteId: string | null) {
+  return useQuery<{ pedidos: PedidoOrigem[] }>({
+    queryKey: ['portal-rep-catalogo-pedidos-produto', produtoId, clienteId],
+    enabled: !!produtoId,
+    queryFn: async () => {
+      const { data } = await portalRepApi.get(`/catalogo/meus-produtos/${produtoId}/pedidos`, {
         params: clienteId ? { clienteId } : undefined,
       })
       return data
@@ -215,6 +244,43 @@ export default function NovaSolicitacaoPage() {
 
   const repeticao = tipoPedido === 'REPETICAO'
   const { data: meusProdutos, isLoading: carregandoProdutos } = useMeusProdutos(clienteId, repeticao)
+  const { data: origemData, isLoading: carregandoPedidos } = usePedidosDoProduto(repeticao ? produtoId : null, clienteId)
+  const pedidosOrigem = origemData?.pedidos ?? []
+  const [pedidoOrigemChave, setPedidoOrigemChave] = useState<string | null>(null)
+  const [acabamentosRep, setAcabamentosRep] = useState<Array<{ acabamentoId: string | null; nome: string }>>([])
+  const origemSemDados = !!pedidoOrigemChave && !pedidosOrigem.find((p) => p.chave === pedidoOrigemChave)?.dados
+  const semProdutosParaRepetir = repeticao && !!clienteId && !carregandoProdutos && (meusProdutos ?? []).length === 0
+
+  // Preenche o formulário com os dados do pedido escolhido (tudo é mantido na repetição).
+  function aplicarPedidoOrigem(p: PedidoOrigem) {
+    setPedidoOrigemChave(p.chave)
+    const d = p.dados
+    if (!d) {
+      notifications.show({ color: 'orange', message: 'Este pedido não tem a especificação gravada. Confira os campos com o Comercial.' })
+      return
+    }
+    if (d.tipoEmbalagem) setTipoEmbalagem(d.tipoEmbalagem)
+    if (d.tiragensTexto) setTiragensTexto(d.tiragensTexto)
+    const nums = (d.medidasTexto.match(/\d+([.,]\d+)?/g) ?? []).map((n) => Number(n.replace(',', '.')))
+    setComprimento(nums[0] ?? ''); setLargura(nums[1] ?? ''); setAltura(nums[2] ?? '')
+    const lista = d.camadas.length
+      ? d.camadas
+      : d.cartao ? [{ funcao: 'Cartão', suporte: d.cartao, gramatura: d.gramatura }] : []
+    if (lista.length) {
+      const comp: Composicao = lista.some((c) => c.funcao === 'Microondulado')
+        ? 'CARTAO_MICRO' : lista.length > 1 ? 'CARTAO_CARTAO' : 'CARTAO'
+      setComposicao(comp)
+      setCamadas(lista.map((c) => ({ suporte: c.suporte, gramatura: c.gramatura ?? '' })))
+    }
+    setAcabamentosRep(d.acabamentos)
+    setSituacaoFaca(d.situacaoFaca === 'EXISTENTE' ? 'EXISTENTE' : 'NOVA')
+    setWega((s) => ({
+      ...s,
+      variacoesArte: d.variacoesArte, numeroMatriz: d.numeroMatriz,
+      cartaoFsc: d.cartaoFsc, corteInternoVerso: d.corteInternoVerso, passtime: d.passtime,
+      quantidadePorVolume: d.quantidadePorVolume, acondicionamento: d.acondicionamento,
+    }))
+  }
 
   const clienteOptions = (clientes ?? []).map((c) => ({
     value: c.id,
@@ -257,10 +323,10 @@ export default function NovaSolicitacaoPage() {
   const cidadeInformada = !!w.cidade.trim()
   const formValido =
     !!clienteId && !!tipoEmbalagem && tiragensValidas.length > 0 && cidadeInformada && !!w.mercado.trim() &&
-    (!repeticao || !!produtoId) &&
+    (!repeticao || (!!produtoId && !!pedidoOrigemChave)) &&
     (entregaMesmoEndereco || !!w.entregaEndereco.trim()) &&
     (w.tipoEntrega !== 'FRACIONADA' || !!w.entregaFracionadaDias.trim()) &&
-    (repeticao || camadasPreenchidas)
+    (camadasPreenchidas || (repeticao && origemSemDados))
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -269,6 +335,7 @@ export default function NovaSolicitacaoPage() {
     const acabamentosSel = (catalogo?.acabamentos ?? [])
       .filter((a) => acabamentosIds.includes(a.id))
       .map((a) => ({ acabamentoId: a.id, nome: a.nome }))
+    const acabamentosEnviar: Array<{ acabamentoId: string | null; nome: string }> = repeticao ? acabamentosRep : acabamentosSel
     const prazo = (catalogo?.prazos ?? []).find((p) => p.id === w.prazoPagamentoId)
     const medidasTexto = [comprimento, largura, altura].every((m) => typeof m === 'number' && m > 0)
       ? `${comprimento} x ${largura} x ${altura}` : ''
@@ -283,8 +350,11 @@ export default function NovaSolicitacaoPage() {
         ...(typeof largura === 'number' && largura > 0 ? { medidaLargura: largura } : {}),
         ...(typeof altura === 'number' && altura > 0 ? { medidaAltura: altura } : {}),
         ...(medidasTexto ? { medidasTexto } : {}),
-        ...(!repeticao && acabamentosSel.length
-          ? { acabamentos: acabamentosSel.map((a) => a.nome).join(', '), acabamentosSelecionados: acabamentosSel }
+        ...(acabamentosEnviar.length
+          ? {
+              acabamentos: acabamentosEnviar.map((a) => a.nome).join(', '),
+              acabamentosSelecionados: acabamentosEnviar.map((a) => ({ ...(a.acabamentoId ? { acabamentoId: a.acabamentoId } : {}), nome: a.nome })),
+            }
           : {}),
         ...(observacoes.trim() ? { observacoes: observacoes.trim() } : {}),
         tipoPedido,
@@ -305,22 +375,20 @@ export default function NovaSolicitacaoPage() {
         ...(w.prazoPagamentoId ? { prazoPagamentoId: w.prazoPagamentoId } : {}),
         ...(prazo ? { prazoPagamento: prazo.descricao } : {}),
         ...(w.variacoesArte.trim() ? { variacoesArte: w.variacoesArte.trim() } : {}),
-        ...(!repeticao
-          ? {
-              materiaPrimaCamadas: camadas.map((c, i) => ({
-                funcao: camadasDef[i], suporte: c.suporte.trim(),
-                ...(c.gramatura.trim() ? { gramatura: c.gramatura.trim() } : {}),
-              })),
-              cartaoFsc: w.cartaoFsc,
-              corteInternoVerso: w.corteInternoVerso,
-              passtime: w.passtime,
-              situacaoFaca,
-              ...(situacaoFaca === 'EXISTENTE' && w.numeroMatriz.trim()
-                ? { numeroMatriz: w.numeroMatriz.trim(), matriz: w.numeroMatriz.trim() } : {}),
-              ...(w.acondicionamento ? { acondicionamento: w.acondicionamento } : {}),
-              ...(w.quantidadePorVolume.trim() ? { quantidadePorVolume: w.quantidadePorVolume.trim() } : {}),
-            }
-          : {}),
+        materiaPrimaCamadas: camadas
+          .map((c, i) => ({
+            funcao: camadasDef[i], suporte: c.suporte.trim(),
+            ...(c.gramatura.trim() ? { gramatura: c.gramatura.trim() } : {}),
+          }))
+          .filter((c) => c.suporte),
+        cartaoFsc: w.cartaoFsc,
+        corteInternoVerso: w.corteInternoVerso,
+        passtime: w.passtime,
+        situacaoFaca,
+        ...(situacaoFaca === 'EXISTENTE' && w.numeroMatriz.trim()
+          ? { numeroMatriz: w.numeroMatriz.trim(), matriz: w.numeroMatriz.trim() } : {}),
+        ...(w.acondicionamento ? { acondicionamento: w.acondicionamento } : {}),
+        ...(w.quantidadePorVolume.trim() ? { quantidadePorVolume: w.quantidadePorVolume.trim() } : {}),
         ...(w.anexo1Url.trim() ? { anexo1Url: w.anexo1Url.trim() } : {}),
         ...(w.anexo2Url.trim() ? { anexo2Url: w.anexo2Url.trim() } : {}),
         ...(w.discriminacao.trim() ? { discriminacao: w.discriminacao.trim() } : {}),
@@ -368,7 +436,7 @@ export default function NovaSolicitacaoPage() {
               value={tipoPedido}
               onChange={(v) => {
                 setTipoPedido(v as typeof tipoPedido)
-                if (v !== 'REPETICAO') { setProdutoId(null); setAlteraImpressao(false) }
+                if (v !== 'REPETICAO') { setProdutoId(null); setAlteraImpressao(false); setPedidoOrigemChave(null); setAcabamentosRep([]) }
               }}
               data={[{ label: 'Novo', value: 'NOVO' }, { label: 'Repetição', value: 'REPETICAO' }]}
             />
@@ -400,7 +468,7 @@ export default function NovaSolicitacaoPage() {
               placeholder="Selecione o cliente"
               data={clienteOptions}
               value={clienteId}
-              onChange={(v) => { setClienteId(v); setProdutoId(null) }}
+              onChange={(v) => { setClienteId(v); setProdutoId(null); setPedidoOrigemChave(null); setAcabamentosRep([]) }}
               searchable
               nothingFoundMessage="Nenhum cliente encontrado"
               disabled={carregandoClientes}
@@ -446,15 +514,22 @@ export default function NovaSolicitacaoPage() {
           <Card>
             <Text size="sm" fw={600} mb="xs">Produto</Text>
             <Stack gap="sm">
-              {repeticao && (
+              {semProdutosParaRepetir && (
+                <Alert color="orange" variant="light" title="Nada para repetir ainda">
+                  Ainda não existe pedido concluído para repetir deste cliente. Faça um pedido do tipo Novo.
+                </Alert>
+              )}
+              {repeticao && !semProdutosParaRepetir && (
                 <Select
                   label="Produto a repetir"
                   placeholder={!clienteId ? 'Selecione o cliente primeiro' : carregandoProdutos ? 'Carregando...' : 'Selecione um produto já fabricado'}
-                  description="Itens dos seus pedidos anteriores para este cliente."
+                  description="Itens dos seus pedidos concluídos para este cliente."
                   data={(meusProdutos ?? []).map((p) => ({ value: p.id, label: `${p.codigo} - ${p.nome}` }))}
                   value={produtoId}
                   onChange={(v) => {
                     setProdutoId(v)
+                    setPedidoOrigemChave(null)
+                    setAcabamentosRep([])
                     const p = (meusProdutos ?? []).find((x) => x.id === v)
                     if (p) setW('produtoNome', p.nome)
                   }}
@@ -462,6 +537,54 @@ export default function NovaSolicitacaoPage() {
                   disabled={!clienteId || carregandoProdutos}
                   nothingFoundMessage="Nenhum produto encontrado para este cliente"
                 />
+              )}
+
+              {repeticao && produtoId && (
+                <Stack gap="xs">
+                  <Text size="sm" fw={600}>Escolha o pedido que será repetido <Text span c="red">*</Text></Text>
+                  {carregandoPedidos && <Loader size="sm" />}
+                  {!carregandoPedidos && pedidosOrigem.length === 0 && (
+                    <Alert color="orange" variant="light">
+                      Este produto ainda não tem pedido concluído para repetir.
+                    </Alert>
+                  )}
+                  {pedidosOrigem.map((p) => {
+                    const ativo = p.chave === pedidoOrigemChave
+                    return (
+                      <Card
+                        key={p.chave} withBorder padding="sm" radius="md"
+                        onClick={() => aplicarPedidoOrigem(p)}
+                        style={{
+                          cursor: 'pointer',
+                          borderColor: ativo ? 'var(--mantine-color-green-6)' : undefined,
+                          background: ativo ? 'var(--mantine-color-green-light)' : undefined,
+                        }}
+                      >
+                        <Group justify="space-between" wrap="nowrap" align="flex-start">
+                          <div>
+                            <Group gap={6}>
+                              <Text size="sm" fw={600}>
+                                {p.numero != null ? `Pedido nº ${p.numero}` : 'Pedido'}
+                              </Text>
+                              <Badge size="xs" variant="light">{p.situacao}</Badge>
+                            </Group>
+                            <Text size="xs" c="dimmed">
+                              {new Date(p.data).toLocaleDateString('pt-BR')}
+                              {p.quantidade != null ? ` · ${p.quantidade.toLocaleString('pt-BR')} un` : ''}
+                            </Text>
+                            {p.resumo && <Text size="xs" mt={2}>{p.resumo}</Text>}
+                          </div>
+                          {ativo && <Badge color="green">Selecionado</Badge>}
+                        </Group>
+                      </Card>
+                    )
+                  })}
+                  {pedidoOrigemChave && (
+                    <Text size="xs" c="dimmed">
+                      Os dados do pedido escolhido foram preenchidos abaixo. Informe só a nova quantidade e, se houver, a alteração na impressão.
+                    </Text>
+                  )}
+                </Stack>
               )}
 
               <SimpleGrid cols={{ base: 1, sm: 2 }}>
@@ -486,6 +609,24 @@ export default function NovaSolicitacaoPage() {
 
               {repeticao ? (
                 <>
+                  {pedidoOrigemChave && !origemSemDados && (
+                    <Card withBorder padding="sm" radius="md">
+                      <Text size="sm" fw={600} mb={4}>Especificação do pedido repetido</Text>
+                      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+                        <Text size="xs"><b>Medidas (mm):</b> {[comprimento, largura, altura].filter((m) => m !== '').join(' x ') || '—'}</Text>
+                        <Text size="xs"><b>Material:</b> {camadas.filter((c) => c.suporte).map((c) => `${c.suporte}${c.gramatura ? ` ${c.gramatura}` : ''}`).join(' + ') || '—'}</Text>
+                        <Text size="xs"><b>Cores:</b> {w.variacoesArte || '—'}</Text>
+                        <Text size="xs"><b>Faca / matriz:</b> {situacaoFaca === 'EXISTENTE' ? `Existente${w.numeroMatriz ? ` (${w.numeroMatriz})` : ''}` : 'Nova'}</Text>
+                        <Text size="xs"><b>Acabamentos:</b> {acabamentosRep.map((a) => a.nome).join(', ') || '—'}</Text>
+                        <Text size="xs"><b>Acondicionamento:</b> {w.acondicionamento || '—'}{w.quantidadePorVolume ? ` · ${w.quantidadePorVolume} por volume` : ''}</Text>
+                      </SimpleGrid>
+                    </Card>
+                  )}
+                  {origemSemDados && (
+                    <Alert color="orange" variant="light">
+                      Este pedido não tem a especificação gravada. O Comercial confere os dados ao receber a solicitação.
+                    </Alert>
+                  )}
                   <Divider label="Impressão" labelPosition="left" />
                   <Text size="xs" c="dimmed">
                     Na repetição, o produto mantém material, medidas e acabamentos. Somente a impressão pode ser alterada.
