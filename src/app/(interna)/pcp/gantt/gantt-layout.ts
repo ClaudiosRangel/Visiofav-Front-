@@ -377,6 +377,42 @@ export function larguraMinimaBarra(nivel: NivelDetalhe): number {
   return 3
 }
 
+/** Largura estimada (px) de um caractere em negrito 12px; usada para saber se o texto cabe. */
+const LARGURA_CHAR_ROTULO_PX = 7.6
+/** Folga (px) somada ao texto ao medir se cabe dentro da barra. */
+const FOLGA_ROTULO_PX = 8
+/** Menor largura de barra (px) onde ainda cabe o número da OP escrito em pé. */
+const LARGURA_MIN_ROTULO_VERTICAL_PX = 15
+
+export type RotuloNaBarra = { texto: string; orientacao: 'horizontal' | 'vertical' }
+
+/**
+ * Escolhe o rótulo que cabe EM CIMA da barra colorida (zoom afastado):
+ *  1. deitado "OP3224" se a barra for larga o bastante;
+ *  2. deitado só "3224";
+ *  3. em pé (lido de baixo para cima), usando a altura da barra: "OP3224" se couber, senão "3224";
+ *  4. nada (barra fina demais): o chamador usa o rótulo ao lado da barra.
+ */
+export function escolherRotuloNaBarra(
+  opNumero: string,
+  larguraPx: number,
+  alturaPx: number,
+): RotuloNaBarra | null {
+  const numero = String(opNumero ?? '').trim()
+  if (!numero) return null
+  const cabe = (texto: string, espacoPx: number) =>
+    texto.length * LARGURA_CHAR_ROTULO_PX + FOLGA_ROTULO_PX <= espacoPx
+  const completo = `OP${numero}`
+
+  if (cabe(completo, larguraPx)) return { texto: completo, orientacao: 'horizontal' }
+  if (cabe(numero, larguraPx)) return { texto: numero, orientacao: 'horizontal' }
+  if (larguraPx >= LARGURA_MIN_ROTULO_VERTICAL_PX) {
+    if (cabe(completo, alturaPx)) return { texto: completo, orientacao: 'vertical' }
+    if (cabe(numero, alturaPx)) return { texto: numero, orientacao: 'vertical' }
+  }
+  return null
+}
+
 /** Cor do nível de carga (mapa de carga): <70% verde, 70–100% âmbar, >100% vermelho. */
 export function faixaDeCarga(pct: number): 'livre' | 'normal' | 'atencao' | 'sobrecarga' {
   if (pct > 100) return 'sobrecarga'

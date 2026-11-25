@@ -18,7 +18,7 @@ import { notifications } from '@mantine/notifications'
 import { rotuloPlano } from '@/lib/plano-rotulo'
 import {
   empilharBarras, xInicio, xFim, ocupacaoPorDia,
-  gerarMarcadoresEscala, nivelDetalheBarra, larguraMinimaBarra, faixaDeCarga,
+  gerarMarcadoresEscala, nivelDetalheBarra, larguraMinimaBarra, faixaDeCarga, escolherRotuloNaBarra,
   type OcupacaoDia,
 } from './gantt-layout'
 import { corDaLinha, COR_SEM_LINHA, type LinhaProdutoFront } from './gantt-linha'
@@ -2093,6 +2093,11 @@ export default function GanttProducaoPage() {
                   // e ganham um leve realce (sombra/zIndex).
                   const emFoco = opEmFoco !== null && bar.opId === opEmFoco
                   const esmaecida = opEmFoco !== null && bar.opId !== opEmFoco
+                  // Zoom afastado: o nº da OP vai EM CIMA do quadrado colorido (deitado ou em pé,
+                  // conforme a largura). Barra fina demais cai no rótulo ao lado (mais abaixo).
+                  const rotuloDentro = nivelDetalhe === 'completo'
+                    ? null
+                    : escolherRotuloNaBarra(String(bar.opNumero), barWidth, barHeight)
 
                   return (
                     <Menu key={`${gi}-${ri}-${bi}`} shadow="md" width={210} position="bottom-start" withinPortal trigger="click" openDelay={0}>
@@ -2175,17 +2180,25 @@ export default function GanttProducaoPage() {
                               </Text>
                             </div>
                           )}
-                          {nivelDetalhe === 'compacto' && barWidth >= 44 && (
-                            <Text size="13px" c="white" fw={700} lineClamp={1}
-                              style={{ whiteSpace: 'nowrap', overflow: 'hidden', textShadow: '0 1px 2px rgba(0,0,0,0.55)' }}>
-                              {bar.opNumero}
-                            </Text>
+                          {rotuloDentro && (
+                            <span style={{
+                              position: 'relative', zIndex: 2, margin: '0 auto',
+                              fontSize: 12, fontWeight: 800, lineHeight: 1, color: '#fff',
+                              whiteSpace: 'nowrap', pointerEvents: 'none', letterSpacing: '0.2px',
+                              textShadow: '0 1px 2px rgba(0,0,0,0.75), 0 0 3px rgba(0,0,0,0.5)',
+                              ...(rotuloDentro.orientacao === 'vertical'
+                                ? { writingMode: 'vertical-rl' as const, transform: 'rotate(180deg)' }
+                                : {}),
+                            }}>
+                              {rotuloDentro.texto}
+                            </span>
                           )}
                         </div>
                         {/* Zoom afastado: o nº da OP vai ao LADO da barra (direita; se não couber, esquerda)
                             quando há espaço livre na mesma linha. Sem espaço, fica só a cor + hint. */}
                         {(() => {
-                          const dentro = nivelDetalhe === 'completo' || (nivelDetalhe === 'compacto' && barWidth >= 44)
+                          // Só vai ao lado quando o rótulo NÃO coube em cima da barra (barra fina demais).
+                          const dentro = nivelDetalhe === 'completo' || rotuloDentro !== null
                           if (dentro || offMin !== 0) return null
                           const livre = espacoLivrePorBarra.get(bar.etapaId)
                           if (!livre) return null
