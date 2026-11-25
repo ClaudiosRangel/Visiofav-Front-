@@ -193,6 +193,7 @@ export default function SuporteNcModal({ opened, onClose, onCriado }: SuporteNcM
         />
 
         <SeletorSuportePlano
+          modo="suporte"
           label="Consumo de Tinta"
           value={estado.tipoSuporteConsumoTintaId || null}
           nomeAtual={nomeReferencia}

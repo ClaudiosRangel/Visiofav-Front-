@@ -198,12 +198,7 @@ function CamposSuporte({
   terceiro?: ReactNode
   disabled?: boolean
 }) {
-  // Suportes criados pelo NC nesta tela: entram nas opções quando há lista restrita (`permitidos`).
-  const [criadosNc, setCriadosNc] = useState<OpcaoSuporte[]>([])
-  const permitidosEfetivos =
-    suportesPermitidos && suportesPermitidos.length > 0
-      ? [...suportesPermitidos, ...criadosNc.filter((c) => !suportesPermitidos.some((p) => p.value === c.value))]
-      : suportesPermitidos
+  const permitidosEfetivos = suportesPermitidos
 
   return (
     <Grid gutter="sm" align="flex-end" data-testid={`campos-suporte-${bloco}`}>
@@ -234,8 +229,9 @@ function CamposSuporte({
           <BotaoSuporteNc
             disabled={disabled}
             onCriado={(r) => {
-              setCriadosNc((l) => [...l, { value: r.suporteId, label: r.nome }])
-              onChange({ suporteId: r.suporteId, suporteNome: r.nome }, ['suporteId'])
+              // O plano grava o PAPEL (preço + gramatura), não a família do suporte.
+              const nome = r.gramatura > 0 && !new RegExp(`\\b${r.gramatura}\\b`).test(r.nome) ? `${r.nome} ${r.gramatura}` : r.nome
+              onChange({ suporteId: r.precoId, suporteNome: nome }, ['suporteId'])
             }}
           />
         </Group>
@@ -341,21 +337,24 @@ export default function BlocosPorTipoPlano({
             erro={erros['microondulado.suporteId']}
             suportesPermitidos={suportesPermitidos}
             disabled={disabled}
-            terceiro={
+          />
+          <Grid gutter="sm" align="flex-end">
+            <Grid.Col span={{ base: 12, sm: 4 }}>
+              <TextInput
+                label="Sentido Onda"
+                placeholder="Indiferente"
+                maxLength={MAX_TEXTO_CURTO}
+                value={value.microondulado.sentidoOnda}
+                onChange={(e) => onChange('microondulado', { sentidoOnda: e.currentTarget.value }, ['sentidoOnda'])}
+                disabled={disabled}
+              />
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, sm: 8 }}>
               <Group gap={6} align="flex-end" wrap="nowrap">
                 <TextInput
-                  label="Sentido Onda"
-                  placeholder="Indiferente"
-                  maxLength={MAX_TEXTO_CURTO}
-                  value={value.microondulado.sentidoOnda}
-                  onChange={(e) => onChange('microondulado', { sentidoOnda: e.currentTarget.value }, ['sentidoOnda'])}
-                  disabled={disabled}
-                  style={{ flex: 1, minWidth: 0 }}
-                />
-                <TextInput
-                  label="Ajuste Corte"
+                  label="Ajuste Corte Micro"
                   aria-label="Ajuste Corte Micro (mm)"
-                  title="Ajuste Corte Micro, de −99,99 a 99,99 mm"
+                  title="De −99,99 a 99,99 mm"
                   placeholder="0"
                   inputMode="decimal"
                   value={value.microondulado.ajusteCorteMicro}
@@ -363,12 +362,12 @@ export default function BlocosPorTipoPlano({
                   error={erros['microondulado.ajusteCorteMicro']}
                   disabled={disabled}
                   rightSection={<Text size="xs" c="dimmed">mm</Text>}
-                  w={96}
+                  w={140}
                 />
                 <BotaoPropriedades orcamentoId={orcamentoId} />
               </Group>
-            }
-          />
+            </Grid.Col>
+          </Grid>
         </Bloco>
       )}
 

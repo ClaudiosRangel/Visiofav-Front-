@@ -60,6 +60,11 @@ function numeroBr(v: unknown): string | null {
 }
 
 export function textoSuporte(p: PlanoLeitura): string {
+  const e = p.especificacao
+  const nome = [e?.capaExterna?.suporteNome, e?.suportePrincipal?.suporteNome, e?.microondulado?.suporteNome]
+    .map((n) => (typeof n === 'string' ? n.trim() : ''))
+    .find((n) => n.length > 0)
+  if (nome) return nome
   const g = numeroBr(p.gramatura)
   return g ? `${g} g/m²` : '—'
 }

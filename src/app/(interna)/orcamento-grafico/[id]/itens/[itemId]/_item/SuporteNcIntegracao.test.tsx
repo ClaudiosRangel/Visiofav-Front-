@@ -129,7 +129,7 @@ describe('NC nos blocos do Plano (BlocosPorTipoPlano)', () => {
     fireEvent.click(within(bloco).getByRole('button', { name: 'Suporte não cadastrado' }))
     fireEvent.click(screen.getByRole('button', { name: 'Simular criado' }))
     expect(espiao).toHaveBeenCalledTimes(1)
-    expect(espiao).toHaveBeenCalledWith(['microondulado', { suporteId: 'sup-nc', suporteNome: 'Kraft NC 250' }, ['suporteId']])
+    expect(espiao).toHaveBeenCalledWith(['microondulado', { suporteId: 'preco-nc', suporteNome: 'Kraft NC 250' }, ['suporteId']])
     expect((within(bloco).getByRole('textbox', { name: /Suporte Microondulado/ }) as HTMLInputElement).value).toBe('Kraft NC 250')
     // Os outros blocos não mudam.
     const externa = screen.getByTestId('bloco-capa-externa')
