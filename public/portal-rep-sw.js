@@ -53,6 +53,9 @@ self.addEventListener('fetch', (event) => {
   // Ignora requisições não-GET
   if (request.method !== 'GET') return
 
+  // A sonda de saúde do backend (aviso "atualizando versão") NUNCA pode vir do cache.
+  if (url.pathname.endsWith('/health')) return
+
   // Requisições para API: network-first (tenta rede, fallback para cache)
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(

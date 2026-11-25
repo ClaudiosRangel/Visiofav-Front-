@@ -1,4 +1,5 @@
 import axios, { AxiosError } from 'axios'
+import { instalarTratamentoAtualizacao } from '@/lib/backend-status'
 
 const STORAGE_KEY_TOKEN = 'portal-rep-token'
 const STORAGE_KEY_REFRESH = 'portal-rep-refresh-token'
@@ -117,4 +118,10 @@ portalRepApi.interceptors.response.use(
 
     return Promise.reject(error)
   }
+)
+
+// Deploy do backend: mostra "Aguarde, atualizando versão…" e repete as consultas (GET) quando voltar.
+instalarTratamentoAtualizacao(
+  portalRepApi,
+  `${process.env.NEXT_PUBLIC_API_URL || 'https://api.vizorerp.com.br/api'}/health`,
 )

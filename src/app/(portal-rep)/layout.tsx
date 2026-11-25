@@ -7,6 +7,7 @@ import { Notifications } from '@mantine/notifications'
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { IconWifiOff, IconDownload } from '@tabler/icons-react'
 import { portalRepTheme } from '@/lib/portal-rep-theme'
+import BackendAtualizandoAviso from '@/components/BackendAtualizandoAviso'
 import { BottomNav } from '@/components/portal-rep/BottomNav'
 import SidebarDesktop from '@/components/portal-rep/SidebarDesktop'
 import '@/components/portal-rep/portal-rep-touch.css'
@@ -250,6 +251,7 @@ export default function PortalRepLayout({ children }: { children: React.ReactNod
     <QueryClientProvider client={queryClient}>
       <MantineProvider theme={portalRepTheme}>
         <Notifications position="top-right" autoClose={4000} />
+        <BackendAtualizandoAviso />
         <PortalRepLayoutInner>{children}</PortalRepLayoutInner>
       </MantineProvider>
     </QueryClientProvider>

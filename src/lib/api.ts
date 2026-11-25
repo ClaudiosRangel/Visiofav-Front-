@@ -1,4 +1,5 @@
 import axios, { AxiosError } from 'axios'
+import { instalarTratamentoAtualizacao } from './backend-status'
 import {
   getAuthToken,
   setAuthToken,
@@ -158,4 +159,11 @@ api.interceptors.response.use(
 
     return Promise.reject(error)
   }
+)
+
+// Deploy do backend: em vez de erro, mostra "Aguarde, atualizando versão…" e repete as consultas (GET)
+// quando o backend voltar. Registrado DEPOIS do interceptor de 401/refresh acima.
+instalarTratamentoAtualizacao(
+  api,
+  `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'}/health`,
 )

@@ -6,6 +6,7 @@ import { QueryProvider } from '@/providers/QueryProvider'
 import { EmpresaProvider } from '@/providers/EmpresaProvider'
 import { ThemeProvider } from '@/providers/ThemeProvider'
 import { PreferencesProvider } from '@/providers/PreferencesProvider'
+import BackendAtualizandoAviso from '@/components/BackendAtualizandoAviso'
 
 /**
  * Providers do ERP Vizor (tema, modais, notificações, React Query, empresa
@@ -28,6 +29,8 @@ export function ErpProviders({ children }: { children: React.ReactNode }) {
     <ThemeProvider>
       <ModalsProvider>
         <Notifications position="top-right" autoClose={4000} />
+        {/* Aviso global "Aguarde, atualizando versão…" quando o backend está sendo publicado. */}
+        <BackendAtualizandoAviso />
         <QueryProvider>
           <EmpresaProvider>
             <PreferencesProvider>{children}</PreferencesProvider>
