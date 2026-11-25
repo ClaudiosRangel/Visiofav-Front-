@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Card, Textarea, NumberInput, Select, MultiSelect, Button, Stack, Group, Title,
+  Card, Textarea, NumberInput, Select, Checkbox, Button, Stack, Group, Title,
   Collapse, TextInput, Divider, SegmentedControl, Switch, SimpleGrid, Text, Autocomplete, Modal, ActionIcon,
   Alert, Badge, Loader,
 } from '@mantine/core'
@@ -229,6 +229,7 @@ export default function NovaSolicitacaoPage() {
     { suporte: '', gramatura: '' },
   ])
   const [acabamentosIds, setAcabamentosIds] = useState<string[]>([])
+  const [acabamentoDetalhes, setAcabamentoDetalhes] = useState<Record<string, string>>({})
   const [situacaoFaca, setSituacaoFaca] = useState<'NOVA' | 'EXISTENTE'>('NOVA')
   const [observacoes, setObservacoes] = useState('')
   const [entregaMesmoEndereco, setEntregaMesmoEndereco] = useState(true)
@@ -340,8 +341,8 @@ export default function NovaSolicitacaoPage() {
 
     const acabamentosSel = (catalogo?.acabamentos ?? [])
       .filter((a) => acabamentosIds.includes(a.id))
-      .map((a) => ({ acabamentoId: a.id, nome: a.nome }))
-    const acabamentosEnviar: Array<{ acabamentoId: string | null; nome: string }> = repeticao ? acabamentosRep : acabamentosSel
+      .map((a) => ({ acabamentoId: a.id, nome: a.nome, detalhe: acabamentoDetalhes[a.id] ?? '' }))
+    const acabamentosEnviar: Array<{ acabamentoId: string | null; nome: string; detalhe?: string }> = repeticao ? acabamentosRep : acabamentosSel
     const prazo = (catalogo?.prazos ?? []).find((p) => p.id === w.prazoPagamentoId)
     const medidasTexto = [comprimento, largura, altura].every((m) => typeof m === 'number' && m > 0)
       ? `${comprimento} x ${largura} x ${altura}` : ''
@@ -359,7 +360,7 @@ export default function NovaSolicitacaoPage() {
         ...(acabamentosEnviar.length
           ? {
               acabamentos: acabamentosEnviar.map((a) => a.nome).join(', '),
-              acabamentosSelecionados: acabamentosEnviar.map((a) => ({ ...(a.acabamentoId ? { acabamentoId: a.acabamentoId } : {}), nome: a.nome })),
+              acabamentosSelecionados: acabamentosEnviar.map((a) => ({ ...(a.acabamentoId ? { acabamentoId: a.acabamentoId } : {}), nome: a.nome, ...(a.detalhe?.trim() ? { detalhe: a.detalhe.trim() } : {}) })),
             }
           : {}),
         ...(observacoes.trim() ? { observacoes: observacoes.trim() } : {}),
@@ -697,13 +698,42 @@ export default function NovaSolicitacaoPage() {
                     <Switch label="Passtime (visor)" checked={w.passtime} onChange={(e) => setW('passtime', e.currentTarget.checked)} />
                   </Group>
 
-                  <MultiSelect
-                    label="Acabamentos" placeholder="Verniz UV, Hot Stamping, Relevo..."
-                    description={!carregandoCatalogo && acabamentosOptions.length === 0
-                      ? 'Nenhum acabamento disponível na lista comercial. Peça ao Comercial para liberar em Cadastros → Acabamentos.' : undefined}
-                    data={acabamentosOptions} value={acabamentosIds} onChange={setAcabamentosIds}
-                    searchable nothingFoundMessage="Nenhum acabamento encontrado" disabled={carregandoCatalogo}
-                  />
+                  <div>
+                    <Text size="sm" fw={500} mb={4}>Acabamentos (marque e detalhe)</Text>
+                    {!carregandoCatalogo && acabamentosOptions.length === 0 && (
+                      <Text size="xs" c="dimmed">
+                        Nenhum acabamento disponível na lista comercial. Peça ao Comercial para liberar em Cadastros → Acabamentos.
+                      </Text>
+                    )}
+                    <Stack gap={6}>
+                      {acabamentosOptions.map((a) => {
+                        const marcado = acabamentosIds.includes(a.value)
+                        return (
+                          <Group key={a.value} gap="xs" wrap="nowrap" align="center">
+                            <Checkbox
+                              label={a.label}
+                              checked={marcado}
+                              onChange={(e) => setAcabamentosIds((ids) =>
+                                e.currentTarget.checked ? [...ids, a.value] : ids.filter((x) => x !== a.value))}
+                              style={{ minWidth: 220 }}
+                            />
+                            {marcado && (
+                              <TextInput
+                                placeholder="Detalhe (ex.: verniz localizado no logo)"
+                                size="xs"
+                                value={acabamentoDetalhes[a.value] ?? ''}
+                                onChange={(e) => {
+                                  const v = e.currentTarget.value
+                                  setAcabamentoDetalhes((d) => ({ ...d, [a.value]: v }))
+                                }}
+                                style={{ flex: 1 }}
+                              />
+                            )}
+                          </Group>
+                        )
+                      })}
+                    </Stack>
+                  </div>
 
                   <SimpleGrid cols={{ base: 1, sm: 2 }}>
                     <Select label="Forma de acondicionamento" placeholder="Selecione" clearable searchable
