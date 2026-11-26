@@ -504,16 +504,52 @@ export default function ProgramacaoPage() {
   }
 
   async function acaoLoteFinalizar() {
-    if (!confirm(`Finalizar ${selectedEtapas.size} etapa(s) selecionada(s)?`)) return
+    // Só etapas em andamento ou pausadas podem ser finalizadas (regra do servidor).
+    // Antes, as pendentes eram recusadas em silêncio e o aviso verde dava a entender
+    // que tinham sido finalizadas; no dia seguinte a etapa "voltava".
+    const etapasDoPainel = new Map<string, any>()
+    for (const c of (painel?.centros || [])) for (const e of (c.etapas || [])) etapasDoPainel.set(e.id, e)
+    const rotulo = (e: any) => `OS ${e?.opNumero ?? '?'}${e?.descricao ? ` — ${String(e.descricao).slice(0, 40)}` : ''}`
+    const selecionadas = Array.from(selectedEtapas)
+    const finalizaveis = selecionadas.filter((id) => ['EM_ANDAMENTO', 'PAUSADA'].includes(etapasDoPainel.get(id)?.status))
+    const naoIniciadas = selecionadas.filter((id) => !finalizaveis.includes(id))
+
+    if (finalizaveis.length === 0) {
+      notifications.show({
+        title: 'Nada foi finalizado',
+        message: `As ${selecionadas.length} etapa(s) selecionada(s) não foram iniciadas. Inicie a etapa antes de finalizar.`,
+        color: 'orange',
+        autoClose: 8000,
+      })
+      return
+    }
+    const avisoPendentes = naoIniciadas.length
+      ? `\n\n${naoIniciadas.length} etapa(s) NÃO serão finalizadas porque ainda não foram iniciadas.`
+      : ''
+    if (!confirm(`Finalizar ${finalizaveis.length} etapa(s)?${avisoPendentes}`)) return
     setAcaoLoteLoading(true)
     let sucesso = 0
-    for (const etapaId of selectedEtapas) {
+    const falhas: string[] = []
+    for (const etapaId of finalizaveis) {
       try {
         await api.patch(`/pcp/etapas/${etapaId}/concluir`, {})
         sucesso++
-      } catch { /* ignora falhas individuais */ }
+      } catch (err: any) {
+        falhas.push(`${rotulo(etapasDoPainel.get(etapaId))}: ${err?.response?.data?.message || 'falha ao finalizar'}`)
+      }
     }
-    notifications.show({ title: 'Lote concluído', message: `${sucesso} etapa(s) finalizada(s)`, color: 'green' })
+    for (const id of naoIniciadas) falhas.push(`${rotulo(etapasDoPainel.get(id))}: não iniciada`)
+    if (falhas.length === 0) {
+      notifications.show({ title: 'Lote concluído', message: `${sucesso} etapa(s) finalizada(s)`, color: 'green' })
+    } else {
+      notifications.show({
+        title: `${sucesso} finalizada(s), ${falhas.length} não finalizada(s)`,
+        message: falhas.slice(0, 6).join('\n') + (falhas.length > 6 ? `\n… e mais ${falhas.length - 6}` : ''),
+        color: sucesso > 0 ? 'orange' : 'red',
+        autoClose: false,
+        style: { whiteSpace: 'pre-line' },
+      })
+    }
     // Mantém a seleção para permitir ações encadeadas — usuário limpa com "Limpar".
     setAcaoLoteLoading(false)
     try { const { data } = await api.get('/pcp/programacao/painel'); setPainel(data) } catch {}
