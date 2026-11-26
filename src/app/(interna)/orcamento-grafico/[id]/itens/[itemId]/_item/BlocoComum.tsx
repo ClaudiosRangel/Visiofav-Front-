@@ -88,7 +88,14 @@ export default function BlocoComum({ value, onChange, produtoNome, trocaProduto,
     api
       .get('/configurador-grafico/tributacao')
       .then(({ data }) => {
-        const lista: Array<{ nome?: string; ativo?: boolean }> = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : []
+        // A API devolve `{ itens: [...] }`; aceita também lista pura e `{ data: [...] }`.
+        const lista: Array<{ nome?: string; ativo?: boolean }> = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.itens)
+            ? data.itens
+            : Array.isArray(data?.data)
+              ? data.data
+              : []
         if (!cancelado) setTributacoes(lista.filter((t) => t?.ativo !== false && t?.nome).map((t) => String(t.nome)))
       })
       .catch(() => { if (!cancelado) setTributacoes([]) })
