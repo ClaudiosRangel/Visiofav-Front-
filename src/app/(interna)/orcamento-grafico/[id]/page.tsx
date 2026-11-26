@@ -39,6 +39,8 @@ import { useDadosItem } from './_hooks/useDadosItem'
 import { EVENTO_ITEM_ALTERADO, consumirAlteracaoItem } from './_hooks/sinal-alteracao-item'
 import type { ItemResumoDTO } from './_hooks/hierarquia.types'
 import CabecalhoOrcamento from './_orcamento/CabecalhoOrcamento'
+import PrazoDoOrcamento from './_orcamento/PrazoDoOrcamento'
+import UltimoCalculoCliente from './_orcamento/UltimoCalculoCliente'
 import GridItens from './_orcamento/GridItens'
 import PainelDadosItem from './_orcamento/PainelDadosItem'
 import AbaFechamento from './_orcamento/AbaFechamento'
@@ -93,6 +95,9 @@ interface OrcamentoDetalhe {
   custoProducaoConsolidado?: number | string | null
   valorTotalConsolidado?: number | string | null
   calculoOrigem?: { id: string; numero: number | null; numeroCalcgraf: number | null } | null
+  prazoPagamentoId?: string | null
+  prazoPagamento?: string | null
+  precisaRecalcular?: boolean
 }
 
 function formatDate(dateStr: string | null | undefined): string {
@@ -231,6 +236,21 @@ function OrcamentoDetalheConteudo() {
     recargas.current.dadosItem()
     await carregar(true)
   }, [carregar])
+
+  // Último cálculo do cliente → item novo a partir dele (igual ao "Localizar Cálculo").
+  const [usandoUltimo, setUsandoUltimo] = useState(false)
+  const usarUltimoCalculo = async (calculoId: string, numero: number) => {
+    setUsandoUltimo(true)
+    try {
+      await api.post(`/orcamento-grafico/${id}/itens/usar-calculo`, { calculoId })
+      notifications.show({ title: 'Item criado', message: `Item criado a partir do cálculo ${numero}.`, color: 'green' })
+      await atualizarTudo()
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao usar o cálculo.', color: 'red' })
+    } finally {
+      setUsandoUltimo(false)
+    }
+  }
 
   // Item salvo na Tela_Item: sinal guardado (tela desmontada) ou evento (tela montada) → o
   // Fechamento recarrega pelo `notificarAlteracaoItem()` do hook.
@@ -389,6 +409,22 @@ function OrcamentoDetalheConteudo() {
         dataOrcamento={orcamento.dataOrcamento}
         clienteNome={orcamento.clienteNome}
         onEditarCliente={podeEditarItens ? () => setEditarCabecalhoOpen(true) : undefined}
+        prazo={
+          <PrazoDoOrcamento
+            orcamentoId={id}
+            prazoPagamentoId={orcamento.prazoPagamentoId}
+            prazoPagamento={orcamento.prazoPagamento}
+            clienteId={orcamento.clienteId}
+            editavel={podeEditarItens}
+            calculado={Number(orcamento.valorTotalConsolidado ?? 0) > 0 || Number(orcamento.precoVenda ?? 0) > 0}
+            onAlterado={() => { void atualizarTudo() }}
+          />
+        }
+        aposCliente={
+          podeEditarItens && orcamento.clienteId ? (
+            <UltimoCalculoCliente clienteId={orcamento.clienteId} onUsar={(c) => void usarUltimoCalculo(c.id, c.numero)} usando={usandoUltimo} />
+          ) : null
+        }
         acoes={
           <>
             <PreviewFichaMaster orcamentoId={id} />
@@ -410,7 +446,15 @@ function OrcamentoDetalheConteudo() {
               <StatusBadge status={orcamento.status} />
               <Badge variant="outline">V{orcamento.versao}</Badge>
               {orcamento.tipo === 'REPETICAO' && <Badge color="violet" variant="light">Repetição</Badge>}
+              {orcamento.precisaRecalcular && (
+                <Badge color="orange" variant="light" data-testid="selo-precisa-recalcular">Precisa recalcular</Badge>
+              )}
             </Group>
+            {orcamento.precisaRecalcular && (
+              <Text size="xs" c="orange">
+                O prazo de pagamento mudou. Abra e salve cada item para recalcular antes de validar ou enviar a proposta.
+              </Text>
+            )}
             <Text size="xs" c="dimmed">
               Criado em {formatDateTime(orcamento.criadoEm)} · Atualizado em {formatDateTime(orcamento.atualizadoEm)}
             </Text>
@@ -559,6 +603,7 @@ function OrcamentoDetalheConteudo() {
         onClose={() => setBuscaCalcOpen(false)}
         orcamentoId={id}
         linhaInicial={null}
+        clienteInicial={orcamento.clienteId ? { nome: orcamento.clienteNome } : null}
         onUsado={atualizarTudo}
       />
 

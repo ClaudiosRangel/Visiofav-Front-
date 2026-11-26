@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { Alert, Button, Group, Modal, Stack, Text } from '@mantine/core'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Alert, Button, Group, Loader, Modal, Stack, Text } from '@mantine/core'
+import { useDebouncedValue } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
-import { IconSearch } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import FiltrosCalculo, {
   filtrosCalculoVazios,
@@ -30,6 +30,21 @@ function mensagemDoAviso(a: AvisoUsoCalculo): string {
   return MENSAGEM_AVISO[a.codigo] ?? 'O item foi criado com um aviso.'
 }
 
+export interface ClienteDoSeletor {
+  codigo?: string | null
+  nome?: string | null
+}
+
+/** Filtros ao abrir: linha escolhida e o cliente do orçamento (código, se houver; senão o nome). */
+export function filtrosIniciais(linhaInicial?: string | null, cliente?: ClienteDoSeletor | null): FiltrosCalculoValores {
+  const f = filtrosCalculoVazios(linhaInicial)
+  const codigo = (cliente?.codigo ?? '').trim()
+  const nome = (cliente?.nome ?? '').trim()
+  if (codigo) f.clienteCodigo = codigo
+  else if (nome) f.clienteNome = nome
+  return f
+}
+
 interface SeletorCalculoPadraoProps {
   opened: boolean
   onClose: () => void
@@ -40,6 +55,8 @@ interface SeletorCalculoPadraoProps {
   orcamentoId?: string
   /** Linha de produto já escolhida no diálogo de linha; pré-preenche o filtro Linha. */
   linhaInicial?: string | null
+  /** Cliente do orçamento: a busca abre já filtrada por ele (o filtro pode ser limpo). */
+  clienteInicial?: ClienteDoSeletor | null
   /** Chamado após criar o item (recarrega a grade/orçamento). */
   onUsado?: () => void
   /** Chamado após criar o orçamento a partir do cálculo. */
@@ -51,10 +68,13 @@ export default function SeletorCalculoPadrao({
   onClose,
   orcamentoId,
   linhaInicial,
+  clienteInicial,
   onUsado,
   onCriado,
 }: SeletorCalculoPadraoProps) {
-  const [filtros, setFiltros] = useState<FiltrosCalculoValores>(() => filtrosCalculoVazios(linhaInicial))
+  const [filtros, setFiltros] = useState<FiltrosCalculoValores>(() => filtrosIniciais(linhaInicial, clienteInicial))
+  // Pesquisa enquanto digita (espera 300 ms), sem botão "Pesquisar".
+  const [filtrosAtrasados] = useDebouncedValue(filtros, 300)
   const [itens, setItens] = useState<ResumoCalculo[]>([])
   const [quantidade, setQuantidade] = useState(0)
   const [limitado, setLimitado] = useState(false)
@@ -63,27 +83,32 @@ export default function SeletorCalculoPadrao({
   const [selecionado, setSelecionado] = useState<ResumoCalculo | null>(null)
   const [carregando, setCarregando] = useState(false)
   const [usando, setUsando] = useState(false)
+  const requisicao = useRef(0)
+  const clienteCodigo = clienteInicial?.codigo ?? null
+  const clienteNome = clienteInicial?.nome ?? null
 
-  // Ao abrir: grade vazia, "Quantidade de cálculos: 0" e filtro Linha pré-preenchido.
+  // Ao abrir: grade vazia e filtros Linha/Cliente pré-preenchidos.
   useEffect(() => {
     if (!opened) return
-    setFiltros(filtrosCalculoVazios(linhaInicial))
+    setFiltros(filtrosIniciais(linhaInicial, { codigo: clienteCodigo, nome: clienteNome }))
     setItens([])
     setQuantidade(0)
     setLimitado(false)
     setBuscou(false)
     setErroBusca(null)
     setSelecionado(null)
-  }, [opened, linhaInicial])
+  }, [opened, linhaInicial, clienteCodigo, clienteNome])
 
-  const pesquisar = useCallback(async () => {
-    if (validarNumeroCalculo(filtros.numero)) return
+  const pesquisar = useCallback(async (f: FiltrosCalculoValores) => {
+    if (validarNumeroCalculo(f.numero)) return
+    const id = ++requisicao.current
     setCarregando(true)
     setErroBusca(null)
     try {
       const res = await api.get('/calculo-grafico', {
-        params: { modo: 'SELETOR', ...montarParamsBuscaCalculo(filtros) },
+        params: { modo: 'SELETOR', ...montarParamsBuscaCalculo(f) },
       })
+      if (id !== requisicao.current) return
       const data: RespostaBuscaCalculo = res.data
       setItens(data.itens ?? [])
       setQuantidade(data.quantidadeCalculos ?? data.itens?.length ?? 0)
@@ -91,12 +116,17 @@ export default function SeletorCalculoPadrao({
       setBuscou(true)
       setSelecionado(null)
     } catch (err: any) {
+      if (id !== requisicao.current) return
       // Erro preserva filtros e a grade anterior.
       setErroBusca(err?.response?.data?.message || 'Falha ao buscar cálculos. Tente novamente.')
     } finally {
-      setCarregando(false)
+      if (id === requisicao.current) setCarregando(false)
     }
-  }, [filtros])
+  }, [])
+
+  useEffect(() => {
+    if (opened) void pesquisar(filtrosAtrasados)
+  }, [opened, filtrosAtrasados, pesquisar])
 
   const usar = async () => {
     if (!selecionado) return
@@ -141,18 +171,11 @@ export default function SeletorCalculoPadrao({
   return (
     <Modal opened={opened} onClose={onClose} title="Localizar Cálculo Padrão" size="80rem">
       <Stack gap="md">
-        <FiltrosCalculo valores={filtros} onChange={setFiltros} onEnter={pesquisar} disabled={carregando || usando} />
+        <FiltrosCalculo valores={filtros} onChange={setFiltros} onEnter={() => void pesquisar(filtros)} disabled={usando} />
 
         <Group justify="space-between">
           <Text fw={600}>Quantidade de cálculos: {quantidade}</Text>
-          <Button
-            leftSection={<IconSearch size={16} />}
-            onClick={pesquisar}
-            loading={carregando}
-            disabled={Boolean(validarNumeroCalculo(filtros.numero))}
-          >
-            Pesquisar
-          </Button>
+          {carregando && <Loader size="xs" aria-label="Pesquisando" />}
         </Group>
 
         {erroBusca && (

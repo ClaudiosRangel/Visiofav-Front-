@@ -3,11 +3,12 @@
 // Menu "Cálculo Padrão" (spec orcamento-grafico-paridade-fluxo-legado, tarefa 9.1).
 // A rota `biblioteca-calculos` é mantida só como URL; o texto visível é "Cálculo Padrão".
 
-import { useCallback, useEffect, useState } from 'react'
-import { Alert, Button, Group, Modal, Pagination, Stack, Text, Title } from '@mantine/core'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Alert, Button, Group, Loader, Modal, Pagination, Stack, Text, Title } from '@mantine/core'
+import { useDebouncedValue } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
 import {
-  IconBan, IconCopy, IconEdit, IconPlayerPlay, IconPlus, IconSearch,
+  IconBan, IconCopy, IconEdit, IconPlayerPlay, IconPlus,
 } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import FiltrosCalculo, {
@@ -48,18 +49,21 @@ export default function CalculoPadraoPage() {
   const [selecionado, setSelecionado] = useState<ResumoCalculo | null>(null)
   const [executando, setExecutando] = useState<AcaoCalculoPadrao | null>(null)
   const [confirmarCancelar, setConfirmarCancelar] = useState(false)
+  const requisicao = useRef(0)
 
   const totalPaginas = Math.max(1, Math.ceil(total / TAMANHO_PAGINA))
 
   const buscar = useCallback(
     async (paginaAlvo: number, filtrosAlvo: FiltrosCalculoValores) => {
       if (validarNumeroCalculo(filtrosAlvo.numero)) return
+      const id = ++requisicao.current
       setCarregando(true)
       setErroBusca(null)
       try {
         const res = await api.get('/calculo-grafico', {
           params: { modo: 'MENU', pagina: paginaAlvo, ...montarParamsBuscaCalculo(filtrosAlvo) },
         })
+        if (id !== requisicao.current) return
         const data: RespostaMenu = res.data
         setItens(data.itens ?? [])
         setTotal(data.total ?? data.itens?.length ?? 0)
@@ -67,17 +71,19 @@ export default function CalculoPadraoPage() {
         setBuscou(true)
         setSelecionado(null)
       } catch (err: any) {
+        if (id !== requisicao.current) return
         // Erro preserva filtros e a grade anterior.
         setErroBusca(err?.response?.data?.message || 'Falha ao buscar cálculos. Tente novamente.')
       } finally {
-        setCarregando(false)
+        if (id === requisicao.current) setCarregando(false)
       }
     },
     [],
   )
 
-  // Carga inicial: sem exigir cliente.
-  useEffect(() => { void buscar(1, filtrosCalculoVazios()) }, [buscar])
+  // Pesquisa enquanto digita (espera 300 ms), sem botão; a carga inicial usa os filtros vazios.
+  const [filtrosAtrasados] = useDebouncedValue(filtros, 300)
+  useEffect(() => { void buscar(1, filtrosAtrasados) }, [buscar, filtrosAtrasados])
 
   const pesquisar = () => void buscar(1, filtros)
   const recarregar = () => buscar(pagina, filtros)
@@ -155,7 +161,7 @@ export default function CalculoPadraoPage() {
         </Text>
       </div>
 
-      <FiltrosCalculo valores={filtros} onChange={setFiltros} onEnter={pesquisar} disabled={carregando || ocupado} />
+      <FiltrosCalculo valores={filtros} onChange={setFiltros} onEnter={pesquisar} disabled={ocupado} />
 
       <Group justify="space-between">
         <Group gap="xs">
@@ -206,14 +212,7 @@ export default function CalculoPadraoPage() {
             Reativar
           </Button>
         </Group>
-        <Button
-          leftSection={<IconSearch size={16} />}
-          onClick={pesquisar}
-          loading={carregando}
-          disabled={Boolean(validarNumeroCalculo(filtros.numero)) || ocupado}
-        >
-          Pesquisar
-        </Button>
+        {carregando && <Loader size="xs" aria-label="Pesquisando" />}
       </Group>
 
       {!incluirHabilitado && (

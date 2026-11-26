@@ -475,7 +475,19 @@ export default function NovaSolicitacaoPage() {
               placeholder="Selecione o cliente"
               data={clienteOptions}
               value={clienteId}
-              onChange={(v) => { setClienteId(v); setProdutoId(null); setPedidoOrigemChave(null); setAcabamentosRep([]) }}
+              onChange={(v) => {
+                setClienteId(v); setProdutoId(null); setPedidoOrigemChave(null); setAcabamentosRep([])
+                // Prazo padrão = o mais usado pelo cliente (só quando ainda não há prazo escolhido).
+                if (v && !w.prazoPagamentoId) {
+                  portalRepApi
+                    .get(`/catalogo/clientes/${v}/prazo-padrao`)
+                    .then(({ data }) => {
+                      const id = data?.padrao?.prazoId as string | null | undefined
+                      if (id && (catalogo?.prazos ?? []).some((p) => p.id === id)) setW('prazoPagamentoId', id)
+                    })
+                    .catch(() => undefined)
+                }
+              }}
               searchable
               nothingFoundMessage="Nenhum cliente encontrado"
               disabled={carregandoClientes}

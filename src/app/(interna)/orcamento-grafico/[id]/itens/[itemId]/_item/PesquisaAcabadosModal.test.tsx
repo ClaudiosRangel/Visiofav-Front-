@@ -35,7 +35,7 @@ function abrir(props: Partial<Parameters<typeof PesquisaAcabadosModal>[0]> = {})
 describe('Pesquisa de Acabados', () => {
   it('abre já pesquisando pelo código digitado e lista código, nome e unidade', async () => {
     abrir({ codigoInicial: '45' })
-    expect(await screen.findByText('CARTUCHO KIT 500ML LISO JAPONESA')).toBeTruthy()
+    expect(await screen.findByText('CARTUCHO KIT 500ML LISO JAPONESA', {}, { timeout: 3000 })).toBeTruthy()
     expect(get).toHaveBeenCalledWith('/orcamento-grafico/acabados', { params: expect.objectContaining({ codigo: '45', page: 1 }) })
     expect(screen.getByTestId('acabado-4503')).toBeTruthy()
   })
@@ -44,7 +44,7 @@ describe('Pesquisa de Acabados', () => {
     abrir()
     await screen.findByText('CARTUCHO KIT 500ML LISO JAPONESA')
     fireEvent.change(screen.getByLabelText(/Descrição/), { target: { value: 'kit, liso' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Pesquisar' }))
+    expect(screen.queryByRole('button', { name: 'Pesquisar' })).toBeNull()
     await waitFor(() =>
       expect(get).toHaveBeenLastCalledWith('/orcamento-grafico/acabados', { params: expect.objectContaining({ descricao: 'kit, liso' }) }),
     )

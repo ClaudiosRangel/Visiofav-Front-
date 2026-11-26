@@ -6,8 +6,9 @@
  * (Orçamento → Amostra → Pedido → Produção → Faturamento). Consome
  * GET /orcamento-grafico/pedidos/jornadas.
  */
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { useDebouncedValue } from '@mantine/hooks'
 import {
   Title, Stack, Group, Text, Loader, Center, Paper, Badge, TextInput,
   Button, Tooltip, SegmentedControl,
@@ -62,23 +63,27 @@ export default function PipelineComercialPage() {
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
   const [statusFiltro, setStatusFiltro] = useState('')
+  // Pesquisa enquanto digita (espera 300 ms).
+  const [buscaAtrasada] = useDebouncedValue(busca, 300)
+  const requisicao = useRef(0)
 
   const carregar = useCallback(async () => {
+    const id = ++requisicao.current
     setLoading(true)
     try {
       const params: Record<string, string> = {}
       if (statusFiltro) params.statusPedido = statusFiltro
-      if (busca.trim()) params.busca = busca.trim()
+      if (buscaAtrasada.trim()) params.busca = buscaAtrasada.trim()
       const { data } = await api.get('/orcamento-grafico/pedidos/jornadas', { params })
-      setItens(Array.isArray(data) ? data : [])
+      if (id === requisicao.current) setItens(Array.isArray(data) ? data : [])
     } catch {
-      setItens([])
+      if (id === requisicao.current) setItens([])
     } finally {
-      setLoading(false)
+      if (id === requisicao.current) setLoading(false)
     }
-  }, [statusFiltro, busca])
+  }, [statusFiltro, buscaAtrasada])
 
-  useEffect(() => { carregar() }, [statusFiltro]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void carregar() }, [carregar])
 
   return (
     <Stack gap="md">
@@ -100,7 +105,6 @@ export default function PipelineComercialPage() {
             leftSection={<IconSearch size={16} />}
             value={busca}
             onChange={(e) => setBusca(e.currentTarget.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') carregar() }}
             style={{ flex: 1 }}
           />
           <SegmentedControl

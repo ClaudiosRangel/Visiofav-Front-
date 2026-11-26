@@ -12,13 +12,13 @@
  */
 
 import { useState, type ReactNode } from 'react'
-import { Alert, Button, Collapse, Group, Loader, Stack, Text } from '@mantine/core'
+import { Alert, Badge, Button, Collapse, Group, Loader, Stack, Text, Tooltip } from '@mantine/core'
 import { IconAlertCircle, IconAlertTriangle, IconChevronDown, IconChevronRight } from '@tabler/icons-react'
 
 import { DataTablePadrao, type DataTableColumn } from '@/components/ui/DataTablePadrao'
 
 import type { FechamentoTotalizadorDTO } from '../_hooks/hierarquia.types'
-import { totalizarPorTiragem, type LinhaFechamentoExibicao } from './fechamentoTotais'
+import { margemDaLinha, totalizarPorTiragem, type LinhaFechamentoExibicao } from './fechamentoTotais'
 import { formatarInteiro, formatarMoeda, formatarPercentual2, pluralizar } from './formatadores'
 import { formatarValorUnitario } from './formatacao'
 
@@ -34,6 +34,26 @@ export interface AbaFechamentoProps {
   detalhe?: ReactNode
   /** Edição das tiragens de um item (valor/margem por tiragem), abaixo do totalizador. */
   edicao?: ReactNode
+}
+
+/** Coluna "Situação": margem entre custo e preço frente à mínima configurada. */
+function colunaSituacao(minima: number | null | undefined): DataTableColumn<FechamentoLinhaDTO> {
+  return {
+    accessor: 'custoProducao',
+    title: 'Situação',
+    render: (l) => {
+      const { margem, situacao } = margemDaLinha(l, minima)
+      if (situacao === 'SEM_REFERENCIA') return <Text size="sm" c="dimmed">—</Text>
+      const min = minima != null ? ` (mín. ${String(minima).replace('.', ',')}%)` : ''
+      return (
+        <Tooltip label={`Margem entre custo e preço: ${formatarPercentual2(margem)}`}>
+          <Badge size="sm" variant="light" color={situacao === 'DENTRO' ? 'green' : 'red'} data-testid={`fechamento-situacao-${l.tiragem}`}>
+            {situacao === 'DENTRO' ? `Dentro da margem${min}` : `Abaixo da margem${min}`}
+          </Badge>
+        </Tooltip>
+      )
+    },
+  }
 }
 
 const colunas: DataTableColumn<FechamentoLinhaDTO>[] = [
@@ -114,7 +134,7 @@ export default function AbaFechamento({ dados, carregando = false, erro, onTenta
         ) : (
           <DataTablePadrao<FechamentoLinhaDTO>
             dados={linhasExibicao}
-            colunas={colunas}
+            colunas={[...colunas, colunaSituacao(dados.margemMinima)]}
             comBusca={false}
             idAccessor="tiragem"
             pageSize={50}

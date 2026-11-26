@@ -11,6 +11,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { notifications } from '@mantine/notifications'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useModuloGuard } from '@/hooks/useModuloGuard'
+import { api } from '@/lib/api'
 import { pedidoVendaSchema, type PedidoVendaFormValues } from '@/lib/schemas/pedidoVendaSchema'
 import { usePedidoVenda, useCriarPedido, useEditarPedido } from '@/data/hooks/vendas/usePedidoVenda'
 import { isFieldDisabled, calcularTotalItem } from '@/components/vendas/utils'
@@ -130,6 +131,26 @@ function NovoPedidoVendaContent() {
       })
     }
   }, [pedidoExistente, isEditing, reset])
+
+  // Pedido novo: condição de pagamento padrão = a mais usada pelo cliente (só se ainda não escolhida).
+  const clienteSelecionado = watch('clienteId')
+  useEffect(() => {
+    if (isEditing || !clienteSelecionado) return
+    let ativo = true
+    api
+      .get(`/orcamento-grafico/clientes/${clienteSelecionado}/prazos`)
+      .then(({ data }) => {
+        const padrao = data?.padraoVendas as { condicaoPagId: string | null; tabelaPrecoId: string | null } | null
+        if (!ativo || !padrao?.condicaoPagId || methods.getValues('condicaoPagId')) return
+        const tabelaAtual = methods.getValues('tabelaPrecoId')
+        if (!tabelaAtual && padrao.tabelaPrecoId) methods.setValue('tabelaPrecoId', padrao.tabelaPrecoId, { shouldDirty: true })
+        if (!tabelaAtual || tabelaAtual === padrao.tabelaPrecoId) {
+          methods.setValue('condicaoPagId', padrao.condicaoPagId, { shouldDirty: true })
+        }
+      })
+      .catch(() => undefined)
+    return () => { ativo = false }
+  }, [clienteSelecionado, isEditing, methods])
 
   // Check if pedido has partial billings
   const temFaturamentoParcial = (pedidoExistente?.itens || []).some(

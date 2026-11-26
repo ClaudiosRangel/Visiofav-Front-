@@ -12,7 +12,7 @@ import {
   NumberInput, SimpleGrid, Text, Image, ActionIcon, Loader, Divider, Badge,
   Autocomplete, Checkbox, Modal,
 } from '@mantine/core'
-import { IconArrowLeft, IconSearch, IconUpload, IconTrash, IconDeviceFloppy, IconPlus, IconPrinter, IconFileTypePdf } from '@tabler/icons-react'
+import { IconArrowLeft, IconSearch, IconUpload, IconTrash, IconDeviceFloppy, IconPlus, IconPrinter, IconFileTypePdf, IconLock } from '@tabler/icons-react'
 import { MunicipioAutocomplete } from '@/components/fiscal/MunicipioAutocomplete'
 import { api } from '@/lib/api'
 import { getAuthToken } from '@/lib/authStorage'
@@ -179,6 +179,19 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
   const [prazoDias, setPrazoDias] = useState<number | ''>(0)
   const [prazoParc, setPrazoParc] = useState<number | ''>(1)
   const [salvandoPrazo, setSalvandoPrazo] = useState(false)
+  // Prazo travado: o orçamento vinculado já tem cálculo (o prazo só muda no orçamento).
+  const [prazoTravado, setPrazoTravado] = useState<string | null>(null)
+  const [prazoPadraoCliente, setPrazoPadraoCliente] = useState<string | null>(null)
+  useEffect(() => {
+    setPrazoTravado(null)
+    if (!idAtual) return
+    let ativo = true
+    api
+      .get(`/orcamento-grafico/pedidos-proposta/${idAtual}/situacao-prazo`)
+      .then(({ data }) => { if (ativo) setPrazoTravado(data?.travado ? String(data.motivo ?? 'Prazo definido no orçamento.') : null) })
+      .catch(() => { if (ativo) setPrazoTravado(null) })
+    return () => { ativo = false }
+  }, [idAtual])
 
   // Ponto 4 — modal "novo cliente" inline
   const [clienteModal, setClienteModal] = useState(false)
@@ -339,6 +352,17 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
     setDirty(true)
     setClienteOpcoes([])
     setClienteBusca('')
+    // Prazo padrão = o mais usado pelo cliente (só preenche se ainda não houver prazo).
+    api
+      .get(`/orcamento-grafico/clientes/${c.id}/prazos`)
+      .then(({ data }) => {
+        const padrao = data?.padrao as { prazoId: string | null; descricao: string } | null
+        setPrazoPadraoCliente(padrao?.descricao ?? null)
+        if (padrao?.prazoId && !prazoTravado) {
+          setForm((f) => (f.prazoPagamentoId ? f : { ...f, prazoPagamentoId: padrao.prazoId, prazoPagamento: padrao.descricao }))
+        }
+      })
+      .catch(() => setPrazoPadraoCliente(null))
   }
 
   // Ao escolher um produto do cadastro, traz nome/foto + busca características
@@ -838,14 +862,19 @@ export default function PedidoPropostaForm({ pedidoId }: { pedidoId?: string }) 
                   const p = prazos.find((x) => x.id === v)
                   if (p) set('prazoPagamento', p.descricao) // espelha no texto livre p/ proposta/PDF
                 }}
-                clearable
+                clearable={!prazoTravado}
                 searchable
+                disabled={!!prazoTravado}
+                description={prazoTravado ?? (prazoPadraoCliente ? `Mais usado pelo cliente: ${prazoPadraoCliente}` : undefined)}
+                leftSection={prazoTravado ? <IconLock size={14} /> : undefined}
                 comboboxProps={{ withinPortal: true }}
                 style={{ flex: 1 }}
               />
-              <ActionIcon variant="light" size="lg" aria-label="Novo prazo" onClick={() => setPrazoModal(true)}>
-                <IconPlus size={18} />
-              </ActionIcon>
+              {!prazoTravado && (
+                <ActionIcon variant="light" size="lg" aria-label="Novo prazo" onClick={() => setPrazoModal(true)}>
+                  <IconPlus size={18} />
+                </ActionIcon>
+              )}
             </Group>
           </div>
           <div>

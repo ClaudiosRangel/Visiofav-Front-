@@ -24,6 +24,7 @@ interface PermissoesComercial {
   podeGerenciarAmostras?: boolean
   podeEditarCadastros?: boolean
   podeConcluirEtapas?: boolean
+  podeAlterarValorUnitario?: boolean
 }
 interface UsuarioPerm {
   usuarioId: string
@@ -44,6 +45,7 @@ const ACOES: Array<{ chave: keyof PermissoesComercial; label: string }> = [
   { chave: 'podeGerenciarAmostras', label: 'Gerenciar amostras' },
   { chave: 'podeEditarCadastros', label: 'Editar cadastros' },
   { chave: 'podeConcluirEtapas', label: 'Concluir etapas do fluxo' },
+  { chave: 'podeAlterarValorUnitario', label: 'Alterar valor unitário' },
 ]
 
 export default function PermissoesComercialPage() {

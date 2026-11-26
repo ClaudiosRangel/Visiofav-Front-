@@ -7,9 +7,10 @@
  * produto escolhido; não grava nada.
  */
 
-import { useCallback, useEffect, useState } from 'react'
-import { Alert, Button, Checkbox, Group, Modal, Pagination, ScrollArea, Stack, Table, Text, TextInput } from '@mantine/core'
-import { IconAlertTriangle, IconCheck, IconSearch, IconX } from '@tabler/icons-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Alert, Button, Checkbox, Group, Loader, Modal, Pagination, ScrollArea, Stack, Table, Text, TextInput } from '@mantine/core'
+import { useDebouncedValue } from '@mantine/hooks'
+import { IconAlertTriangle, IconCheck, IconX } from '@tabler/icons-react'
 
 import { api } from '@/lib/api'
 
@@ -37,7 +38,7 @@ interface Resposta {
 const LIMITE = 50
 
 export default function PesquisaAcabadosModal({ opened, onClose, onEscolher, codigoInicial }: PesquisaAcabadosModalProps) {
-  const [codigo, setCodigo] = useState('')
+  const [codigo, setCodigo] = useState(() => (codigoInicial ?? '').trim())
   const [descricao, setDescricao] = useState('')
   const [incluirInativos, setIncluirInativos] = useState(false)
   const [pagina, setPagina] = useState(1)
@@ -46,8 +47,10 @@ export default function PesquisaAcabadosModal({ opened, onClose, onEscolher, cod
   const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
+  const requisicao = useRef(0)
   const buscar = useCallback(
     async (pg: number, filtros: { codigo: string; descricao: string; incluirInativos: boolean }) => {
+      const id = ++requisicao.current
       setCarregando(true)
       setErro(null)
       try {
@@ -60,13 +63,14 @@ export default function PesquisaAcabadosModal({ opened, onClose, onEscolher, cod
             limit: LIMITE,
           },
         })
+        if (id !== requisicao.current) return
         setResultado(data)
         setPagina(pg)
         setSelecionado(null)
       } catch {
-        setErro('Não foi possível pesquisar os acabados.')
+        if (id === requisicao.current) setErro('Não foi possível pesquisar os acabados.')
       } finally {
-        setCarregando(false)
+        if (id === requisicao.current) setCarregando(false)
       }
     },
     [],
@@ -74,13 +78,18 @@ export default function PesquisaAcabadosModal({ opened, onClose, onEscolher, cod
 
   useEffect(() => {
     if (!opened) return
-    const inicial = (codigoInicial ?? '').trim()
-    setCodigo(inicial)
+    setCodigo((codigoInicial ?? '').trim())
     setDescricao('')
     setIncluirInativos(false)
     setResultado(null)
-    void buscar(1, { codigo: inicial, descricao: '', incluirInativos: false })
-  }, [opened, codigoInicial, buscar])
+  }, [opened, codigoInicial])
+
+  // Pesquisa enquanto digita (espera 300 ms), sem botão.
+  const filtrosAtuais = useMemo(() => ({ codigo, descricao, incluirInativos }), [codigo, descricao, incluirInativos])
+  const [filtrosAtrasados] = useDebouncedValue(filtrosAtuais, 300)
+  useEffect(() => {
+    if (opened) void buscar(1, filtrosAtrasados)
+  }, [opened, filtrosAtrasados, buscar])
 
   const pesquisar = () => void buscar(1, { codigo, descricao, incluirInativos })
   const escolher = (a: AcabadoEscolhido) => {
@@ -108,9 +117,7 @@ export default function PesquisaAcabadosModal({ opened, onClose, onEscolher, cod
               maxLength={200}
               style={{ flex: 1 }}
             />
-            <Button type="submit" leftSection={<IconSearch size={16} />} loading={carregando}>
-              Pesquisar
-            </Button>
+            {carregando && <Loader size="xs" mb={10} aria-label="Pesquisando" />}
           </Group>
           <Checkbox
             mt="xs"

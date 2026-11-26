@@ -4,10 +4,11 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   Modal, Stack, Autocomplete, Text, Group, Badge, Loader, Button, Alert,
 } from '@mantine/core'
-import { IconUser, IconSearch, IconAlertCircle } from '@tabler/icons-react'
+import { IconUser, IconSearch, IconAlertCircle, IconUserPlus } from '@tabler/icons-react'
 import { useDebouncedValue } from '@mantine/hooks'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
+import ClienteRapidoModal from './_orcamento/ClienteRapidoModal'
 
 // ============================================================================
 // Modal enxuto "Editar Cabeçalho" (Ponto 10 / Req 7 dos ajustes de Caio).
@@ -64,6 +65,7 @@ export default function EditarCabecalhoModal({
 
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  const [rapidoAberto, setRapidoAberto] = useState(false)
 
   // Semear os campos com os valores atuais sempre que o modal abrir.
   useEffect(() => {
@@ -213,11 +215,40 @@ export default function EditarCabecalhoModal({
         )}
 
         {!clienteIdSel && clienteNomeSel.trim() && (
-          <Group gap="xs">
-            <Badge color="orange" variant="light">Prospect</Badge>
-            <Text size="sm">{clienteNomeSel}</Text>
+          <Group gap="xs" justify="space-between" wrap="nowrap">
+            <Group gap="xs" wrap="nowrap">
+              <Badge color="orange" variant="light">Prospect</Badge>
+              <Text size="sm">{clienteNomeSel}</Text>
+            </Group>
+            <Button size="compact-xs" variant="light" leftSection={<IconUserPlus size={12} />} onClick={() => setRapidoAberto(true)}>
+              Cadastrar cliente
+            </Button>
           </Group>
         )}
+        {!clienteNomeSel.trim() && (
+          <Button
+            variant="subtle"
+            size="xs"
+            leftSection={<IconUserPlus size={14} />}
+            onClick={() => setRapidoAberto(true)}
+            style={{ alignSelf: 'flex-start' }}
+          >
+            Cliente novo
+          </Button>
+        )}
+        <ClienteRapidoModal
+          opened={rapidoAberto}
+          onClose={() => setRapidoAberto(false)}
+          textoInicial={clienteNomeSel}
+          onCriado={(c) => {
+            const fantasia = (c.nomeFantasia || '').trim()
+            const base = fantasia && fantasia.toLowerCase() !== c.razaoSocial.toLowerCase() ? `${c.razaoSocial} (${fantasia})` : c.razaoSocial
+            const rotulo = c.codigoCalcgraf ? `${c.codigoCalcgraf} - ${base}` : base
+            setBusca(rotulo)
+            setClienteIdSel(c.id)
+            setClienteNomeSel(c.razaoSocial)
+          }}
+        />
 
         <Autocomplete
           label="Representante/Vendedor"

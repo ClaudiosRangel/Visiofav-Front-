@@ -15,7 +15,7 @@
  * SeletorCalculoPadrao sem filtro de linha; "Usar" abre o orçamento.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -27,6 +27,8 @@ import { notifications } from '@mantine/notifications'
 import { api } from '@/lib/api'
 import { useEmpresa } from '@/providers/EmpresaProvider'
 import ClientePrincipalBusca, { type ClientePrincipal } from '../[id]/_orcamento/ClientePrincipalBusca'
+import SeletorPrazoPagamento from '../[id]/_orcamento/SeletorPrazoPagamento'
+import UltimoCalculoCliente, { type UltimoCalculo } from '../[id]/_orcamento/UltimoCalculoCliente'
 import DialogoLinhaProduto, { type LinhaProdutoSelecionada } from '../DialogoLinhaProduto'
 import SeletorCalculoPadrao from '../_calculo-padrao/SeletorCalculoPadrao'
 import { SERIES_ENDPOINT, nomeSerieExibicao, type SerieDocumento } from '../cadastros/_shared/series'
@@ -70,7 +72,10 @@ function NovoOrcamentoConteudo() {
   const [carregandoSeries, setCarregandoSeries] = useState(true)
   const [serieId, setSerieId] = useState<string | null>(null)
   const [cliente, setCliente] = useState<ClientePrincipal | null>(null)
+  const [prazoId, setPrazoId] = useState<string | null>(null)
+  const [usandoUltimo, setUsandoUltimo] = useState(false)
   const dataHoje = useMemo(() => hojeSaoPaulo(), [])
+  const escolherPrazo = useCallback((id: string | null) => setPrazoId(id), [])
 
   const [criado, setCriado] = useState<OrcamentoCriado | null>(null)
   const [criando, setCriando] = useState(false)
@@ -114,6 +119,7 @@ function NovoOrcamentoConteudo() {
         payload.clienteId = cliente.id
         payload.clienteNome = cliente.nome
       }
+      if (prazoId) payload.prazoPagamentoId = prazoId
       const { data } = await api.post('/orcamento-grafico/cabecalho', payload)
       const novo: OrcamentoCriado = { id: String(data.id), numero: Number(data.numero) }
       setCriado(novo)
@@ -152,6 +158,22 @@ function NovoOrcamentoConteudo() {
 
   const irParaOrcamento = () => {
     if (criado) router.replace(`/orcamento-grafico/${criado.id}`)
+  }
+
+  /** Último cálculo do cliente → cria o cabeçalho (se preciso), puxa o cálculo e abre o orçamento. */
+  const usarUltimoCalculo = async (calc: UltimoCalculo) => {
+    const novo = await criarOrcamento()
+    if (!novo) return
+    setUsandoUltimo(true)
+    try {
+      await api.post(`/orcamento-grafico/${novo.id}/itens/usar-calculo`, { calculoId: calc.id })
+      notifications.show({ title: 'Item criado', message: `Item criado a partir do cálculo ${calc.numero}.`, color: 'green' })
+      router.replace(`/orcamento-grafico/${novo.id}`)
+    } catch (err: any) {
+      notifications.show({ title: 'Erro', message: err?.response?.data?.message || 'Falha ao usar o cálculo.', color: 'red' })
+    } finally {
+      setUsandoUltimo(false)
+    }
   }
 
   return (
@@ -203,7 +225,7 @@ function NovoOrcamentoConteudo() {
       )}
 
       <Paper withBorder p="md" radius="md">
-        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
           <Select
             label="Série"
             data={opcoesSerie}
@@ -216,12 +238,28 @@ function NovoOrcamentoConteudo() {
           />
           <TextInput label="Nº" value={criado ? String(criado.numero) : 'auto'} readOnly />
           <TextInput label="Data" value={formatarDataBr(dataHoje)} readOnly />
+          <SeletorPrazoPagamento
+            value={prazoId}
+            onChange={escolherPrazo}
+            clienteId={cliente?.id ?? null}
+            aplicarPadrao
+            disabled={!!criado}
+          />
         </SimpleGrid>
 
         <Stack mt="md" gap="xs">
-          <ClientePrincipalBusca value={cliente} onChange={setCliente} disabled={!!criado} />
+          <ClientePrincipalBusca value={cliente} onChange={setCliente} disabled={!!criado} permitirCadastroRapido />
         </Stack>
       </Paper>
+
+      {cliente && (
+        <UltimoCalculoCliente
+          clienteId={cliente.id}
+          onUsar={(c) => void usarUltimoCalculo(c)}
+          usando={usandoUltimo}
+          disabled={criando}
+        />
+      )}
 
       <Paper withBorder p="md" radius="md">
         <Table withTableBorder>
@@ -258,6 +296,7 @@ function NovoOrcamentoConteudo() {
           onClose={() => setSeletorAberto(false)}
           orcamentoId={criado.id}
           linhaInicial={null}
+          clienteInicial={cliente}
           onUsado={irParaOrcamento}
         />
       )}

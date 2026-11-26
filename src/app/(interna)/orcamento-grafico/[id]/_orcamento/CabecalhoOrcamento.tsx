@@ -32,6 +32,10 @@ export interface CabecalhoOrcamentoProps {
   onAlterarReformaTributaria?: (marcado: boolean) => void
   /** Botões da barra de ações (ex.: Preview, Proposta). */
   acoes?: ReactNode
+  /** Prazo de pagamento do orçamento (campo próprio, ao lado da data). */
+  prazo?: ReactNode
+  /** Conteúdo abaixo do cliente (ex.: último cálculo do cliente). */
+  aposCliente?: ReactNode
   /** Destino da primeira migalha. */
   hrefLista?: string
 }
@@ -47,6 +51,8 @@ export default function CabecalhoOrcamento({
   onEditarCliente,
   onAlterarReformaTributaria,
   acoes,
+  prazo,
+  aposCliente,
   hrefLista = '/orcamento-grafico',
 }: CabecalhoOrcamentoProps) {
   return (
@@ -64,7 +70,7 @@ export default function CabecalhoOrcamento({
       </Group>
 
       <Paper withBorder p="md" radius="md">
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: prazo ? 5 : 4 }} spacing="md">
           <TextInput
             label="Série"
             value={serie?.trim() ? serie : serieId ? rotuloSerieCabecalho(serie) : ''}
@@ -73,6 +79,7 @@ export default function CabecalhoOrcamento({
           />
           <TextInput label="Número do orçamento" value={String(numero)} readOnly />
           <TextInput label="Data" value={dataOrcamento ? formatarData(dataOrcamento) : ''} readOnly placeholder="—" />
+          {prazo}
           <Checkbox
             mt={{ base: 0, lg: 28 }}
             label="Reforma Tributária 2027"
@@ -97,6 +104,7 @@ export default function CabecalhoOrcamento({
             </ActionIcon>
           </Tooltip>
         </Group>
+        {aposCliente && <Stack mt="sm">{aposCliente}</Stack>}
       </Paper>
     </Stack>
   )

@@ -12,6 +12,21 @@ export interface LinhaFechamentoExibicao {
   contribuicaoMarginalPerc: number | null
   valorUnitario: number
   valorTotal: number
+  /** Σ custo de produção dos itens da tiragem. */
+  custoProducao: number
+}
+
+export type SituacaoMargemFechamento = 'DENTRO' | 'ABAIXO' | 'SEM_REFERENCIA'
+
+/** Margem entre custo e preço da linha ((preço − custo) ÷ preço) e a situação frente à mínima. */
+export function margemDaLinha(
+  l: Pick<LinhaFechamentoExibicao, 'valorTotal' | 'custoProducao'>,
+  minima: number | null | undefined,
+): { margem: number | null; situacao: SituacaoMargemFechamento } {
+  if (!(l.valorTotal > 0) || !Number.isFinite(l.custoProducao)) return { margem: null, situacao: 'SEM_REFERENCIA' }
+  const margem = Math.round(((l.valorTotal - l.custoProducao) / l.valorTotal) * 10000) / 100
+  if (minima == null || !Number.isFinite(minima)) return { margem, situacao: 'SEM_REFERENCIA' }
+  return { margem, situacao: margem + 1e-9 >= minima ? 'DENTRO' : 'ABAIXO' }
 }
 
 function arred(x: number, casas: number): number {
@@ -52,6 +67,7 @@ export function totalizarPorTiragem(linhas: readonly FechamentoLinhaDTO[]): Linh
         contribuicaoMarginalPerc: ponderar((l) => l.contribuicaoMarginalPerc),
         valorUnitario: valorUnitarioDe(valorTotal, tiragem),
         valorTotal,
+        custoProducao: arred(g.reduce((s, l) => s + (Number(l.custoProducao) || 0), 0), 2),
       }
     })
 }

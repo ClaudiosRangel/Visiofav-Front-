@@ -61,6 +61,8 @@ export interface FechamentoTotalizadorDTO {
   linhas: FechamentoLinhaDTO[]
   itensSemCalculo: ItemSemCalculoDTO[]
   quantidadeSemCalculo: number
+  /** Margem mínima entre custo e preço (%), configurada no orçamento. */
+  margemMinima?: number | null
 }
 
 export interface ComissaoLinhaDTO {
