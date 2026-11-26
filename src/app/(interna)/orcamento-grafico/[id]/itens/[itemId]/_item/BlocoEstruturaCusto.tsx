@@ -8,8 +8,8 @@
  * cálculo ao vivo, quando existirem). Sem KPIs, mostra só a decomposição.
  */
 
-import { Loader, Stack } from '@mantine/core'
-import { IconChartPie } from '@tabler/icons-react'
+import { Button, Group, Loader, Stack } from '@mantine/core'
+import { IconCalculator, IconChartPie } from '@tabler/icons-react'
 
 import ResumoKpis from '../../../editor/ResumoKpis'
 import SecaoEstruturaCusto from '../../../editor/SecaoEstruturaCusto'
@@ -23,14 +23,42 @@ export interface BlocoEstruturaCustoProps {
   kpis?: KpisCalculo | null
   /** Cálculo ao vivo em andamento. */
   calculando?: boolean
+  /** Botão Calcular no cabeçalho do bloco (o mesmo do topo da tela). */
+  onCalcular?: () => void
+  /** Desabilita o botão Calcular (ex.: salvando). */
+  desabilitado?: boolean
 }
 
-export default function BlocoEstruturaCusto({ resultadoCalculo, kpis, calculando }: BlocoEstruturaCustoProps) {
+export default function BlocoEstruturaCusto({
+  resultadoCalculo,
+  kpis,
+  calculando,
+  onCalcular,
+  desabilitado,
+}: BlocoEstruturaCustoProps) {
   return (
     <CartaoSecao
       titulo="Estrutura de custo"
       icone={<IconChartPie size={16} />}
-      direita={calculando ? <Loader size="xs" /> : undefined}
+      direita={
+        onCalcular ? (
+          <Group gap="xs">
+            <Button
+              variant="light"
+              size="xs"
+              leftSection={<IconCalculator size={14} />}
+              onClick={onCalcular}
+              loading={calculando === true}
+              disabled={desabilitado}
+              data-testid="estrutura-custo-calcular"
+            >
+              Calcular
+            </Button>
+          </Group>
+        ) : calculando ? (
+          <Loader size="xs" />
+        ) : undefined
+      }
       data-testid="bloco-estrutura-custo"
     >
       <Stack gap="md">

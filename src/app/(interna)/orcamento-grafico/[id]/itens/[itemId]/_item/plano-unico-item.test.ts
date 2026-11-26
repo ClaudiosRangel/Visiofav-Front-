@@ -8,6 +8,7 @@ import {
   coresDoValor,
   coresTextoDoItem,
   leituraCalculada,
+  leituraDoResultado,
   planoUnicoDoItem,
   planoUnicoParaForm,
   planoUnicoVazio,
@@ -299,5 +300,19 @@ describe('Montagem e Formato de Corte (somente leitura)', () => {
       leituraCalculada({ montagemLinhas: 2, montagemColunas: 3, formatoCorteLarguraMm: 650, formatoCorteAlturaMm: 1225 }),
     ).toEqual({ montagem: '2x3', formatoCorte: '650 x 1225' })
     expect(leituraCalculada(null)).toEqual({ montagem: '', formatoCorte: '' })
+  })
+})
+
+describe('leituraDoResultado (Montagem e Formato de Corte do cálculo)', () => {
+  it('usa a grade do encaixe e a folha do cálculo', () => {
+    const r = { encaixe: { aproveitamento: 4, layout: { linhas: 2, colunas: 2, folhaLarguraMm: 660, folhaAlturaMm: 960 } } }
+    expect(leituraDoResultado(r)).toEqual({ montagem: '2x2', formatoCorte: '660 x 960' })
+  })
+  it('aproveitamento informado à mão que não bate com a grade mostra peças por folha', () => {
+    const r = { encaixe: { aproveitamento: 3, layout: { linhas: 2, colunas: 2, folhaLarguraMm: 650, folhaAlturaMm: 1225 } } }
+    expect(leituraDoResultado(r).montagem).toBe('3 por folha')
+  })
+  it('sem resultado fica vazio', () => {
+    expect(leituraDoResultado(null)).toEqual({ montagem: '', formatoCorte: '' })
   })
 })

@@ -78,7 +78,7 @@ import ComplementosDoItem, { type ValorComplementosItem } from './ComplementosDo
 import MargemDoItem from './MargemDoItem'
 import { aplicarPreMarcadas, type AtividadeCadastro } from './acabamento-item'
 import { numeroParaTexto, type ValorFormato } from './formato-item'
-import { aplicarPadroesNoValor, leituraCalculada } from './plano-unico-item'
+import { aplicarPadroesNoValor, leituraCalculada, leituraDoResultado } from './plano-unico-item'
 import {
   aplicarTipoDoProduto,
   estadoInicialTelaItem,
@@ -641,7 +641,10 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
   const podeEditar = orcamento.status === 'RASCUNHO'
   const estrutura = layout?.estrutura ?? null
   const ocupado = salvando || calculando
-  const { montagem, formatoCorte } = leituraCalculada(formFinal ?? form)
+  const doForm = leituraCalculada(formFinal ?? form)
+  const doCalculo = leituraDoResultado(resultado)
+  const montagem = doForm.montagem || doCalculo.montagem
+  const formatoCorte = doForm.formatoCorte || doCalculo.formatoCorte
   const kpis = kpisDe(resultado)
   const planosPersistidos = Array.isArray(itemCarregado?.planos) ? itemCarregado!.planos!.length : 0
 
@@ -981,7 +984,13 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
         contribuicaoMarginalPerc={cmPerc}
       />
 
-      <BlocoEstruturaCusto resultadoCalculo={resultado} kpis={kpis} calculando={calculando} />
+      <BlocoEstruturaCusto
+              resultadoCalculo={resultado}
+              kpis={kpis}
+              calculando={calculando}
+              onCalcular={podeEditar ? calcular : undefined}
+              desabilitado={ocupado && !calculando}
+            />
 
       <Group justify="flex-start">
         <Button variant="default" leftSection={<IconArrowLeft size={14} />} onClick={() => guarda.navegar(urlOrcamento)}>

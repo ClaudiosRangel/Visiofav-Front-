@@ -255,3 +255,28 @@ export function leituraCalculada(
     formatoCorte: textoFormatoCorte(form?.formatoCorteLarguraMm, form?.formatoCorteAlturaMm),
   }
 }
+
+/**
+ * Montagem e Formato de Corte a partir do resultado do cálculo (`resultado.encaixe`), para quando o
+ * formulário ainda não os tem (item novo, recém-calculado). Montagem = linhas x colunas do encaixe;
+ * se o aproveitamento usado não bate com a grade (aproveitamento informado à mão), mostra o número de
+ * peças por folha. Formato de Corte = a folha usada no cálculo.
+ */
+export function leituraDoResultado(resultado: unknown): { montagem: string; formatoCorte: string } {
+  const r = resultado && typeof resultado === 'object' ? (resultado as Record<string, unknown>) : null
+  const encaixe = r?.encaixe && typeof r.encaixe === 'object' ? (r.encaixe as Record<string, unknown>) : null
+  const layout = encaixe?.layout && typeof encaixe.layout === 'object' ? (encaixe.layout as Record<string, unknown>) : null
+  const aproveitamento = positivo(encaixe?.aproveitamento as Numero)
+  const linhas = positivo(layout?.linhas as Numero)
+  const colunas = positivo(layout?.colunas as Numero)
+  let montagem = ''
+  if (linhas !== null && colunas !== null && (aproveitamento === null || linhas * colunas === aproveitamento)) {
+    montagem = textoMontagem(linhas, colunas)
+  } else if (aproveitamento !== null) {
+    montagem = `${numeroParaTexto(aproveitamento)} por folha`
+  }
+  return {
+    montagem,
+    formatoCorte: textoFormatoCorte(layout?.folhaLarguraMm as Numero, layout?.folhaAlturaMm as Numero),
+  }
+}

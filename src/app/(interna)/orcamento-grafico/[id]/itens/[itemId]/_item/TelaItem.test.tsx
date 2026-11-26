@@ -158,7 +158,9 @@ describe('TelaItem — carga e blocos por estrutura', () => {
     }
     expect(screen.queryByTestId('tipos-de-plano')).toBeNull()
     expect(screen.getByRole('button', { name: 'Salvar' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Calcular' })).toBeInTheDocument()
+    // Calcular no cabeçalho e também na faixa da Estrutura de custo.
+    expect(screen.getAllByRole('button', { name: 'Calcular' })).toHaveLength(2)
+    expect(screen.getByTestId('estrutura-custo-calcular')).toBeInTheDocument()
     // Cores NxM vindas do numCores do item.
     expect((screen.getByLabelText('Cores') as HTMLInputElement).value).toBe('3x0')
   })

@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios'
 import { instalarTratamentoAtualizacao } from './backend-status'
+import { podeRelogar, solicitarRelogin } from './relogin'
 import {
   getAuthToken,
   setAuthToken,
@@ -147,6 +148,18 @@ api.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${data.token}`
         return api(originalRequest)
       } catch (refreshError) {
+        // Refresh falhou. Se a tela tem o modal "Sua sessão expirou", pede a senha POR CIMA da
+        // página e refaz a requisição — sem recarregar e sem perder o que foi digitado.
+        if (podeRelogar()) {
+          try {
+            const novoToken = await solicitarRelogin()
+            processQueue(null, novoToken)
+            originalRequest.headers.Authorization = `Bearer ${novoToken}`
+            return api(originalRequest)
+          } catch {
+            // Usuário desistiu: segue o fluxo antigo abaixo.
+          }
+        }
         // Refresh falhou — limpar tudo e redirecionar ao login
         processQueue(refreshError as Error, null)
         clearAuthSession()

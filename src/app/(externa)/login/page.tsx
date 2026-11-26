@@ -34,7 +34,7 @@ export default function LoginPage() {
       // e grava o token no sessionStorage (isolado por aba) + semente.
       clearAuthSession()
       setAuthToken(response.data.token)
-      setUserRaw(JSON.stringify(response.data.usuario))
+      setUserRaw(JSON.stringify({ ...response.data.usuario, email: data.email }))
       // Armazenar refresh token para renovação automática
       if (response.data.refreshToken) {
         setRefreshToken(response.data.refreshToken)
