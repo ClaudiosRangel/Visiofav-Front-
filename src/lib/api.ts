@@ -33,44 +33,94 @@ function processQueue(error: Error | null, token: string | null) {
   failedQueue = []
 }
 
-// === Token Keep-Alive: renova proativamente enquanto o usuário estiver ativo ===
+// === Token Keep-Alive: renova proativamente enquanto o usuário estiver usando ===
+// Regra: enquanto a tela está em uso, a sessão NÃO expira. O access token dura 60 min; renovamos
+// a cada 4 min quando houve uso nos últimos 30 min (e sempre nas telas do PCP, ex.: painel na TV),
+// e também ao voltar para a aba/computador quando o token está perto de vencer.
+// Se a aba não tem refresh token (storage limpo por outra aba, sessão antiga), renova pelo próprio
+// access token ainda válido (`POST /auth/renovar`) — antes, nesse caso, nada era renovado e a
+// sessão vencia no meio do trabalho ("Refresh token não fornecido").
 let keepAliveInterval: ReturnType<typeof setInterval> | null = null
 let lastActivity = Date.now()
+let renovando: Promise<boolean> | null = null
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'
+const JANELA_USO_MS = 30 * 60 * 1000
+const PERTO_DE_VENCER_MS = 15 * 60 * 1000
+
+/** Validade (ms epoch) do access token, lida do JWT; null se não der para ler. */
+function expiracaoDoToken(token: string | null): number | null {
+  if (!token) return null
+  try {
+    const parte = token.split('.')[1]
+    const json = JSON.parse(atob(parte.replace(/-/g, '+').replace(/_/g, '/')))
+    return typeof json.exp === 'number' ? json.exp * 1000 : null
+  } catch {
+    return null
+  }
+}
+
+/** Renova a sessão desta aba. Tenta o refresh token; sem ele (ou se falhar), o access token válido. */
+export function renovarSessao(): Promise<boolean> {
+  if (renovando) return renovando
+  renovando = (async () => {
+    const refreshToken = getRefreshToken()
+    if (refreshToken) {
+      try {
+        const { data } = await axios.post(`${API_BASE}/auth/refresh`, { refreshToken })
+        // Grava só na sessão DESTA aba (e semente) — não migra outras abas.
+        if (data.token) setAuthToken(data.token)
+        if (data.refreshToken) setRefreshToken(data.refreshToken)
+        if (data.token) return true
+      } catch {
+        // cai para a renovação pelo access token
+      }
+    }
+    const token = getAuthToken()
+    const exp = expiracaoDoToken(token)
+    if (!token || (exp !== null && exp <= Date.now())) return false
+    try {
+      const { data } = await axios.post(`${API_BASE}/auth/renovar`, {}, { headers: { Authorization: `Bearer ${token}` } })
+      if (data.token) setAuthToken(data.token)
+      if (data.refreshToken) setRefreshToken(data.refreshToken)
+      return Boolean(data.token)
+    } catch {
+      return false
+    }
+  })().finally(() => {
+    renovando = null
+  })
+  return renovando
+}
 
 function startTokenKeepAlive() {
   if (typeof window === 'undefined') return
   if (keepAliveInterval) return // Já está rodando
 
-  // Detectar atividade do usuário
+  // Detectar uso da tela (digitar, clicar, rolar, mover o mouse, focar campos).
   const updateActivity = () => { lastActivity = Date.now() }
-  window.addEventListener('mousemove', updateActivity, { passive: true })
-  window.addEventListener('keydown', updateActivity, { passive: true })
-  window.addEventListener('click', updateActivity, { passive: true })
-  window.addEventListener('touchstart', updateActivity, { passive: true })
+  for (const ev of ['mousemove', 'keydown', 'click', 'touchstart', 'scroll', 'wheel', 'input', 'focusin']) {
+    window.addEventListener(ev, updateActivity, { passive: true, capture: true })
+  }
 
-  // A cada 4 minutos, se houve atividade nos últimos 5 min, renova token.
-  // Exceção: páginas do PCP (ex: painel na TV) renovam SEMPRE, independente
-  // de atividade do usuário — evita logout em telas de monitoramento.
-  keepAliveInterval = setInterval(async () => {
-    const inatividade = Date.now() - lastActivity
-    const isPcp = typeof window !== 'undefined' && window.location.pathname.startsWith('/pcp')
-    if (!isPcp && inatividade > 5 * 60 * 1000) return // Mais de 5 min sem uso — não renova (exceto PCP)
+  const emUso = () => window.location.pathname.startsWith('/pcp') || Date.now() - lastActivity <= JANELA_USO_MS
 
-    const refreshToken = getRefreshToken()
-    if (!refreshToken) return
+  keepAliveInterval = setInterval(() => {
+    if (window.location.pathname === '/login' || !emUso()) return
+    void renovarSessao()
+  }, 4 * 60 * 1000)
 
-    try {
-      const { data } = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3333/api'}/auth/refresh`,
-        { refreshToken },
-      )
-      // Grava só na sessão DESTA aba (e semente) — não migra outras abas.
-      if (data.token) setAuthToken(data.token)
-      if (data.refreshToken) setRefreshToken(data.refreshToken)
-    } catch {
-      // Silencioso — o interceptor de 401 cuida se falhar
+  // Voltou para a aba / acordou o computador: se o token está perto de vencer, renova na hora.
+  const aoVoltar = () => {
+    if (document.visibilityState !== 'visible' || window.location.pathname === '/login') return
+    const exp = expiracaoDoToken(getAuthToken())
+    if (exp === null || exp - Date.now() < PERTO_DE_VENCER_MS) {
+      lastActivity = Date.now()
+      void renovarSessao()
     }
-  }, 4 * 60 * 1000) // A cada 4 minutos
+  }
+  document.addEventListener('visibilitychange', aoVoltar)
+  window.addEventListener('focus', aoVoltar)
 }
 
 // Iniciar keep-alive no carregamento do módulo
