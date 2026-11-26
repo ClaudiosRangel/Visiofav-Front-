@@ -335,6 +335,19 @@ export default function NovaSolicitacaoPage() {
     (w.tipoEntrega !== 'FRACIONADA' || !!w.entregaFracionadaDias.trim()) &&
     (camadasPreenchidas || (repeticao && origemSemDados))
 
+  // Lista do que ainda falta, para o representante saber por que o botão está desabilitado.
+  const pendencias: string[] = []
+  if (!clienteId) pendencias.push('Cliente')
+  if (repeticao && !produtoId) pendencias.push('Produto a repetir')
+  if (repeticao && !!produtoId && !pedidoOrigemChave) pendencias.push('Pedido a repetir')
+  if (!tipoEmbalagem) pendencias.push('Tipo de embalagem')
+  if (tiragensValidas.length === 0) pendencias.push('Quantidade (tiragens)')
+  if (!(camadasPreenchidas || (repeticao && origemSemDados))) pendencias.push('Matéria-prima (cartão)')
+  if (!w.mercado.trim()) pendencias.push('Mercado atuante')
+  if (!cidadeInformada) pendencias.push(w.ufOrigem ? 'Cidade de origem' : 'UF e cidade de origem')
+  if (w.tipoEntrega === 'FRACIONADA' && !w.entregaFracionadaDias.trim()) pendencias.push('A cada quantos dias (entrega fracionada)')
+  if (!entregaMesmoEndereco && !w.entregaEndereco.trim()) pendencias.push('Endereço de entrega')
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!formValido || !clienteId || !tipoEmbalagem) return
@@ -840,6 +853,11 @@ export default function NovaSolicitacaoPage() {
             </Stack>
           </Card>
 
+          {pendencias.length > 0 && (
+            <Alert color="orange" variant="light" title="Para enviar, preencha:">
+              {pendencias.join(', ')}.
+            </Alert>
+          )}
           <Button type="submit" fullWidth loading={criarSolicitacao.isPending}
             disabled={!formValido || criarSolicitacao.isPending}>
             Enviar Solicitação
