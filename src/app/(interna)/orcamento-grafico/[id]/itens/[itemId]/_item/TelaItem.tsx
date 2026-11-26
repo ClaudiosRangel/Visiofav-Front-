@@ -767,6 +767,8 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
           onSuporteNcCriado={(r) => atualizarForm(aplicarSuporteNcCriado(r))}
           tintas={form.cores}
           onTintas={(cores) => atualizarForm({ cores: cores as WizardFormData['cores'] })}
+          preImpressao={form.preImpressao ?? null}
+          onPreImpressao={(valor) => atualizarForm({ preImpressao: valor })}
           disabled={ocupado}
         />
         <BlocoAcabamento

@@ -28,6 +28,8 @@ import type { LayoutItem } from '../../../_layout/resolver-layout-item'
 import { useCoberturasTinta, useProcessosImpressao } from '../../../_hooks/useOpcoesPlanoUnico'
 import BotaoPropriedades from './BotaoPropriedades'
 import BotaoTintas from './BotaoTintas'
+import PreImpressaoModal from './PreImpressaoModal'
+import type { PreImpressao } from './pre-impressao'
 import { tintasDaCoberturaPorNome } from './tintas-cadastro'
 import type { CorGravada } from './tintas-item'
 import BotaoSuporteNc from './BotaoSuporteNc'
@@ -60,6 +62,9 @@ export interface BlocoPlanoUnicoProps {
   /** Tintas do item (janela "Tintas" ao lado da Cobertura). Sem `onTintas` o botão não aparece. */
   tintas?: ReadonlyArray<Partial<CorGravada>> | null
   onTintas?: (cores: CorGravada[]) => void
+  /** Janela Pré-Impressão (botão Pré). Sem onPreImpressao o Pré só aplica o processo padrão. */
+  preImpressao?: PreImpressao | null
+  onPreImpressao?: (valor: PreImpressao) => void
   disabled?: boolean
 }
 
@@ -75,9 +80,12 @@ export default function BlocoPlanoUnico({
   onSuporteNcCriado,
   tintas,
   onTintas,
+  preImpressao,
+  onPreImpressao,
   disabled,
 }: BlocoPlanoUnicoProps) {
   const [processoTravado, setProcessoTravado] = useState(false)
+  const [preAberta, setPreAberta] = useState(false)
   const processos = useProcessosImpressao(layout.estrutura === 'PLANO_UNICO')
   const coberturas = useCoberturasTinta(layout.estrutura === 'PLANO_UNICO')
 
@@ -130,12 +138,15 @@ export default function BlocoPlanoUnico({
                 disabled={disabled}
                 style={{ flex: 1, minWidth: 0 }}
               />
-              <Tooltip label="Aplicar o processo padrão do produto">
+              <Tooltip label={onPreImpressao ? 'Pré-Impressão: CTP, fotolito, contatos e montagem' : 'Aplicar o processo padrão do produto'}>
                 <Button
                   variant="default"
                   size="sm"
-                  disabled={disabled || processoTravado || !processoPre}
-                  onClick={() => processoPre && onChange({ processoImpressao: processoPre })}
+                  disabled={onPreImpressao ? disabled : disabled || processoTravado || !processoPre}
+                  onClick={() => {
+                    if (onPreImpressao) setPreAberta(true)
+                    else if (processoPre) onChange({ processoImpressao: processoPre })
+                  }}
                 >
                   Pré
                 </Button>
@@ -285,6 +296,17 @@ export default function BlocoPlanoUnico({
               Tentar novamente
             </Anchor>
           </Group>
+        )}
+        {onPreImpressao && (
+          <PreImpressaoModal
+            opened={preAberta}
+            onClose={() => setPreAberta(false)}
+            value={preImpressao}
+            onConfirmar={onPreImpressao}
+            processoPadrao={processoTravado ? null : processoPre}
+            onAplicarProcessoPadrao={(p) => onChange({ processoImpressao: p })}
+            disabled={disabled}
+          />
         )}
       </Stack>
     </CartaoSecao>

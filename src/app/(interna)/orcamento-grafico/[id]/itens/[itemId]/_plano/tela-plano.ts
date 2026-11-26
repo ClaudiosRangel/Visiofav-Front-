@@ -35,6 +35,7 @@ import {
   type EspecFaixa,
 } from '../../../_validacao/validar-faixa'
 import { numeroParaTexto } from '../_item/formato-item'
+import { lerPreImpressao, type PreImpressao } from '../_item/pre-impressao'
 import type { BlocoSuporteEspec, CorPlano, EspecificacaoPlanoV1, PlanoLeitura } from './plano.types'
 
 export const MAX_NOME_PLANO = 60
@@ -73,6 +74,8 @@ export interface EstadoTelaPlano {
   acabamentosRicos: AcabamentoRicoSelecionado[]
   /** Tintas do plano (janela Tintas): viram as `cores` do cálculo. */
   tintas: CorPlano[]
+  /** Janela Pré-Impressão do plano (só gravada; não altera o preço). */
+  preImpressao: PreImpressao | null
   /** Mantidos do plano gravado (sem campo na tela). */
   gramatura: number | null
 }
@@ -125,6 +128,7 @@ export function estadoPlanoNovo(ctx: ContextoItemPlano): EstadoTelaPlano {
     capaInterna: { ...SUPORTE_VAZIO, cores: '', processoImpressao: '', coberturaTinta: '' },
     acabamentosRicos: [],
     tintas: [],
+    preImpressao: null,
     gramatura: null,
   }
 }
@@ -161,6 +165,7 @@ export function estadoDoPlano(
     },
     cores,
     tintas: Array.isArray(plano.cores) ? plano.cores.map((c) => ({ ...c })) : [],
+    preImpressao: lerPreImpressao((plano as { preImpressao?: unknown }).preImpressao),
     processoImpressao: texto(e?.processoImpressao),
     coberturaTinta: numeroParaTexto(e?.coberturaTinta ?? null),
     principal: suporteDe(e?.suportePrincipal),
@@ -498,6 +503,8 @@ export function montarBodyTelaPlano(
   }
   // Tintas da janela (lista vazia = sem tinta no plano).
   body.cores = estado.tintas.map((c) => semNulos(c as unknown as Record<string, unknown>))
+  // Janela Pré-Impressão (ausente = não altera o que já está gravado).
+  if (estado.preImpressao) body.preImpressao = estado.preImpressao
   if (posicaoApos) body.posicaoApos = posicaoApos
   return body
 }

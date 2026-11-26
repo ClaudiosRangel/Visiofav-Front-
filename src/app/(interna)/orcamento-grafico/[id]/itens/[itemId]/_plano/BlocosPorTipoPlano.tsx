@@ -22,6 +22,8 @@ import { IconLock, IconLockOpen } from '@tabler/icons-react'
 import BotaoPropriedades from '../_item/BotaoPropriedades'
 import BotaoSuporteNc from '../_item/BotaoSuporteNc'
 import BotaoTintas from '../_item/BotaoTintas'
+import PreImpressaoModal from '../_item/PreImpressaoModal'
+import type { PreImpressao } from '../_item/pre-impressao'
 import type { CorGravada } from '../_item/tintas-item'
 import SeletorSuportePlano, { type OpcaoSuporte } from './SeletorSuportePlano'
 import { MAX_PROCESSO_PLANO, MAX_TEXTO_CURTO, type BlocoSuporteForm, type BlocosTelaPlano, type ErrosTelaPlano, type EstadoTelaPlano } from './tela-plano'
@@ -49,6 +51,9 @@ export interface CamposImpressaoProps {
   /** Tintas (janela ao lado da Cobertura). Sem `onTintas` o botão não aparece. */
   tintas?: ReadonlyArray<Partial<CorGravada>> | null
   onTintas?: (cores: CorGravada[]) => void
+  /** Janela Pré-Impressão (botão Pré). Sem onPreImpressao o Pré só aplica o processo padrão. */
+  preImpressao?: PreImpressao | null
+  onPreImpressao?: (valor: PreImpressao) => void
 }
 
 export function CamposImpressao({
@@ -62,8 +67,11 @@ export function CamposImpressao({
   compacto,
   tintas,
   onTintas,
+  preImpressao,
+  onPreImpressao,
 }: CamposImpressaoProps) {
   const [travado, setTravado] = useState(false)
+  const [preAberta, setPreAberta] = useState(false)
   const r = (t: string) => (sufixoRotulo ? `${t} ${sufixoRotulo}` : t)
   const cores = (
     <TextInput
@@ -95,12 +103,15 @@ export function CamposImpressao({
           required
           style={{ flex: 1, minWidth: 0 }}
         />
-        <Tooltip label="Aplicar o processo padrão do produto">
+        <Tooltip label={onPreImpressao ? 'Pré-Impressão: CTP, fotolito, contatos e montagem' : 'Aplicar o processo padrão do produto'}>
           <Button
             variant="default"
             size="sm"
-            disabled={disabled || travado || !processoPre}
-            onClick={() => processoPre && onChange({ processoImpressao: processoPre })}
+            disabled={onPreImpressao ? disabled : disabled || travado || !processoPre}
+            onClick={() => {
+              if (onPreImpressao) setPreAberta(true)
+              else if (processoPre) onChange({ processoImpressao: processoPre })
+            }}
           >
             Pré
           </Button>
@@ -142,21 +153,38 @@ export function CamposImpressao({
   ) : (
     campoCobertura
   )
+  const modalPre = onPreImpressao ? (
+    <PreImpressaoModal
+      opened={preAberta}
+      onClose={() => setPreAberta(false)}
+      value={preImpressao}
+      onConfirmar={onPreImpressao}
+      processoPadrao={travado ? null : processoPre}
+      onAplicarProcessoPadrao={(p) => onChange({ processoImpressao: p })}
+      disabled={disabled}
+    />
+  ) : null
   if (compacto) {
     return (
-      <Grid gutter="sm" align="flex-end">
-        <Grid.Col span={{ base: 12, sm: 2 }}>{cores}</Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 6 }}>{processo}</Grid.Col>
-        <Grid.Col span={{ base: 12, sm: 4 }}>{cobertura}</Grid.Col>
-      </Grid>
+      <>
+        <Grid gutter="sm" align="flex-end">
+          <Grid.Col span={{ base: 12, sm: 2 }}>{cores}</Grid.Col>
+          <Grid.Col span={{ base: 12, sm: 6 }}>{processo}</Grid.Col>
+          <Grid.Col span={{ base: 12, sm: 4 }}>{cobertura}</Grid.Col>
+        </Grid>
+        {modalPre}
+      </>
     )
   }
   return (
-    <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-      {cores}
-      {processo}
-      {cobertura}
-    </SimpleGrid>
+    <>
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+        {cores}
+        {processo}
+        {cobertura}
+      </SimpleGrid>
+      {modalPre}
+    </>
   )
 }
 

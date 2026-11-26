@@ -561,6 +561,8 @@ export default function TelaPlano({
             compacto
             tintas={estado.tintas}
             onTintas={(cores) => alterar({ tintas: cores }, ['tintas'])}
+            preImpressao={estado.preImpressao}
+            onPreImpressao={(valor) => alterar({ preImpressao: valor }, ['preImpressao'])}
             value={estado}
             onChange={(p) => alterar(p, Object.keys(p))}
             processos={processos.nomes}

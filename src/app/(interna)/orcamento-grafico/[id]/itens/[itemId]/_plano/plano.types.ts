@@ -31,6 +31,8 @@ export interface CorPlano {
 
 export interface PlanoLeitura {
   id: string
+  /** Janela Pré-Impressão gravada no plano (formato de lerPreImpressao). */
+  preImpressao?: unknown
   sequencia: number
   nome: string
   tipoPlanoId: string | null

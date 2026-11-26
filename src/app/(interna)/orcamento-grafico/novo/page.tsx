@@ -20,6 +20,7 @@ import StepDadosTecnicos from './StepDadosTecnicos'
 import StepRevisao from './StepRevisao'
 import { montarPayloadDadosTecnicos } from './dadosTecnicosPayload'
 import type { SelecaoPendente } from '../[id]/editor/catalogo/catalogo.types'
+import { lerPreImpressao, type PreImpressao } from '../[id]/itens/[itemId]/_item/pre-impressao'
 
 // ============================================================================
 // Tipos do Wizard
@@ -153,6 +154,8 @@ export interface WizardFormData {
   itensDiversos?: Array<{ descricao: string; quantidade: number; valor: number; fixo: boolean }>
   itensFornecidos?: Array<{ descricao: string; quantidade: number }>
   camposLivres?: Array<{ rotulo: string; conteudo: string }>
+  /** Janela Pré-Impressão (CTP, fotolito, contatos, montagem); só gravada, não altera o preço. */
+  preImpressao?: PreImpressao | null
   // ──────────────────────────────────────────────────────────────────────────
   // Task 4 (spec orcamento-grafico-op-relatorio-paridade) — Dados Técnicos:
   // paridade (Req 1), geometria/formatos (Req 2) e acondicionamento (Req 3).
@@ -267,6 +270,7 @@ const INITIAL_FORM: WizardFormData = {
   itensDiversos: [],
   itensFornecidos: [],
   camposLivres: [],
+  preImpressao: null,
   // Task 4 — Dados Técnicos (paridade / geometria / acondicionamento)
   siglaAcabado: '',
   tributacao: '',
@@ -439,6 +443,7 @@ export default function NovoOrcamentoGraficoPage() {
           itensDiversos: data.itensDiversos ?? [],
           itensFornecidos: data.itensFornecidos ?? [],
           camposLivres: data.camposLivres ?? [],
+          preImpressao: lerPreImpressao(data.preImpressao),
           // Task 4 — Dados Técnicos (paridade / geometria / acondicionamento)
           siglaAcabado: data.siglaAcabado ?? '',
           tributacao: data.tributacao ?? '',

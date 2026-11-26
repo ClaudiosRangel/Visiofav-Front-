@@ -94,6 +94,7 @@ export function itemParaEditar(
     itensDiversos: item.itensDiversos ?? null,
     itensFornecidos: item.itensFornecidos ?? null,
     camposLivres: item.camposLivres ?? null,
+    preImpressao: item.preImpressao ?? null,
     quantidade: item.quantidade,
     tiragens: Array.isArray(item.tiragens) ? item.tiragens.map((t: { quantidade: number }) => ({ quantidade: Number(t.quantidade) })) : null,
     resultadoCalculo: item.resultadoCalculo ?? null,

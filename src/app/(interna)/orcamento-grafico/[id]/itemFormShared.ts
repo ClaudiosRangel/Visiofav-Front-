@@ -23,6 +23,7 @@ import { api } from '@/lib/api'
 import type { WizardFormData, CorItem, AcabamentoItem, MaterialAcabamentoItem } from '../novo/page'
 import { extrairTiragensDasObservacoes } from '../novo/page'
 import { montarPayloadDadosTecnicos } from '../novo/dadosTecnicosPayload'
+import { lerPreImpressao } from './itens/[itemId]/_item/pre-impressao'
 
 // ============================================================================
 // Estado inicial do item (espelha o INITIAL_FORM do wizard, sem campos de
@@ -72,6 +73,7 @@ export const INITIAL_ITEM: WizardFormData = {
   itensDiversos: [],
   itensFornecidos: [],
   camposLivres: [],
+  preImpressao: null,
   // Task 4 — Dados Técnicos (paridade / geometria / acondicionamento)
   siglaAcabado: '',
   tributacao: '',
@@ -142,6 +144,7 @@ export interface ItemParaEditar {
   itensDiversos?: Array<{ descricao: string; quantidade: number; valor: number; fixo: boolean }> | null
   itensFornecidos?: Array<{ descricao: string; quantidade: number }> | null
   camposLivres?: Array<{ rotulo: string; conteudo: string }> | null
+  preImpressao?: unknown
   // Task 4 — Dados Técnicos (paridade / geometria / acondicionamento)
   siglaAcabado?: string | null
   tributacao?: string | null
@@ -267,6 +270,7 @@ export function itemParaForm(
     itensDiversos: (item.itensDiversos as any) ?? [],
     itensFornecidos: (item.itensFornecidos as any) ?? [],
     camposLivres: (item.camposLivres as any) ?? [],
+    preImpressao: lerPreImpressao(item.preImpressao),
     // Task 4 — Dados Técnicos (paridade / geometria / acondicionamento)
     siglaAcabado: item.siglaAcabado ?? '',
     tributacao: item.tributacao ?? '',

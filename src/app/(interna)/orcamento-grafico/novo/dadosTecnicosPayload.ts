@@ -44,6 +44,8 @@ export function montarPayloadDadosTecnicos(formData: WizardFormData): Record<str
     arte: str(formData.arte),
     observacao: str(formData.observacao),
     observacaoAreasOp: str(formData.observacaoAreasOp),
+    // Janela Pré-Impressão (só gravada; ausente = não altera).
+    preImpressao: formData.preImpressao ?? undefined,
     conteudoVolume: num(formData.conteudoVolume),
     acondicionamento: acond.length > 0 ? acond : undefined,
     // Geometria / formatos (Req 2)
