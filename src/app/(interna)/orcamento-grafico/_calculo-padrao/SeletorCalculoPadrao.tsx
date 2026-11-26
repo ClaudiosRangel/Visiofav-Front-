@@ -31,15 +31,18 @@ function mensagemDoAviso(a: AvisoUsoCalculo): string {
 }
 
 export interface ClienteDoSeletor {
-  codigo?: string | null
+  /** O código do cliente pode vir como número (codigoCalcgraf é inteiro). */
+  codigo?: string | number | null
   nome?: string | null
 }
+
+const texto = (v: unknown): string => (v == null ? '' : String(v)).trim()
 
 /** Filtros ao abrir: linha escolhida e o cliente do orçamento (código, se houver; senão o nome). */
 export function filtrosIniciais(linhaInicial?: string | null, cliente?: ClienteDoSeletor | null): FiltrosCalculoValores {
   const f = filtrosCalculoVazios(linhaInicial)
-  const codigo = (cliente?.codigo ?? '').trim()
-  const nome = (cliente?.nome ?? '').trim()
+  const codigo = texto(cliente?.codigo)
+  const nome = texto(cliente?.nome)
   if (codigo) f.clienteCodigo = codigo
   else if (nome) f.clienteNome = nome
   return f

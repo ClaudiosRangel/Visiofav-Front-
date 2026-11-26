@@ -38,7 +38,7 @@ interface Resposta {
 const LIMITE = 50
 
 export default function PesquisaAcabadosModal({ opened, onClose, onEscolher, codigoInicial }: PesquisaAcabadosModalProps) {
-  const [codigo, setCodigo] = useState(() => (codigoInicial ?? '').trim())
+  const [codigo, setCodigo] = useState(() => String(codigoInicial ?? '').trim())
   const [descricao, setDescricao] = useState('')
   const [incluirInativos, setIncluirInativos] = useState(false)
   const [pagina, setPagina] = useState(1)
