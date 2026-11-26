@@ -12,15 +12,13 @@ import {
 } from '@mantine/core'
 import { IconAlertTriangle, IconFolderOpen, IconPlus, IconTrash } from '@tabler/icons-react'
 
-import { carregarCoberturas, carregarTintas, type CoberturaComTintas } from './tintas-cadastro'
+import { carregarTintas } from './tintas-cadastro'
 import {
   MAX_TINTAS,
   coresDasLinhas,
   linhaVazia,
   linhasDasCores,
   resumoTintas,
-  tintasDaCobertura,
-  totalDeCores,
   validarLinhasTinta,
   type CorGravada,
   type LinhaTinta,
@@ -33,20 +31,11 @@ export interface BotaoTintasProps {
   disabled?: boolean
   /** Ex.: "da capa interna" (título da janela). */
   sufixoTitulo?: string
-  /** Cores do plano ("NxM"): quantas tintas a cobertura preenche. */
-  cores?: string
-  /** Nome da cobertura escolhida no plano (pré-seleciona "Preencher pela cobertura"). */
-  coberturaAtual?: string | null
 }
 
-const normal = (s: string) =>
-  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
-
-export default function BotaoTintas({ value, onChange, disabled, sufixoTitulo, cores, coberturaAtual }: BotaoTintasProps) {
+export default function BotaoTintas({ value, onChange, disabled, sufixoTitulo }: BotaoTintasProps) {
   const [aberto, setAberto] = useState(false)
   const [cadastro, setCadastro] = useState<TintaCadastro[]>([])
-  const [coberturas, setCoberturas] = useState<CoberturaComTintas[]>([])
-  const [coberturaId, setCoberturaId] = useState<string | null>(null)
   const [erroCarga, setErroCarga] = useState<string | null>(null)
   const [linhas, setLinhas] = useState<LinhaTinta[]>([])
   const [tentou, setTentou] = useState(false)
@@ -59,30 +48,14 @@ export default function BotaoTintas({ value, onChange, disabled, sufixoTitulo, c
         setErroCarga(null)
       })
       .catch(() => setErroCarga('Não foi possível carregar o cadastro de tintas.'))
-    carregarCoberturas()
-      .then((l) => {
-        const comTintas = l.filter((c) => c.tintasPadrao)
-        setCoberturas(comTintas)
-        const atual = coberturaAtual ? comTintas.find((c) => normal(c.nome) === normal(coberturaAtual)) : undefined
-        setCoberturaId((v) => v ?? atual?.id ?? null)
-      })
-      .catch(() => setCoberturas([]))
-  }, [aberto, coberturaAtual])
+  }, [aberto])
 
+  // Como no sistema de referência: a janela abre vazia e só vem preenchida quando o item nasce de um
+  // cálculo existente. Em orçamento novo, as tintas são incluídas à mão.
   const abrir = () => {
-    const iniciais = linhasDasCores(value, cadastro)
-    setLinhas(iniciais.length > 0 ? iniciais : [linhaVazia()])
+    setLinhas(linhasDasCores(value, cadastro))
     setTentou(false)
-    setCoberturaId(null)
     setAberto(true)
-  }
-
-  const qtdCores = totalDeCores(cores)
-  const preencherPelaCobertura = () => {
-    const cob = coberturas.find((c) => c.id === coberturaId)
-    if (!cob) return
-    const novas = tintasDaCobertura(cob.tintasPadrao, cores, cadastro)
-    if (novas.length > 0) setLinhas(linhasDasCores(novas, cadastro))
   }
 
   const opcoes = useMemo(() => {
@@ -151,31 +124,6 @@ export default function BotaoTintas({ value, onChange, disabled, sufixoTitulo, c
             <Alert color="yellow" variant="light" icon={<IconAlertTriangle size={16} />}>
               {erroCarga}
             </Alert>
-          )}
-          {coberturas.length > 0 && (
-            <Group gap="xs" align="flex-end" wrap="nowrap">
-              <Select
-                size="xs"
-                label="Preencher pela cobertura"
-                placeholder="Escolha a cobertura"
-                data={coberturas.map((c) => ({ value: c.id, label: c.nome }))}
-                value={coberturaId}
-                onChange={setCoberturaId}
-                comboboxProps={{ withinPortal: true }}
-                style={{ flex: 1, maxWidth: 260 }}
-              />
-              <Tooltip
-                label={
-                  qtdCores > 0
-                    ? `Substitui as linhas pelas tintas da cobertura para ${qtdCores} ${qtdCores === 1 ? 'cor' : 'cores'}`
-                    : 'Informe as cores do plano (ex.: 4x0)'
-                }
-              >
-                <Button size="xs" variant="light" disabled={!coberturaId || qtdCores === 0} onClick={preencherPelaCobertura}>
-                  Preencher
-                </Button>
-              </Tooltip>
-            </Group>
           )}
           <Table withTableBorder verticalSpacing={4}>
             <Table.Thead bg="var(--mantine-color-default-hover)">
