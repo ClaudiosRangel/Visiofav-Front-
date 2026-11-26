@@ -8,6 +8,7 @@ import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
 import PlanosOverview, { PlanoOP } from '@/components/pcp/PlanosOverview'
 import { rotuloPlano } from '@/lib/plano-rotulo'
+import ApontamentosDaOp from '@/components/pcp/ApontamentosDaOp'
 
 const STATUS_COLORS: Record<string, string> = {
   RASCUNHO: 'gray', PLANEJADA: 'blue', PROGRAMADA: 'indigo', LIBERADA: 'cyan', EM_PRODUCAO: 'orange', CONCLUIDA: 'green', CANCELADA: 'red',
@@ -626,6 +627,7 @@ export default function DetalheOpPage() {
           <Tabs.Tab value="planos" leftSection={<IconLayoutGrid size={16} />}>Planos ({planos.length})</Tabs.Tab>
           <Tabs.Tab value="variacoes" leftSection={<IconPalette size={16} />}>Variações ({variacoes.length})</Tabs.Tab>
           <Tabs.Tab value="entregas" leftSection={<IconTruck size={16} />}>Entregas ({programacoes.length})</Tabs.Tab>
+          <Tabs.Tab value="apontamentos" leftSection={<IconClipboardCheck size={16} />}>Apontamentos</Tabs.Tab>
           <Tabs.Tab value="historico" leftSection={<IconClipboardCheck size={16} />}>Histórico</Tabs.Tab>
         </Tabs.List>
 
@@ -769,6 +771,11 @@ export default function DetalheOpPage() {
               </Table.Tbody>
             </Table>
           ) : <Text c="dimmed" ta="center">Nenhuma entrega programada</Text>}
+        </Tabs.Panel>
+
+        {/* ABA APONTAMENTOS — histórico de todas as etapas, inclusive finalizadas */}
+        <Tabs.Panel value="apontamentos" pt="md">
+          <ApontamentosDaOp opId={id} />
         </Tabs.Panel>
 
         {/* ABA HISTÓRICO */}

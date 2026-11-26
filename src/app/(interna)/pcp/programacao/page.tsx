@@ -490,13 +490,29 @@ export default function ProgramacaoPage() {
   async function acaoLoteIniciar() {
     setAcaoLoteLoading(true)
     let sucesso = 0
+    const falhas: string[] = []
+    const etapasDoPainel = new Map<string, any>()
+    for (const c of (painel?.centros || [])) for (const e of (c.etapas || [])) etapasDoPainel.set(e.id, e)
     for (const etapaId of selectedEtapas) {
       try {
         await api.patch(`/pcp/etapas/${etapaId}/iniciar`, {})
         sucesso++
-      } catch { /* ignora falhas individuais */ }
+      } catch (err: any) {
+        const e = etapasDoPainel.get(etapaId)
+        falhas.push(`OS ${e?.opNumero ?? '?'}: ${err?.response?.data?.message || 'falha ao iniciar'}`)
+      }
     }
-    notifications.show({ title: 'Lote concluído', message: `${sucesso} etapa(s) iniciada(s)`, color: 'green' })
+    if (falhas.length === 0) {
+      notifications.show({ title: 'Lote concluído', message: `${sucesso} etapa(s) iniciada(s)`, color: 'green' })
+    } else {
+      notifications.show({
+        title: `${sucesso} iniciada(s), ${falhas.length} não iniciada(s)`,
+        message: falhas.slice(0, 6).join('\n') + (falhas.length > 6 ? `\n… e mais ${falhas.length - 6}` : ''),
+        color: sucesso > 0 ? 'orange' : 'red',
+        autoClose: false,
+        style: { whiteSpace: 'pre-line' },
+      })
+    }
     // Mantém a seleção para permitir ações encadeadas — usuário limpa com "Limpar".
     setAcaoLoteLoading(false)
     // Recarrega silenciosamente
