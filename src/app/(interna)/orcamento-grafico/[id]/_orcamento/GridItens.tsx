@@ -20,7 +20,7 @@ import {
   ActionIcon, Alert, Anchor, Badge, Button, Group, Menu, Modal, Paper, Skeleton, Stack, Text, TextInput, Tooltip,
 } from '@mantine/core'
 import {
-  IconAlertCircle, IconCopy, IconDots, IconExternalLink, IconPlus, IconSearch, IconTrash,
+  IconAlertCircle, IconCopy, IconDots, IconExternalLink, IconLayersSubtract, IconPlus, IconSearch, IconTrash,
 } from '@tabler/icons-react'
 import { DataTable, type DataTableColumn, type DataTableSortStatus } from 'mantine-datatable'
 
@@ -261,6 +261,18 @@ export default function GridItens({
           >
             Abrir item
           </Button>
+          <Tooltip label="Editor do cálculo do item: planos do cálculo, atividades e detalhes">
+            <Button
+              size="xs"
+              variant="default"
+              leftSection={<IconLayersSubtract size={14} />}
+              disabled={semSelecao || ocupado}
+              onClick={() => selecionado && router.push(`${hrefDoItem(selecionado)}/editor`)}
+              data-testid="grid-itens-editor"
+            >
+              Editor
+            </Button>
+          </Tooltip>
           <Button
             size="xs"
             variant="default"

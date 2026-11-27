@@ -53,7 +53,11 @@ export default function EditorCalculo({ orcamentoId, itemId }: { orcamentoId: st
 
   const carregar = useCallback(async () => {
     try {
-      const { data } = await api.get<VisaoEditor>(`${base}/editor`)
+      let { data } = await api.get<VisaoEditor>(`${base}/editor`)
+      // Como no sistema de referência, o Editor já abre com os planos do cálculo montados.
+      if (data.item.editavel && !data.gerado) {
+        data = (await api.post<VisaoEditor>(`${base}/editor/gerar`)).data
+      }
       setVisao(data)
       setErro(null)
     } catch (err) {
@@ -147,7 +151,7 @@ export default function EditorCalculo({ orcamentoId, itemId }: { orcamentoId: st
               <Anchor component={Link} href={base} size="xs">{visao.item.descricao || 'Item'}</Anchor>
               <Text size="xs" fw={600} c="blue">Editor do cálculo</Text>
             </Breadcrumbs>
-            <Title order={4}>Editor do cálculo</Title>
+            <Title order={4}>Editor — Cálculo Nº {visao.numeroCalculo ?? '—'}</Title>
             <Text size="xs" c="dimmed">
               Linha: {visao.linhaProduto ?? '—'} · Tiragem: {visao.item.tiragem.toLocaleString('pt-BR')} · Sigla acabado: {visao.item.siglaAcabado || '—'}
               {visao.calculoOrigem ? ` · Gerado a partir do cálculo ${visao.calculoOrigem}` : ''}

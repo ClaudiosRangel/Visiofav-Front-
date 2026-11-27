@@ -113,6 +113,8 @@ export interface VisaoEditor {
   }
   linhaProduto: string | null
   modelo: string
+  /** Número do cálculo do item. */
+  numeroCalculo?: number | null
   calculoOrigem: number | null
   gerado: boolean
   folhas: FolhaApi[]
