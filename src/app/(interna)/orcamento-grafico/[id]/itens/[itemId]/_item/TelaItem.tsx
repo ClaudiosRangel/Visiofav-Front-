@@ -33,10 +33,11 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   Alert, Anchor, Badge, Breadcrumbs, Button, Center, Drawer, Grid, Group, Loader, Modal, Paper, Skeleton, Stack, Table, Text, ThemeIcon, Title,
+  Tooltip,
 } from '@mantine/core'
 import {
   IconAdjustmentsHorizontal, IconAlertCircle, IconArrowLeft, IconCalculator, IconCheck, IconDeviceFloppy, IconInfoCircle,
-  IconLayoutList, IconPackage, IconPlus, IconRuler, IconX,
+  IconLayersSubtract, IconLayoutList, IconPackage, IconPlus, IconRuler, IconX,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 
@@ -705,6 +706,18 @@ export default function TelaItem({ orcamentoId, itemId, linhaProdutoIdNovo = nul
             >
               Calcular
             </Button>
+            <Tooltip label={idItemAtual ? 'Planos do cálculo: refinar plano a plano' : 'Salve o item para abrir o Editor do cálculo'}>
+              <Button
+                variant="light"
+                size="sm"
+                leftSection={<IconLayersSubtract size={16} />}
+                onClick={() => idItemAtual && guarda.navegar(`/orcamento-grafico/${orcamentoId}/itens/${idItemAtual}/editor`)}
+                disabled={ocupado || !idItemAtual}
+                data-testid="tela-item-editor"
+              >
+                Editor
+              </Button>
+            </Tooltip>
             <Button
               variant="default"
               size="sm"
