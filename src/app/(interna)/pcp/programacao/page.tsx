@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Title, Stack, Table, Group, Badge, Text, Loader, Center, Collapse, UnstyledButton, Card, ScrollArea, Button, Modal, NumberInput, Select, Textarea, Progress, ActionIcon, Tabs, TextInput, SegmentedControl, Autocomplete, Box, FileButton, Image, Checkbox, Menu, Divider } from '@mantine/core'
+import { Title, Stack, Table, Group, Badge, Text, Loader, Center, Collapse, UnstyledButton, Card, ScrollArea, Button, Modal, NumberInput, Select, Textarea, Progress, ActionIcon, Tabs, TextInput, SegmentedControl, Autocomplete, Box, FileButton, Image, Checkbox, Menu, Divider, Alert } from '@mantine/core'
 import { DatePickerInput } from '@mantine/dates'
 import { IconChevronDown, IconChevronRight, IconPlayerPlay, IconPlayerPause, IconCheck, IconClipboardCheck, IconAlertTriangle, IconCut, IconGripVertical, IconSearch, IconFileText, IconPlus, IconArrowRight, IconX, IconPrinter, IconRefresh, IconCamera, IconSettings, IconPalette, IconCircleHalf2, IconAlertCircle } from '@tabler/icons-react'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
@@ -573,16 +573,35 @@ export default function ProgramacaoPage() {
 
   async function acaoLoteMover() {
     if (!centroDestinoLote) return
+    const destino = centrosDisponiveis.find((c: any) => c.value === centroDestinoLote)
+    if (!confirm(`Confirma mover ${selectedEtapas.size} etapa(s) para ${destino?.label ?? 'o grupo escolhido'}?`)) return
     setAcaoLoteLoading(true)
     let sucesso = 0
+    const falhas: string[] = []
+    const etapasDoPainel = new Map<string, any>()
+    for (const c of (painel?.centros || [])) for (const e of (c.etapas || [])) etapasDoPainel.set(e.id, e)
+    const total = selectedEtapas.size
     for (const etapaId of selectedEtapas) {
       try {
-        await api.patch(`/pcp/etapas/${etapaId}/mover`, { centroProducaoId: centroDestinoLote })
+        await api.patch(`/pcp/etapas/${etapaId}/mover`, { centroProducaoId: centroDestinoLote, loteTotal: total })
         sucesso++
-      } catch { /* ignora falhas individuais */ }
+      } catch (err: any) {
+        falhas.push(`OS ${etapasDoPainel.get(etapaId)?.opNumero ?? '?'}: ${err?.response?.data?.message || 'falha ao mover'}`)
+      }
     }
-    notifications.show({ title: 'Lote concluído', message: `${sucesso} etapa(s) movida(s)`, color: 'green' })
-    // Mantém a seleção (as etapas continuam selecionadas no centro destino).
+    if (falhas.length === 0) {
+      notifications.show({ title: 'Lote concluído', message: `${sucesso} etapa(s) movida(s)`, color: 'green' })
+    } else {
+      notifications.show({
+        title: `${sucesso} movida(s), ${falhas.length} não movida(s)`,
+        message: falhas.slice(0, 6).join('\n') + (falhas.length > 6 ? `\n… e mais ${falhas.length - 6}` : ''),
+        color: sucesso > 0 ? 'orange' : 'red',
+        autoClose: false,
+        style: { whiteSpace: 'pre-line' },
+      })
+    }
+    // Limpa a seleção: manter etapas marcadas depois de mover levava a mover de novo sem querer.
+    setSelectedEtapas(new Set())
     setModalMoverLote(false)
     setCentroDestinoLote(null)
     setAcaoLoteLoading(false)
@@ -4216,6 +4235,31 @@ export default function ProgramacaoPage() {
       {/* Modal: Mover em lote para outro grupo */}
       <Modal opened={modalMoverLote} onClose={() => { setModalMoverLote(false); setCentroDestinoLote(null) }} title={`Mover ${selectedEtapas.size} etapa(s) para outro grupo`} centered>
         <Stack gap="md">
+          {(() => {
+            // Resumo do que vai ser movido: de quais máquinas saem e quais OS.
+            const grupos = new Map<string, { nome: string; ops: string[] }>()
+            for (const c of (painel?.centros || [])) {
+              for (const e of (c.etapas || [])) {
+                if (!selectedEtapas.has(e.id)) continue
+                const chave = c.centro.id
+                const g = grupos.get(chave) ?? { nome: `${c.centro.codigo} - ${c.centro.descricao}`, ops: [] }
+                g.ops.push(String(e.opNumero ?? '?'))
+                grupos.set(chave, g)
+              }
+            }
+            return (
+              <Alert color="orange" variant="light" p="xs" title={`Você vai mover ${selectedEtapas.size} etapa(s)`}>
+                <Stack gap={4}>
+                  {Array.from(grupos.values()).map((g) => (
+                    <Text key={g.nome} size="xs">
+                      <b>De {g.nome}</b> ({g.ops.length}): OS {g.ops.slice(0, 12).join(', ')}{g.ops.length > 12 ? ` e mais ${g.ops.length - 12}` : ''}
+                    </Text>
+                  ))}
+                  <Text size="xs" c="dimmed">Confira a lista. Se houver etapa que não deveria ir, feche e clique em &quot;Limpar&quot;.</Text>
+                </Stack>
+              </Alert>
+            )
+          })()}
           <Text size="sm" c="dimmed">Selecione o grupo de destino (mesmo tipo de processo):</Text>
           <Select
             data={centrosDisponiveis.filter((c: any) => {
