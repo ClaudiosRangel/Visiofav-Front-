@@ -58,20 +58,40 @@ function validar(etapas: EtapaConfig[]): string[] {
   return erros
 }
 
+/**
+ * Setores que aguardam a vez enquanto `etapa` estiver em andamento: os de etapa ATIVA que vêm depois
+ * na sequência (espelha `aguardaPelaSequencia` do servidor). Eles continuam vendo o pedido.
+ */
+function aguardamPelaSequencia(etapas: EtapaConfig[], etapa: Etapa): Setor[] {
+  const i = etapas.findIndex((e) => e.etapa === etapa)
+  if (i < 0 || !etapas[i].ativa) return []
+  return SETORES.filter((s) => {
+    const j = etapas.findIndex((e) => e.etapa === s)
+    return s !== etapa && j > i && etapas[j].ativa
+  })
+}
+
 function Diagrama({ etapas }: { etapas: EtapaConfig[] }) {
   return (
     <Group gap="xs" wrap="wrap" align="stretch">
-      {etapas.map((e, i) => (
+      {etapas.map((e, i) => {
+        const aguardam = aguardamPelaSequencia(etapas, e.etapa).filter((s) => !e.bloqueia.includes(s))
+        return (
         <Group key={e.etapa} gap="xs" wrap="nowrap">
           <Card withBorder padding="sm" radius="md" style={{ opacity: e.ativa ? 1 : 0.4, minWidth: 130 }}>
             <Text fw={700} size="sm">{i + 1}. {ROTULO[e.etapa]}</Text>
             {!e.ativa ? (
               <Badge color="gray" size="xs" mt={4}>Pulada</Badge>
-            ) : e.bloqueia.length > 0 ? (
+            ) : e.bloqueia.length > 0 || aguardam.length > 0 ? (
               <Stack gap={2} mt={4}>
                 {e.bloqueia.map((s) => (
                   <Badge key={s} color="red" size="xs" variant="light" leftSection={<IconLock size={10} />}>
                     Bloqueia {ROTULO[s]}
+                  </Badge>
+                ))}
+                {aguardam.map((s) => (
+                  <Badge key={`a-${s}`} color="yellow" size="xs" variant="light">
+                    {ROTULO[s]} aguarda a vez
                   </Badge>
                 ))}
               </Stack>
@@ -84,7 +104,8 @@ function Diagrama({ etapas }: { etapas: EtapaConfig[] }) {
           </Card>
           {i < etapas.length - 1 && <Text c="dimmed">→</Text>}
         </Group>
-      ))}
+        )
+      })}
     </Group>
   )
 }
@@ -267,7 +288,9 @@ export default function FluxosPage() {
           })}
         </Stack>
         <Text size="xs" c="dimmed" mt="sm">
-          Só Comercial, Orçamento e Pré-Impressão podem trocar de ordem entre si. OP/PCP e Faturamento ficam sempre por último.
+          A ordem define quem espera quem: o setor de uma etapa posterior vê o pedido, mas só age quando chegar a vez dele.
+          Os bloqueios marcados somam a isso. Só Comercial, Orçamento e Pré-Impressão podem trocar de ordem entre si; OP/PCP e
+          Faturamento ficam sempre por último.
           O fluxo deve começar por Comercial ou Orçamento.
         </Text>
       </Card>
