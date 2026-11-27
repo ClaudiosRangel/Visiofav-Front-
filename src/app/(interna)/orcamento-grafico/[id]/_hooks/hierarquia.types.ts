@@ -19,6 +19,8 @@ export interface ItemResumoDTO {
   /** "Pendente" | "Liberado" | "Sem cálculo" */
   status: string
   op: ItemResumoOp | null
+  /** Pedido de venda gerado do orçamento ("Ped: N"). Ausente em respostas antigas. */
+  pedido?: { id: string; numero: number } | null
   temCalculo: boolean
 }
 

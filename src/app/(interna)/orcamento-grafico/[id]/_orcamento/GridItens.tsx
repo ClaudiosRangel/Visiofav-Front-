@@ -14,9 +14,10 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
-  ActionIcon, Alert, Badge, Button, Group, Menu, Modal, Paper, Skeleton, Stack, Text, TextInput, Tooltip,
+  ActionIcon, Alert, Anchor, Badge, Button, Group, Menu, Modal, Paper, Skeleton, Stack, Text, TextInput, Tooltip,
 } from '@mantine/core'
 import {
   IconAlertCircle, IconCopy, IconDots, IconExternalLink, IconPlus, IconSearch, IconTrash,
@@ -223,7 +224,15 @@ export default function GridItens({
       render: (i) => (
         <Stack gap={2} align="flex-start">
           <Badge variant="light" color={corDoStatus(i.status)}>{i.status}</Badge>
-          {i.op && <Text size="xs" c="dimmed">OP {i.op.numero}</Text>}
+          {i.op ? (
+            <Anchor component={Link} href={`/pcp/ordens-producao/${i.op.id}`} size="xs" onClick={(e) => e.stopPropagation()}>
+              OP: {i.op.numero}
+            </Anchor>
+          ) : i.pedido ? (
+            <Anchor component={Link} href={`/vendas/pedidos/${i.pedido.id}`} size="xs" onClick={(e) => e.stopPropagation()}>
+              Ped: {i.pedido.numero}
+            </Anchor>
+          ) : null}
         </Stack>
       ),
     },
