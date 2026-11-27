@@ -45,12 +45,9 @@ export const INITIAL_ITEM: WizardFormData = {
   papelDescricao: '',
   gramatura: 0,
   precoKg: 0,
-  cores: [
-    { nome: 'Ciano', tipo: 'CMYK', coberturaPercent: 30, precoKg: 45, rendimentoM2Kg: 15000 },
-    { nome: 'Magenta', tipo: 'CMYK', coberturaPercent: 30, precoKg: 45, rendimentoM2Kg: 15000 },
-    { nome: 'Amarelo', tipo: 'CMYK', coberturaPercent: 30, precoKg: 40, rendimentoM2Kg: 15000 },
-    { nome: 'Preto', tipo: 'CMYK', coberturaPercent: 40, precoKg: 35, rendimentoM2Kg: 18000 },
-  ],
+  // Item novo começa SEM tintas (o usuário inclui na janela Tintas). Só vem preenchido quando o item
+  // é puxado de um cálculo existente (as tintas do cálculo).
+  cores: [],
   acabamentos: [
     { tipo: 'CORTE_VINCO', label: 'Corte e Vinco', ativo: true, custoHora: 180, velocidade: 4000, custoMaterialM2: 0 },
     { tipo: 'COLAGEM', label: 'Colagem', ativo: true, custoHora: 150, velocidade: 8000, custoMaterialM2: 0 },
@@ -240,7 +237,7 @@ export function itemParaForm(
     papelDescricao: item.papelDescricao ?? '',
     gramatura: item.gramatura ? Number(item.gramatura) : 0,
     precoKg: precoKgCarregado,
-    cores: coresMapeadas.length > 0 ? coresMapeadas : INITIAL_ITEM.cores,
+    cores: coresMapeadas,
     acabamentosRicos: (item.acabamentosRicos as any) ?? [],
     // R6 — materiais de acabamento computados no custo (reabrir item salvo)
     materiaisAcabamento: Array.isArray(item.materiaisAcabamento)
