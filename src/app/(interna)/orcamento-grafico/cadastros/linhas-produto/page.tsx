@@ -3,34 +3,49 @@
 import { useEffect, useState } from 'react'
 import {
   Title, Stack, Table, Group, Button, Badge, Text, Loader, Center,
-  Modal, TextInput, Switch, ActionIcon, ScrollArea,
+  Modal, TextInput, Switch, ActionIcon, ScrollArea, Select,
 } from '@mantine/core'
 import { IconPlus, IconEdit } from '@tabler/icons-react'
 import { api } from '@/lib/api'
 import { notifications } from '@mantine/notifications'
 
 // ============================================================================
-// Linhas de Produto — cadastro simples (código, nome, ativo).
+// Linhas de Produto — cadastro (código, nome, modelo, ativo). O modelo define a regra do item:
+// plano único, vários planos ou capa + micro + capa interna (Cartucho Composto).
 // Endpoint base: /orcamento-grafico/linhas-produto
 // ============================================================================
+
+type Modelo = 'SIMPLES' | 'EDITORIAL' | 'CARTUCHO_COMPOSTO' | 'BLOCADO' | 'OUTRO'
+
+const MODELOS: Array<{ value: Modelo; label: string }> = [
+  { value: 'SIMPLES', label: 'Simples (plano único)' },
+  { value: 'EDITORIAL', label: 'Editorial (vários planos)' },
+  { value: 'CARTUCHO_COMPOSTO', label: 'Cartucho Composto (capa + micro + capa interna)' },
+  { value: 'BLOCADO', label: 'Blocado' },
+  { value: 'OUTRO', label: 'Outro' },
+]
+const rotuloModelo = (m: string | null | undefined) => MODELOS.find((x) => x.value === m)?.label ?? 'Simples (plano único)'
 
 interface LinhaProduto {
   id: string
   codigo: string
   nome: string
   ativo: boolean
+  modelo?: Modelo | null
 }
 
 interface FormData {
   codigo: string
   nome: string
   ativo: boolean
+  modelo: Modelo
 }
 
 const FORM_INICIAL: FormData = {
   codigo: '',
   nome: '',
   ativo: true,
+  modelo: 'SIMPLES',
 }
 
 export default function LinhasProdutoPage() {
@@ -70,7 +85,7 @@ export default function LinhasProdutoPage() {
 
   function abrirEdicao(item: LinhaProduto) {
     setEditando(item)
-    setForm({ codigo: item.codigo, nome: item.nome, ativo: item.ativo })
+    setForm({ codigo: item.codigo, nome: item.nome, ativo: item.ativo, modelo: item.modelo ?? 'SIMPLES' })
     setModalAberto(true)
   }
 
@@ -84,6 +99,7 @@ export default function LinhasProdutoPage() {
         codigo: form.codigo.trim(),
         nome: form.nome.trim(),
         ativo: form.ativo,
+        modelo: form.modelo,
       }
       if (editando) {
         await api.put(`/orcamento-grafico/linhas-produto/${editando.id}`, payload)
@@ -129,6 +145,7 @@ export default function LinhasProdutoPage() {
               <Table.Tr>
                 <Table.Th>Código</Table.Th>
                 <Table.Th>Nome</Table.Th>
+                <Table.Th>Modelo</Table.Th>
                 <Table.Th>Status</Table.Th>
                 <Table.Th></Table.Th>
               </Table.Tr>
@@ -138,6 +155,7 @@ export default function LinhasProdutoPage() {
                 <Table.Tr key={item.id}>
                   <Table.Td fw={500}>{item.codigo}</Table.Td>
                   <Table.Td>{item.nome}</Table.Td>
+                  <Table.Td>{rotuloModelo(item.modelo)}</Table.Td>
                   <Table.Td>
                     <Badge color={item.ativo ? 'green' : 'red'}>{item.ativo ? 'Ativo' : 'Inativo'}</Badge>
                   </Table.Td>
@@ -150,7 +168,7 @@ export default function LinhasProdutoPage() {
               ))}
               {data.length === 0 && (
                 <Table.Tr>
-                  <Table.Td colSpan={4}>
+                  <Table.Td colSpan={5}>
                     <Text ta="center" c="dimmed" py="md">Nenhuma linha de produto encontrada</Text>
                   </Table.Td>
                 </Table.Tr>
@@ -182,6 +200,14 @@ export default function LinhasProdutoPage() {
             required
             maxLength={200}
             placeholder="Ex: Embalagens Premium"
+          />
+          <Select
+            label="Modelo"
+            description="Regra do item: plano único, vários planos ou capa + micro + capa interna"
+            data={MODELOS}
+            value={form.modelo}
+            onChange={(v) => v && setForm({ ...form, modelo: v as Modelo })}
+            allowDeselect={false}
           />
           <Switch
             label="Ativo"
